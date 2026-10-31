@@ -4,7 +4,6 @@ use std::env;
 use std::error::Error;
 
 mod generate;
-mod i18n;
 mod media;
 mod packaged_playback;
 mod process;
@@ -44,7 +43,6 @@ fn print_usage() {
     eprintln!(
         "Usage:
   cargo run --locked -p xtask -- generate flatpak-sources [--check]
-  cargo run --locked -p xtask -- generate i18n-template [--check] [--output PATH]
   cargo run --locked -p xtask -- generate media-verification-files OUTPUT
   cargo run --locked -p xtask -- generate rpm-srpm TAG --output PATH
   cargo run --locked -p xtask -- release prepare VERSION SUMMARY

@@ -20,7 +20,6 @@ use std::{
 
 pub mod connect;
 mod context_menu;
-pub mod controller;
 pub mod dialogs;
 mod general;
 mod layout;
@@ -156,13 +155,12 @@ enum PreferencesPageKind {
     Downloads,
     Storage,
     Integrations,
-    Controller,
     Connect,
     Privacy,
 }
 
 impl PreferencesPageKind {
-    const ALL: [Self; 12] = [
+    const ALL: [Self; 11] = [
         Self::General,
         Self::Customization,
         Self::Theme,
@@ -172,7 +170,6 @@ impl PreferencesPageKind {
         Self::Library,
         Self::Downloads,
         Self::Connect,
-        Self::Controller,
         Self::Storage,
         Self::Privacy,
     ];
@@ -188,7 +185,6 @@ impl PreferencesPageKind {
             Self::Downloads => "downloads",
             Self::Storage => "storage",
             Self::Integrations => "integrations",
-            Self::Controller => "controller",
             Self::Connect => "connect",
             Self::Privacy => "privacy",
         }
@@ -205,7 +201,6 @@ impl PreferencesPageKind {
             Self::Downloads => tr("Downloads"),
             Self::Storage => tr("Storage"),
             Self::Integrations => tr("Integrations"),
-            Self::Controller => tr("Controller"),
             Self::Connect => tr("Connect"),
             Self::Privacy => tr("Privacy & Security"),
         }
@@ -222,7 +217,6 @@ impl PreferencesPageKind {
             Self::Downloads => "rufin-download-symbolic",
             Self::Storage => "rufin-drive-harddisk-symbolic",
             Self::Integrations => "rufin-network-workgroup-symbolic",
-            Self::Controller => "rufin-phonelink-symbolic",
             Self::Connect => "rufin-network-hotspot-symbolic",
             Self::Privacy => "rufin-system-lock-screen-symbolic",
         }
@@ -838,7 +832,6 @@ fn build_preferences_page(
         PreferencesPageKind::Equalizer => equalizer_page(shell).upcast(),
         PreferencesPageKind::Downloads => library::downloads_page(shell, dialog).upcast(),
         PreferencesPageKind::Storage => storage::page(shell, navigation_controls),
-        PreferencesPageKind::Controller => controller::page(shell).upcast(),
         PreferencesPageKind::Connect => connect::page(shell, dialog),
         PreferencesPageKind::Integrations => scrobbling_page(shell, credential_drafts).upcast(),
         PreferencesPageKind::Playback => playback_page(shell).upcast(),

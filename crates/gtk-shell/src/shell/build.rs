@@ -428,7 +428,6 @@ pub async fn build(
             },
             &chrome.app_content_stack,
         ));
-        let web_controller = Rc::new(web::Controller::new(products.clone()));
         let preferences = Rc::new(gtk_preferences::Preferences {
             state: preferences,
             settings: Rc::clone(&settings_state),
@@ -439,7 +438,6 @@ pub async fn build(
             artwork: Rc::clone(&artwork),
             appearance: Rc::clone(&appearance),
             control_feedback: Rc::clone(&control_feedback),
-            web_controller: Rc::clone(&web_controller),
             window: chrome.window.clone(),
             toast_overlay: chrome.toast_overlay.clone(),
             app_root_overlay: chrome.app_root_overlay.clone(),
@@ -459,7 +457,6 @@ pub async fn build(
                 products.library.clone(),
                 products.runtime.clone(),
             )),
-            web_controller,
             media_menus: super::media_menus::build(
                 weak,
                 &products,
@@ -503,13 +500,11 @@ pub async fn build(
             }
         }
     });
-    shell.preferences.bind_controller_appearance();
     shell.bind_sidebar_settings();
     let weak = Rc::downgrade(&shell);
     app.connect_shutdown(move |_| {
         settings_errors_task.abort();
         if let Some(shell) = weak.upgrade() {
-            shell.web_controller.stop();
             shell.products.scrobbling.shutdown();
             if let Err(error) = shell.products.settings.flush() {
                 tracing::warn!(%error, "could not finish saving settings");

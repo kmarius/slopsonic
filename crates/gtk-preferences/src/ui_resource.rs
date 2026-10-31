@@ -21,8 +21,6 @@ pub const GENERAL_PREFERENCES_RESOURCE: &str = "/io/github/screwys/Rufin/ui/pref
 pub const APPEARANCE_PREFERENCES_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/appearance.ui";
 pub const THEME_PREFERENCES_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/theme.ui";
-pub const CONTROLLER_PREFERENCES_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/controller.ui";
 pub const PRIVACY_PREFERENCES_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/privacy.ui";
 pub const STORAGE_PREFERENCES_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/storage.ui";
 pub const THEME_ACCENT_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/theme_accent.ui";
@@ -64,7 +62,6 @@ pub const JELLYFIN_EMBY_HOST_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/source/jellyfin_emby_host.ui";
 pub const FILE_INTEGRATION_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/source/file_integration.ui";
-pub const CONTROLLER_POPOVER_RESOURCE: &str = "/io/github/screwys/Rufin/ui/shell/controller.ui";
 pub const BASE_CSS_RESOURCE: &str = "/io/github/screwys/Rufin/ui/style.css";
 
 pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
@@ -83,7 +80,6 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     GENERAL_PREFERENCES_RESOURCE,
     APPEARANCE_PREFERENCES_RESOURCE,
     THEME_PREFERENCES_RESOURCE,
-    CONTROLLER_PREFERENCES_RESOURCE,
     STORAGE_PREFERENCES_RESOURCE,
     PRIVACY_PREFERENCES_RESOURCE,
     THEME_ACCENT_RESOURCE,
@@ -108,6 +104,5 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     CODE_LOGIN_RESOURCE,
     JELLYFIN_EMBY_HOST_RESOURCE,
     FILE_INTEGRATION_RESOURCE,
-    CONTROLLER_POPOVER_RESOURCE,
     BASE_CSS_RESOURCE,
 ];

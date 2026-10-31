@@ -1,7 +1,6 @@
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fs;
-use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -117,29 +116,6 @@ pub(crate) fn read_to_string(path: &Path) -> Result<String> {
 pub(crate) fn write_string(path: &Path, contents: &str) -> Result<()> {
     fs::write(path, contents)
         .map_err(|err| format!("failed to write {}: {err}", path.display()).into())
-}
-
-pub(crate) fn collect_files_with_extension(
-    root: &Path,
-    current: &Path,
-    extension: &str,
-    output: &mut Vec<PathBuf>,
-) -> io::Result<()> {
-    for entry in fs::read_dir(current)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_dir() {
-            collect_files_with_extension(root, &path, extension, output)?;
-        } else if path
-            .extension()
-            .and_then(|value| value.to_str())
-            .is_some_and(|value| value == extension)
-        {
-            let relative = path.strip_prefix(root).map_err(io::Error::other)?;
-            output.push(relative.to_path_buf());
-        }
-    }
-    Ok(())
 }
 
 pub(crate) fn path_to_slash(path: &Path) -> String {

@@ -807,7 +807,7 @@ dependencies = [
  "arrayvec",
  "cc",
  "cfg-if",
- "constant_time_eq 0.4.2",
+ "constant_time_eq",
  "cpufeatures 0.3.0",
 ]
 
@@ -1216,15 +1216,6 @@ name = "constant_time_eq"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
-
-[[package]]
-name = "constant_time_eq"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6187e670c346a04bcbf5def0393d57ec0e5ab56565cde6be4a7cbdb6cdc2f3f6"
-dependencies = [
- "rustversion",
-]
 
 [[package]]
 name = "convert_case"
@@ -3290,7 +3281,6 @@ dependencies = [
  "sources",
  "tempfile",
  "tracing",
- "web",
 ]
 
 [[package]]
@@ -3324,7 +3314,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
- "web",
 ]
 
 [[package]]
@@ -7550,7 +7539,6 @@ dependencies = [
  "rufin-core",
  "sources",
  "tokio",
- "web",
 ]
 
 [[package]]
@@ -10044,44 +10032,6 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
-]
-
-[[package]]
-name = "web"
-version = "0.16.6"
-dependencies = [
- "artwork",
- "askama",
- "async-channel",
- "audio-processing",
- "axum",
- "base64 0.23.1",
- "blake3",
- "bytes",
- "constant_time_eq 0.6.0",
- "downloads",
- "futures-util",
- "getrandom 0.4.3",
- "http-body-util",
- "hyper",
- "hyper-util",
- "image",
- "library",
- "localization",
- "lyrics",
- "playback",
- "playback-cast",
- "reqwest 0.13.5",
- "rufin-core",
- "secrets",
- "serde",
- "serde_json",
- "sources",
- "tempfile",
- "tokio",
- "tracing",
- "uniffi",
- "url",
 ]
 
 [[package]]

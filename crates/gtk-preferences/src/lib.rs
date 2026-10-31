@@ -17,7 +17,6 @@ pub struct Preferences {
     pub artwork: Rc<gtk_widgets::artwork::ArtworkState>,
     pub appearance: Rc<appearance::ApplicationAppearance>,
     pub control_feedback: Rc<gtk_widgets::feedback::ControlFeedbackState>,
-    pub web_controller: Rc<web::Controller>,
     pub window: gtk::ApplicationWindow,
     pub toast_overlay: adw::ToastOverlay,
     pub app_root_overlay: gtk::Overlay,

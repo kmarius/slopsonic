@@ -22,7 +22,6 @@ Do not implement or expand:
 ## Architecture
 
 - `crates/` — Rust workspace with modular crates
-- `web/` — Legacy/auxiliary; not the focus
 - `android/` — Out of scope
 
 When in doubt, prefer simplicity and removing code over adding features.

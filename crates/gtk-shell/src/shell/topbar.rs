@@ -15,7 +15,6 @@ pub(crate) struct Topbar {
     pub menu: gtk::MenuButton,
     sidebar: gtk::Button,
     source: gtk::MenuButton,
-    controller: gtk::MenuButton,
     pub casting_host: gtk::Box,
 }
 
@@ -71,7 +70,6 @@ impl Topbar {
             menu: gtk::MenuButton,
             sidebar: gtk::Button,
             source: gtk::MenuButton,
-            controller: gtk::MenuButton,
             casting_host: gtk::Box,
         });
         gtk_widgets::controls::configure_search_entry(&search);
@@ -86,7 +84,6 @@ impl Topbar {
             menu,
             sidebar,
             source,
-            controller,
             casting_host,
         }
     }
@@ -104,7 +101,6 @@ impl Topbar {
                 &self.search_host,
             )));
         super::navigation::install_primary_menu(&self.menu, shell);
-        crate::preferences::controller::bind_popover(&shell.preferences, &self.controller);
         let weak = Rc::downgrade(shell);
         self.source.set_create_popup_func(move |button| {
             if let Some(shell) = weak.upgrade() {

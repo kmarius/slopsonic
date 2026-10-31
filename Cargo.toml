@@ -44,7 +44,6 @@ rufin-core = { path = "crates/rufin-core" }
 scrobbling = { path = "crates/scrobbling" }
 secrets = { path = "crates/secrets" }
 sources = { path = "crates/sources" }
-web = { path = "crates/web" }
 
 # External dependencies
 axum = "0.8.9"

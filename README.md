@@ -23,8 +23,6 @@
 
 <br clear="all">
 
-![Rufin](resources/screenshots/Rufin_full.png)
-
 ## 📂 Sources
 
 - <img src="resources/icons/hicolor/symbolic/apps/io.github.screwys.Rufin-symbolic.svg" width="20" height="20" align="absmiddle" alt="">&nbsp;&nbsp;<strong>Local libraries</strong>: Rufin provides favorites, playlists, activity history, Auto DJ recommendations and metadata editing.
@@ -121,19 +119,6 @@ rufin --headless --listen
 - Type to search
 - Can run in the background or set to launch minimized, which uses the GNOME portal when available
 - System tray integration
-
-# Screenshots
-
-| | |
-|:---:|:---:|
-| ![Artist details](resources/screenshots/artist_detail.png) | ![Genres](resources/screenshots/genres.png) |
-| **Artist details** | **Genres** |
-| ![Smart playlists](resources/screenshots/smart_playlists.png) | ![Playback settings](resources/screenshots/playback_settings.png) |
-| **Smart playlists** | **Playback settings** |
-| ![Fullscreen player](resources/screenshots/fullscreen_player.png) | ![Visualizer settings](resources/screenshots/visualizer_settings.png) |
-| **Fullscreen player** | **Visualizer settings** |
-| ![Integrations](resources/screenshots/integrations.png) | ![Playlist settings](resources/screenshots/playlist_settings.png) |
-| **Integrations** | **Playlist settings** |
 
 # Installation
 
@@ -305,9 +290,6 @@ platform behavior testing.
 On Windows, `just build` creates the isolated versioned
 `.local/artifacts/Rufin.Devel-*-setup.exe` installer.
 
-Testing, Nix, and container controls are documented in
-[CONTRIBUTING.md](CONTRIBUTING.md#development-environment).
-
 # Troubleshooting
 
 Open **Troubleshooting** from the main menu, enable **Debug logging**, reproduce the problem, then click `Save`. Crash logs also appear here on
@@ -339,16 +321,6 @@ To delete all of Rufin’s local data, remove its directories for your operating
 - macOS: `~/Library/Caches/io.github.screwys.Rufin` and `~/Library/Application Support/io.github.screwys.Rufin`
 - Windows: `%LOCALAPPDATA%\screwys\Rufin` 
 
-# Contributing
-
-To contribute code, please see [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Translations
-
-You can also contribute by translating the app on [Weblate](https://hosted.weblate.org/projects/rufin/app/)
-
-[![Translation status](https://hosted.weblate.org/widgets/rufin/-/multi-auto.svg)](https://hosted.weblate.org/engage/rufin/?utm_source=widget)
-
 # Credits
 
 Built with [GTK 4](https://www.gtk.org/), [libadwaita](https://gitlab.gnome.org/GNOME/libadwaita/), [gtk-rs](https://gtk-rs.org/) and [GStreamer](https://gstreamer.freedesktop.org/)
@@ -358,27 +330,6 @@ Rufin is greatly influenced by [Feishin](https://github.com/jeffvli/feishin), an
 Player backend design and Smart Playlists are inspired from [Strawberry](https://github.com/strawberrymusicplayer/strawberry) (fork of [Clementine](https://github.com/clementine-player/Clementine)).
 
 Icon is designed by [Commenter25](https://commenter.cc) and it is licensed under CC-BY-SA-3.0.
-
-## Translation credits
-
-- Estonian translation by Priit Jõerüüt
-- Russian and Latvian translation by [aguhadug](https://github.com/aguhadug)
-- German translation by [sevachka](https://github.com/sevachka)
-- Chezch translation by [Jakub Cabal](https://github.com/jakubcabal)
-- Chinese (Traditional) translation by [Tsung-Ying Yu](https://github.com/an920107)
-- Finnish translation by Jiri Grönroos
-- French translation by Arnaud Constantin
-- Italian translation by [Patrick Canal](https://github.com/Superredstone)
-
-## Donations
-
-If you would like to contribute financially, you can do so on [Github](https://github.com/sponsors/screwys), [buymeacoffee](https://buymeacoffee.com/screwy) or via bitcoin: `bc1q4hmfnc64xsk2zprlw6d088kxkhv5xek8hmv87t`
-
-I would like to thank everyone who has made a donation:
-
-### Past Sponsors
-
-[gf3](https://github.com/gf3), [aguhadug](https://github.com/aguhadug) and 1 private sponsor
 
 # License
 

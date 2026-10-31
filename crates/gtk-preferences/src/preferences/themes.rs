@@ -39,7 +39,6 @@ pub(super) fn bind(shell: &Rc<Preferences>, builder: &gtk::Builder, resource: &s
                 })
         {
             shell.appearance.apply(&settings);
-            shell.publish_controller_appearance();
         }
     });
     let weak = Rc::downgrade(shell);
@@ -86,7 +85,6 @@ pub(super) fn bind(shell: &Rc<Preferences>, builder: &gtk::Builder, resource: &s
         errors.set_visible(!messages.is_empty());
         let settings = shell.settings.current.borrow().clone();
         shell.appearance.apply(&settings);
-        shell.publish_controller_appearance();
         populate(&shell, &grid, &dropdown, &standard_themes);
     };
     themes_reload.connect_clicked(move |_| reload());
@@ -190,7 +188,6 @@ fn populate(
                     })
             {
                 shell.appearance.apply(&settings);
-                shell.publish_controller_appearance();
             }
         });
 
@@ -360,7 +357,6 @@ fn populate(
                         })
                 {
                     shell.appearance.apply(&settings);
-                    shell.publish_controller_appearance();
                     if let Some(preview) = preview.upgrade() {
                         preview.queue_draw();
                     }

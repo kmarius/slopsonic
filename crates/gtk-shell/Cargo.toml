@@ -12,7 +12,6 @@ publish.workspace = true
 
 [dependencies]
 gtk-preferences.workspace = true
-web.workspace = true
 gtk-media-menus.workspace = true
 gtk-editors.workspace = true
 gtk-library.workspace = true

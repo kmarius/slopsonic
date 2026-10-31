@@ -13,7 +13,6 @@ publish.workspace = true
 [dependencies]
 async-channel.workspace = true
 desktop-integration.workspace = true
-web.workspace = true
 presence.workspace = true
 pulldown-cmark.workspace = true
 tempfile.workspace = true

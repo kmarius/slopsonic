@@ -1,5 +1,4 @@
 use std::io::{self, Write};
-use std::net::SocketAddr;
 use std::process::ExitCode;
 use std::sync::Arc;
 
@@ -43,28 +42,13 @@ pub fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ExitCode {
 
 fn run_inner(arguments: impl Iterator<Item = std::ffi::OsString>) -> Result<(), String> {
     localization::initialize()?;
-    const USAGE: &str = "Usage: rufin --headless [--listen [ADDRESS:PORT]] [--] [FILE_OR_URI ...]\n       rufin-controller [--listen [ADDRESS:PORT]] [--] [FILE_OR_URI ...]\nOpen audio files or M3U, PLS and XSPF playlists. Press Ctrl+C to stop.\nTo enable web and API access, pass --listen and set RUFIN_API_TOKEN.\nDefault address: 127.0.0.1:1717. GET /api lists the available commands.";
+    const USAGE: &str = "Usage: rufin --headless [--] [FILE_OR_URI ...]\n       rufin-controller [--] [FILE_OR_URI ...]\nOpen audio files or M3U, PLS and XSPF playlists. Press Ctrl+C to stop.";
     let mut arguments = arguments.peekable();
-    let mut address: Option<SocketAddr> = None;
     let mut files = Vec::new();
     while let Some(option) = arguments.next() {
         if option == "--help" {
             let _ = writeln!(io::stdout().lock(), "{USAGE}");
             return Ok(());
-        } else if option == "--listen" {
-            address = Some(
-                match arguments
-                    .peek()
-                    .and_then(|value| value.to_str())
-                    .and_then(|value| value.parse::<SocketAddr>().ok())
-                {
-                    Some(value) => {
-                        arguments.next();
-                        value
-                    }
-                    None => "127.0.0.1:1717".parse().unwrap(),
-                },
-            );
         } else if option == "--" {
             files.extend(arguments);
             break;
@@ -77,16 +61,6 @@ fn run_inner(arguments: impl Iterator<Item = std::ffi::OsString>) -> Result<(), 
             files.push(option);
         }
     }
-    let token = if address.is_some() {
-        Some(
-            std::env::var("RUFIN_API_TOKEN")
-                .ok()
-                .filter(|token| !token.is_empty())
-                .ok_or("Set RUFIN_API_TOKEN before enabling HTTP access")?,
-        )
-    } else {
-        None
-    };
     let paths = paths::roots();
     let settings = app::startup_settings(&paths);
     let (diagnostics, _stderr) = Diagnostics::install(paths.state_dir());
@@ -120,17 +94,8 @@ fn run_inner(arguments: impl Iterator<Item = std::ffi::OsString>) -> Result<(), 
                 .await
                 .map_err(io::Error::other)?;
             }
-            if let Some(address) = address {
-                let listener = tokio::net::TcpListener::bind(address).await?;
-                let _ = writeln!(io::stdout().lock(), "Rufin API listening on http://{}", listener.local_addr()?);
-                tokio::select! {
-                    result = web::serve(listener, inputs.products.clone(), token.unwrap()) => result,
-                    result = wait_for_shutdown() => result,
-                }
-            } else {
-                let _ = writeln!(io::stdout().lock(), "Rufin is running without a UI. Press Ctrl+C to stop.");
-                wait_for_shutdown().await
-            }
+            let _ = writeln!(io::stdout().lock(), "Rufin is running without a UI. Press Ctrl+C to stop.");
+            wait_for_shutdown().await
         });
         inputs.products.playback.shutdown();
         inputs.products.scrobbling.shutdown();

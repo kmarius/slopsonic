@@ -29,7 +29,6 @@ pub(super) fn items(shell: &Preferences) -> Vec<PreferencesSearchItem> {
         (Page::Library, LIBRARY_PREFERENCES_RESOURCE),
         (Page::Downloads, DOWNLOAD_QUALITY_RESOURCE),
         (Page::Connect, CONNECT_RESOURCE),
-        (Page::Controller, CONTROLLER_PREFERENCES_RESOURCE),
         (Page::Storage, STORAGE_PREFERENCES_RESOURCE),
         (Page::Storage, BACKUP_PREFERENCES_RESOURCE),
         (Page::Privacy, PRIVACY_PREFERENCES_RESOURCE),

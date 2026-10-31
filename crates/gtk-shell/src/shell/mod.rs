@@ -56,7 +56,6 @@ pub(crate) struct Shell {
     pub(crate) artwork: Rc<ArtworkState>,
     pub(crate) selected_ui: SelectedUiState,
     pub(crate) products: ProductHandles,
-    pub(crate) web_controller: Rc<web::Controller>,
     pub(crate) chrome: WindowChrome,
     layout_state: ShellLayoutState,
     pub(crate) navigation_view: NavigationWidgets,

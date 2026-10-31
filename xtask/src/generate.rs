@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Stdio};
 
-use crate::process::{quoted_value, read_to_string, repo_root, temp_path, write_string};
+use crate::process::{quoted_value, read_to_string, repo_root, write_string};
 use crate::{Result, parse_check_flag};
 
 const CARGO_REGISTRY_SOURCE: &str = "registry+https://github.com/rust-lang/crates.io-index";
@@ -15,7 +15,6 @@ pub(crate) fn run(mut args: Vec<String>) -> Result<()> {
 
     match args.remove(0).as_str() {
         "flatpak-sources" => flatpak_sources_command(args),
-        "i18n-template" => i18n_template_command(args),
         "media-verification-files" => crate::media::verification_files_command(args),
         "rpm-srpm" => crate::rpm::srpm_command(args),
         command => Err(format!("unknown generate command: {command}").into()),
@@ -354,59 +353,4 @@ fn flush_cargo_package(
     output.push_str("        \"dest-filename\": \".cargo-checksum.json\"\n");
     output.push_str("    },\n");
     Ok(())
-}
-
-fn i18n_template_command(mut args: Vec<String>) -> Result<()> {
-    let mut check = false;
-    let mut output = PathBuf::from("locales/rufin.pot");
-
-    while !args.is_empty() {
-        match args.remove(0).as_str() {
-            "--check" => check = true,
-            "--output" => {
-                if args.is_empty() {
-                    return Err("--output requires a path".into());
-                }
-                output = PathBuf::from(args.remove(0));
-            }
-            "-h" | "--help" => {
-                eprintln!(
-                    "Usage: cargo run --locked -p xtask -- generate i18n-template [--check] [--output PATH]"
-                );
-                return Ok(());
-            }
-            arg => return Err(format!("unexpected argument: {arg}").into()),
-        }
-    }
-
-    if check {
-        i18n_template_check()
-    } else {
-        i18n_template_to(&output)
-    }
-}
-
-pub(crate) fn i18n_template_check() -> Result<()> {
-    let root = repo_root()?;
-    let output = temp_path("i18n-template.pot");
-    i18n_template_to(&output)?;
-    let generated = read_to_string(&output)?;
-    let checked_in = read_to_string(&root.join("locales/rufin.pot"))?;
-    let _ = fs::remove_file(&output);
-    if checked_in == generated {
-        Ok(())
-    } else {
-        Err(
-            "locales/rufin.pot is stale; run cargo run --locked -p xtask -- generate i18n-template"
-                .into(),
-        )
-    }
-}
-
-pub(crate) fn i18n_template_to(output: &Path) -> Result<()> {
-    let root = repo_root()?;
-    if let Some(parent) = output.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    write_string(output, &crate::i18n::template(&root)?)
 }
