@@ -25,8 +25,6 @@ on:
       - '!crates/gtk-*/**'
       - crates/gtk-*/Cargo.toml
       - xtask/**
-      - android/**
-      - .github/workflows/android.yml
   workflow_dispatch:
 
 permissions:
@@ -66,8 +64,8 @@ jobs:
           HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           set -euo pipefail
-          package_jobs=(aur_bin flatpak macos nix rpm windows)
-          workspace_jobs=(workspace workspace_macos workspace_windows)
+          package_jobs=(aur_bin flatpak nix rpm)
+          workspace_jobs=(workspace)
           declare -A selected_jobs=()
 
           add_jobs() {
@@ -77,21 +75,6 @@ jobs:
             done
           }
 
-          select_android() {
-            case "$1" in
-              *.md|*.css|*.ui|locales/*|resources/*|*/resources/*)
-                ;;
-              android/*|*.kt|*.kts|Cargo.toml|Cargo.lock|justfile|.cargo/*|xtask/src/android.rs|xtask/src/main.rs|xtask/src/process.rs|xtask/Cargo.toml|.github/workflows/checks.yml|.github/workflows/android.yml)
-                add_jobs android
-                ;;
-              crates/gtk-*/*|crates/rufin/*|crates/rufin-controller/*|crates/desktop-integration/*|crates/windows-updater/*|xtask/*)
-                ;;
-              crates/*/Cargo.toml|crates/*/build.rs|crates/*/src/*.rs)
-                add_jobs android
-                ;;
-            esac
-          }
-
           build_container_image=false
           check_workflows=false
           use_current_nix=false
@@ -99,7 +82,6 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             add_jobs "${package_jobs[@]}" aur_git container
             add_jobs source_checks "${workspace_jobs[@]}" cargo-deny
-            add_jobs android
             build_container_image=true
             check_workflows=true
             use_current_nix=true
@@ -107,10 +89,7 @@ jobs:
             git cat-file -e "${BASE_SHA}^{commit}"
             git cat-file -e "${HEAD_SHA}^{commit}"
             while IFS= read -r -d '' path; do
-              select_android "$path"
               case "$path" in
-                android/*|*.kt|*.kts|crates/rufin-android/*|.github/workflows/android.yml)
-                  ;;
                 xtask/*)
                   add_jobs source_checks workspace
                   ;;
@@ -134,7 +113,6 @@ jobs:
             printf '  %q\n' "${changed_paths[@]}"
 
             for path in "${changed_paths[@]}"; do
-              select_android "$path"
               case "$path" in
                 *.rs|*.ui|web/*.html|web/*.js|locales/*.pot|ast-grep/*|sgconfig.yml|Cargo.toml|*/Cargo.toml|Cargo.lock|.cargo/*|.github/workflows/checks.yml)
                   add_jobs source_checks
@@ -154,8 +132,6 @@ jobs:
               esac
 
               case "$path" in
-                android/*|*.kt|*.kts|crates/rufin-android/*)
-                  ;;
                 packaging/linux/*)
                   add_jobs source_checks
                   ;;
@@ -187,7 +163,7 @@ jobs:
                   use_current_nix=true
                   ;;
                 scripts/rust-cache-command)
-                  add_jobs workspace workspace_windows
+                  add_jobs workspace
                   ;;
                 deny.toml)
                   add_jobs cargo-deny
@@ -211,7 +187,7 @@ jobs:
             unset 'selected_jobs[workspace]' 'selected_jobs[source_checks]'
           fi
 
-          for job in "${package_jobs[@]}" aur_git android container "${workspace_jobs[@]}"; do
+          for job in "${package_jobs[@]}" aur_git container "${workspace_jobs[@]}"; do
             if [[ -n "${selected_jobs[$job]+selected}" ]]; then
               add_jobs cargo-deny
               break
@@ -260,14 +236,6 @@ jobs:
       package: rufin-bin
       publish: false
 
-  android:
-    name: Android
-    needs: [changes, cargo-deny]
-    if: contains(fromJSON(needs.changes.outputs.jobs), 'android')
-    uses: ./.github/workflows/android.yml
-    with:
-      ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
   aur_git:
     name: AUR rufin-git
     needs: [changes, cargo-deny]
@@ -303,22 +271,6 @@ jobs:
     needs: [changes, cargo-deny]
     if: contains(fromJSON(needs.changes.outputs.jobs), 'flatpak')
     uses: ./.github/workflows/flatpak-build.yml
-    with:
-      ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-  macos:
-    name: Build macOS
-    needs: [changes, cargo-deny]
-    if: contains(fromJSON(needs.changes.outputs.jobs), 'macos')
-    uses: ./.github/workflows/macos-build.yml
-    with:
-      ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-  windows:
-    name: Build Windows
-    needs: [changes, cargo-deny]
-    if: contains(fromJSON(needs.changes.outputs.jobs), 'windows')
-    uses: ./.github/workflows/windows-build.yml
     with:
       ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -462,160 +414,6 @@ jobs:
             cargo test --workspace --exclude 'gtk-*' --exclude rufin --all-targets --locked --no-run \
               --features app-identity/development
 
-  workspace_macos:
-    name: Workspace (macOS)
-    needs: [changes, cargo-deny]
-    if: contains(fromJSON(needs.changes.outputs.jobs), 'workspace_macos')
-    runs-on: macos-15
-    env:
-      CARGO_TARGET_DIR: ${{ github.workspace }}/.local/target
-      HOMEBREW_NO_ANALYTICS: 1
-      HOMEBREW_NO_AUTO_UPDATE: 1
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-
-      - name: Install test dependencies
-        run: |
-          brew install adwaita-icon-theme cargo-nextest chromaprint cmake gettext game-music-emu gstreamer \
-            gtk4 libadwaita libbs2b libnice-gstreamer libopenmpt libsoup librsvg meson ninja openssl@3 \
-            pkgconf shared-mime-info wavpack
-          gettext_prefix="$(brew --prefix gettext)"
-          echo "GETTEXT_DIR=$gettext_prefix" >> "$GITHUB_ENV"
-          echo "$gettext_prefix/bin" >> "$GITHUB_PATH"
-
-      - name: Select Xcode 26
-        run: |
-          set -euo pipefail
-          xcode_app="$(
-            find /Applications -maxdepth 1 -type d -name 'Xcode_26.*.app' -print |
-              sort -V |
-              tail -n 1
-          )"
-          test -n "$xcode_app"
-          developer_dir="$xcode_app/Contents/Developer"
-          test -d "$developer_dir"
-          echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
-          sdk_version="$(DEVELOPER_DIR="$developer_dir" xcrun --sdk macosx --show-sdk-version)"
-          [[ "$sdk_version" == 26.* ]]
-          echo "Using $xcode_app with macOS SDK $sdk_version."
-
-      - name: Prepare playback runtime
-        run: |
-          cmake --preset development
-          cmake --build --preset development --target rufin-runtime-check
-          echo "GST_PLUGIN_PATH=$GITHUB_WORKSPACE/.local/build/cmake/development/gst-plugins" >> "$GITHUB_ENV"
-
-      - name: Restore Rust build cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          cache-bin: "false"
-          prefix-key: v1-rust
-          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          shared-key: macos-arm64
-          workspaces: ". -> .local/target"
-
-      - name: Test platform packages or warm their cache
-        run: |
-          args=(--locked --all-targets
-            -p library -p sources -p secrets -p desktop-integration
-            -p audio-processing -p playback-gstreamer)
-          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            args+=(--no-run)
-          fi
-          cargo nextest run --config-file nextest.toml --test-threads 4 "${args[@]}"
-
-  workspace_windows:
-    name: Workspace (Windows)
-    needs: [changes, cargo-deny]
-    if: contains(fromJSON(needs.changes.outputs.jobs), 'workspace_windows')
-    runs-on: windows-latest
-    env:
-      CHERE_INVOKING: 1
-      MSYSTEM: UCRT64
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-
-      - name: Set up MSYS2
-        uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884 # v2
-        with:
-          msystem: UCRT64
-          update: true
-          install: >-
-            base-devel
-            git
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-adwaita-icon-theme
-            mingw-w64-ucrt-x86_64-gdk-pixbuf2
-            mingw-w64-ucrt-x86_64-gettext-runtime
-            mingw-w64-ucrt-x86_64-gettext-tools
-            mingw-w64-ucrt-x86_64-gst-libav
-            mingw-w64-ucrt-x86_64-gst-plugins-bad
-            mingw-w64-ucrt-x86_64-gst-plugins-base
-            mingw-w64-ucrt-x86_64-gst-plugins-good
-            mingw-w64-ucrt-x86_64-gst-plugins-ugly
-            mingw-w64-ucrt-x86_64-gstreamer
-            mingw-w64-ucrt-x86_64-gtk4
-            mingw-w64-ucrt-x86_64-hicolor-icon-theme
-            mingw-w64-ucrt-x86_64-libadwaita
-            mingw-w64-ucrt-x86_64-libgfortran
-            mingw-w64-ucrt-x86_64-ninja
-            mingw-w64-ucrt-x86_64-perl
-            mingw-w64-ucrt-x86_64-pkgconf
-            mingw-w64-ucrt-x86_64-rust
-            mingw-w64-ucrt-x86_64-shared-mime-info
-            mingw-w64-ucrt-x86_64-toolchain
-            mingw-w64-ucrt-x86_64-wavpack
-
-      - name: Configure Rust paths
-        shell: msys2 {0}
-        run: |
-          echo "CARGO_HOME=$(cygpath -m "$GITHUB_WORKSPACE/.local/cargo")" >> "$GITHUB_ENV"
-          echo "CARGO_TARGET_DIR=$(cygpath -m "$GITHUB_WORKSPACE/.local/target")" >> "$GITHUB_ENV"
-
-      - name: Install nextest
-        shell: msys2 {0}
-        run: |
-          set -euo pipefail
-          curl -LsSf https://get.nexte.st/0.9.133/windows-tar | tar zxf - -C "$MINGW_PREFIX/bin"
-          cargo nextest --version
-
-      - name: Prepare playback runtime
-        shell: msys2 {0}
-        run: |
-          cmake --preset development
-          cmake --build --preset development --target rufin-runtime-check
-
-      - name: Restore Rust build cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          cache-bin: "false"
-          cmd-format: msys2 -c "bash scripts/rust-cache-command direct {0}"
-          prefix-key: v1-rust
-          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          shared-key: windows-ucrt64
-          workspaces: ". -> .local/target"
-
-      - name: Test platform packages or warm their cache
-        shell: msys2 {0}
-        run: |
-          args=(--locked --all-targets
-            -p library -p sources -p secrets -p desktop-integration
-            -p audio-processing -p playback-gstreamer -p windows-updater)
-          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            args+=(--no-run)
-          fi
-          cargo nextest run --config-file nextest.toml --test-threads 4 "${args[@]}"
-
   cargo-deny:
     name: cargo-deny
     needs: changes
@@ -640,19 +438,14 @@ jobs:
     name: Required
     needs:
       - changes
-      - android
       - aur_bin
       - aur_git
       - rpm
       - nix
       - flatpak
-      - macos
-      - windows
       - container
       - source_checks
       - workspace
-      - workspace_macos
-      - workspace_windows
       - cargo-deny
     if: always()
     runs-on: ubuntu-latest
