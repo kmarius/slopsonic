@@ -15,4 +15,3 @@ build = "build.rs"
 workspace = true
 
 [dependencies]
-gettext-rs.workspace = true

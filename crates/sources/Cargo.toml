@@ -63,8 +63,5 @@ walkdir.workspace = true
 tokio-rustls.workspace = true
 wiremock.workspace = true
 
-[target.'cfg(target_os = "windows")'.dependencies]
-winsafe.workspace = true
-
 [lints]
 workspace = true

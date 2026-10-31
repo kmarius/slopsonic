@@ -32,8 +32,5 @@ sources.workspace = true
 tracing.workspace = true
 gtk-shell.workspace = true
 
-[target.'cfg(target_os = "windows")'.dependencies]
-windows-updater.workspace = true
-
 [lints]
 workspace = true

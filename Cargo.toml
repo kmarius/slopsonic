@@ -74,8 +74,6 @@ ebur128 = "0.1.10"
 fcast-sender-sdk = { version = "0.3.0", default-features = false, features = ["chromecast"] }
 futures-util = "0.3.32"
 getrandom = "0.4.0"
-gettext-rs = { version = "0.8.0", features = ["gettext-system"] }
-spiritless_po = "1.1.0"
 gio = "0.22.6"
 gstreamer = "0.25.2"
 gstreamer-app = "0.25.2"
