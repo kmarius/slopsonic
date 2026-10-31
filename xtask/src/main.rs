@@ -3,7 +3,6 @@
 use std::env;
 use std::error::Error;
 
-mod android;
 mod generate;
 mod i18n;
 mod media;
@@ -32,7 +31,6 @@ fn run() -> Result<()> {
     }
 
     match args.remove(0).as_str() {
-        "android" => android::run(args),
         "generate" => generate::run(args),
         "release" => release::run(args),
         "verify" => verify::run(args),
@@ -47,8 +45,6 @@ fn run() -> Result<()> {
 fn print_usage() {
     eprintln!(
         "Usage:
-  cargo run --locked -p xtask -- android build stable|development
-  cargo run --locked -p xtask -- android install
   cargo run --locked -p xtask -- generate flatpak-sources [--check]
   cargo run --locked -p xtask -- generate i18n-template [--check] [--output PATH]
   cargo run --locked -p xtask -- generate windows-installer-languages LOCALE_DIR MAKENSIS OUTPUT

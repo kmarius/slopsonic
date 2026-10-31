@@ -3,7 +3,7 @@ uniffi::setup_scaffolding!();
 
 use std::collections::HashMap;
 use std::fs;
-#[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
+#[cfg(all(unix, not(target_vendor = "apple")))]
 use std::future::Future;
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
@@ -11,20 +11,15 @@ use std::sync::{Arc, Mutex};
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use app_identity::APP_ID;
-#[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
+#[cfg(all(unix, not(target_vendor = "apple")))]
 use app_identity::PROJECT_NAME;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[cfg(target_os = "android")]
-pub mod android;
-#[cfg(target_os = "android")]
-use android::SystemKeyringBackend;
-
 const CONFIG_SECRET_FORMAT: &str = "config-base64";
 const KEYRING_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
-#[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
+#[cfg(all(unix, not(target_vendor = "apple")))]
 static SECRET_SERVICE: Mutex<Option<(tokio::runtime::Runtime, Arc<oo7::Keyring>)>> =
     Mutex::new(None);
 
@@ -43,20 +38,18 @@ impl Default for SecretStorageMode {
 }
 
 #[cfg(any(
-    target_os = "android",
     target_os = "macos",
     target_os = "windows",
-    all(unix, not(any(target_os = "android", target_vendor = "apple")))
+    all(unix, not(target_vendor = "apple"))
 ))]
 fn default_secret_storage_mode() -> SecretStorageMode {
     SecretStorageMode::SystemKeyring
 }
 
 #[cfg(not(any(
-    target_os = "android",
     target_os = "macos",
     target_os = "windows",
-    all(unix, not(any(target_os = "android", target_vendor = "apple")))
+    all(unix, not(target_vendor = "apple"))
 )))]
 fn default_secret_storage_mode() -> SecretStorageMode {
     SecretStorageMode::ConfigFile
@@ -495,14 +488,14 @@ impl SecretStore for SystemKeyringStore {
     }
 }
 
-#[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
+#[cfg(all(unix, not(target_vendor = "apple")))]
 #[derive(Clone, Debug)]
 struct SystemKeyringBackend {
     application: String,
     scope_id: String,
 }
 
-#[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
+#[cfg(all(unix, not(target_vendor = "apple")))]
 impl SystemKeyringBackend {
     fn new(scope_id: String) -> SecretResult<Self> {
         Ok(Self {
@@ -591,7 +584,7 @@ impl SystemKeyringBackend {
     }
 }
 
-#[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
+#[cfg(all(unix, not(target_vendor = "apple")))]
 async fn load_item_secret(
     keyring: &oo7::Keyring,
     attributes: &Vec<(String, String)>,
@@ -605,7 +598,7 @@ async fn load_item_secret(
     Ok(Some(item.secret().await?))
 }
 
-#[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
+#[cfg(all(unix, not(target_vendor = "apple")))]
 impl SecretStore for SystemKeyringBackend {
     fn save_secret(&self, key: &SecretKey, secret: &str) -> SecretResult<()> {
         let attributes = self.secret_attributes(key);
@@ -730,19 +723,17 @@ fn native_credential_error(error: keyring_core::Error) -> SecretError {
 }
 
 #[cfg(not(any(
-    target_os = "android",
     target_os = "macos",
     target_os = "windows",
-    all(unix, not(any(target_os = "android", target_vendor = "apple")))
+    all(unix, not(target_vendor = "apple"))
 )))]
 #[derive(Clone, Debug)]
 struct SystemKeyringBackend;
 
 #[cfg(not(any(
-    target_os = "android",
     target_os = "macos",
     target_os = "windows",
-    all(unix, not(any(target_os = "android", target_vendor = "apple")))
+    all(unix, not(target_vendor = "apple"))
 )))]
 impl SystemKeyringBackend {
     fn new(_scope_id: String) -> SecretResult<Self> {
@@ -753,10 +744,9 @@ impl SystemKeyringBackend {
 }
 
 #[cfg(not(any(
-    target_os = "android",
     target_os = "macos",
     target_os = "windows",
-    all(unix, not(any(target_os = "android", target_vendor = "apple")))
+    all(unix, not(target_vendor = "apple"))
 )))]
 impl SecretStore for SystemKeyringBackend {
     fn save_secret(&self, _key: &SecretKey, _secret: &str) -> SecretResult<()> {
@@ -784,7 +774,7 @@ mod tests {
         CachedSecretStore, ConfigSecretStore, MemorySecretStore, SecretError, SecretKey,
         SecretResult, SecretStorageMode, SecretStore, SwitchableSecretStore,
     };
-    #[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
+    #[cfg(all(unix, not(target_vendor = "apple")))]
     use super::{PROJECT_NAME, SystemKeyringStore};
     use std::fs;
     use std::sync::{Arc, Mutex};
@@ -825,20 +815,18 @@ mod tests {
             SecretStorageMode::SystemKeyring
         );
         #[cfg(any(
-            target_os = "android",
             target_os = "macos",
             target_os = "windows",
-            all(unix, not(any(target_os = "android", target_vendor = "apple")))
+            all(unix, not(target_vendor = "apple"))
         ))]
         assert_eq!(
             SecretStorageMode::default(),
             SecretStorageMode::SystemKeyring
         );
         #[cfg(not(any(
-            target_os = "android",
             target_os = "macos",
             target_os = "windows",
-            all(unix, not(any(target_os = "android", target_vendor = "apple")))
+            all(unix, not(target_vendor = "apple"))
         )))]
         assert_eq!(SecretStorageMode::default(), SecretStorageMode::ConfigFile);
     }
@@ -975,7 +963,7 @@ mod tests {
         assert!(stored.contains_key("scope:scope-1:example:session"));
     }
 
-    #[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
+    #[cfg(all(unix, not(target_vendor = "apple")))]
     #[test]
     fn secret_service_namespaced_attributes_preserve_shape() {
         let store = SystemKeyringStore::new("scope-1").expect("system keyring store");
@@ -994,7 +982,7 @@ mod tests {
         assert_eq!(store.backend.secret_label(&key), "Rufin example session");
     }
 
-    #[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
+    #[cfg(all(unix, not(target_vendor = "apple")))]
     #[test]
     fn provider_attributes_preserve_current_and_legacy_lookup() {
         let store = SystemKeyringStore::new("scope-1").expect("system keyring store");

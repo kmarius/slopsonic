@@ -183,17 +183,6 @@ opt-level = 2
 [profile.test]
 debug = "line-tables-only"
 
-[profile.android]
-inherits = "dev"
-debug = 0
-panic = "abort"
-
-[profile.android-release]
-inherits = "release"
-opt-level = "s"
-lto = "thin"
-codegen-units = 1
-
 [profile.dev.package.libsqlite3-sys]
 opt-level = 3
 
