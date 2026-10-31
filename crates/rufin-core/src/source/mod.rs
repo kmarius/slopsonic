@@ -643,19 +643,6 @@ impl SourceOwner {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .remove(source_id);
         self.shared.downloads.clear(source_id.clone(), false);
-        if let Err(error) = self
-            .shared
-            .database
-            .clear_source_waveform_cache(source_id)
-            .await
-        {
-            self.shared.warn_nonfatal(&error.to_string());
-        }
-        if let Ok(playback) = self.shared.playback() {
-            if let Err(error) = playback.remove_waveform_cache(source_id) {
-                self.shared.warn_nonfatal(&error);
-            }
-        }
         if let Err(error) = self.shared.artwork.invalidate_source(source_id) {
             self.shared.warn_nonfatal(&error.to_string());
         }

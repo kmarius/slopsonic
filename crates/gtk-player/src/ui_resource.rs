@@ -1,12 +1,8 @@
 pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
-    VISUALIZER_SETTINGS_RESOURCE,
     PLAYBACK_SETTINGS_POPOVER_RESOURCE,
     TRANSITION_SETTINGS_RESOURCE,
-    COLOR_CHOOSER_RESOURCE,
     RIGHT_PANEL_RESOURCE,
     QUEUE_SETTINGS_RESOURCE,
-    SIDEBAR_CONTROLS_RESOURCE,
-    SIDEBAR_SPLIT_RESOURCE,
     EQUALIZER_RESOURCE,
     EQUALIZER_BAND_RESOURCE,
     EQUALIZER_BAND_ITEM_RESOURCE,
@@ -16,9 +12,6 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     FULLSCREEN_SETTINGS_RESOURCE,
     BOTTOM_PLAYER_RESOURCE,
 ];
-pub const VISUALIZER_SETTINGS_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/player/visualizer_settings.ui";
-
 pub const BOTTOM_PLAYER_RESOURCE: &str = "/io/github/screwys/Rufin/ui/player/bottom.ui";
 
 pub const FULLSCREEN_PLAYER_RESOURCE: &str = "/io/github/screwys/Rufin/ui/player/fullscreen.ui";
@@ -29,11 +22,6 @@ pub const EQUALIZER_RESOURCE: &str = "/io/github/screwys/Rufin/ui/player/equaliz
 
 pub const RIGHT_PANEL_RESOURCE: &str = "/io/github/screwys/Rufin/ui/player/right_panel.ui";
 pub const QUEUE_SETTINGS_RESOURCE: &str = "/io/github/screwys/Rufin/ui/player/queue_settings.ui";
-pub const SIDEBAR_CONTROLS_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/player/sidebar_controls.ui";
-pub const SIDEBAR_SPLIT_RESOURCE: &str = "/io/github/screwys/Rufin/ui/player/sidebar_split.ui";
-
-pub const COLOR_CHOOSER_RESOURCE: &str = "/io/github/screwys/Rufin/ui/player/color_chooser.ui";
 
 pub const TRANSITION_SETTINGS_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/player/transition_settings.ui";

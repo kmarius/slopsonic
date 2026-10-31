@@ -98,7 +98,6 @@ pub enum Command {
         refill_threshold: usize,
     },
     UpdateSettings(PlaybackSettings),
-    SetVisualizerEnabled(bool),
     StreamInputsChanged,
     CatalogChanged,
     RekeyTracks(Arc<[(library::TrackKey, library::TrackKey)]>),
@@ -938,9 +937,6 @@ impl Player {
                 refill_threshold,
             } => Ok(self.set_auto_dj(enabled, refill_threshold)),
             Command::UpdateSettings(settings) => Ok(self.update_settings(settings)),
-            Command::SetVisualizerEnabled(enabled) => Ok({
-                self.send_backend(BackendCommand::SetVisualizerEnabled(enabled));
-            }),
             Command::StreamInputsChanged => Ok(self.stream_inputs_changed()),
             Command::RekeyTracks(pairs) => Ok({
                 let mut changed = false;
@@ -1170,15 +1166,6 @@ impl Player {
                     self.owner().persist_output(volume, muted, output);
                 }
                 self.dirty = true;
-            }
-            BackendEvent::Visualizer { run, levels } => {
-                if self
-                    .current_run
-                    .as_ref()
-                    .is_some_and(|current| current.id == run)
-                {
-                    self.owner().publish_visualizer(run, levels);
-                }
             }
             BackendEvent::Error { run, error } => {
                 let Some(current) = self
@@ -1997,10 +1984,7 @@ impl Player {
             || settings.ebu_r128_target_lufs != self.settings.ebu_r128_target_lufs
             || settings.audio_output != self.settings.audio_output
             || settings.preserve_pitch != self.settings.preserve_pitch
-            || settings.audio_fade_on_status_change != self.settings.audio_fade_on_status_change
-            || settings.visualizer_ignore_volume != self.settings.visualizer_ignore_volume;
-        let visualizer_fft_changed =
-            settings.visualizer_fft_size != self.settings.visualizer_fft_size;
+            || settings.audio_fade_on_status_change != self.settings.audio_fade_on_status_change;
         self.settings = settings.clone();
         self.dirty = true;
         if self.playback_output.is_local() {
@@ -2017,9 +2001,7 @@ impl Player {
                 self.resolve_loudness(current.id, stream.clone());
             }
         }
-        if visualizer_fft_changed
-            || (self.playback_output.is_local() && audio_configuration_changed)
-        {
+        if self.playback_output.is_local() && audio_configuration_changed {
             self.send_backend(BackendCommand::ConfigureAudio(self.settings.clone().into()));
         } else if self.playback_output.is_local() && output_changed {
             self.send_backend(BackendCommand::SetOutputVolume {
@@ -2845,7 +2827,7 @@ impl Player {
                 self.owner().report_source(report);
                 self.sequence.persist_state();
             }
-            self.owner().publish(projection, current_media_changed);
+            self.owner().publish(projection);
         }
         let persistence = self.take_queue_persistence();
         if let Some(update) = persistence {

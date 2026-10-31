@@ -12,14 +12,13 @@ pub mod release_update;
 pub mod scrobbling;
 pub mod source;
 mod storage;
-mod waveform;
 pub use backup::{BackupHandle, BackupPreview, BackupSettings};
 pub use diagnostics::DiagnosticsHandle;
 pub use downloads::{DownloadEvent, DownloadQueueItem, DownloadQueueState, DownloadSubject};
 pub use events::ProductReceivers;
 pub use inputs::{
     CatalogChange, CatalogPublication, CatalogRevision, FavoriteSettlement, RuntimeInputs,
-    SelectedLibrary, SourceEvent, SourceNotice, SourceNoticeKind, VisualizerPublication,
+    SelectedLibrary, SourceEvent, SourceNotice, SourceNoticeKind,
 };
 pub use release_update::{ReleaseHistory, ReleaseNote, ReleaseUpdate, ReleaseUpdateHandle};
 pub use scrobbling::{
@@ -28,7 +27,6 @@ pub use scrobbling::{
 };
 pub use source::SourceHandle;
 pub use storage::{CacheKind, CacheSummary, CacheUsage, StorageSummary};
-pub use waveform::WaveformProjection;
 
 #[derive(Clone)]
 pub struct ProductHandles {

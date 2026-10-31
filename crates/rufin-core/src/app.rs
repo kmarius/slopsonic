@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::runtime::{DiagnosticsHandle, ProductHandles, ProductReceivers, RuntimeInputs};
 use ::scrobbling::Scrobbler;
-use async_channel::{bounded, unbounded};
+use async_channel::unbounded;
 use playback::PlaybackBackend;
 use secrets::SwitchableSecretStore;
 use tracing::warn;
@@ -15,7 +15,6 @@ use crate::release_update::ReleaseUpdateOwner;
 use crate::scrobbling::ScrobblingOwner;
 use crate::settings::{SettingsFile, SettingsOwner, platform_secret_store};
 use crate::source::{SourceOutputs, SourceOwner};
-use crate::waveform::WaveformOwner;
 
 /// Runs an application host with Rufin's worker runtime available on its calling thread.
 /// The host shuts down playback before returning; workers are stopped afterwards.
@@ -117,10 +116,8 @@ where
     );
 
     let (source_events, source_receiver) = unbounded();
-    let (visualizer_events, visualizer_receiver) = bounded(1);
     let (download_events, download_receiver) = unbounded();
     let (discovery_events, discovery_receiver) = unbounded();
-    let (waveform_events, waveform_receiver) = unbounded();
     let (release_update_events, release_update_receiver) = unbounded();
     let artwork = match artwork::Artwork::new(paths.artwork_dir(), runtime.clone()) {
         Ok(artwork) => artwork,
@@ -195,20 +192,11 @@ where
             .upgrade()
             .and_then(|owner| owner.client(source_id).ok())
     });
-    let waveform = WaveformOwner::new(
-        runtime.clone(),
-        waveform_events,
-        paths.playback_dir(),
-        stored.ui.player_display.seekbar_waveform_enabled,
-    );
     let playback = PlaybackOwner::new(
         library.clone(),
         settings.clone(),
         runtime.clone(),
-        visualizer_events,
-        visualizer_receiver.clone(),
         artwork.clone(),
-        Arc::clone(&waveform),
         observe_playback,
         audio_outputs,
         Arc::clone(&scrobbler),
@@ -259,12 +247,6 @@ where
                 || previous.ui.lastfm_api_key != current.ui.lastfm_api_key
             {
                 settings_committed(&current.ui);
-            }
-            if previous.ui.player_display.seekbar_waveform_enabled
-                != current.ui.player_display.seekbar_waveform_enabled
-            {
-                settings_playback
-                    .waveform_setting_changed(current.ui.player_display.seekbar_waveform_enabled);
             }
             if previous.ui.playback != current.ui.playback {
                 settings_playback.playback_settings_changed(current.ui.playback.clone());
@@ -358,8 +340,6 @@ where
             source: source_receiver,
             source_discovery: discovery_receiver,
             downloads: download_receiver,
-            visualizer: visualizer_receiver,
-            waveform: waveform_receiver,
             release_updates: release_update_receiver,
         },
         configured_sources: source.list_sources(),

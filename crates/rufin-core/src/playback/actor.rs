@@ -110,7 +110,7 @@ impl Playback {
         owner
             .upgrade()
             .ok_or(PlaybackError::Unavailable)?
-            .publish(initial.clone(), true);
+            .publish(initial.clone());
         let thread = thread::Builder::new()
             .name("rufin-playback".into())
             .spawn(move || {

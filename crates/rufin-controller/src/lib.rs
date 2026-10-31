@@ -79,7 +79,6 @@ fn run_inner(arguments: impl Iterator<Item = std::ffi::OsString>) -> Result<(), 
             Arc::new(|_, _| {}),
         ))?;
         // An unattached presentation has no event backlog to retain.
-        inputs.receivers.visualizer.close();
         drop(inputs.receivers);
         let result = runtime.block_on(async {
             if !files.is_empty() {

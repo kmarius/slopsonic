@@ -15,10 +15,10 @@ use tracing::{debug, error, info, instrument, warn};
 mod audio;
 mod engine;
 mod file_audio;
+mod measurement;
 mod pipeline;
 #[cfg(unix)]
 mod process;
-mod visualizer;
 
 pub use audio::available_audio_outputs;
 pub use engine::GStreamerPlaybackBackend;

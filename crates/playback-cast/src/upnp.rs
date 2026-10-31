@@ -180,8 +180,6 @@ pub(crate) struct UpnpController {
     current: Option<QueuedMedia>,
     next_media: Option<QueuedMedia>,
     last_position_millis: u64,
-    position_observed: Instant,
-    visualizer_enabled: bool,
     pending_seek: Option<PendingSeek>,
     pending_start_position_millis: Option<u64>,
     started: bool,
@@ -211,8 +209,6 @@ impl UpnpController {
             current: None,
             next_media: None,
             last_position_millis: 0,
-            position_observed: Instant::now(),
-            visualizer_enabled: false,
             pending_seek: None,
             pending_start_position_millis: None,
             started: false,
@@ -264,7 +260,6 @@ impl UpnpController {
             BackendCommand::Seek { .. } => "Seek",
             BackendCommand::PrepareNext { .. } => "PrepareNext",
             BackendCommand::SetOutputVolume { .. } => "SetOutputVolume",
-            BackendCommand::SetVisualizerEnabled(_) => "SetVisualizerEnabled",
             BackendCommand::ConfigureAudio(_) => "ConfigureAudio",
             BackendCommand::UpdateLoudness { .. } => "UpdateLoudness",
             BackendCommand::SetPlaybackRate(_) => "SetPlaybackRate",
@@ -317,7 +312,6 @@ impl UpnpController {
                     return Err(error);
                 }
                 self.started = true;
-                self.position_observed = Instant::now();
                 self.playing = true;
                 Ok(vec![BackendEvent::State {
                     run,
@@ -364,7 +358,6 @@ impl UpnpController {
                 }
                 if !self.playing {
                     self.last_position_millis = position_millis;
-                    self.position_observed = Instant::now();
                     if native {
                         // Seek while paused through the silenced startup restore, keeping
                         // the direct representation.
@@ -414,40 +407,6 @@ impl UpnpController {
                     output: None,
                 }])
             }
-            BackendCommand::SetVisualizerEnabled(enabled) => {
-                if self.visualizer_enabled == enabled {
-                    return Ok(Vec::new());
-                }
-                self.visualizer_enabled = enabled;
-                if enabled
-                    && self
-                        .current
-                        .as_ref()
-                        .is_some_and(|media| media.published.native_seek)
-                {
-                    if self.playing {
-                        return self.reload(self.last_position_millis, relay);
-                    }
-                    self.pending_reload = true;
-                } else if enabled
-                    && let Some(next) = self
-                        .next_media
-                        .as_ref()
-                        .filter(|next| next.published.native_seek)
-                {
-                    let next = PreparedNext::new(
-                        next.run,
-                        next.stream.clone(),
-                        playback::NextTransition::Gapless,
-                    );
-                    return self.prepare_next(
-                        self.current_run().expect("current media"),
-                        Some(next),
-                        relay,
-                    );
-                }
-                Ok(Vec::new())
-            }
             BackendCommand::PrepareNext { .. }
             | BackendCommand::ConfigureAudio(_)
             | BackendCommand::UpdateLoudness { .. }
@@ -467,7 +426,6 @@ impl UpnpController {
     ) -> Result<PublishRequest, String> {
         let processing = self.processing.config.clone();
         let representation = if reload
-            || self.visualizer_enabled
             || processing != Default::default()
             || stream.window().is_some()
             || self.processing.cast_encoding.codec == library::AudioCodec::Flac
@@ -540,7 +498,6 @@ impl UpnpController {
         }
         self.install_current(run, stream, published, previous_uri);
         self.last_position_millis = position;
-        self.position_observed = Instant::now();
         self.pending_reload = false;
         self.pending_seek = None;
         self.pending_start_position_millis = None;
@@ -726,7 +683,6 @@ impl UpnpController {
         self.playing = state == BackendState::Playing;
         if publish_position && !self.pending_reload {
             self.last_position_millis = position_millis;
-            self.position_observed = Instant::now();
         }
         let mut events = vec![BackendEvent::TransportObserved { run, state }];
         if matches!(state, BackendState::Playing | BackendState::Paused)
@@ -883,7 +839,6 @@ impl UpnpController {
         previous_uri: Option<String>,
     ) {
         self.last_position_millis = media.logical_offset_millis;
-        self.position_observed = Instant::now();
         self.current = Some(QueuedMedia::new(run, stream, media));
         self.pending_media = Some(PendingMedia {
             processing: self.processing.clone(),
@@ -961,7 +916,6 @@ impl UpnpController {
         let new_run = next.run;
         let native_seek = next.published.native_seek;
         self.last_position_millis = next.published.logical_offset_millis;
-        self.position_observed = Instant::now();
         self.current = Some(next);
         self.pending_seek = None;
         self.pending_start_position_millis = None;
@@ -977,7 +931,6 @@ impl UpnpController {
             .map(|renderer_position| self.current_logical_position_millis(renderer_position))
             .unwrap_or(self.current_logical_offset_millis());
         self.last_position_millis = position_millis;
-        self.position_observed = Instant::now();
         let state = match transport_state {
             Some("PLAYING") => BackendState::Playing,
             Some("PAUSED_PLAYBACK") | Some("PAUSED_RECORDING") => BackendState::Paused,
@@ -1052,22 +1005,6 @@ impl UpnpController {
 
     pub(super) fn current_run(&self) -> Option<RunId> {
         self.current.as_ref().map(|media| media.run)
-    }
-
-    pub(crate) fn visualizer(&self, relay: &RelayServer) -> Option<BackendEvent> {
-        if !self.visualizer_enabled
-            || !self.playing
-            || self.pending_media.is_some()
-            || self.pending_reload
-            || self.pending_seek.is_some()
-        {
-            return None;
-        }
-        let current = self.current.as_ref()?;
-        let position = self
-            .last_position_millis
-            .saturating_add(self.position_observed.elapsed().as_millis() as u64);
-        relay.visualizer(&current.published, current.run, position)
     }
 
     fn current_logical_offset_millis(&self) -> u64 {

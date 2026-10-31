@@ -152,8 +152,6 @@ pub struct BackendAudioSettings {
     pub volume_scale: VolumeScale,
     pub muted: bool,
     pub fade_on_status_change: bool,
-    pub visualizer_ignore_volume: bool,
-    pub visualizer_fft_size: u32,
 }
 
 impl Default for BackendAudioSettings {
@@ -181,8 +179,6 @@ impl From<PlaybackSettings> for BackendAudioSettings {
             volume_scale: settings.volume_scale,
             muted: settings.muted,
             fade_on_status_change: settings.audio_fade_on_status_change,
-            visualizer_ignore_volume: settings.visualizer_ignore_volume,
-            visualizer_fft_size: settings.visualizer_fft_size,
         }
     }
 }
@@ -254,7 +250,6 @@ pub enum BackendCommand {
         loudness: TrackLoudness,
     },
     SetPlaybackRate(f64),
-    SetVisualizerEnabled(bool),
 }
 
 impl BackendCommand {
@@ -269,8 +264,7 @@ impl BackendCommand {
             Self::PrepareNext { current_run, .. } => Some(*current_run),
             Self::SetOutputVolume { .. }
             | Self::ConfigureAudio(_)
-            | Self::SetPlaybackRate(_)
-            | Self::SetVisualizerEnabled(_) => None,
+            | Self::SetPlaybackRate(_) => None,
         }
     }
 }
@@ -343,10 +337,6 @@ pub enum BackendEvent {
         volume: f64,
         muted: bool,
         output: Option<String>,
-    },
-    Visualizer {
-        run: RunId,
-        levels: Vec<f64>,
     },
     /// The backend can no longer play this run.
     Error {

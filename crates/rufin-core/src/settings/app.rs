@@ -29,7 +29,7 @@ pub struct ActivityOverviewSettings {
     pub artists: bool,
     pub albums: bool,
     pub genres: bool,
-    pub result_count: super::visualizer::PreferenceIndex,
+    pub result_count: super::PreferenceIndex,
     pub show_comparison: bool,
     pub show_rufin_in_headline: bool,
     pub monthly_enabled: bool,
@@ -110,7 +110,7 @@ pub struct RandomPlayGenreSelection {
 #[serde(default)]
 #[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct RandomPlaySettings {
-    pub limit: super::visualizer::PreferenceIndex,
+    pub limit: super::PreferenceIndex,
     pub min_year: Option<u16>,
     pub max_year: Option<u16>,
     pub genre: Option<RandomPlayGenreSelection>,
@@ -243,10 +243,6 @@ preference_group!(#[cfg_attr(feature = "bindings", derive(uniffi::Record))] Play
     fullscreen_dynamic_background: bool = true => set_fullscreen_dynamic_background;
     #[serde(default = "default_true")]
     fullscreen_background_image: bool = true => set_fullscreen_background_image;
-    #[serde(default = "default_true")]
-    fullscreen_visualizer_visible: bool = true => set_fullscreen_visualizer_visible;
-    #[serde(default)]
-    seekbar_waveform_enabled: bool = false => set_seekbar_waveform_enabled;
 });
 
 preference_group!(#[derive(Eq)] AppearancePreferences, appearance, {
@@ -310,10 +306,6 @@ pub struct Settings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window_height: Option<i32>,
     #[serde(default)]
-    pub visualizer_panel_visible: bool,
-    #[serde(default)]
-    pub visualizer: super::visualizer::VisualizerSettings,
-    #[serde(default)]
     pub right_panel: super::right_panel::RightPanelSettings,
     #[serde(default)]
     pub library_lists: Vec<LibraryListSettingsEntry>,
@@ -347,8 +339,6 @@ impl Default for Settings {
             random_play: RandomPlaySettings::default(),
             window_width: None,
             window_height: None,
-            visualizer_panel_visible: false,
-            visualizer: super::visualizer::VisualizerSettings::default(),
             right_panel: super::right_panel::RightPanelSettings::default(),
             library_lists: default_library_list_settings(),
         }
@@ -407,7 +397,6 @@ impl Settings {
             .map(str::to_string);
         self.layout.sanitize();
         self.sidebar.sanitize();
-        self.right_panel.sanitize();
         self.application.context_menu.sanitize();
         if self.keep_running_after_close {
             self.tray_enabled = true;
@@ -680,21 +669,18 @@ mod tests {
     fn fullscreen_display_defaults_and_choices_survive_settings_reload() {
         let mut old = serde_json::to_value(Settings::default()).unwrap();
         for key in [
-            "fullscreen_visualizer_visible",
             "fullscreen_dynamic_background",
             "fullscreen_background_image",
         ] {
             old.as_object_mut().unwrap().remove(key);
         }
         let restored: Settings = serde_json::from_value(old).unwrap();
-        assert!(restored.player_display.fullscreen_visualizer_visible);
         assert!(restored.player_display.fullscreen_dynamic_background);
-        for choice in 0..8 {
+        for choice in 0..4 {
             let settings = Settings {
                 player_display: PlayerDisplayPreferences {
-                    fullscreen_visualizer_visible: choice & 1 != 0,
-                    fullscreen_dynamic_background: choice & 2 != 0,
-                    fullscreen_background_image: choice & 4 != 0,
+                    fullscreen_dynamic_background: choice & 1 != 0,
+                    fullscreen_background_image: choice & 2 != 0,
                     ..Default::default()
                 },
                 ..Settings::default()
@@ -703,12 +689,10 @@ mod tests {
                 serde_json::from_slice(&serde_json::to_vec(&settings).unwrap()).unwrap();
             assert_eq!(
                 (
-                    restored.player_display.fullscreen_visualizer_visible,
                     restored.player_display.fullscreen_dynamic_background,
                     restored.player_display.fullscreen_background_image
                 ),
                 (
-                    settings.player_display.fullscreen_visualizer_visible,
                     settings.player_display.fullscreen_dynamic_background,
                     settings.player_display.fullscreen_background_image
                 )

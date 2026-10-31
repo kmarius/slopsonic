@@ -2270,16 +2270,6 @@ button.download-queue-pause image {
   min-height: 80px;
 }
 
-.sidebar-media {
-  background: var(--shell-panel-bg-color);
-}
-
-.sidebar-split > separator {
-  min-height: 10px;
-  background: transparent;
-  box-shadow: inset 0 1px var(--shell-separator-color);
-}
-
 .queue-row {
   padding: 6px;
   border-radius: 7px;
@@ -2359,49 +2349,6 @@ listview.queue-list row {
   background: color-mix(in srgb, var(--accent-bg-color) 18%, transparent);
 }
 
-.visualizer-accent {
-  color: var(--accent-color);
-}
-
-.visualizer-setting-cell {
-  padding: 12px 16px;
-}
-
-.visualizer-setting-cell:first-child {
-  border-right: 1px solid var(--border-color);
-}
-
-.visualizer-setting-cell scale {
-  margin: 4px 0;
-}
-
-.visualizer-color-button {
-  padding: 8px 10px;
-}
-
-.visualizer-color-swatch {
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px var(--border-color);
-}
-
-.panel-controls {
-  opacity: 0;
-  transition: opacity 160ms ease-out;
-}
-
-.sidebar-media:hover .panel-controls,
-.sidebar-media .panel-controls:focus-within,
-.panel-top-controls:focus-within {
-  opacity: 1;
-}
-
-.panel-controls .icon-button,
-.fullscreen-focus-button {
-  min-width: 30px;
-  min-height: 30px;
-  padding: 0;
-}
-
 .bottom-player {
   padding: 2px 8px;
   background: var(--shell-base-bg-color);
@@ -2426,11 +2373,6 @@ listview.queue-list row {
 .fullscreen-artwork-bars .bottom-player {
   background: color-mix(in srgb, var(--window-bg-color) 88%, var(--fullscreen-artwork-color));
   transition: background 600ms ease;
-}
-
-.fullscreen-focus-button:checked:not(:hover):not(:active) {
-  background: transparent;
-  box-shadow: none;
 }
 
 .fullscreen-player-hero {
@@ -2490,20 +2432,6 @@ listview.queue-list row {
 
 .fullscreen-player-pane {
   margin: 0 0 12px 12px;
-}
-
-.fullscreen-player-visualizer {
-  margin: 0;
-  min-height: 0;
-}
-
-.fullscreen-player-visualizer-area {
-  min-height: 0;
-}
-
-.sidebar-visualizer-area {
-  min-height: 0;
-  margin: 0;
 }
 
 .fullscreen-player-equalizer-scroller {

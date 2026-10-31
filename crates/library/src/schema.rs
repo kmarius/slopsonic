@@ -577,11 +577,7 @@ CREATE TABLE IF NOT EXISTS metadata_lookup_cache (
     written_at INTEGER NOT NULL, expires_at INTEGER NOT NULL
 ) STRICT;
 
-CREATE TABLE IF NOT EXISTS waveform_cache (
-    media_uri TEXT PRIMARY KEY REFERENCES tracks(media_uri) ON DELETE CASCADE,
-    analysis_key BLOB NOT NULL CHECK(length(analysis_key)=32),
-    peaks TEXT NOT NULL
-) STRICT;
+DROP TABLE IF EXISTS waveform_cache;
 
 CREATE TABLE IF NOT EXISTS loudness_measurements (
     source_key INTEGER NOT NULL REFERENCES sources ON DELETE CASCADE,

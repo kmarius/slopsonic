@@ -102,7 +102,6 @@ fn application_starts_on_a_worker_and_reopens_saved_settings_without_a_ui() {
                 .await
                 .expect("shared playback commands publish without GTK");
             });
-            inputs.receivers.visualizer.close();
             drop(inputs.receivers);
             inputs.products.playback.shutdown();
         })

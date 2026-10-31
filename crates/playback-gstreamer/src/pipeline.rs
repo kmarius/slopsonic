@@ -3,7 +3,7 @@ use super::engine::{
     GaplessPlayback, PipelineId, PreparedRun, SharedBackendState, Slot, WorkerInput,
     handle_about_to_finish,
 };
-use super::visualizer::VisualizerTap;
+use super::measurement::MeasurementTap;
 use super::*;
 use glib::translate::IntoGlib;
 use std::cell::Cell;
@@ -78,7 +78,6 @@ pub(super) struct PlayerPipeline {
     trust_invalid_certificate: Arc<AtomicBool>,
     about_to_finish_id: Option<glib::SignalHandlerId>,
     audio_graph: Option<AudioGraph>,
-    visualizer_probe: Option<(gst::Pad, gst::PadProbeId)>,
     processing_probe: Option<(gst::Pad, gst::PadProbeId)>,
     processing_tap_key: Option<(PipelineId, RunId, String)>,
     current_stream: Option<PreparedStream>,
@@ -142,7 +141,6 @@ impl PlayerPipeline {
             trust_invalid_certificate: Arc::new(AtomicBool::new(false)),
             about_to_finish_id: None,
             audio_graph: None,
-            visualizer_probe: None,
             processing_probe: None,
             processing_tap_key: None,
             current_stream: None,
@@ -700,7 +698,6 @@ impl PlayerPipeline {
             }
             return Ok(());
         }
-        self.clear_visualizer_tap();
         self.set_processing_tap(None);
         let mut graph = AudioGraph::new(
             settings,
@@ -984,8 +981,8 @@ impl PlayerPipeline {
         self.audio_graph.as_ref()?.processing.meter_message(message)
     }
 
-    pub(super) fn set_processing_tap(&mut self, tap: Option<VisualizerTap>) {
-        let key = tap.as_ref().and_then(VisualizerTap::measurement_key);
+    pub(super) fn set_processing_tap(&mut self, tap: Option<MeasurementTap>) {
+        let key = tap.as_ref().map(MeasurementTap::measurement_key);
         if key == self.processing_tap_key {
             return;
         }
@@ -999,25 +996,6 @@ impl PlayerPipeline {
                 self.processing_probe = Some((pad, probe));
                 self.processing_tap_key = key;
             }
-        }
-    }
-
-    pub(super) fn set_visualizer_tap(&mut self, tap: Option<VisualizerTap>) {
-        self.clear_visualizer_tap();
-        if let Some(tap) = tap
-            && let Some(pad) = self
-                .audio_graph
-                .as_ref()
-                .and_then(|graph| graph.visualizer_pad(tap.ignore_volume))
-            && let Some(probe) = tap.install(&pad)
-        {
-            self.visualizer_probe = Some((pad, probe));
-        }
-    }
-
-    pub(super) fn clear_visualizer_tap(&mut self) {
-        if let Some((pad, probe)) = self.visualizer_probe.take() {
-            pad.remove_probe(probe);
         }
     }
 
@@ -1185,7 +1163,6 @@ impl PlayerPipeline {
                 .0
                 .disconnect(handler_id);
         }
-        self.clear_visualizer_tap();
         self.set_processing_tap(None);
         if let Some((pipeline, _)) = self.native.as_ref() {
             let _ = pipeline.set_state(gst::State::Null);

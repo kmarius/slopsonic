@@ -23,9 +23,7 @@ pub fn seek_preview_matches_position(target_millis: u64, position_millis: u64) -
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use crate::runtime::VisualizerPublication;
 use actor::{Playback, WeakPlayback};
-use async_channel::{Receiver, Sender as EventSender, TrySendError};
 use library::QueueUpdate;
 use library::{Database, ListenWrite, ReadCancellation};
 use playback::{
@@ -39,7 +37,6 @@ use tracing::{debug, warn};
 use crate::loudness::LoudnessAnalysisOwner;
 use crate::settings::SettingsFile;
 use crate::source::SourceOwner;
-use crate::waveform::{WaveformMedia, WaveformOwner};
 
 struct OutputSelection {
     selected: playback::PlaybackOutput,
@@ -52,9 +49,6 @@ pub struct PlaybackOwner {
     settings: SettingsFile,
     runtime: tokio::runtime::Handle,
     pub updates: playback::PlaybackUpdates,
-    visualizer_events: EventSender<crate::runtime::VisualizerPublication>,
-    visualizer_drain: Receiver<VisualizerPublication>,
-    waveform: Arc<WaveformOwner>,
     loudness: Arc<LoudnessAnalysisOwner>,
     observe_playback: Arc<dyn Fn(Option<&PlaybackProjection>) + Send + Sync>,
     audio_outputs: fn() -> Vec<playback::AudioOutput>,
@@ -139,10 +133,7 @@ impl PlaybackOwner {
         database: Arc<Database>,
         settings: SettingsFile,
         runtime: tokio::runtime::Handle,
-        visualizer_events: EventSender<crate::runtime::VisualizerPublication>,
-        visualizer_drain: Receiver<VisualizerPublication>,
         artwork: artwork::Artwork,
-        waveform: Arc<WaveformOwner>,
         observe_playback: Arc<dyn Fn(Option<&PlaybackProjection>) + Send + Sync>,
         audio_outputs: fn() -> Vec<playback::AudioOutput>,
         scrobbler: Arc<Scrobbler>,
@@ -178,9 +169,6 @@ impl PlaybackOwner {
             settings,
             runtime: runtime.clone(),
             updates: playback::PlaybackUpdates::default(),
-            visualizer_events,
-            visualizer_drain,
-            waveform,
             loudness: LoudnessAnalysisOwner::new(runtime),
             observe_playback,
             audio_outputs,
@@ -281,43 +269,6 @@ impl PlaybackOwner {
         Ok(projection)
     }
 
-    pub async fn waveform_cache_usage(&self) -> Result<library::CacheUsage, String> {
-        let mut usage = self
-            .database
-            .waveform_cache_usage()
-            .await
-            .map_err(string_error)?;
-        let waveform = self.waveform.clone();
-        let legacy = self
-            .runtime
-            .spawn_blocking(move || waveform.legacy_cache_usage())
-            .await
-            .map_err(string_error)?
-            .map_err(string_error)?;
-        usage.entries += legacy.entries;
-        usage.bytes += legacy.bytes;
-        Ok(usage)
-    }
-
-    pub async fn clear_waveform_cache(&self) -> Result<(), String> {
-        let waveform = self.waveform.clone();
-        self.runtime
-            .spawn_blocking(move || waveform.clear_legacy_cache())
-            .await
-            .map_err(string_error)?
-            .map_err(string_error)?;
-        self.database
-            .clear_waveform_cache()
-            .await
-            .map_err(string_error)
-    }
-
-    pub(crate) fn remove_waveform_cache(&self, source: &sources::SourceId) -> Result<(), String> {
-        self.waveform
-            .remove_source_cache(source)
-            .map_err(|error| error.to_string())
-    }
-
     pub(crate) async fn forget_source(&self, source: library::SourceKey) -> Result<(), String> {
         let Some(active) = self.active() else {
             return Ok(());
@@ -343,26 +294,14 @@ impl PlaybackOwner {
     fn take_active(&self) -> Option<Playback> {
         let active = self.active.lock().unwrap_or_else(|p| p.into_inner()).take();
         self.loudness.cancel();
-        self.publish_current_media(None);
         (self.observe_playback)(None);
         self.updates.clear();
         active
     }
 
-    fn publish(&self, projection: PlaybackProjection, current_media_changed: bool) {
-        if current_media_changed {
-            self.publish_current_media(projection.view.transport.current.clone().map(Arc::new));
-        }
+    fn publish(&self, projection: PlaybackProjection) {
         (self.observe_playback)(Some(&projection));
         self.updates.publish(projection);
-    }
-
-    fn publish_visualizer(&self, run: RunId, levels: Vec<f64>) {
-        let frame = VisualizerPublication { run, levels };
-        if let Err(TrySendError::Full(frame)) = self.visualizer_events.try_send(frame) {
-            let _ = self.visualizer_drain.try_recv();
-            let _ = self.visualizer_events.try_send(frame);
-        }
     }
 
     fn save_queue(&self, state: QueueUpdate) {
@@ -557,12 +496,6 @@ impl PlaybackOwner {
         })
     }
 
-    pub(crate) fn waveform_setting_changed(&self, enabled: bool) {
-        self.waveform.settings_changed(
-            enabled,
-            self.current_media().map(|media| self.waveform_media(media)),
-        );
-    }
     pub(crate) fn playback_settings_changed(&self, settings: playback::PlaybackSettings) {
         self.equalizer_output_changed(settings.audio_output.as_deref());
         self.loudness.settings_changed(
@@ -631,28 +564,6 @@ impl PlaybackOwner {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .upgrade()
     }
-    fn publish_current_media(&self, media: Option<Arc<playback::CurrentMedia>>) {
-        let waveform = media
-            .as_ref()
-            .map(|media| self.waveform_media(Arc::clone(media)));
-        self.waveform.current_changed(waveform);
-    }
-
-    fn waveform_media(&self, media: Arc<playback::CurrentMedia>) -> WaveformMedia {
-        WaveformMedia {
-            request: StreamRequest::new(
-                (&media.row.track).media_uri.clone(),
-                self.settings.playback_stream_quality(),
-            ),
-            media,
-            source: self
-                .source_owner()
-                .map(|source| Arc::downgrade(&source))
-                .unwrap_or_default(),
-            database: Arc::clone(&self.database),
-        }
-    }
-
     pub(crate) fn current_projection(&self) -> Option<PlaybackProjection> {
         self.updates.current().map(|view| PlaybackProjection {
             view: (*view).clone(),
@@ -957,13 +868,6 @@ impl PlaybackOwner {
             enabled: value,
             refill_threshold: usize::from(threshold),
         })
-    }
-    pub fn set_visualizer_enabled(&self, enabled: bool) {
-        if let Some(active) = self.active() {
-            active.downgrade().post(move |player, sample| {
-                let _ = player.handle_command(Command::SetVisualizerEnabled(enabled), sample);
-            });
-        }
     }
 }
 

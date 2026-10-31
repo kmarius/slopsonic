@@ -112,9 +112,6 @@
       </object>
     </child>
   </object>
-  <object class="AdwSwitchRow" id="visualizer_panel_row">
-    <property name="title" translatable="yes">Show visualizer</property>
-  </object>
   <object class="AdwSwitchRow" id="bottom_bar_rating_row">
     <property name="title" translatable="yes">Show ratings in the bottom bar</property>
   </object>

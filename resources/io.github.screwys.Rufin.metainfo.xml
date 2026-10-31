@@ -60,10 +60,6 @@
       <image type="source" width="1000" height="700">https://raw.githubusercontent.com/screwys/Rufin/v0.16.6/resources/screenshots/fullscreen_player.png</image>
     </screenshot>
     <screenshot>
-      <caption>Configure the visualizer</caption>
-      <image type="source" width="1000" height="700">https://raw.githubusercontent.com/screwys/Rufin/v0.16.6/resources/screenshots/visualizer_settings.png</image>
-    </screenshot>
-    <screenshot>
       <caption>Configure integrations</caption>
       <image type="source" width="1000" height="700">https://raw.githubusercontent.com/screwys/Rufin/v0.16.6/resources/screenshots/integrations.png</image>
     </screenshot>

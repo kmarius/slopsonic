@@ -3330,18 +3330,6 @@ mod tests {
                 .await
                 .unwrap()
         );
-        let waveform = crate::WaveformCacheRow {
-            media_uri: analyzed_uri.clone(),
-            analysis_key,
-            peaks: vec![(0.25, 0.5), (0.75, 1.0)],
-        };
-        assert!(
-            store
-                .database
-                .write_waveform_cache(&waveform)
-                .await
-                .unwrap()
-        );
         assert!(
             peer.database
                 .audio_analysis_key(&analyzed_uri)
@@ -3399,7 +3387,7 @@ mod tests {
                 .fetch_one(&mut reader)
                 .await
                 .unwrap(),
-            4
+            3
         );
         assert!(!sqlx::query_scalar::<_,bool>("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE name IN('sources','local_values','projection','current_values','documents','connect_versions'))").fetch_one(&mut reader).await.unwrap());
         reader.close().await.unwrap();
@@ -3423,14 +3411,6 @@ mod tests {
                 .0,
             Some(loudness)
         );
-        let received_waveform = peer
-            .database
-            .waveform_cache(&analyzed_uri)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(received_waveform.analysis_key, waveform.analysis_key);
-        assert_eq!(received_waveform.peaks, waveform.peaks);
         let revision = peer.revision().await.unwrap();
         assert!(
             !peer

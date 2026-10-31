@@ -471,7 +471,6 @@ pub(super) async fn copy_catalog(
             }
         }
     }
-    copy_table(connection, schema, "waveform_cache", "waveform_cache", &[]).await?;
     crate::migration::snapshots::populate(connection, &format!("{schema}.")).await?;
     if has_table(connection, schema, "loudness_measurements").await? {
         let cols = columns(connection, schema, "loudness_measurements").await?;

@@ -11,10 +11,6 @@
     <file compressed="true">player/equalizer-dialogs.ui</file>
     <file compressed="true">player/right_panel.ui</file>
     <file compressed="true">player/queue_settings.ui</file>
-    <file compressed="true">player/sidebar_controls.ui</file>
-    <file compressed="true">player/sidebar_split.ui</file>
-    <file compressed="true">player/visualizer_settings.ui</file>
-    <file compressed="true">player/color_chooser.ui</file>
     <file compressed="true">player/playback_settings.ui</file>
     <file compressed="true">player/transition_settings.ui</file>
   </gresource>

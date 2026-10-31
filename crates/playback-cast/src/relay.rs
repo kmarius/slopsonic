@@ -84,7 +84,6 @@ impl PublishedResource {
 }
 
 pub(crate) struct RelayServer {
-    pub(crate) visualizer_fft_size: usize,
     base_url: String,
     target_is_local: bool,
     proxy_media: Arc<AtomicBool>,
@@ -146,7 +145,6 @@ impl RelayServer {
             IpAddr::V6(ip) => format!("[{ip}]"),
         };
         Ok(Self {
-            visualizer_fft_size: 4_096,
             base_url: format!("http://{host}:{}", address.port()),
             target_is_local: target_is_local(target),
             proxy_media,
@@ -198,7 +196,6 @@ impl RelayServer {
                     processing: Some(request.processing),
                     start_offset_millis: logical_offset_millis,
                     duration_millis: resource_duration_millis,
-                    visualizer_fft_size: Some(self.visualizer_fft_size),
                 },
                 cancelled: Arc::new(AtomicBool::new(false)),
                 generated: OnceCell::new(),
@@ -288,33 +285,6 @@ impl RelayServer {
             .progress
             .borrow()
             .source_seekable
-    }
-
-    pub(crate) fn visualizer(
-        &self,
-        resource: &PublishedResource,
-        run: playback::RunId,
-        position_millis: u64,
-    ) -> Option<BackendEvent> {
-        let resources = self
-            .resources
-            .lock()
-            .unwrap_or_else(|error| error.into_inner());
-        let file = resources
-            .get(resource.relay_token.as_ref()?)?
-            .generated
-            .as_ref()?
-            .generated
-            .get()?
-            .clone();
-        drop(resources);
-        let levels = file
-            .visualizer
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .at(position_millis.saturating_sub(resource.logical_offset_millis))
-            .ok()??;
-        Some(BackendEvent::Visualizer { run, levels })
     }
 
     pub(crate) fn processing_events(
@@ -719,7 +689,6 @@ struct GeneratedDemand {
 
 struct GeneratedFile {
     file: tempfile::NamedTempFile,
-    visualizer: Mutex<crate::visualizer::VisualizerHistory>,
     progress: watch::Sender<GeneratedProgress>,
     demand: Mutex<GeneratedDemand>,
     wake: Condvar,
@@ -790,10 +759,6 @@ impl GeneratedFile {
                     ));
                 }
                 let length = reader.read(&mut buffer)?;
-                self.visualizer
-                    .lock()
-                    .unwrap_or_else(|error| error.into_inner())
-                    .append(reader.take_visualizer_frames())?;
                 file.write_all(&buffer[..length])?;
                 written += length as u64;
                 let source_seekable = self
@@ -957,19 +922,13 @@ async fn generated_response(
     let generated = generated_resource
         .generated
         .get_or_try_init(|| async {
-            let (file, visualizer) = tokio::task::spawn_blocking(|| {
-                Ok::<_, std::io::Error>((
-                    tempfile::NamedTempFile::new()?,
-                    crate::visualizer::VisualizerHistory::new()?,
-                ))
-            })
+            let file = tokio::task::spawn_blocking(tempfile::NamedTempFile::new)
             .await
             .map_err(|error| error.to_string())?
             .map_err(|error| error.to_string())?;
             let (progress, _) = watch::channel(GeneratedProgress::default());
             let generated = Arc::new(GeneratedFile {
                 file,
-                visualizer: Mutex::new(visualizer),
                 progress,
                 demand: Mutex::new(GeneratedDemand::default()),
                 wake: Condvar::new(),

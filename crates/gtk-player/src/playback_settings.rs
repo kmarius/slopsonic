@@ -18,24 +18,14 @@ use crate::PlayerUi;
 const PLAYBACK_RATE_COMMIT_DELAY: Duration = Duration::from_millis(200);
 const PLAYBACK_SETTINGS_SCALE_WIDTH: i32 = 180;
 
-pub fn configure_playback_settings_popover(
-    button: &gtk::MenuButton,
-    shell: &Rc<PlayerUi>,
-    set_visualizer_visible: Rc<dyn Fn(bool)>,
-) {
+pub fn configure_playback_settings_popover(button: &gtk::MenuButton, shell: &Rc<PlayerUi>) {
     let shell = Rc::clone(shell);
     button.set_create_popup_func(move |button| {
-        button.set_popover(Some(&playback_settings_popover(
-            &shell,
-            Rc::clone(&set_visualizer_visible),
-        )));
+        button.set_popover(Some(&playback_settings_popover(&shell)));
     });
 }
 
-fn playback_settings_popover(
-    shell: &Rc<PlayerUi>,
-    set_visualizer_visible: Rc<dyn Fn(bool)>,
-) -> gtk::Popover {
+fn playback_settings_popover(shell: &Rc<PlayerUi>) -> gtk::Popover {
     let settings = shell.settings.current.borrow().clone();
     let playback = settings.playback;
     let local_output = shell.playback_owner.playback_output().is_local();
@@ -46,9 +36,7 @@ fn playback_settings_popover(
         popover: gtk::Popover,
         settings_group: adw::PreferencesGroup,
         queue: adw::SwitchRow,
-        visualizer: adw::SwitchRow,
         audio_output: adw::ActionRow,
-        waveform_row: adw::SwitchRow,
     });
     if !local_output {
         settings_group.set_description(Some(&"Audio processing is unavailable while casting".to_string()));
@@ -72,28 +60,6 @@ fn playback_settings_popover(
     preserve_pitch.set_sensitive(local_output);
     settings_group.add(&preserve_pitch);
 
-    waveform_row.set_active(
-        shell
-            .settings
-            .current
-            .borrow()
-            .player_display
-            .seekbar_waveform_enabled,
-    );
-    let waveform_shell = Rc::clone(shell);
-    waveform_row.connect_active_notify(move |row| {
-        if waveform_shell
-            .settings
-            .set_app_setting("seekbar waveform setting", row.is_active(), |settings| {
-                &mut settings.player_display.seekbar_waveform_enabled
-            })
-            .is_some()
-        {
-            waveform_shell.update_bottom_player_transport();
-        }
-    });
-    settings_group.add(&waveform_row);
-
     queue.set_active(settings.right_panel.queue_visible);
     let queue_shell = Rc::downgrade(shell);
     queue.connect_active_notify(move |row| {
@@ -103,10 +69,6 @@ fn playback_settings_popover(
     });
     settings_group.add(&queue);
 
-    visualizer.set_active(settings.visualizer_panel_visible);
-    visualizer.set_sensitive(local_output);
-    visualizer.connect_active_notify(move |row| set_visualizer_visible(row.is_active()));
-    settings_group.add(&visualizer);
     popover
 }
 

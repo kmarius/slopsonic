@@ -1,8 +1,6 @@
 use super::audio::{SharedQueuedLoudness, audio_output_is_available, passthrough_allowed};
 use super::pipeline::{AboutToFinishAction, PlayerPipeline, SourceClock};
-#[cfg(test)]
-use super::visualizer::visualizer_pipeline_is_live;
-use super::visualizer::{VisualizerAnalyzer, VisualizerTap};
+use super::measurement::MeasurementAnalyzer;
 use super::*;
 use std::collections::HashMap;
 use std::sync::mpsc::{SyncSender, sync_channel};
@@ -22,7 +20,6 @@ enum TelemetryKind {
     Position,
     Duration,
     Buffering,
-    Visualizer,
 }
 
 struct PendingTelemetry {
@@ -130,9 +127,6 @@ fn telemetry_key(event: &BackendEvent) -> Option<(RunId, TelemetryKind)> {
         BackendEvent::Position { run, .. } => Some((*run, TelemetryKind::Position)),
         BackendEvent::Duration { run, .. } => Some((*run, TelemetryKind::Duration)),
         BackendEvent::Buffering { run, .. } => Some((*run, TelemetryKind::Buffering)),
-        BackendEvent::Visualizer { run, levels } if !levels.is_empty() => {
-            Some((*run, TelemetryKind::Visualizer))
-        }
         BackendEvent::Started { .. }
         | BackendEvent::State { .. }
         | BackendEvent::Seekable { .. }
@@ -145,7 +139,6 @@ fn telemetry_key(event: &BackendEvent) -> Option<(RunId, TelemetryKind)> {
         | BackendEvent::ProcessingApplied { .. }
         | BackendEvent::ProcessingFailed { .. }
         | BackendEvent::ProcessingMeter { .. }
-        | BackendEvent::Visualizer { .. }
         | BackendEvent::OperationFailed { .. }
         | BackendEvent::TransportRejected { .. }
         | BackendEvent::TransportObserved { .. }
@@ -354,7 +347,6 @@ pub(super) struct SharedBackendState {
     pub(super) current: Option<PreparedRun>,
     pub(super) next: Option<PreparedNext>,
     pub(super) active: Slot,
-    pub(super) visualizer_enabled: bool,
     pipeline_ids: [Option<PipelineId>; 2],
 }
 impl SharedBackendState {
@@ -365,7 +357,6 @@ impl SharedBackendState {
             processing: None,
             next: None,
             active: Slot::Primary,
-            visualizer_enabled: false,
             playback_rate: DEFAULT_PLAYBACK_RATE,
             pipeline_ids: [None, None],
             settings,
@@ -423,7 +414,7 @@ pub(super) struct GstEngine {
     pub(super) secondary: PlayerPipeline,
     pub(super) shared: Arc<Mutex<SharedBackendState>>,
     events: Arc<Mutex<EventMailbox>>,
-    pub(super) visualizer: VisualizerAnalyzer,
+    pub(super) measurement: MeasurementAnalyzer,
     pub(super) last_position_tick: Instant,
     pub(super) seek: SeekState,
     // Positions mean nothing before a session's first preroll.
@@ -453,7 +444,7 @@ impl GstEngine {
             Arc::clone(&shared),
             input_sender.clone(),
         );
-        let visualizer = VisualizerAnalyzer::new(Arc::clone(&events), Arc::clone(&shared));
+        let measurement = MeasurementAnalyzer::new(Arc::clone(&events), Arc::clone(&shared));
         Self {
             inputs,
             input_sender,
@@ -461,7 +452,7 @@ impl GstEngine {
             secondary,
             shared,
             events,
-            visualizer,
+            measurement,
             last_position_tick: Instant::now(),
             seek: SeekState::default(),
             session_prerolled: false,
@@ -884,29 +875,18 @@ impl GstEngine {
         let (volume, muted) = self.output_gain_state();
         self.pipeline_for_slot(slot)
             .set_output_volume(volume, muted);
-        let visualizer_enabled = {
+        {
             let mut shared = lock_recover(&self.shared);
             shared.active = slot;
             shared.current = Some(PreparedRun::from_next(&incoming.item));
             shared.next = None;
-            shared.visualizer_enabled
-        };
+        }
         let new_run = incoming.item.run;
         self.seek = SeekState::default();
         self.session_prerolled = true;
         self.awaiting_playing = false;
         self.ended_run = None;
         self.last_position_tick = Instant::now();
-        self.sync_visualizer_taps(visualizer_enabled);
-        if visualizer_enabled {
-            push_event(
-                &self.events,
-                BackendEvent::Visualizer {
-                    run: new_run,
-                    levels: Vec::new(),
-                },
-            );
-        }
         push_event(
             &self.events,
             BackendEvent::Transitioned { old_run, new_run },
@@ -931,20 +911,17 @@ impl GstEngine {
         let new_run = incoming.item.run;
         self.pipeline_for_slot(from)
             .fade_transition_out(Duration::from_millis(duration_millis));
-        let visualizer_enabled = {
+        {
             let mut shared = lock_recover(&self.shared);
             shared.next = None;
             shared.active = to;
             shared.current = Some(PreparedRun::from_next(&incoming.item));
-            shared.visualizer_enabled
-        };
+        }
         self.transition = Transition::Overlap { from, old_run };
         self.seek = SeekState::default();
         self.session_prerolled = true;
         self.awaiting_playing = false;
         self.ended_run = None;
-        let tap = self.visualizer_tap(to, visualizer_enabled);
-        self.pipeline_for_slot_mut(to).set_visualizer_tap(tap);
         push_event(
             &self.events,
             BackendEvent::Transitioned { old_run, new_run },
@@ -1118,11 +1095,6 @@ impl GstEngine {
                         }
                         self.end_passthrough_if_needed()?;
                     }
-                    if settings.visualizer_ignore_volume
-                        != previous_settings.visualizer_ignore_volume
-                    {
-                        self.sync_visualizer_taps(self.visualizer_enabled());
-                    }
                     let (gain, muted) = self.output_gain_state();
                     self.apply_output_gain_to_pipelines(gain, muted);
                     push_event(
@@ -1179,7 +1151,6 @@ impl GstEngine {
                 self.end_passthrough_if_needed()
             }
             BackendCommand::SetPlaybackRate(rate) => self.set_playback_rate(rate),
-            BackendCommand::SetVisualizerEnabled(enabled) => self.set_visualizer_enabled(enabled),
             BackendCommand::Play { run } => {
                 if self.run_is_current(run) {
                     let result = self.start_status_resume();
@@ -1259,27 +1230,16 @@ impl GstEngine {
         let playback_rate = self.playback_rate();
         self.stop_pipeline(Slot::Primary);
         self.stop_pipeline(Slot::Secondary);
-        self.secondary.set_visualizer_tap(None);
         let output_gain = settings.output_gain();
         let muted = settings.muted;
         let start_millis =
             SourceClock::from_stream(&item.stream).physical_seek(start_position_millis);
-        let visualizer_enabled = {
+        {
             let mut shared = lock_recover(&self.shared);
             shared.settings = settings.clone();
             shared.current = Some(item.clone());
             shared.next = next;
             shared.active = Slot::Primary;
-            shared.visualizer_enabled
-        };
-        if visualizer_enabled {
-            push_event(
-                &self.events,
-                BackendEvent::Visualizer {
-                    run: item.run,
-                    levels: Vec::new(),
-                },
-            );
         }
         self.push_state(BackendState::Buffering);
         let pipeline_started_at = Instant::now();
@@ -1302,8 +1262,6 @@ impl GstEngine {
             None,
             None,
         )?;
-        let primary_tap = self.visualizer_tap(Slot::Primary, visualizer_enabled);
-        self.primary.set_visualizer_tap(primary_tap);
         info!(
             run = %item.run,
             uri_scheme = %stream_uri_scheme(item.stream.uri()),
@@ -1519,8 +1477,7 @@ impl GstEngine {
         target_state: gst::State,
         bitstream: Option<gst::Caps>,
     ) -> Result<(), BackendFailure> {
-        let (settings, volume, muted, playback_rate, visualizer_enabled, slot) =
-            self.session_context();
+        let (settings, volume, muted, playback_rate, slot) = self.session_context();
         if item.stream.time_seekable()
             && (item.stream.time_offset_millis().is_some()
                 || self.active_pipeline().native_seekable() == Some(false))
@@ -1553,8 +1510,6 @@ impl GstEngine {
             None,
             bitstream,
         )?;
-        let tap = self.visualizer_tap(slot, visualizer_enabled);
-        self.pipeline_for_slot_mut(slot).set_visualizer_tap(tap);
         self.session_started(start_millis, needs_preroll_seek, target_state);
         push_event(&self.events, BackendEvent::Bitstream { run, active });
         Ok(())
@@ -1625,14 +1580,13 @@ impl GstEngine {
         Ok(())
     }
 
-    fn session_context(&self) -> (BackendAudioSettings, f64, bool, f64, bool, Slot) {
+    fn session_context(&self) -> (BackendAudioSettings, f64, bool, f64, Slot) {
         let shared = lock_recover(&self.shared);
         (
             shared.settings.clone(),
             shared.settings.output_gain(),
             shared.settings.muted,
             shared.playback_rate,
-            shared.visualizer_enabled,
             shared.active,
         )
     }
@@ -2191,17 +2145,6 @@ impl GstEngine {
         self.last_position_tick = Instant::now();
         self.pipeline_for_slot_mut(self.active_slot())
             .activate_stream(&stream);
-        let visualizer_enabled = self.visualizer_enabled();
-        self.sync_visualizer_taps(visualizer_enabled);
-        if visualizer_enabled {
-            push_event(
-                &self.events,
-                BackendEvent::Visualizer {
-                    run: new_run,
-                    levels: Vec::new(),
-                },
-            );
-        }
         push_event(
             &self.events,
             BackendEvent::Transitioned { old_run, new_run },
@@ -3028,8 +2971,6 @@ impl GstEngine {
                             return Err(error);
                         }
                     };
-                    let tap = self.visualizer_tap(slot, self.visualizer_enabled());
-                    self.pipeline_for_slot_mut(slot).set_visualizer_tap(tap);
                     match &mut self.transition {
                         Transition::Preparing(incoming) if incoming.slot == slot => {
                             incoming.id = id;
@@ -3111,28 +3052,6 @@ impl GstEngine {
         }
     }
 
-    fn visualizer_enabled(&self) -> bool {
-        lock_recover(&self.shared).visualizer_enabled
-    }
-
-    fn visualizer_tap(&self, slot: Slot, enabled: bool) -> Option<VisualizerTap> {
-        if !enabled {
-            return None;
-        }
-        let (pipeline_id, run, ignore_volume) = (|| {
-            let shared = lock_recover(&self.shared);
-            if shared.active != slot {
-                return None;
-            }
-            Some((
-                shared.pipeline_id(slot)?,
-                shared.current.as_ref()?.run,
-                shared.settings.visualizer_ignore_volume,
-            ))
-        })()?;
-        Some(self.visualizer.tap(slot, pipeline_id, run, ignore_volume))
-    }
-
     fn sync_processing_taps(&mut self) {
         let output = lock_recover(&self.shared)
             .processing
@@ -3150,44 +3069,12 @@ impl GstEngine {
                     let pipeline_id = shared.pipeline_id(slot)?;
                     let run = shared.current.as_ref()?.run;
                     Some(
-                        self.visualizer
-                            .tap(slot, pipeline_id, run, true)
-                            .measurement(output.clone()),
+                        self.measurement
+                            .tap(slot, pipeline_id, run, output.clone()),
                     )
                 });
             self.pipeline_for_slot_mut(slot).set_processing_tap(tap);
         }
-    }
-
-    fn sync_visualizer_taps(&mut self, enabled: bool) {
-        let primary_tap = self.visualizer_tap(Slot::Primary, enabled);
-        let secondary_tap = self.visualizer_tap(Slot::Secondary, enabled);
-        self.primary.set_visualizer_tap(primary_tap);
-        self.secondary.set_visualizer_tap(secondary_tap);
-    }
-
-    fn set_visualizer_enabled(&mut self, enabled: bool) -> Result<(), BackendFailure> {
-        let changed = {
-            let mut shared = lock_recover(&self.shared);
-            let changed = shared.visualizer_enabled != enabled;
-            shared.visualizer_enabled = enabled;
-            changed
-        };
-        if changed && let Some(run) = self.timing_run_id() {
-            push_event(
-                &self.events,
-                BackendEvent::Visualizer {
-                    run,
-                    levels: Vec::new(),
-                },
-            );
-        }
-        if enabled {
-            self.sync_visualizer_taps(true);
-        } else if changed {
-            self.sync_visualizer_taps(false);
-        }
-        Ok(())
     }
 
     fn active_pipeline(&self) -> &PlayerPipeline {
@@ -3808,34 +3695,6 @@ mod tests {
         )));
         assert!(engine.primary.position().unwrap().mseconds() >= 5_000);
         engine.shutdown();
-    }
-
-    #[test]
-    fn visualizer_enablement_resets_the_current_run() {
-        let events = Arc::new(Mutex::new(EventMailbox::default()));
-        let mut engine = GstEngine::new(Arc::clone(&events));
-        let run = RunId::new(1);
-        {
-            let mut shared = lock_recover(&engine.shared);
-            shared.current = Some(PreparedRun {
-                run,
-                stream: ResolvedStream::new("file:///music/current.flac").into(),
-            });
-            shared.set_pipeline_id(Slot::Primary, Some(PipelineId(7)));
-        }
-
-        engine
-            .set_visualizer_enabled(true)
-            .expect("enable visualizer");
-
-        assert!(lock_recover(&engine.shared).visualizer_enabled);
-        assert!(matches!(
-            lock_recover(&events).drain().as_slice(),
-            [BackendEvent::Visualizer {
-                run: emitted_run,
-                levels,
-            }] if *emitted_run == run && levels.is_empty()
-        ));
     }
 
     #[test]
@@ -5365,7 +5224,7 @@ mod tests {
     }
 
     #[test]
-    fn replaced_pipeline_cannot_consume_next_or_relabel_visualizer_work() {
+    fn replaced_pipeline_cannot_consume_next_work() {
         let old = PipelineId(4);
         let current = PipelineId(5);
         let current_run = RunId::new(10);
@@ -5381,7 +5240,6 @@ mod tests {
             stream: ResolvedStream::new("file:///music/current.flac").into(),
         });
         shared.next = Some(next.clone());
-        shared.visualizer_enabled = true;
         shared.set_pipeline_id(Slot::Primary, Some(current));
 
         assert_eq!(
@@ -5395,20 +5253,6 @@ mod tests {
             AboutToFinishAction::Ignore
         );
         assert_eq!(shared.next, Some(next));
-
-        let shared = Arc::new(Mutex::new(shared));
-        assert!(!visualizer_pipeline_is_live(
-            &shared,
-            Slot::Primary,
-            old,
-            current_run,
-        ));
-        assert!(visualizer_pipeline_is_live(
-            &shared,
-            Slot::Primary,
-            current,
-            current_run,
-        ));
     }
 
     #[test]
@@ -5548,18 +5392,6 @@ mod tests {
             run: first,
             millis: 50,
         });
-        mailbox.push(BackendEvent::Visualizer {
-            run: first,
-            levels: vec![0.5],
-        });
-        mailbox.push(BackendEvent::Visualizer {
-            run: first,
-            levels: vec![0.75],
-        });
-        mailbox.push(BackendEvent::Visualizer {
-            run: first,
-            levels: Vec::new(),
-        });
         mailbox.push(BackendEvent::Buffering {
             run: first,
             percent: 10,
@@ -5592,14 +5424,6 @@ mod tests {
                 BackendEvent::Position {
                     run: first,
                     millis: 50,
-                },
-                BackendEvent::Visualizer {
-                    run: first,
-                    levels: vec![0.75],
-                },
-                BackendEvent::Visualizer {
-                    run: first,
-                    levels: Vec::new(),
                 },
                 BackendEvent::Buffering {
                     run: first,

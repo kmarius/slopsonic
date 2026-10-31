@@ -8,7 +8,6 @@ pub(crate) fn initial_window_size(width: Option<i32>, height: Option<i32>) -> (i
 
 impl Shell {
     pub(crate) fn save_window_state(&self) {
-        self.player_ui.save_sidebar_panel_sizes();
         if self.chrome.window.is_maximized() || self.chrome.window.is_fullscreen() {
             return;
         }

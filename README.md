@@ -9,8 +9,7 @@ Rufin is a powerful, fast and easy to use native music player for Navidrome.
 - 10-band equalizer with presets, perceptual/linear volume scale preference and fade on play/pause
 - Auto DJ that keeps the queue filled; server recommendations when available with a smart local fallback
 - Random play with filters for track count, year range, genre and played/unplayed status
-- Optional waveform seekbar; waveforms are generated for the current track and cached
-- Fullscreen player with visualizer
+- Fullscreen player
 - CUE sheet support with separate playable tracks
 - Broad codec support [^codecs]
 - Audio output device selection

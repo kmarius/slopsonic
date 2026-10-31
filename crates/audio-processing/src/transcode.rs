@@ -1,6 +1,5 @@
 use std::io::{self, Cursor, Read};
 use std::path::Path;
-use std::sync::mpsc::{Receiver, sync_channel};
 use std::time::{Duration, Instant};
 
 use crate::ResolvedStream;
@@ -21,7 +20,6 @@ pub struct TranscodeOptions {
     pub processing: Option<ProcessingConfig>,
     pub start_offset_millis: u64,
     pub duration_millis: Option<u64>,
-    pub visualizer_fft_size: Option<usize>,
 }
 
 impl From<AudioEncoding> for TranscodeOptions {
@@ -31,20 +29,8 @@ impl From<AudioEncoding> for TranscodeOptions {
             processing: None,
             start_offset_millis: 0,
             duration_millis: None,
-            visualizer_fft_size: None,
         }
     }
-}
-
-pub struct VisualizerFrame {
-    pub position_millis: u64,
-    pub levels: Vec<f64>,
-}
-
-struct TranscodeVisualizer {
-    samples: Receiver<(u64, Vec<f32>, u32)>,
-    fft: crate::VisualizerFft,
-    next_millis: u64,
 }
 
 struct TranscodePipeline {
@@ -53,7 +39,6 @@ struct TranscodePipeline {
     peak_db: Vec<f64>,
     element: gst::Element,
     bus: gst::Bus,
-    visualizer: Option<TranscodeVisualizer>,
     _stream: ResolvedStream,
 }
 
@@ -216,28 +201,6 @@ impl TranscodePipeline {
                 }
                 gst::PadProbeReturn::Ok
             });
-        let visualizer = options.visualizer_fft_size.map(|size| {
-            let (send, samples) = sync_channel(8);
-            bin.by_name("bounds")
-                .expect("encoder bounds")
-                .static_pad("src")
-                .expect("encoder input")
-                .add_probe(gst::PadProbeType::BUFFER, move |pad, probe| {
-                    if let Some(buffer) = probe.buffer()
-                        && let Some(position) = buffer.pts()
-                        && let Some((samples, rate)) =
-                            crate::copy_visualizer_samples(pad, buffer, size)
-                    {
-                        let _ = send.try_send((position.mseconds(), samples, rate));
-                    }
-                    gst::PadProbeReturn::Ok
-                });
-            TranscodeVisualizer {
-                samples,
-                fft: crate::VisualizerFft::with_size(size),
-                next_millis: 0,
-            }
-        });
         let trust = stream.trust_invalid_certificate();
         configure_sources(&decoder, move || trust);
         decoder.set_property("uri", stream.uri());
@@ -257,7 +220,6 @@ impl TranscodePipeline {
             peak_db: Vec::new(),
             element,
             bus,
-            visualizer,
             _stream: stream.clone(),
         };
         pipeline
@@ -466,25 +428,6 @@ impl TranscodedAudioReader {
             .query(&mut query)
             .then(|| query.result().0)
     }
-
-    pub fn take_visualizer_frames(&mut self) -> Vec<VisualizerFrame> {
-        let mut frames = Vec::new();
-        if let Some(visualizer) = &mut self.pipeline.visualizer {
-            for (position_millis, samples, rate) in visualizer.samples.try_iter() {
-                visualizer.fft.push_samples(&samples);
-                if position_millis >= visualizer.next_millis
-                    && let Some(levels) = visualizer.fft.levels(rate)
-                {
-                    frames.push(VisualizerFrame {
-                        position_millis,
-                        levels,
-                    });
-                    visualizer.next_millis = position_millis.saturating_add(33);
-                }
-            }
-        }
-        frames
-    }
 }
 
 impl Read for TranscodedAudioReader {
@@ -641,8 +584,7 @@ mod tests {
                     }),
                     start_offset_millis: 10,
                     duration_millis: None,
-                    visualizer_fft_size: None,
-                },
+                        },
                 || false,
             )
             .expect("start windowed transcode");

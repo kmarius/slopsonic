@@ -4,7 +4,7 @@ use super::super::{
 };
 use super::*;
 use crate::playback::Placement;
-use crate::{settings::SettingsFile, source::SourceOwner, waveform::WaveformOwner};
+use crate::{settings::SettingsFile, source::SourceOwner};
 use playback::{BackendError, PlaybackBackend};
 use playback::{Provenance, TrackReference};
 use std::sync::Mutex;
@@ -88,12 +88,6 @@ pub(in crate::playback) async fn seeded(
             discovery: async_channel::unbounded().0,
         },
     );
-    let waveform = WaveformOwner::new(
-        runtime.clone(),
-        async_channel::unbounded().0,
-        directory.path().join("playback"),
-        false,
-    );
     let stored = settings.load();
     let scrobbler = Arc::new(tokio::task::block_in_place(|| {
         scrobbling::Scrobbler::new(
@@ -106,15 +100,11 @@ pub(in crate::playback) async fn seeded(
     }));
     let commands = Arc::new(Mutex::new(Vec::new()));
     let backend_commands = commands.clone();
-    let (visualizer, visualizer_drain) = async_channel::bounded(1);
     let owner = PlaybackOwner::new(
         Arc::new(database.clone()),
         settings,
         runtime,
-        visualizer,
-        visualizer_drain,
         artwork,
-        waveform,
         Arc::new(|_| {}),
         Vec::new,
         scrobbler,
@@ -631,7 +621,7 @@ async fn volume_commit_persists_the_requested_value_after_older_backend_feedback
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn stream_access_and_visualizer_settings_leave_the_audible_run_untouched() {
+async fn stream_access_changes_leave_the_audible_run_untouched() {
     let (_directory, _database, mut session, _owner, commands, _playback, _inbox) =
         active_two_track_session().await;
     let sample = ClockSample {
@@ -661,25 +651,6 @@ async fn stream_access_and_visualizer_settings_leave_the_audible_run_untouched()
                 .all(|command| matches!(command, BackendCommand::PrepareNext { .. })),
             "background access changes may only replace prepared-next"
         );
-        assert_eq!(session.current_run(), Some(run));
-        assert_eq!(session.sequence.selected().unwrap().position, position);
-        assert_eq!(session.sequence.progress_millis(), 42_000);
-    }
-    for (ignore_volume, fft_size) in [(false, 8_192), (true, 16_384), (true, 32_768)] {
-        commands.lock().unwrap().clear();
-        let mut settings = session.settings.clone();
-        settings.visualizer_ignore_volume = ignore_volume;
-        settings.visualizer_fft_size = fft_size;
-        session
-            .handle_command(Command::UpdateSettings(settings), &sample)
-            .unwrap();
-        let commands = commands.lock().unwrap();
-        assert!(commands.iter().any(|command| matches!(command,
-            BackendCommand::ConfigureAudio(settings) if settings.visualizer_ignore_volume == ignore_volume && settings.visualizer_fft_size == fft_size)));
-        assert!(commands.iter().all(|command| matches!(
-            command,
-            BackendCommand::ConfigureAudio(_) | BackendCommand::PrepareNext { .. }
-        )));
         assert_eq!(session.current_run(), Some(run));
         assert_eq!(session.sequence.selected().unwrap().position, position);
         assert_eq!(session.sequence.progress_millis(), 42_000);

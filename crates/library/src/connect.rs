@@ -413,7 +413,6 @@ impl Database {
         if kind.starts_with("analysis:") {
             let value = match kind {
                 "analysis:loudness" => crate::loudness::current_record_on(connection, key).await?,
-                "analysis:waveform" => crate::waveform::current_record_on(connection, key).await?,
                 _ => None,
             };
             return Ok(ConnectRecord {
@@ -687,10 +686,6 @@ pub(crate) async fn apply_records_on(
         changed |= match record.kind.as_str() {
             "analysis:loudness" => {
                 crate::loudness::apply_record_on(connection, &record.key, record.value.as_ref())
-                    .await?
-            }
-            "analysis:waveform" => {
-                crate::waveform::apply_record_on(connection, &record.key, record.value.as_ref())
                     .await?
             }
             _ => false,

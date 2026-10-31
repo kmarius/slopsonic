@@ -1056,7 +1056,6 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
     let resource = crate::ui_resource::APPEARANCE_PREFERENCES_RESOURCE;
     gtk_widgets::objects!(builder, resource, {
         layout_group: adw::PreferencesGroup,
-        visualizer_panel_row: adw::SwitchRow,
         bottom_bar_rating_row: adw::SwitchRow,
         narrow_row: adw::SwitchRow,
         threshold_row: adw::SpinRow,
@@ -1104,13 +1103,6 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
         },
     );
     group.add(&default_right_row);
-
-    visualizer_panel_row.set_active(settings.visualizer_panel_visible);
-    let visualizer_panel_shell = Rc::clone(shell);
-    visualizer_panel_row.connect_active_notify(move |row| {
-        (visualizer_panel_shell.effects)(crate::Effect::VisualizerPanelVisible(row.is_active()));
-    });
-    group.add(&visualizer_panel_row);
 
     bottom_bar_rating_row.set_active(settings.show_bottom_bar_rating);
     let bottom_bar_rating_shell = Rc::clone(shell);

@@ -59,20 +59,14 @@ pub struct FullscreenPlayerParts {
     hero_content: gtk::Box,
     details: gtk::Box,
     details_scroll: gtk::ScrolledWindow,
-    pub visualizer_enabled: Rc<Cell<bool>>,
-    focus_button: gtk::ToggleButton,
-    pub(crate) visualizer_settings: gtk::Button,
-    focus_labels: [gtk::Label; 2],
     background: crate::fullscreen_background::FullscreenBackground,
     bar_tint: gtk::CssProvider,
     bar_color: Cell<Option<[f32; 3]>>,
-    experience: gtk::Overlay,
     cover_button: gtk::Button,
     collapsed: Cell<bool>,
     pane_layout: Cell<PaneLayout>,
     pub pane_button: gtk::Button,
     customize_button: gtk::Button,
-    visualizer_panel: gtk::Box,
     pub cover: ArtworkTile,
     pub title: gtk::Label,
     pub artist: gtk::Label,
@@ -116,67 +110,27 @@ impl FullscreenPlayerParts {
         }
     }
 
-    pub fn has_experience(&self) -> bool {
-        self.visualizer_enabled.get()
-    }
-
-    pub fn experience_visible(&self) -> bool {
-        self.has_experience()
-            && (self.focus_button.is_active()
-                || self.pane_layout.get().visibility(self.collapsed.get()).0)
-    }
-
-    fn apply_mode(&self) {
-        let has_experience = self.has_experience();
-        self.experience.set_visible(has_experience);
-        self.visualizer_panel
-            .set_visible(self.visualizer_enabled.get());
-        self.update_hero_layout();
-    }
-
     pub fn update_hero_layout(&self) {
-        let has_experience = self.has_experience();
-        if has_experience {
-            self.hero_content
-                .set_orientation(gtk::Orientation::Horizontal);
-            self.hero_content.set_halign(gtk::Align::Fill);
-            self.hero_content.set_valign(gtk::Align::Fill);
-            self.cover_button.set_halign(gtk::Align::Start);
-            self.cover_button.set_valign(gtk::Align::Center);
-            self.details.set_halign(gtk::Align::Fill);
-            self.details.set_valign(gtk::Align::Center);
-            self.details_scroll.set_vexpand(true);
-            self.details_scroll.set_valign(gtk::Align::Fill);
-            for label in [&self.title, &self.artist, &self.album] {
-                label.set_halign(gtk::Align::Start);
-                label.set_xalign(0.0);
-                label.set_justify(gtk::Justification::Left);
-            }
-            self.meta.set_halign(gtk::Align::Start);
-        } else {
-            self.hero_content
-                .set_orientation(gtk::Orientation::Vertical);
-            self.hero_content.set_halign(gtk::Align::Fill);
-            self.hero_content.set_valign(gtk::Align::Center);
-            self.cover_button.set_halign(gtk::Align::Center);
-            self.cover_button.set_valign(gtk::Align::Center);
-            self.details.set_halign(gtk::Align::Fill);
-            self.details.set_valign(gtk::Align::Center);
-            self.details_scroll.set_vexpand(false);
-            self.details_scroll.set_valign(gtk::Align::Center);
-            for label in [&self.title, &self.artist, &self.album] {
-                label.set_halign(gtk::Align::Center);
-                label.set_xalign(0.5);
-                label.set_justify(gtk::Justification::Center);
-            }
-            self.meta.set_halign(gtk::Align::Center);
+        self.hero_content
+            .set_orientation(gtk::Orientation::Vertical);
+        self.hero_content.set_halign(gtk::Align::Fill);
+        self.hero_content.set_valign(gtk::Align::Center);
+        self.cover_button.set_halign(gtk::Align::Center);
+        self.cover_button.set_valign(gtk::Align::Center);
+        self.details.set_halign(gtk::Align::Fill);
+        self.details.set_valign(gtk::Align::Center);
+        self.details_scroll.set_vexpand(false);
+        self.details_scroll.set_valign(gtk::Align::Center);
+        for label in [&self.title, &self.artist, &self.album] {
+            label.set_halign(gtk::Align::Center);
+            label.set_xalign(0.5);
+            label.set_justify(gtk::Justification::Center);
         }
+        self.meta.set_halign(gtk::Align::Center);
     }
 }
 
-pub fn build_fullscreen_player(
-    visualizer_area: &crate::visualizer::Visualizer,
-) -> FullscreenPlayerParts {
+pub fn build_fullscreen_player() -> FullscreenPlayerParts {
     let resource = crate::ui_resource::FULLSCREEN_PLAYER_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
@@ -184,14 +138,10 @@ pub fn build_fullscreen_player(
         close_button: gtk::Button,
         left_pane: gtk::Box,
         right_pane: gtk::Box,
-        focus_button: gtk::ToggleButton,
-        focus_expand_label: gtk::Label,
-        focus_restore_label: gtk::Label,
         body: gtk::Box,
         cover_button: gtk::Button,
         pane_button: gtk::Button,
         customize_button: gtk::Button,
-        experience: gtk::Overlay,
         hero: gtk::Box,
         hero_content: gtk::Box,
         details: gtk::Box,
@@ -209,7 +159,6 @@ pub fn build_fullscreen_player(
         equalizer_tab: gtk::ToggleButton,
         queue_panel: gtk::Box,
         queue_loading: adw::Spinner,
-        visualizer_panel: gtk::Box,
         equalizer_panel: gtk::ScrolledWindow,
         related_panel: gtk::Overlay,
         related_list: gtk::Box,
@@ -229,36 +178,11 @@ pub fn build_fullscreen_player(
     cover.area.add_css_class("fullscreen-player-cover");
     cover.area.set_valign(gtk::Align::Start);
     cover_button.set_child(Some(&cover.area));
-    let visualizer_enabled = Rc::new(Cell::new(false));
     hero.append(&hero_content);
     stack.add_titled(&queue_panel, Some("queue"), &"Queue".to_string());
     stack.add_titled(&related_panel, Some("related"), &"Related".to_string());
     stack.add_titled(&equalizer_panel, Some("equalizer"), &"Equalizer".to_string());
     stack.set_visible_child_name("queue");
-    visualizer_panel.append(visualizer_area);
-    let experience_base = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    experience_base.set_hexpand(true);
-    experience_base.set_vexpand(true);
-    experience.set_child(Some(&experience_base));
-    experience.add_overlay(&visualizer_panel);
-    experience.set_measure_overlay(&visualizer_panel, false);
-    let experience_controls = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    experience_controls.set_halign(gtk::Align::End);
-    experience_controls.set_valign(gtk::Align::Start);
-    experience_controls.set_margin_top(8);
-    experience_controls.set_margin_end(8);
-    experience_controls.add_css_class("panel-controls");
-    experience_controls.add_css_class("panel-top-controls");
-    let visualizer_settings = gtk::Button::from_icon_name("rufin-applications-system-symbolic");
-    visualizer_settings.set_focus_on_click(false);
-    visualizer_settings.set_tooltip_text(Some("Settings"));
-    for class in ["icon-button", "flat", "circular"] {
-        visualizer_settings.add_css_class(class);
-    }
-    experience_controls.append(&visualizer_settings);
-    experience_controls.append(&focus_button);
-    experience.add_overlay(&experience_controls);
-    experience.set_measure_overlay(&experience_controls, false);
     connect_fullscreen_player_switcher(
         &stack,
         [
@@ -282,20 +206,14 @@ pub fn build_fullscreen_player(
         hero_content,
         details,
         details_scroll,
-        focus_button,
-        visualizer_settings,
         background,
         bar_tint: gtk::CssProvider::new(),
         bar_color: Cell::new(None),
-        focus_labels: [focus_expand_label, focus_restore_label],
-        visualizer_enabled,
-        experience,
         cover_button,
         collapsed: Cell::new(false),
         pane_layout: Cell::new(PaneLayout::default()),
         pane_button,
         customize_button,
-        visualizer_panel,
         cover,
         title,
         artist,
@@ -320,7 +238,7 @@ pub fn build_fullscreen_player(
         queue_width_fit: RefCell::new(None),
         related_task: RefCell::new(None),
     };
-    parts.apply_mode();
+    parts.update_hero_layout();
     parts
 }
 
@@ -361,7 +279,6 @@ fn present_fullscreen_settings(shell: &Rc<crate::PlayerUi>) {
         dialog: adw::PreferencesDialog,
         page: adw::PreferencesPage,
         fields_group: adw::PreferencesGroup,
-        visualizer: adw::SwitchRow,
         dynamic_background: adw::SwitchRow,
         background_image: adw::SwitchRow,
     });
@@ -386,7 +303,6 @@ fn present_fullscreen_settings(shell: &Rc<crate::PlayerUi>) {
     );
     let settings = shell.settings.current.borrow();
     let active = [
-        settings.player_display.fullscreen_visualizer_visible,
         settings.player_display.fullscreen_dynamic_background,
         settings.player_display.fullscreen_background_image,
     ];
@@ -407,18 +323,18 @@ fn present_fullscreen_settings(shell: &Rc<crate::PlayerUi>) {
         },
     );
     display.set_layout(Some(rufin_core::settings::LibraryLayout::Row));
-    display.prepend_rows(&[&visualizer, &dynamic_background, &background_image]);
+    display.prepend_rows(&[&dynamic_background, &background_image]);
     page.remove(&fields_group);
     page.add(&display.group);
     page.add(&fields_group);
-    background_image.set_sensitive(active[1]);
+    background_image.set_sensitive(active[0]);
     let image_row = background_image.downgrade();
     dynamic_background.connect_active_notify(move |row| {
         if let Some(image_row) = image_row.upgrade() {
             image_row.set_sensitive(row.is_active());
         }
     });
-    for (index, row) in [visualizer, dynamic_background, background_image]
+    for (index, row) in [dynamic_background, background_image]
         .into_iter()
         .enumerate()
     {
@@ -432,8 +348,7 @@ fn present_fullscreen_settings(shell: &Rc<crate::PlayerUi>) {
                 .settings
                 .update_app_settings("fullscreen display", |settings| {
                     let value = match index {
-                        0 => &mut settings.player_display.fullscreen_visualizer_visible,
-                        1 => &mut settings.player_display.fullscreen_dynamic_background,
+                        0 => &mut settings.player_display.fullscreen_dynamic_background,
                         _ => &mut settings.player_display.fullscreen_background_image,
                     };
                     if *value == row.is_active() {
@@ -450,7 +365,6 @@ fn present_fullscreen_settings(shell: &Rc<crate::PlayerUi>) {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FullscreenPlaybackRefresh {
     None,
-    Visualizer,
     Static,
 }
 
@@ -463,8 +377,6 @@ pub fn fullscreen_playback_refresh(
     };
     if previous.transport.current != next.transport.current {
         FullscreenPlaybackRefresh::Static
-    } else if previous.transport.effective_state() != next.transport.effective_state() {
-        FullscreenPlaybackRefresh::Visualizer
     } else {
         FullscreenPlaybackRefresh::None
     }
@@ -514,27 +426,6 @@ pub fn connect_fullscreen_player_controls(shell: &Rc<crate::PlayerUi>) {
             if let Some(shell) = weak.upgrade() {
                 present_fullscreen_settings(&shell);
             }
-        });
-    let weak = Rc::downgrade(shell);
-    shell
-        .views
-        .fullscreen_player
-        .focus_button
-        .connect_toggled(move |button| {
-            button.set_icon_name(if button.is_active() {
-                "rufin-view-restore-corners-symbolic"
-            } else {
-                "rufin-view-fullscreen-corners-symbolic"
-            });
-            let Some(shell) = weak.upgrade() else {
-                return;
-            };
-            let label =
-                shell.views.fullscreen_player.focus_labels[usize::from(button.is_active())].text();
-            button.set_tooltip_text(Some(&label));
-            button.update_property(&[gtk::accessible::Property::Label(&label)]);
-            shell.apply_fullscreen_responsive_layout();
-            shell.sync_fullscreen_surfaces();
         });
     let weak = Rc::downgrade(shell);
     shell
@@ -733,11 +624,7 @@ impl crate::PlayerUi {
                 .library_list(rufin_core::settings::LibraryListKey::FullscreenTracks)
                 .display,
         );
-        parts
-            .visualizer_enabled
-            .set(settings.player_display.fullscreen_visualizer_visible);
         drop(settings);
-        parts.apply_mode();
         self.apply_fullscreen_responsive_layout();
         self.refresh_fullscreen_background();
         self.sync_fullscreen_surfaces();
@@ -806,7 +693,6 @@ impl crate::PlayerUi {
             parts.related_seed.borrow_mut().take();
         }
         self.animate_fullscreen_player(false);
-        self.sync_visualizer_state();
     }
 
     pub fn toggle_fullscreen_player(self: &Rc<Self>) {
@@ -854,49 +740,32 @@ impl crate::PlayerUi {
         let collapsed = width < 800;
         let changed = parts.collapsed.replace(collapsed) != collapsed;
         let (first, second) = parts.pane_layout.get().visibility(collapsed);
-        let has_experience = parts.has_experience();
-        let focused = parts.focus_button.is_active() && has_experience;
         parts
             .pane_button
             .set_icon_name(parts.pane_layout.get().icon_name(collapsed));
-        parts.left_pane.set_visible(focused || first);
-        parts.right_pane.set_visible(!focused && second);
-        parts.hero.set_visible(!focused);
-        parts.experience.set_visible(has_experience);
+        parts.left_pane.set_visible(first);
+        parts.right_pane.set_visible(second);
         parts.update_hero_layout();
-        let pane_width = if first && second && !focused {
+        let pane_width = if first && second {
             width.saturating_sub(24) / 2
         } else {
             width.saturating_sub(16)
         };
-        if has_experience {
-            parts.hero.set_vexpand(false);
-            let hero_height = ((height - BOTTOM_PLAYER_HEIGHT).max(1) * 42 / 100).clamp(96, 544);
-            if parts.hero.height_request() != hero_height {
-                parts.hero.set_height_request(hero_height);
-            }
-            let max_w = (pane_width.saturating_sub(48) * 40) / 100;
-            let max_h = hero_height.saturating_sub(32);
-            let cover_size = max_w.min(max_h).clamp(48, 340);
-            parts.cover.set_square_size(cover_size);
-        } else {
-            parts.hero.set_vexpand(true);
-            parts.hero.set_height_request(-1);
-            let max_cover_from_height = height.saturating_sub(BOTTOM_PLAYER_HEIGHT + 228);
-            let max_cover_from_width = pane_width.saturating_sub(48);
-            let cover_size = max_cover_from_height
-                .min(max_cover_from_width)
-                .min((height * 50) / 100)
-                .clamp(96, 480);
-            parts.cover.set_square_size(cover_size);
-        }
+        parts.hero.set_vexpand(true);
+        parts.hero.set_height_request(-1);
+        let max_cover_from_height = height.saturating_sub(BOTTOM_PLAYER_HEIGHT + 228);
+        let max_cover_from_width = pane_width.saturating_sub(48);
+        let cover_size = max_cover_from_height
+            .min(max_cover_from_width)
+            .min((height * 50) / 100)
+            .clamp(96, 480);
+        parts.cover.set_square_size(cover_size);
         if changed {
             self.sync_fullscreen_surfaces();
         }
     }
 
     fn sync_fullscreen_surfaces(self: &Rc<Self>) {
-        self.sync_visualizer_state();
         self.refresh_related_tracks();
     }
 
@@ -1118,7 +987,7 @@ mod playback_refresh_tests {
         state_change.transport.desired_playing = false;
         assert_eq!(
             fullscreen_playback_refresh(Some(&previous), &state_change),
-            FullscreenPlaybackRefresh::Visualizer
+            FullscreenPlaybackRefresh::None
         );
 
         let mut current_change = previous.clone();

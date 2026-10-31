@@ -340,14 +340,6 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
         move || shell.toggle_right_panel()
     });
     #[cfg(target_os = "macos")]
-    let visualizer_panel_accels = &["<Alt><Meta>v"][..];
-    #[cfg(not(target_os = "macos"))]
-    let visualizer_panel_accels = &["<Control><Shift>v"][..];
-    add_window_action(shell, "show-visualizer-panel", visualizer_panel_accels, {
-        let shell = Rc::clone(shell);
-        move || shell.set_visualizer_panel_visible(true)
-    });
-    #[cfg(target_os = "macos")]
     let refresh_library_accels = &["<Control><Meta>r"][..];
     #[cfg(not(target_os = "macos"))]
     let refresh_library_accels = &["F5"][..];

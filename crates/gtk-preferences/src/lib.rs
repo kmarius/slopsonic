@@ -40,7 +40,6 @@ pub enum Effect {
     KeepRunningAfterClose(bool),
     #[cfg(not(target_os = "macos"))]
     StartMinimized(bool),
-    VisualizerPanelVisible(bool),
     Quit(&'static str),
     ResetStorage(Box<rufin_core::settings::StorageResetRequest>),
     ExportActivity(

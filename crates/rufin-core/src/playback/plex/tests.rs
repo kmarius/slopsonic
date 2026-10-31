@@ -168,12 +168,6 @@ async fn external_server_change_uses_the_configured_profile_and_preserves_unavai
             discovery: async_channel::unbounded().0,
         },
     );
-    let waveform = WaveformOwner::new(
-        runtime.clone(),
-        async_channel::unbounded().0,
-        root.path().join("playback"),
-        false,
-    );
     let stored = settings.load();
     let scrobbler = Arc::new(tokio::task::block_in_place(|| {
         Scrobbler::new(
@@ -184,15 +178,11 @@ async fn external_server_change_uses_the_configured_profile_and_preserves_unavai
         )
         .unwrap()
     }));
-    let (visualizer, visualizer_drain) = async_channel::bounded(1);
     let owner = PlaybackOwner::new(
         database,
         settings,
         runtime,
-        visualizer,
-        visualizer_drain,
         artwork,
-        waveform,
         Arc::new(|_| {}),
         Vec::new,
         scrobbler,

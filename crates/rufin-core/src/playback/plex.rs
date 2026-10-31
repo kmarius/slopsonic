@@ -1543,7 +1543,6 @@ impl PlaybackOwner {
             command,
             Command::UpdateSettings(_)
                 | Command::SetAutoDj { .. }
-                | Command::SetVisualizerEnabled(_)
                 | Command::CatalogChanged
         ) {
             return Some(command);

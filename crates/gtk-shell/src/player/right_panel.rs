@@ -19,9 +19,6 @@ impl Shell {
     }
 
     pub(crate) fn set_right_sidebar_visible(self: &Rc<Self>, visible: bool) {
-        if !visible {
-            self.player_ui.save_sidebar_panel_sizes();
-        }
         let active_profile =
             resolve_layout(&self.settings.current.borrow().layout, self.layout_width()).profile;
         self.settings
@@ -46,12 +43,5 @@ impl Shell {
             });
         self.update_layout();
         self.chrome.window.queue_resize();
-    }
-
-    pub(crate) fn set_visualizer_panel_visible(self: &Rc<Self>, visible: bool) {
-        if visible && !self.right_sidebar_visible() {
-            self.set_right_sidebar_visible(true);
-        }
-        self.player_ui.set_sidebar_visualizer_visible(visible);
     }
 }

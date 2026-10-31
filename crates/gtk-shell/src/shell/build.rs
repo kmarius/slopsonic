@@ -1,11 +1,10 @@
 use gtk_player::outputs::{default_audio_output_options, warm_audio_output_cache};
 use gtk_player::right_panel::build_right_panel;
-use gtk_player::right_panel::{apply_sidebar_visualizer_visibility, connect_sidebar_controls};
+use gtk_player::right_panel::apply_sidebar_queue_visibility;
 use gtk_player::{
     PlayerDesktopWidgets,
     bottom::{BOTTOM_PLAYER_HEIGHT, build_bottom_player},
     fullscreen::build_fullscreen_player,
-    visualizer::build_visualizer,
 };
 use gtk_player::{
     fullscreen::connect_fullscreen_player_controls, queue::connect_queue_panel_controls,
@@ -219,8 +218,7 @@ pub async fn build(
     compact_nav_scroller.set_min_content_width(COMPACT_RAIL_WIDTH);
     compact_nav_scroller.set_max_content_width(COMPACT_RAIL_WIDTH);
     compact_nav.set_width_request(COMPACT_RAIL_WIDTH);
-    let visualizer = build_visualizer();
-    let player_right_panel = build_right_panel(&visualizer.sidebar_area, &settings);
+    let player_right_panel = build_right_panel();
     let right_panel = player_right_panel.root.clone();
 
     let content_chrome = build_content_chrome(&right_panel);
@@ -229,7 +227,7 @@ pub async fn build(
     let right_split = content_chrome.right_split;
     let right_panel_slot = content_chrome.right_panel_slot;
     let right_resize_handle = content_chrome.right_resize_handle;
-    let fullscreen_player = build_fullscreen_player(&visualizer.fullscreen_area);
+    let fullscreen_player = build_fullscreen_player();
     let player_controls = build_bottom_player();
     topbar.casting_host.append(&player_controls.output_button);
 
@@ -305,7 +303,6 @@ pub async fn build(
     let player_view = PlayerDesktopWidgets {
         fullscreen_player,
         player_controls,
-        visualizer,
     };
 
     let control_feedback =
@@ -538,7 +535,6 @@ pub async fn build(
     install_desktop_lifecycle(&shell);
     connect_queue_panel_controls(&shell.player_ui);
     crate::player::queue::connect_queue_playlist_button(&shell);
-    connect_sidebar_controls(&shell.player_ui);
     shell.connect_route_keyboard();
     connect_transient_entry_focus_dismissal(&shell);
     connect_fullscreen_player_controls(&shell.player_ui);
@@ -552,7 +548,7 @@ pub async fn build(
     }
     shell.player_ui.update_bottom_player();
     shell.player_ui.update_right_panel_button();
-    apply_sidebar_visualizer_visibility(Rc::clone(&shell.player_ui));
+    apply_sidebar_queue_visibility(&shell.player_ui);
     install_product_event_receivers(&shell, receivers);
     let weak_shell = Rc::downgrade(&shell);
     #[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]

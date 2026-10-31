@@ -496,16 +496,6 @@ impl AudioGraph {
         // This tap follows playbin's queue and precedes playback volume and output conversion.
         self.gain.static_pad("sink").expect("output gain input")
     }
-
-    pub(super) fn visualizer_pad(&self, ignore_volume: bool) -> Option<gst::Pad> {
-        // Both taps stay after playbin's queue. The gain input also retains
-        // samples when the output is muted or the volume is zero.
-        if ignore_volume {
-            self.gain.static_pad("sink")
-        } else {
-            self.output.static_pad("sink")
-        }
-    }
 }
 
 fn prepare_effects(

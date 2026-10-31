@@ -48,7 +48,6 @@ mod pins;
 mod playlists;
 pub use pins::{SidebarPin, SidebarPinRow};
 mod queue;
-mod waveform;
 pub use connect_media::{
     CatalogFile, CatalogFileDependency, CatalogFileStamp, ConnectMediaFile, media_encoding_key,
 };
@@ -132,7 +131,6 @@ pub use smart_playlists::{
 pub use tracks::{
     CatalogSort, TrackAccess, TrackArtistLink, TrackGenreLink, TrackLinks, TrackState, TrackView,
 };
-pub use waveform::WaveformCacheRow;
 
 use thiserror::Error;
 

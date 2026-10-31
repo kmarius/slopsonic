@@ -275,12 +275,6 @@
           </object>
         </child>
         <child>
-          <object class="AdwShortcutsItem" id="shortcut_visualizer_panel">
-            <property name="title" translatable="yes">Show visualizer in the right panel</property>
-            <property name="action-name">win.show-visualizer-panel</property>
-          </object>
-        </child>
-        <child>
           <object class="AdwShortcutsItem" id="shortcut_toggle_fullscreen">
             <property name="title" translatable="yes">Toggle Fullscreen</property>
             <property name="action-name">win.toggle-fullscreen</property>

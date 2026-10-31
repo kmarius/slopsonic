@@ -184,9 +184,20 @@
           </object>
         </child>
         <child>
-          <object class="GtkStack" id="progress_stack">
-            <property name="hhomogeneous">false</property>
-            <property name="vhomogeneous">true</property>
+          <object class="GtkScale" id="progress">
+            <property name="orientation">horizontal</property>
+            <property name="draw-value">false</property>
+            <property name="show-fill-level">true</property>
+            <property name="restrict-to-fill-level">false</property>
+            <property name="fill-level">0</property>
+            <property name="adjustment">
+              <object class="GtkAdjustment">
+                <property name="lower">0</property>
+                <property name="upper">1</property>
+                <property name="step-increment">1</property>
+              </object>
+            </property>
+            <style><class name="player-progress"/></style>
           </object>
         </child>
         <child>
@@ -222,21 +233,6 @@
     </property>
   </object>
 
-  <object class="GtkScale" id="progress">
-    <property name="orientation">horizontal</property>
-    <property name="draw-value">false</property>
-    <property name="show-fill-level">true</property>
-    <property name="restrict-to-fill-level">false</property>
-    <property name="fill-level">0</property>
-    <property name="adjustment">
-      <object class="GtkAdjustment">
-        <property name="lower">0</property>
-        <property name="upper">1</property>
-        <property name="step-increment">1</property>
-      </object>
-    </property>
-    <style><class name="player-progress"/></style>
-  </object>
 
   <object class="GtkOverlay" id="actions">
     <property name="halign">end</property><property name="valign">fill</property><property name="vexpand">true</property>

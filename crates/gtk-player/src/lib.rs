@@ -6,13 +6,11 @@ pub mod ui_resource;
 use gtk::prelude::*;
 use playback::PlaybackView;
 use queue::QueueState;
-use rufin_core::runtime::WaveformProjection;
 use state::PlaybackState;
 use std::cell::{Ref, RefCell};
 use std::rc::Rc;
 pub struct SelectedPlaybackState {
     player: PlaybackView,
-    waveform: WaveformProjection,
     seek_preview_seconds: Option<u32>,
 }
 pub struct PlayerUi {
@@ -31,7 +29,6 @@ pub struct PlayerUi {
     pub playback_owner: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
     pub right_panel: right_panel::RightPanelWidgets,
     window: gtk::glib::WeakRef<gtk::ApplicationWindow>,
-    visualizer_settings_dialog: RefCell<gtk::glib::WeakRef<adw::PreferencesDialog>>,
     panel_slot: gtk::glib::WeakRef<gtk::ScrolledWindow>,
     pub views: PlayerDesktopWidgets,
     pub controls: PlaybackState,
@@ -75,7 +72,6 @@ impl PlayerUi {
             playback_owner,
             right_panel,
             window: window.downgrade(),
-            visualizer_settings_dialog: RefCell::new(gtk::glib::WeakRef::new()),
             panel_slot: panel_slot.downgrade(),
             views,
             controls,
@@ -100,7 +96,6 @@ impl PlayerUi {
             None => {
                 *playback = Some(SelectedPlaybackState {
                     player,
-                    waveform: WaveformProjection::default(),
                     seek_preview_seconds: None,
                 });
             }
@@ -114,17 +109,6 @@ impl PlayerUi {
     }
     pub fn clear_player(&self) {
         self.playback.borrow_mut().take();
-    }
-    pub fn waveform(&self) -> Option<WaveformProjection> {
-        self.playback
-            .borrow()
-            .as_ref()
-            .map(|playback| playback.waveform.clone())
-    }
-    pub fn set_waveform(&self, waveform: WaveformProjection) {
-        if let Some(playback) = self.playback.borrow_mut().as_mut() {
-            playback.waveform = waveform;
-        }
     }
     pub fn seek_preview_seconds(&self) -> Option<u32> {
         self.playback
@@ -159,7 +143,6 @@ pub fn register_resources() -> Result<(), String> {
 }
 
 pub mod bottom;
-mod color_chooser;
 pub mod equalizer;
 pub mod fullscreen;
 pub mod fullscreen_background;
@@ -168,15 +151,11 @@ mod preset_name;
 mod preset_transfer;
 mod progress;
 mod refill_ring;
-pub mod visualizer;
-mod visualizer_settings;
 use bottom::PlayerControls;
 use fullscreen::FullscreenPlayerParts;
-use visualizer::VisualizerParts;
 pub struct PlayerDesktopWidgets {
     pub fullscreen_player: FullscreenPlayerParts,
     pub player_controls: PlayerControls,
-    pub visualizer: VisualizerParts,
 }
 
 pub mod right_panel;

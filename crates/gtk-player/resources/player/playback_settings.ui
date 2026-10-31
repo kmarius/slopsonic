@@ -40,10 +40,4 @@
   <object class="AdwSwitchRow" id="queue">
     <property name="title" translatable="yes">Show playback queue</property>
   </object>
-  <object class="AdwSwitchRow" id="visualizer">
-    <property name="title" translatable="yes">Show visualizer</property>
-  </object>
-  <object class="AdwSwitchRow" id="waveform_row">
-    <property name="title" translatable="yes">Waveform seekbar</property>
-  </object>
 </interface>

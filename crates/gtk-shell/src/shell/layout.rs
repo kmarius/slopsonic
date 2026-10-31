@@ -534,7 +534,6 @@ impl Shell {
 
         if right_visibility_changed {
             self.player_ui.update_right_panel_button();
-            self.player_ui.sync_visualizer_state();
         }
         if previous_left != resolved.left_sidebar || right_visibility_changed {
             debug!(?resolved, "resolved layout changed");

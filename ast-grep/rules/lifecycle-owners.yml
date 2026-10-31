@@ -118,16 +118,6 @@ rule:
         - pattern: assert!($$$ARGS)
         - regex: \.add_child\s*\(
 ---
-id: visualizer-lane-must-be-bounded
-language: Rust
-severity: error
-message: Use a one-item visualizer channel so a slow UI cannot build an unbounded frame backlog.
-rule:
-  pattern: let ($EVENTS, $RECEIVER) = unbounded();
-constraints:
-  EVENTS:
-    regex: visualizer
----
 id: playback-publication-lane-must-be-bounded
 language: Rust
 severity: error

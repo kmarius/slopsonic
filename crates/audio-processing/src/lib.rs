@@ -13,22 +13,17 @@ mod media_input;
 pub use media_input::{ResolvedStream, StreamWindow};
 #[cfg(target_os = "macos")]
 mod tls;
+mod spectrum;
 mod transcode;
-mod visualizer;
-mod waveform;
 
 pub use loudness::{
     AnalyzedLoudness, LoudnessAnalysis, album_loudness, analyze_loudness_cancellable,
 };
-pub use transcode::{TranscodeOptions, TranscodedAudioReader, VisualizerFrame, transcode_audio};
-pub use waveform::generate_waveform_peaks_cancellable;
+pub use transcode::{TranscodeOptions, TranscodedAudioReader, transcode_audio};
 
-pub use visualizer::{
-    VISUALIZER_BAND_COUNT, VisualizerFft, copy_audio_samples, copy_visualizer_samples,
-    visualizer_frequency, visualizer_position,
-};
+pub use spectrum::SpectrumFft;
 
-/// Initialize GStreamer once before playback or waveform work starts.
+/// Initialize GStreamer once before playback or analysis work starts.
 pub fn ensure_gstreamer_initialized() -> Result<(), String> {
     static INITIALIZED: OnceLock<Result<(), String>> = OnceLock::new();
     INITIALIZED

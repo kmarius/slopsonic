@@ -116,13 +116,5 @@ pub(crate) fn connect_player_controls(shell: &Rc<Shell>) {
     configure_playback_settings_popover(
         &shell.player_ui.views.player_controls.settings_button,
         &shell.player_ui,
-        {
-            let weak = Rc::downgrade(shell);
-            Rc::new(move |visible| {
-                if let Some(shell) = weak.upgrade() {
-                    shell.set_visualizer_panel_visible(visible);
-                }
-            })
-        },
     );
 }

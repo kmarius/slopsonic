@@ -27,12 +27,6 @@ pub enum SourceEvent {
     ReleaseSelected,
 }
 
-pub struct VisualizerPublication {
-    pub run: playback::RunId,
-    /// Linear amplitudes on the canonical ERB axis; map through the current visualizer preset.
-    pub levels: Vec<f64>,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CatalogPublication {
     pub source_key: Option<SourceKey>,

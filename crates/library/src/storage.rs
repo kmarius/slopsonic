@@ -22,10 +22,6 @@ impl Database {
         self.cached_table_usage("fingerprint_cache").await
     }
 
-    pub async fn waveform_cache_usage(&self) -> LibraryResult<CacheUsage> {
-        self.cached_table_usage("waveform_cache").await
-    }
-
     pub async fn loudness_cache_usage(&self) -> LibraryResult<CacheUsage> {
         self.cached_table_usage("loudness_measurements").await
     }
@@ -43,10 +39,6 @@ impl Database {
 
     pub async fn clear_fingerprint_cache(&self) -> LibraryResult<()> {
         self.clear_cached_table("fingerprint_cache").await
-    }
-
-    pub async fn clear_waveform_cache(&self) -> LibraryResult<()> {
-        self.clear_cached_table("waveform_cache").await
     }
 
     pub async fn clear_loudness_cache(&self) -> LibraryResult<()> {

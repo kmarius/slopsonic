@@ -87,6 +87,19 @@ impl TryFrom<MeasurementScalar> for LoudnessMeasurement {
 }
 
 impl Database {
+    pub async fn audio_analysis_key(&self, uri: &str) -> LibraryResult<Option<[u8; 32]>> {
+        let mut connection = self.acquire_reader().await?;
+        let key: Option<Vec<u8>> =
+            sqlx::query_scalar("SELECT loudness_analysis_key FROM tracks WHERE media_uri=?1")
+                .bind(uri)
+                .fetch_optional(&mut *connection)
+                .await?;
+        key.map(|key| {
+            key.try_into()
+                .map_err(|_| LibraryError::InvalidStore("invalid audio analysis key".into()))
+        })
+        .transpose()
+    }
     pub async fn playback_loudness(
         &self,
         media_uri: &str,

@@ -19,7 +19,7 @@ use rufin_core::runtime::source::{
 };
 use rufin_core::runtime::{
     CatalogChange, CatalogPublication, ProductReceivers, SourceEvent, SourceNotice,
-    SourceNoticeKind, WaveformProjection,
+    SourceNoticeKind,
 };
 
 use super::Shell;
@@ -31,8 +31,6 @@ pub(crate) fn install_product_event_receivers(shell: &Rc<Shell>, receivers: Prod
         source,
         source_discovery,
         downloads,
-        visualizer,
-        waveform,
         release_updates,
     } = receivers;
 
@@ -70,34 +68,11 @@ pub(crate) fn install_product_event_receivers(shell: &Rc<Shell>, receivers: Prod
                 event_shell
                     .player_ui
                     .update_fullscreen_player_with(&NowPlayingPresentation::new(None));
-                event_shell.player_ui.sync_visualizer_state();
                 event_shell.refresh_current_route_now_playing_selections();
                 update_sidebar_pin_playback(&event_shell);
                 event_shell.withdraw_now_playing_notification();
                 event_shell.update_media_controls_after(None);
             }
-        }
-    });
-
-    let event_shell = Rc::clone(shell);
-    glib::spawn_future_local(async move {
-        while let Ok(frame) = visualizer.recv().await {
-            let matches = event_shell
-                .player_ui
-                .selected_playback()
-                .as_deref()
-                .and_then(|player| player.transport.current.as_ref())
-                .is_some_and(|current| current.id.run == Some(frame.run));
-            if matches {
-                event_shell.player_ui.apply_visualizer_levels(frame.levels);
-            }
-        }
-    });
-
-    let event_shell = Rc::clone(shell);
-    glib::spawn_future_local(async move {
-        while let Ok(waveform) = waveform.recv().await {
-            apply_waveform(&event_shell, waveform);
         }
     });
 
@@ -652,9 +627,6 @@ fn finish_playback_projection(
     if let Some(now_playing) = now_playing.as_ref() {
         shell.player_ui.update_fullscreen_player_with(now_playing);
     }
-    if fullscreen_refresh != FullscreenPlaybackRefresh::None {
-        shell.player_ui.sync_visualizer_state();
-    }
     if media_controls_static_changed {
         shell.update_media_controls_after(media_controls_discontinuity);
     } else {
@@ -761,11 +733,6 @@ fn media_controls_static_state_changed(
             || previous.queue.next_index != next.queue.next_index
             || previous.queue.can_next != next.queue.can_next
     })
-}
-
-fn apply_waveform(shell: &Rc<Shell>, waveform: WaveformProjection) {
-    shell.player_ui.set_waveform(waveform);
-    shell.player_ui.update_bottom_player_transport();
 }
 
 fn playback_error_toast(error: &str) -> String {

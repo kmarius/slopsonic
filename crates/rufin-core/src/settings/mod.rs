@@ -1,6 +1,15 @@
 mod activity;
 mod player;
 mod preferences;
+pub type PreferenceIndex = usize;
+
+#[cfg(feature = "bindings")]
+uniffi::custom_type!(PreferenceIndex, u64, {
+    remote,
+    lower: |value| value as u64,
+    try_lift: |value| Ok(usize::try_from(value)?),
+});
+
 pub use app::{AppearancePreferences, ApplicationPreferences, PlayerDisplayPreferences};
 pub use player::{PlayerPreferenceOptions, PlayerPreferences, SettingsError};
 pub mod app;
@@ -15,7 +24,6 @@ pub use storage_reset::{StorageReset, StorageResetRequest};
 mod secret_storage;
 pub use secret_storage::KeyringSecretStore;
 pub mod sidebar;
-pub mod visualizer;
 mod web_controller;
 pub use web_controller::ControllerSettings;
 
@@ -186,8 +194,6 @@ pub struct StoredSettings {
     pub(crate) secret_scope_id: String,
     #[serde(default)]
     pub(crate) jellyfin_device_id: String,
-    #[serde(default)]
-    visualizer_preset_bar_counts_updated: bool,
     #[serde(default, rename = "home_sections", skip_serializing)]
     pub(crate) legacy_home_sections: Option<Vec<HomeSectionKind>>,
     #[serde(default, rename = "track_table", skip_serializing)]
@@ -205,7 +211,6 @@ impl Default for StoredSettings {
             sources: SourceSettings::default(),
             secret_scope_id: String::new(),
             jellyfin_device_id: String::new(),
-            visualizer_preset_bar_counts_updated: true,
             legacy_home_sections: None,
             legacy_track_table: None,
         }
@@ -219,11 +224,6 @@ impl StoredSettings {
         }
         self.scrobbling.lastfm.api_key.clear();
         self.scrobbling.sanitize();
-        if !self.visualizer_preset_bar_counts_updated {
-            self.ui.visualizer.migrate_preset_bar_counts();
-            self.visualizer_preset_bar_counts_updated = true;
-        }
-        self.ui.visualizer.migrate_named_presets();
         self.migrate_home_blocks();
         self.migrate_legacy_track_table();
         app::migrate_library_lists(&mut self.ui.library_lists);
@@ -679,18 +679,6 @@ impl SettingsOwner {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .ui
             .clone()
-    }
-
-    pub fn visualizer_render_settings(&self) -> (u32, visualizer::VisualizerAppearance) {
-        let stored = self
-            .file
-            .value
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        (
-            stored.ui.visualizer.fps_limit,
-            stored.ui.visualizer.appearance.clone(),
-        )
     }
 
     pub fn sidebar_changes(&self) -> tokio::sync::watch::Receiver<SidebarSettings> {

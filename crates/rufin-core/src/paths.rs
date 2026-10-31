@@ -47,7 +47,6 @@ const STORE_DIRECTORY: &str = "store";
 const STORE_FILE: &str = "rufin-store.sqlite";
 const SETTINGS_FILE: &str = "settings.json";
 const ARTWORK_DIRECTORY: &str = "covers";
-const PLAYBACK_DIRECTORY: &str = "playback";
 const DOWNLOADS_DIRECTORY: &str = "downloads";
 const RELEASE_HISTORY_FILE: &str = "releases.json";
 
@@ -93,10 +92,6 @@ impl Paths {
         self.cache_dir().join(ARTWORK_DIRECTORY)
     }
 
-    pub fn playback_dir(&self) -> PathBuf {
-        self.cache_dir().join(PLAYBACK_DIRECTORY)
-    }
-
     pub fn connect_dir(&self) -> PathBuf {
         self.data_dir().join("connect")
     }
@@ -113,7 +108,6 @@ impl Paths {
         for path in [
             self.store_file().parent().map(Path::to_path_buf),
             Some(self.artwork_dir()),
-            Some(self.playback_dir()),
             Some(self.downloads_dir()),
             self.settings_file().parent().map(Path::to_path_buf),
         ]

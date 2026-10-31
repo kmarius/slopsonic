@@ -1,7 +1,4 @@
-use super::{
-    SettingsOwner,
-    visualizer::{self, PreferenceIndex},
-};
+use super::SettingsOwner;
 use playback::{
     LoudnessNormalization, LoudnessNormalizationScope, PlaybackSettings, PlaybackTransitionMode,
     StreamQuality, VolumeScale,
@@ -25,15 +22,12 @@ impl From<String> for SettingsError {
 pub struct PlayerPreferences {
     pub application: super::ApplicationPreferences,
     pub playback: PlaybackSettings,
-    pub visualizer: visualizer::VisualizerSettings,
-    pub visualizer_save_target: Option<PreferenceIndex>,
     pub display: super::PlayerDisplayPreferences,
     pub right_panel: super::right_panel::RightPanelSettings,
 }
 
 #[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct PlayerPreferenceOptions {
-    pub visualizer_stale_micros: u64,
     pub min_crossfade_seconds: u8,
     pub max_crossfade_seconds: u8,
     pub min_playback_rate: f64,
@@ -54,13 +48,9 @@ impl SettingsOwner {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         let ui = &stored.ui;
         let playback = ui.playback.clone();
-        let mut visualizer = ui.visualizer.clone();
-        visualizer.selected_preset = visualizer.selected_preset();
         PlayerPreferences {
             application: ui.application.clone(),
             playback,
-            visualizer,
-            visualizer_save_target: ui.visualizer.save_target(),
             display: ui.player_display.clone(),
             right_panel: ui.right_panel.clone(),
         }
@@ -80,7 +70,6 @@ impl SettingsOwner {
 
     pub fn player_preference_options(&self) -> PlayerPreferenceOptions {
         PlayerPreferenceOptions {
-            visualizer_stale_micros: visualizer::VISUALIZER_STALE_MICROS as u64,
             min_crossfade_seconds: playback::MIN_CROSSFADE_SECONDS,
             max_crossfade_seconds: playback::MAX_CROSSFADE_SECONDS,
             min_playback_rate: playback::MIN_PLAYBACK_RATE,
@@ -98,88 +87,6 @@ impl SettingsOwner {
             Ok(())
         })
         .map_err(Into::into)
-    }
-
-    pub fn set_visualizer_appearance(
-        &self,
-        mut value: visualizer::VisualizerAppearance,
-    ) -> Result<(), SettingsError> {
-        value.normalize_analysis();
-        self.update_preferences(move |ui| {
-            ui.visualizer.appearance = value;
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-
-    pub fn set_visualizer_frame_limit(&self, value: u32) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            ui.visualizer.fps_limit = value;
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-
-    pub fn update_visualizer_preset(
-        &self,
-        slot: PreferenceIndex,
-        save: bool,
-    ) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            if save {
-                ui.visualizer.save_preset(slot);
-            } else {
-                ui.visualizer.select_preset(slot);
-            }
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-
-    pub fn save_visualizer_preset(&self, name: String) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            ui.visualizer.save_preset_as(name.trim().to_owned());
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-
-    pub fn rename_visualizer_preset(
-        &self,
-        slot: PreferenceIndex,
-        name: String,
-    ) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            ui.visualizer.rename_preset(slot, name.trim().to_owned());
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-
-    pub fn delete_visualizer_preset(&self, slot: PreferenceIndex) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            ui.visualizer.delete_preset(slot);
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-
-    pub fn export_visualizer_preset(&self) -> String {
-        self.load().visualizer.current_preset().to_json()
-    }
-
-    pub fn import_visualizer_preset(&self, text: String) -> Result<(), SettingsError> {
-        let preset = visualizer::VisualizerPreset::from_json(&text)
-            .ok_or_else(|| SettingsError::from("Not valid".to_string()))?;
-        self.update_preferences(move |ui| {
-            ui.visualizer.import_preset(preset);
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-
-    pub fn reset_visualizer_appearance(&self) -> Result<(), SettingsError> {
-        self.set_visualizer_appearance(Default::default())
     }
 }
 
@@ -206,15 +113,4 @@ macro_rules! native_preference_setters {
     };
 }
 
-use visualizer::{
-    VisualizerColors, VisualizerFrequencyScale, VisualizerStyle, VisualizerWeighting,
-};
 playback::playback_preference_fields!(native_preference_setters, ui, (playback), {});
-visualizer::visualizer_preference_fields!(
-    native_preference_setters,
-    ui,
-    (visualizer.appearance),
-    {
-        ui.visualizer.appearance.normalize_analysis();
-    }
-);

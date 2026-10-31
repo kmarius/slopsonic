@@ -17,7 +17,6 @@ impl Database {
             DELETE FROM favorite_outbox; DELETE FROM listen_outbox; DELETE FROM native_playlist_pending;
             DELETE FROM local_locators; DELETE FROM local_access_metadata; DELETE FROM connect_media_files;
             DELETE FROM playlist_file_links; DELETE FROM playlist_file_ignored; DELETE FROM playlist_file_settings;
-            DELETE FROM waveform_cache WHERE NOT EXISTS(SELECT 1 FROM tracks WHERE tracks.media_uri=waveform_cache.media_uri AND tracks.source_loudness_analysis_key=waveform_cache.analysis_key);
             UPDATE tracks SET loudness_analysis_key=source_loudness_analysis_key WHERE loudness_analysis_key<>source_loudness_analysis_key;
             UPDATE albums SET loudness_analysis_key=source_loudness_analysis_key WHERE loudness_analysis_key<>source_loudness_analysis_key;
             DELETE FROM loudness_measurements WHERE(entity_kind='track' AND NOT EXISTS(SELECT 1 FROM tracks WHERE track_key=entity_key AND loudness_analysis_key=analysis_key)) OR(entity_kind='album' AND NOT EXISTS(SELECT 1 FROM albums WHERE album_key=entity_key AND loudness_analysis_key=analysis_key));
@@ -101,7 +100,6 @@ impl Database {
                 UPDATE albums SET loudness_analysis_key=source_loudness_analysis_key WHERE loudness_analysis_key<>source_loudness_analysis_key;
                 UPDATE albums SET loudness_analysis_key=old.loudness_analysis_key FROM receiving.albums old WHERE albums.media_uri=old.media_uri AND albums.source_loudness_analysis_key=old.source_loudness_analysis_key;
                 INSERT OR IGNORE INTO artwork_previews SELECT * FROM receiving.artwork_previews;
-                INSERT OR IGNORE INTO waveform_cache SELECT result.* FROM receiving.waveform_cache result JOIN main.tracks track USING(media_uri) WHERE result.analysis_key=track.loudness_analysis_key;
                 INSERT OR IGNORE INTO loudness_measurements SELECT track.source_key,'track',track.track_key,measurement.analysis_key,measurement.integrated_lufs,measurement.true_peak
                 FROM receiving.loudness_measurements measurement JOIN receiving.tracks old ON measurement.entity_kind='track' AND old.track_key=measurement.entity_key JOIN main.tracks track USING(media_uri)
                 WHERE measurement.analysis_key=track.loudness_analysis_key;

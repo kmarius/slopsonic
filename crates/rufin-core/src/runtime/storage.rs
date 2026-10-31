@@ -4,7 +4,6 @@ pub use library::CacheUsage;
 #[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CacheKind {
-    Waveforms,
     Loudness,
     Fingerprints,
     MetadataLookups,
@@ -39,7 +38,6 @@ impl ProductHandles {
             summary.errors.push(error);
         }
         for kind in [
-            CacheKind::Waveforms,
             CacheKind::Loudness,
             CacheKind::Fingerprints,
             CacheKind::MetadataLookups,
@@ -96,7 +94,6 @@ impl ProductHandles {
                 .fingerprint_cache_usage()
                 .await
                 .map_err(|error| error.to_string()),
-            CacheKind::Waveforms => self.playback.waveform_cache_usage().await,
             CacheKind::Loudness => self
                 .library
                 .loudness_cache_usage()
@@ -122,7 +119,6 @@ impl ProductHandles {
                 .clear_fingerprint_cache()
                 .await
                 .map_err(|error| error.to_string()),
-            CacheKind::Waveforms => self.playback.clear_waveform_cache().await,
             CacheKind::Loudness => self
                 .library
                 .clear_loudness_cache()
