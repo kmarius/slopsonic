@@ -127,7 +127,6 @@ jobs:
             output="$(copr-cli build \
               --nowait \
               --chroot fedora-44-x86_64 \
-              --chroot fedora-44-aarch64 \
               screwyy/rufin \
               "$srpm")"
             printf '%s\n' "$output"
@@ -203,10 +202,8 @@ jobs:
             --rpms \
             --dest dist/copr \
             --chroot fedora-44-x86_64 \
-            --chroot fedora-44-aarch64 \
             "$COPR_BUILD_ID"
           mkdir -p dist/release
-          x86_rpm_path=
           check_rpmlint() {
             local rpm_path="$1"
             local output
@@ -229,27 +226,21 @@ jobs:
               exit 1
             fi
           }
-          for arch in x86_64 aarch64; do
-            mapfile -t rpm_paths < <(
-              find "dist/copr/fedora-44-${arch}" \
-                -type f \
-                -name "rufin-[0-9]*.${arch}.rpm" \
-                -print
-            )
-            test "${#rpm_paths[@]}" -eq 1
-            rpm_path="${rpm_paths[0]}"
-            rpm --define '_pkgverify_level all' -K "$rpm_path"
-            install_root="$(mktemp -d)"
-            rpm2cpio "$rpm_path" | cpio -idm --quiet -D "$install_root"
-            cargo run --locked -p xtask -- verify package-layout "$install_root" /usr
-            check_rpmlint "$rpm_path"
-            cp "$rpm_path" dist/release/
-            if [[ "$arch" == x86_64 ]]; then
-              x86_rpm_path="$rpm_path"
-            fi
-          done
-          test -n "$x86_rpm_path"
-          dnf -y --setopt=install_weak_deps=False install "$x86_rpm_path"
+          mapfile -t rpm_paths < <(
+            find "dist/copr/fedora-44-x86_64" \
+              -type f \
+              -name "rufin-[0-9]*.x86_64.rpm" \
+              -print
+          )
+          test "${#rpm_paths[@]}" -eq 1
+          rpm_path="${rpm_paths[0]}"
+          rpm --define '_pkgverify_level all' -K "$rpm_path"
+          install_root="$(mktemp -d)"
+          rpm2cpio "$rpm_path" | cpio -idm --quiet -D "$install_root"
+          cargo run --locked -p xtask -- verify package-layout "$install_root" /usr
+          check_rpmlint "$rpm_path"
+          cp "$rpm_path" dist/release/
+          dnf -y --setopt=install_weak_deps=False install "$rpm_path"
           gst-inspect-1.0 --exists playbin3
           gst-inspect-1.0 --exists audiobuffersplit
 
@@ -283,7 +274,6 @@ jobs:
         run: |
           set -euo pipefail
           test "$(find dist -maxdepth 1 -name 'rufin-*.x86_64.rpm' | wc -l)" -eq 1
-          test "$(find dist -maxdepth 1 -name 'rufin-*.aarch64.rpm' | wc -l)" -eq 1
           test "$(find dist -maxdepth 1 -name 'rufin-*.src.rpm' | wc -l)" -eq 0
 
       - name: Attest RPMs
