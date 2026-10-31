@@ -1,43 +1,6 @@
-<h1>
-  Rufin
-</h1>
-<p align="center">
-  <a href="https://matrix.to/#/#rufin:matrix.org"><img alt="Matrix" src="https://img.shields.io/badge/matrix-%23rufin-red?logo=matrix"></a>
-  <a href="LICENSE"><img alt="License: GPL-3.0+" src="https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg"></a>
-  <a href="Cargo.toml"><img alt="Rust 1.96+" src="https://img.shields.io/badge/rust-1.96%2B-f74c00?logo=rust"></a>
-  <a href="https://gstreamer.freedesktop.org/"><img alt="GStreamer 1.26+" src="https://img.shields.io/badge/GStreamer-1.26%2B-3584E4?logo=gstreamer&amp;logoColor=white&amp;labelColor=2E3436"></a>
-  <br>
-  <a href="https://flathub.org/apps/io.github.screwys.Rufin"><img alt="Flathub installs" src="https://img.shields.io/flathub/downloads/io.github.screwys.Rufin?logo=flathub&amp;label=flathub&amp;color=4A86CF"></a>
-  <a href="https://aur.archlinux.org/packages/rufin-bin"><img alt="AUR version" src="https://img.shields.io/aur/version/rufin-bin?logo=archlinux&amp;label=AUR&amp;color=1793D1"></a>
-  <a href="https://search.nixos.org/packages?channel=unstable&amp;show=rufin&amp;query=rufin"><img alt="nixpkgs version" src="https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2FNixOS%2Fnixpkgs%2Fnixos-unstable%2Fpkgs%2Fby-name%2Fru%2Frufin%2Fpackage.nix&amp;search=version+%3D+%22%28%5B%5E%22%5D%2B%29%22&amp;replace=%241&amp;label=nixpkgs&amp;logo=nixos&amp;color=5277C3"></a>
-  <a href="https://hosted.weblate.org/projects/rufin/"><img alt="Translate Rufin on Weblate" src="https://img.shields.io/badge/translate-Weblate-2ECCAA?logo=weblate&amp;logoColor=white"></a>
-</p>
+# Rufin
 
-<img align="right" alt="Rufin" src="resources/icons/hicolor/512x512/apps/io.github.screwys.Rufin.png" width="80" height="196">
-
-<p align="left">
-  Rufin is a powerful, fast and easy to use native music player for local/remote folders and music servers, available on <a href="#installation">multiple platforms</a>.
-  Rufin offers a rich library browsing and management experience while making the most of each source's unique features.
-  It can be run headless, scripted, or controlled from its Web UI; and can be securely synced with other devices with Rufin Connect.
-</p>
-
-<br clear="all">
-
-## 📂 Sources
-
-- <img src="resources/icons/hicolor/symbolic/apps/io.github.screwys.Rufin-symbolic.svg" width="20" height="20" align="absmiddle" alt="">&nbsp;&nbsp;<strong>Local libraries</strong>: Rufin provides favorites, playlists, activity history, Auto DJ recommendations and metadata editing.
-
-- <img src="resources/icons/hicolor/64x64/apps/io.github.screwys.Rufin.source.jellyfin.png" width="18" height="18" align="absmiddle" alt="">&nbsp;&nbsp;<strong>Jellyfin</strong>: Supports library separation, Jellyfin WebSocket for incremental scans, metadata editing over API and Instant Mix.
-
-- <img src="resources/icons/hicolor/64x64/apps/io.github.screwys.Rufin.source.navidrome.png" width="18" height="18" align="absmiddle" alt="">&nbsp;&nbsp;<strong>Navidrome</strong> / <img src="resources/icons/hicolor/64x64/apps/io.github.screwys.Rufin.source.opensubsonic.png" width="18" height="18" align="absmiddle" alt="">&nbsp;&nbsp;<strong>OpenSubsonic</strong>: Supports API key authorization, normal/legacy passwords, Navidrome's own API and OpenSubsonic v2 APIs. Metadata editing is available if the library can be matched to local files.
-
-- <img src="resources/icons/hicolor/64x64/apps/io.github.screwys.Rufin.source.emby.png" width="18" height="18" align="absmiddle" alt="">&nbsp;&nbsp;<strong>Emby</strong>: Supports library separation, incremental scans, metadata editing, and Instant Mix. Ratings are saved locally.
-
-- <img src="resources/icons/hicolor/64x64/apps/io.github.screwys.Rufin.source.plex.png" width="18" height="18" align="absmiddle" alt="">&nbsp;&nbsp;<strong>Plex</strong>: Supports password and browser sign-in, shared libraries and Plex Home profiles, library separation, incremental scans, server playlists and ratings, and locally stored favorites. Includes Plex recommendations for Auto DJ, downloads where permitted, Plex Companion controls and queue handoff.
-
-- <img src="resources/icons/hicolor/64x64/apps/io.github.screwys.Rufin.source.webdav.png" width="18" height="18" align="absmiddle" alt="">&nbsp;&nbsp;<strong>WebDAV</strong>: Direct read/write access to WebDAV and Nextcloud libraries without filesystem mounts, including downloads, tag/lyrics editing. Supports HTTPS, custom certificates and headers, password or bearer-token authentication, Nextcloud browser sign-in, and alternate addresses for LAN, VPN, or Tailscale connections.
-
-- <img src="resources/icons/hicolor/64x64/apps/io.github.screwys.Rufin.source.smb.png" width="18" height="18" align="absmiddle" alt="">&nbsp;&nbsp;<strong>SMB / Samba</strong>: Direct read/write access to Windows, Samba, and NAS shares without filesystem mounts, including downloads, tags/lyrics editing. Supports share discovery, guest and domain-qualified logins, signing and encryption, and alternate addresses for LAN, VPN, or Tailscale connections.
+Rufin is a powerful, fast and easy to use native music player for Navidrome.
 
 ## 🎵 Playback
 
@@ -72,15 +35,6 @@
 - Granular import/export backup options including credentials, automatic backups with password protection are available
 - Listening activity can be exported as Last.fm/ListenBrainz compatible `.csv` files
 
-## ✨ Rufin Connect
-
-- Shares sources, credentials, playlists, favorites, pins, preferences, listening history between paired devices
-- Uses [Iroh](https://github.com/n0-computer/iroh) for encrypted connections, discovery, relays and device-to-device transfers
-- Keeps playback queues, downloaded files, local paths and encoding choices per device
-- Continue playback where another device left off
-- Supports encrypted profile files through local folders, WebDAV/Nextcloud, and Samba shares
-- Local folder sync can be done with solutions like Syncthing or optional Iroh relays
-
 ## 🌍️ Discovery
 
 - Server-provided artist, track, album, playlist and genre radios, including recommendations from server plugins
@@ -97,18 +51,6 @@
 - Secure storage for server credentials and API secrets by default
 - Casting support for UPnP and Chromecast, plus Plex Companion queue control and playback handoff in both directions
 
-## 🛰️ Headless/Controller
-
-- Run release binaries without the desktop interface with `rufin --headless`; use `cargo run -p rufin-controller` for the separate GTK-free build
-- Enable the Controller for browser access or scripting through the HTTP API, inside the app or from terminal with:
-```bash
-export RUFIN_API_TOKEN="your_token"
-rufin --headless --listen
-```
-- Control playback, browse your library, manage sources and playlists, and view the queue & lyrics from a browser
-- Playback stays on the device running Rufin
-- Token-based authentication
-
 ## 🖥️ Interface
 
 - Fast, responsive and broadly customizable
@@ -120,104 +62,17 @@ rufin --headless --listen
 - Can run in the background or set to launch minimized, which uses the GNOME portal when available
 - System tray integration
 
-# Installation
-
-## Flatpak
-<p>
-  <a href="https://flathub.org/apps/io.github.screwys.Rufin">
-    <img width="240" alt="Get it on Flathub" src="https://flathub.org/api/badge?svg&locale=en">
-  </a>
-</p>
-
-## Fedora
-
-Rufin is available for Fedora 44.
-
-```bash
-sudo dnf copr enable screwyy/rufin
-sudo dnf install rufin
-```
-
-## AUR
-
-Latest binary releases:
-
-```bash
-yay -S rufin-bin
-```
-
-Building from the source:
-```bash
-yay -S rufin-git
-```
-
-
-## Nix
-
-Rufin is available in nixpkgs repository. To run Rufin without installing:
-
-```bash
-nix run nixpkgs#rufin
-```
-
-To add it to your profile:
-```bash
-nix profile install nixpkgs#rufin
-```
-
-You can also run `main` or an older release directly.
-
-```bash
-nix run github:screwys/Rufin/main
-nix run github:screwys/Rufin/vX.Y.Z
-```
-
-## Windows
-
-Download the .exe from [GitHub Releases](https://github.com/screwys/Rufin/releases/latest).
-
-The installer has opt-in **Automatic updates** in General preferences to have Rufin install an
-available Windows update when the app starts. Alternatively, you can click `Update` button in
-Version History on the latest release.
-
-## macOS
-
-Homebrew Cask is the primary macOS installation:
-
-```bash
-brew tap screwys/tap
-brew install --cask rufin
-```
-
-You can turn on **Automatic updates** in General preferences to have
-Rufin install an available update when the app starts or manually click `Update` button in Version History on the latest release.
-
-You can also download `.dmg` files directly from
-[GitHub Releases](https://github.com/screwys/Rufin/releases/latest), but then you have to update manually.
-
 ## Building locally
 
-Start by cloning the repository. You can build Rufin natively or use our Linux development container if you want to keep dependencies outside of your system and have Docker or Podman available.
+Start by cloning the repository.
 
 ```bash
-git clone https://github.com/screwys/Rufin.git
+git clone https://github.com/kmarius/Rufin.git
 cd Rufin
 ```
 
-### Development container
-
-```bash
-just container setup
-just build
-```
-
-This makes just commands go through the container development. If you want to build natively instead after running this one, use `just container disable`.
-
-### Native build
-
-Building Rufin requires Rust 1.96 or newer, CMake 3.25 or newer, Ninja,
-pkg-config, GTK 4.20 or newer, libadwaita 1.9 or newer, and GStreamer 1.26 or
-newer. Packaging and translation checks additionally require `msgfmt` from gettext.
+Building Rufin requires Rust 1.96 or newerGTK 4.20 or newer, libadwaita 1.9 or newer, and GStreamer 1.26 or
+newer.
 
 **Arch Linux:**
 
@@ -228,98 +83,17 @@ sudo pacman -S --needed \
   gst-plugins-ugly gst-libav
 ```
 
-**Debian Linux:**
-Forky (Testing) is currently required to get GTK 4.20 or newer. Trixie (Stable) only has 4.18.
-
-```bash
-sudo apt install --no-install-recommends \
-    rustc cargo cmake ninja-build pkgconf just gettext \
-    libglib2.0-dev libgtk-4-dev libadwaita-1-dev gstreamer1.0-tools \
-    gstreamer1.0-plugins-bad libgstreamer1.0-dev \
-    libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev
-```
-
-**Fedora:**
-
-```bash
-sudo dnf install \
-  rust cargo cmake ninja-build just pkgconf-pkg-config gettext gtk4-devel \
-  libadwaita-devel gstreamer1-devel gstreamer1-plugins-base-devel \
-  gstreamer1-plugins-base gstreamer1-plugins-good \
-  gstreamer1-plugins-bad-free gstreamer1-plugins-bad-free-extras \
-  gstreamer1-plugins-ugly-free gstreamer1-plugin-libav
-```
-
 For additional codecs, install the matching GStreamer plugins.
-
-**Windows:** Windows builds run natively in the MSYS2 UCRT64 environment. From its Windows
-UCRT64 terminal, use MSYS2's `pacman.exe` to install the build and packaging
-dependencies:
-
-```bash
-ucrt=mingw-w64-ucrt-x86_64
-pacman -S --needed base-devel git \
-  "$ucrt"-{adwaita-icon-theme,cmake,gdk-pixbuf2,gettext-runtime,gettext-tools} \
-  "$ucrt"-{gst-libav,gst-plugins-bad,gst-plugins-base,gst-plugins-good} \
-  "$ucrt"-{gst-plugins-ugly,gstreamer,gtk4,hicolor-icon-theme,libadwaita} \
-  "$ucrt"-{just,ninja,nsis,perl,pkgconf,rust,shared-mime-info,toolchain,wavpack}
-```
-
-**macOS:**
-
-```bash
-brew install \
-  rust cmake just pkgconf gettext gtk4 libadwaita gstreamer chromaprint \
-  librsvg game-music-emu libnice-gstreamer libopenmpt libsoup meson ninja openssl@3 wavpack
-```
 
 **Building:** After you installed dependencies for your operating system, you can build and run:
 
 ```bash
-just build
-just debug
+cargo build
+cargo run
 ```
 
 Local builds are shown as `Rufin (Development)` and use the isolated `Rufin.Devel` application
-identity. The first macOS `just debug` or
-`just build` automatically creates the persistent local `Rufin Development` signing identity on macOS. The first signing operation may ask for access to the certificate's private
-key; **Always Allow** should keep this one-time.
-
-On macOS, `just build` creates `.local/artifacts/Rufin.Devel.dmg` for installation and
-platform behavior testing.
-On Windows, `just build` creates the isolated versioned
-`.local/artifacts/Rufin.Devel-*-setup.exe` installer.
-
-# Troubleshooting
-
-Open **Troubleshooting** from the main menu, enable **Debug logging**, reproduce the problem, then click `Save`. Crash logs also appear here on
-the next launch. Logs have secrets and absolute folder paths redacted, but you may still want to review the logs before sharing them.
-
-Or you can just run Rufin from the terminal:
-
-```bash
-flatpak run --env=RUST_LOG=debug io.github.screwys.Rufin 2>&1 # for flatpak
-```
-
-```bash
-RUST_LOG=debug rufin # for native packages
-```
-
-```bash
-just debug  # for local build
-```
-
-## Uninstallation
-
-You can remove Rufin with your package manager, use the uninstaller included with the Windows
-`.exe` (which can also delete the cache), or delete `Rufin.app` from Applications if you installed the macOS `.dmg`.
-
-To delete all of Rufin’s local data, remove its directories for your operating system:
-
-- Linux and FreeBSD [(planned):](https://github.com/screwys/Rufin/issues/811#issuecomment-5471657038) `~/.cache/rufin` and `~/.local/share/rufin`
-- Flatpak: `~/.var/app/io.github.screwys.Rufin/`
-- macOS: `~/Library/Caches/io.github.screwys.Rufin` and `~/Library/Application Support/io.github.screwys.Rufin`
-- Windows: `%LOCALAPPDATA%\screwys\Rufin` 
+identity.
 
 # Credits
 
