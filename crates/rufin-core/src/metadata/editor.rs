@@ -1,6 +1,6 @@
 use super::{ArtworkResult, MetadataItemId};
 use crate::source::SourceOwner;
-use localization::{msgid, tr, trn_with};
+use crate::text::{fill_plural};
 use sources::{
     ArtworkChange, ArtworkEdit, ArtworkStorage, ImageBytes, MetadataChanges, MetadataDraft,
     MetadataEdit, MetadataField, SourceEntityKind, SourceMetadataError,
@@ -150,7 +150,7 @@ impl MetadataEditor {
                     1
                 }
             }),
-            scope_summary: trn_with(
+            scope_summary: fill_plural(
                 "Changes apply to {count} track",
                 "Changes apply to {count} tracks",
                 self.draft.track_count as u64,
@@ -184,9 +184,7 @@ impl MetadataEditor {
     pub fn set_field(&self, key: String, value: String) -> Result<(), SourceMetadataError> {
         let mut state = self.state();
         if !state.writable(&self.draft, &key) {
-            return Err(SourceMetadataError::InvalidInput(tr(
-                "This source cannot edit this field",
-            )));
+            return Err(SourceMetadataError::InvalidInput("This source cannot edit this field".to_string()));
         }
         if state.text(&key) != value || state.mixed.contains(&key) {
             state.set_text(&key, value);
@@ -264,7 +262,7 @@ impl MetadataEditor {
             };
             Ok(MetadataSaveSummary {
                 tracks,
-                message: trn_with(
+                message: fill_plural(
                     "Do you want to apply metadata changes to {count} track?",
                     "Do you want to apply metadata changes to {count} tracks?",
                     tracks,
@@ -516,7 +514,7 @@ impl Editing {
                 let mut field = field.clone();
                 field.value = self.text(&field.key).to_string();
                 field.mixed = self.mixed.contains(&field.key);
-                field.label = tr(&field.label);
+                field.label = String::from(&field.label);
                 MetadataFieldPresentation {
                     identified: field.writable
                         && ((field.mixed && self.is_identified(&field.key))
@@ -629,7 +627,7 @@ impl Editing {
         for field in fields {
             let value = self.text(&field.key).trim();
             if field.key == "title" && value.is_empty() {
-                return Err(tr(msgid("Add a title")));
+                return Err("Add a title".to_string());
             }
             if !value.is_empty()
                 && matches!(
@@ -642,7 +640,7 @@ impl Editing {
                     .filter(|value| *value > 0)
                     .is_none()
             {
-                return Err(tr(msgid("Use a number above zero")));
+                return Err("Use a number above zero".to_string());
             }
             changes.insert(field.key.clone(), value.to_string());
         }
@@ -755,7 +753,7 @@ impl Editing {
 }
 
 pub fn mixed_field_label(field: &str, count: u64) -> String {
-    trn_with(
+    fill_plural(
         "{field} · Different across {count} track",
         "{field} · Different across {count} tracks",
         count,

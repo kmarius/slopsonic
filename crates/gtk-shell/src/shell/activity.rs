@@ -5,7 +5,7 @@ use gtk_library::activity::ActivityCollections;
 use gtk_player::fullscreen_background::FullscreenBackground;
 use gtk_widgets::{mounted_route::route_current_track, route::Route};
 use library::{ActivityOverview, CalendarActivityPeriod};
-use localization::{tr, tr_with};
+use rufin_core::text::{fill};
 use rufin_core::activity::{ReportAppearance, percentage_change, period_key, period_label};
 use std::{
     cell::{Cell, RefCell},
@@ -548,7 +548,7 @@ impl ActivityView {
         self.export.set_sensitive(false);
         if self.data.borrow().is_none() || !self.report.is_visible() {
             self.report.set_visible(false);
-            self.status.set_text(&tr("Loading..."));
+            self.status.set_text(&"Loading...".to_string());
             self.status.set_visible(true);
         }
         self.previous
@@ -737,9 +737,9 @@ impl ActivityView {
             let label = period_label(period);
             let args = [("period", label.as_str())];
             self.title.set_text(&if settings.show_rufin_in_headline {
-                tr_with("Your {period} in Rufin", &args)
+                fill("Your {period} in Rufin", &args)
             } else {
-                tr_with("Your {period}", &args)
+                fill("Your {period}", &args)
             });
         }
         for change in &self.changes {

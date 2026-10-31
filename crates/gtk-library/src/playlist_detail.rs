@@ -7,7 +7,7 @@ use adw::prelude::*;
 use artwork::ArtworkBinding;
 use gtk::glib;
 use library::{PlaylistKey, PlaylistRow, ReadCancellation, SmartPlaylistKey, SmartPlaylistRow};
-use localization::{msgid, track_count_text};
+use rufin_core::text::{track_count_text};
 
 use crate::CatalogUi;
 use crate::{LibraryListKey, LibraryListSettings};
@@ -155,8 +155,8 @@ impl CatalogUi {
         }) = detail
         else {
             return MountedRoute::static_widget(crate::route_layout::placeholder_view(
-                msgid("Smart Playlist"),
-                msgid("This isn't available"),
+                "Smart Playlist",
+                "This isn't available",
             ));
         };
         (self.update_smart_playlist_pin)(&summary);
@@ -232,8 +232,8 @@ impl CatalogUi {
         }) = detail
         else {
             return MountedRoute::static_widget(crate::route_layout::placeholder_view(
-                msgid("Playlist"),
-                msgid("This isn't available"),
+                "Playlist",
+                "This isn't available",
             ));
         };
         let first_rows = page
@@ -414,7 +414,7 @@ impl CatalogUi {
         let actions = showcase_view.actions();
         actions.set_halign(gtk::Align::Start);
         let controls =
-            detail_playback_controls(&actions, msgid("Play playlist"), None, Rc::clone(&play));
+            detail_playback_controls(&actions, "Play playlist", None, Rc::clone(&play));
         if let PlaylistDetailOwner::Saved { summary, .. } = &owner
             && summary.writable
         {

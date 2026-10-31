@@ -2,7 +2,6 @@ use crate::shell::Shell;
 use adw::prelude::*;
 use gtk_editors::metadata::{build_dialog, metadata_error_dialog};
 use gtk_widgets::layout::large_popup_content_width;
-use localization::{msgid, tr};
 use rufin_core::metadata::{MetadataEditor, MetadataItemId};
 use sources::SourceMetadataError;
 use std::{cell::Cell, rc::Rc};
@@ -49,7 +48,7 @@ pub(crate) fn present_metadata_dialog(shell: &Rc<Shell>, item: MetadataItemId) {
                 else {
                     shell
                         .control_feedback
-                        .show_feedback_toast(tr(msgid("Metadata editing requires Local access")));
+                        .show_feedback_toast("Metadata editing requires Local access".to_string());
                     return;
                 };
                 let retry_shell = Rc::downgrade(&shell);
@@ -66,7 +65,7 @@ pub(crate) fn present_metadata_dialog(shell: &Rc<Shell>, item: MetadataItemId) {
             }
             Err(SourceMetadataError::Unavailable) => shell
                 .control_feedback
-                .show_feedback_toast(tr(msgid("Metadata editing is no longer available"))),
+                .show_feedback_toast("Metadata editing is no longer available".to_string()),
             Err(error) => shell.present_selected_dialog(&metadata_error_dialog(&error.to_string())),
         }
     });
@@ -133,7 +132,7 @@ fn track_metadata_error(shell: &Rc<Shell>, retry: Rc<dyn Fn()>, error: SourceMet
             } else {
                 shell
                     .control_feedback
-                    .show_feedback_toast(tr(msgid("Metadata editing requires Local access")));
+                    .show_feedback_toast("Metadata editing requires Local access".to_string());
             }
         }
         error => shell.present_selected_dialog(&metadata_error_dialog(&error.to_string())),

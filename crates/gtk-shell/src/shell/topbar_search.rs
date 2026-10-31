@@ -759,7 +759,7 @@ impl SearchPopup {
         }
         let empty = !query.is_empty() && status == "results" && count == 0;
         if empty {
-            self.empty_results.set_text(&localization::tr_with(
+            self.empty_results.set_text(&rufin_core::text::fill(
                 "No results for \"{query}\"",
                 &[("query", &query)],
             ));

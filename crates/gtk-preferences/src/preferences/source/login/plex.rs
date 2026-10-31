@@ -193,7 +193,7 @@ impl SourceSetupFlow for PlexFlow {
                     task.abort();
                 }
                 if let Some(status) = status.upgrade() {
-                    status.set_text(&tr("Connecting to music server..."));
+                    status.set_text(&"Connecting to music server...".to_string());
                     status.set_visible(true);
                 }
                 let (state, shell, status, button) = (
@@ -276,7 +276,7 @@ impl SourceSetupFlow for PlexFlow {
                     }
                 }
                 if let Some(status) = status.upgrade() {
-                    status.set_text(&tr("Connecting to music server..."));
+                    status.set_text(&"Connecting to music server...".to_string());
                     status.set_visible(true);
                 }
                 let events = SourceAuthorization::new(
@@ -296,7 +296,7 @@ impl SourceSetupFlow for PlexFlow {
                         let result = match events.next().await {
                             Ok(SourceAuthorizationEvent::OpenBrowser { url: address }) => {
                                 if let Some(status) = status.upgrade() {
-                                    status.set_text(&tr("Complete sign-in in your browser"));
+                                    status.set_text(&"Complete sign-in in your browser".to_string());
                                 }
                                 gtk::gio::AppInfo::launch_default_for_uri_future(
                                     &address,
@@ -383,7 +383,7 @@ impl SourceSetupFlow for PlexFlow {
                 fields.set_sensitive(false);
             }
             if let Some(status) = status_weak.upgrade() {
-                status.set_text(&tr("Connecting to music server..."));
+                status.set_text(&"Connecting to music server...".to_string());
                 status.set_visible(true);
             }
             let (button, state, shell, status) = (
@@ -449,7 +449,7 @@ impl SourceSetupFlow for PlexFlow {
             begin_connect_attempt(
                 &connect_status,
                 button,
-                &tr("Connecting to music server..."),
+                &"Connecting to music server...".to_string(),
             );
             state.borrow().connect();
         });

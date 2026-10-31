@@ -3,7 +3,7 @@ pub use rufin_core::runtime::source::{source_kind_icon_name, source_kind_title};
 use adw::prelude::*;
 use app_identity::{DISPLAY_NAME, STABLE_APP_ID};
 use gtk::gio;
-use localization::{tr, tr_with};
+use rufin_core::text::{fill};
 use rufin_core::runtime::source::SourceSummary;
 use sources::SourceId;
 use std::rc::Rc;
@@ -29,7 +29,7 @@ pub fn source_display_label(source: Option<&SourceSummary>) -> (&'static str, St
 pub fn configured_source_display_name(source: &SourceSummary) -> String {
     let name = source.name.trim();
     if name.is_empty() {
-        source_kind_title(&source.kind).map_or_else(|| source.kind.clone(), tr)
+        source_kind_title(&source.kind).map_or_else(|| source.kind.clone(), String::from)
     } else {
         name.to_string()
     }
@@ -59,14 +59,12 @@ pub fn configure_ownership_toggle(
             button.add_css_class("rufin-ownership-icon");
         }
         let tooltip = if current {
-            tr_with(
+            fill(
                 "This is owned by {source}. Regular playlists are synced to your remote.",
                 &[("source", source_name.as_deref().unwrap_or(DISPLAY_NAME))],
             )
         } else {
-            tr(
-                "This is owned by Rufin. It can include entries from all configured sources but it is not synced to remotes.",
-            )
+            "This is owned by Rufin. It can include entries from all configured sources but it is not synced to remotes.".to_string()
         };
         button.set_tooltip_text(Some(&tooltip));
     };
@@ -117,7 +115,7 @@ pub fn bind_source_picker(
     button.set_child(Some(&content));
     let mut titles = Vec::new();
     if include_all {
-        titles.push(tr("All"));
+        titles.push("All".to_string());
     }
     titles.extend(sources.iter().map(configured_source_display_name));
     let selection = gtk::SingleSelection::new(Some(gtk::StringList::new(
@@ -135,7 +133,7 @@ pub fn bind_source_picker(
             };
             if include_all && selection.selected() == 0 {
                 icon.set_icon_name(Some("rufin-library-symbolic"));
-                label.set_label(&tr("All"));
+                label.set_label(&"All".to_string());
             } else if let Some(source) = selection
                 .selected()
                 .checked_sub(u32::from(include_all))
@@ -163,7 +161,7 @@ pub fn bind_source_picker(
             .chain((0..count).filter(|index| *index as u32 != current));
         for index in order {
             let (title, icon) = if include_all && index == 0 {
-                (tr("All"), "rufin-library-symbolic")
+                ("All".to_string(), "rufin-library-symbolic")
             } else {
                 let source = &sources[index - usize::from(include_all)];
                 (

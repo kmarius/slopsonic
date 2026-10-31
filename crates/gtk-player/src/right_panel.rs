@@ -1,5 +1,4 @@
 use adw::prelude::*;
-use localization::tr;
 use rufin_core::settings::{
     Settings,
     right_panel::{RightPanelSettings, SidebarPanel},
@@ -302,9 +301,9 @@ impl crate::PlayerUi {
     pub fn update_right_panel_button(&self) {
         let visible = self.right_sidebar_visible();
         let label = if visible {
-            tr("Hide sidebar")
+            "Hide sidebar".to_string()
         } else {
-            tr("Show sidebar")
+            "Show sidebar".to_string()
         };
         crate::icons::set_queue_sidebar_icon(&self.views.player_controls.queue_icon, visible);
         self.views

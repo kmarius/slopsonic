@@ -112,15 +112,15 @@ pub fn detail_route_wrapper(spacing: i32) -> gtk::Box {
 
 pub fn placeholder_view(title: &str, body: &str) -> gtk::Widget {
     let view = RoutePlaceholderView::new();
-    view.imp().heading.set_label(&localization::tr(title));
-    view.imp().body.set_label(&localization::tr(body));
+    view.imp().heading.set_label(&String::from(title));
+    view.imp().body.set_label(&String::from(body));
     view.upcast()
 }
 
 pub fn route_empty_view(body: &str) -> gtk::Widget {
     let view = RoutePlaceholderView::new();
     view.imp().heading.set_visible(false);
-    view.imp().body.set_label(&localization::tr(body));
+    view.imp().body.set_label(&String::from(body));
     view.upcast()
 }
 

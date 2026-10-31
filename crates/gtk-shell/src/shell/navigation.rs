@@ -35,7 +35,6 @@ use tracing::warn;
 use super::{Shell, layout::ResolvedLeftSidebarMode, route::RouteStack};
 use gtk_widgets::controls::{PLAY_ICON, PLAY_LATER_ICON, PLAY_NEXT_ICON, icon_button};
 use gtk_widgets::mounted_route::route_current_track;
-use localization::tr;
 
 const COMPACT_NAV_ICON_SIZE: i32 = 24;
 const MOUSE_BACK_BUTTON: u32 = 8;
@@ -94,7 +93,7 @@ pub(super) fn build_normal_navigation(shell: &Rc<Shell>) {
         .filter(|entry| entry.visible)
     {
         let descriptor = gtk_widgets::route::sidebar_route_descriptor(entry.item);
-        let sidebar_item = adw::SidebarItem::new(&tr(descriptor.title));
+        let sidebar_item = adw::SidebarItem::new(&String::from(descriptor.title));
         sidebar_item.set_icon_name(Some(descriptor.icon_name));
         section.append(sidebar_item);
     }
@@ -447,13 +446,13 @@ fn replace_primary_menu_model(menu: &gio::Menu, shell: &Rc<Shell>) {
     let preferences = gio::Menu::new();
     append_menu_action(
         &preferences,
-        &tr("Preferences"),
+        &"Preferences".to_string(),
         "app.preferences",
         "rufin-preferences-system-symbolic",
     );
     append_menu_action(
         &preferences,
-        &tr("Keyboard Shortcuts"),
+        &"Keyboard Shortcuts".to_string(),
         "app.show-shortcuts",
         "rufin-preferences-desktop-keyboard-shortcuts-symbolic",
     );
@@ -468,13 +467,13 @@ fn replace_primary_menu_model(menu: &gio::Menu, shell: &Rc<Shell>) {
     let window = gio::Menu::new();
     append_menu_action(
         &window,
-        &tr("Listening overview"),
+        &"Listening overview".to_string(),
         "win.listening-overview",
         "rufin-activity-overview-symbolic",
     );
     append_menu_action(
         &window,
-        &tr("Toggle Fullscreen"),
+        &"Toggle Fullscreen".to_string(),
         "win.toggle-fullscreen",
         if shell.chrome.window.is_fullscreen() {
             "rufin-view-restore-symbolic"
@@ -493,19 +492,19 @@ fn replace_primary_menu_model(menu: &gio::Menu, shell: &Rc<Shell>) {
     let information = gio::Menu::new();
     append_menu_action(
         &information,
-        &tr("Version History"),
+        &"Version History".to_string(),
         "win.show-release-notes",
         "rufin-appointment-new-symbolic",
     );
     append_menu_action(
         &information,
-        &tr("Troubleshooting"),
+        &"Troubleshooting".to_string(),
         "win.troubleshooting",
         "rufin-utilities-terminal-symbolic",
     );
     append_menu_action(
         &information,
-        &tr("About Rufin"),
+        &"About Rufin".to_string(),
         "app.about",
         "rufin-help-about-symbolic",
     );
@@ -520,17 +519,17 @@ fn append_menu_action(menu: &gio::Menu, label: &str, action: &str, icon_name: &s
 
 fn primary_menu_sidebar_toggle_label(shell: &Shell) -> String {
     if shell.left_sidebar_mode() == ResolvedLeftSidebarMode::Full {
-        tr("Collapse sidebar")
+        "Collapse sidebar".to_string()
     } else {
-        tr("Expand sidebar")
+        "Expand sidebar".to_string()
     }
 }
 
 fn primary_menu_private_mode_label(shell: &Shell) -> String {
     if shell.settings.current.borrow().application.private_mode {
-        tr("Turn off private mode")
+        "Turn off private mode".to_string()
     } else {
-        tr("Turn on private mode")
+        "Turn on private mode".to_string()
     }
 }
 
@@ -783,7 +782,7 @@ fn append_sidebar_pins(shell: &Rc<Shell>) {
         return;
     }
 
-    let heading = gtk::Label::new(Some(&tr("Pins")));
+    let heading = gtk::Label::new(Some(&"Pins".to_string()));
     heading.add_css_class(SIDEBAR_PINS_HEADING_CLASS);
     heading.set_xalign(0.0);
     shell.navigation_view.normal_nav_pins.append(&heading);
@@ -1092,7 +1091,7 @@ fn reconcile_sidebar_pin_widgets(shell: &Rc<Shell>, items: &[SidebarPinItem]) {
         .first_child()
         .filter(|child| child.has_css_class(SIDEBAR_PINS_HEADING_CLASS))
         .unwrap_or_else(|| {
-            let heading = gtk::Label::new(Some(&tr("Pins")));
+            let heading = gtk::Label::new(Some(&"Pins".to_string()));
             heading.add_css_class(SIDEBAR_PINS_HEADING_CLASS);
             heading.set_xalign(0.0);
             normal.prepend(&heading);
@@ -1805,7 +1804,7 @@ fn rail_button(shell: &Rc<Shell>, item: SidebarRouteItem) -> gtk::Button {
     button.add_css_class(gtk_widgets::route::sidebar_route_css_class(item));
     button.add_css_class("rail-button");
     button.set_widget_name(descriptor.stable_id);
-    let accessible_label = tr(descriptor.title);
+    let accessible_label = String::from(descriptor.title);
     button.update_property(&[gtk::accessible::Property::Label(&accessible_label)]);
 
     let content = gtk::Box::new(gtk::Orientation::Vertical, 8);
@@ -1834,7 +1833,7 @@ fn rail_button(shell: &Rc<Shell>, item: SidebarRouteItem) -> gtk::Button {
 }
 
 pub(super) fn compact_sidebar_label_text(label: &str) -> String {
-    let translated = tr(label);
+    let translated = String::from(label);
     let compact = {
         let words = translated.split_whitespace().collect::<Vec<_>>();
         if words.len() == 2 {

@@ -11,7 +11,6 @@ pub enum TrayIntent {
 #[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
 mod freedesktop {
     use ksni::blocking::TrayMethods;
-    use localization::tr;
     use std::sync::OnceLock;
     use std::sync::mpsc::{Receiver, Sender, channel};
     use tracing::warn;
@@ -47,13 +46,13 @@ mod freedesktop {
         fn new(sender: Sender<TrayIntent>, private_mode: bool) -> Self {
             Self {
                 sender,
-                show_label: tr("Show Rufin"),
-                play_pause_label: tr("Play/Pause"),
-                previous_label: tr("Previous Track"),
-                next_label: tr("Next Track"),
-                enable_private_mode_label: tr("Enable private mode"),
-                disable_private_mode_label: tr("Disable private mode"),
-                quit_label: tr("Quit"),
+                show_label: "Show Rufin".to_string(),
+                play_pause_label: "Play/Pause".to_string(),
+                previous_label: "Previous Track".to_string(),
+                next_label: "Next Track".to_string(),
+                enable_private_mode_label: "Enable private mode".to_string(),
+                disable_private_mode_label: "Disable private mode".to_string(),
+                quit_label: "Quit".to_string(),
                 private_mode,
             }
         }
@@ -352,7 +351,6 @@ mod windows {
     use std::sync::{Mutex, Once, OnceLock};
 
     use app_identity::DISPLAY_NAME;
-    use localization::tr;
     use tray_icon::TrayIconEvent;
     use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
     use tray_icon::{MouseButton, MouseButtonState};
@@ -385,17 +383,17 @@ mod windows {
             install_event_handlers();
             let (sender, receiver) = channel();
             let menu = Menu::new();
-            let show = MenuItem::with_id(SHOW_ID, tr("Show Rufin"), true, None);
-            let play_pause = MenuItem::with_id(PLAY_PAUSE_ID, tr("Play/Pause"), true, None);
-            let previous = MenuItem::with_id(PREVIOUS_ID, tr("Previous Track"), true, None);
-            let next = MenuItem::with_id(NEXT_ID, tr("Next Track"), true, None);
+            let show = MenuItem::with_id(SHOW_ID, "Show Rufin".to_string(), true, None);
+            let play_pause = MenuItem::with_id(PLAY_PAUSE_ID, "Play/Pause".to_string(), true, None);
+            let previous = MenuItem::with_id(PREVIOUS_ID, "Previous Track".to_string(), true, None);
+            let next = MenuItem::with_id(NEXT_ID, "Next Track".to_string(), true, None);
             let private_mode_item = MenuItem::with_id(
                 PRIVATE_MODE_ID,
                 private_mode_label(private_mode),
                 true,
                 None,
             );
-            let quit = MenuItem::with_id(QUIT_ID, tr("Quit"), true, None);
+            let quit = MenuItem::with_id(QUIT_ID, "Quit".to_string(), true, None);
             let separator_one = PredefinedMenuItem::separator();
             let separator_two = PredefinedMenuItem::separator();
             let separator_three = PredefinedMenuItem::separator();
@@ -450,9 +448,9 @@ mod windows {
 
     fn private_mode_label(private_mode: bool) -> String {
         if private_mode {
-            tr("Disable private mode")
+            "Disable private mode".to_string()
         } else {
-            tr("Enable private mode")
+            "Enable private mode".to_string()
         }
     }
 

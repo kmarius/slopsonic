@@ -49,7 +49,6 @@ impl SelectedLyricsState {
 use std::rc::Rc;
 use std::sync::Arc;
 
-use localization::tr;
 use lyrics::LyricsDocument;
 use rufin_core::lyrics::{CurrentLyrics, CurrentLyricsContent};
 
@@ -146,13 +145,13 @@ impl PlayerUi {
         if let Some(media_id) = media_id
             && let Some(dialog) = lyrics.search_dialog.borrow().as_ref()
             && dialog.media_id == media_id
-            && dialog.status.text().as_str() == tr("Searching...")
+            && dialog.status.text().as_str() == "Searching...".to_string()
             && !self.current_lyrics_loading()
         {
             dialog.status.set_text(&if has_lyrics {
-                tr("Lyrics loaded")
+                "Lyrics loaded".to_string()
             } else {
-                tr("No lyrics")
+                "No lyrics".to_string()
             });
         }
         if changed {
@@ -294,9 +293,9 @@ impl PlayerUi {
     }
 
     fn update_lyrics_offset_controls(&self) {
-        let label = tr("Lyrics offset (ms)");
-        let decrease_label = tr("Decrease");
-        let increase_label = tr("Increase");
+        let label = "Lyrics offset (ms)".to_string();
+        let decrease_label = "Decrease".to_string();
+        let increase_label = "Increase".to_string();
         let Some(lyrics) = self.selected_lyrics() else {
             return;
         };

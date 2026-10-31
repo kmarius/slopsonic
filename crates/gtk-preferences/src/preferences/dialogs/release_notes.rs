@@ -8,7 +8,7 @@ use gtk::glib;
 use gtk::subclass::prelude::ObjectSubclassIsExt;
 use gtk_widgets::layout::{large_popup_content_height, large_popup_content_width};
 use gtk_widgets::popup::present_light_dismiss_dialog;
-use localization::{tr, tr_with, trn_with};
+use rufin_core::text::{fill, fill_plural};
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 use rufin_core::runtime::{ReleaseHistory, ReleaseNote, ReleaseUpdate, ReleaseUpdateHandle};
 use tracing::warn;
@@ -105,11 +105,11 @@ fn release_relative_date_for(date: &str, today: CivilDate) -> String {
         return date.to_string();
     }
     match days {
-        0 => tr("today"),
-        1 => tr("yesterday"),
+        0 => "today".to_string(),
+        1 => "yesterday".to_string(),
         2..=13 => {
             let count = days as u64;
-            trn_with(
+            fill_plural(
                 "{count} day ago",
                 "{count} days ago",
                 count,
@@ -118,7 +118,7 @@ fn release_relative_date_for(date: &str, today: CivilDate) -> String {
         }
         14..=59 => {
             let count = (days / 7) as u64;
-            trn_with(
+            fill_plural(
                 "{count} week ago",
                 "{count} weeks ago",
                 count,
@@ -127,7 +127,7 @@ fn release_relative_date_for(date: &str, today: CivilDate) -> String {
         }
         60..=729 => {
             let count = (days / 30) as u64;
-            trn_with(
+            fill_plural(
                 "{count} month ago",
                 "{count} months ago",
                 count,
@@ -136,7 +136,7 @@ fn release_relative_date_for(date: &str, today: CivilDate) -> String {
         }
         _ => {
             let count = (days / 365) as u64;
-            trn_with(
+            fill_plural(
                 "{count} year ago",
                 "{count} years ago",
                 count,
@@ -459,12 +459,12 @@ fn release_note_row(
             restart.connect_clicked(move |_| release_updates.update(version.clone()));
         }
         ReleaseRowStatus::Installed => {
-            let installed = gtk::Label::new(Some(&tr("Installed")));
+            let installed = gtk::Label::new(Some(&"Installed".to_string()));
             installed.add_css_class("release-note-installed");
             row.imp().status.append(&installed);
         }
         ReleaseRowStatus::Update => {
-            let update = gtk::Button::with_label(&tr("Update"));
+            let update = gtk::Button::with_label(&"Update".to_string());
             update.add_css_class("release-note-installed");
             update.add_css_class("release-note-update");
             update.set_cursor_from_name(Some("pointer"));
@@ -704,9 +704,9 @@ pub fn apply_release_update(shell: &Rc<Preferences>, update: ReleaseUpdate) {
                 return;
             };
             dismiss_release_notification(shell);
-            let toast = adw::Toast::new(&tr(RELEASE_TOAST_TITLE));
+            let toast = adw::Toast::new(&String::from(RELEASE_TOAST_TITLE));
             toast.set_timeout(0);
-            toast.set_button_label(Some(&tr("View")));
+            toast.set_button_label(Some(&"View".to_string()));
             toast.set_action_name(Some("win.show-release-notes"));
             shell.toast_overlay.add_toast(toast.clone());
             *shell.state.release_notification_toast.borrow_mut() = Some(toast);
@@ -716,7 +716,7 @@ pub fn apply_release_update(shell: &Rc<Preferences>, update: ReleaseUpdate) {
         }
         ReleaseUpdate::Updating { version } => {
             dismiss_release_notification(shell);
-            shell.control_feedback.show_feedback_toast(tr_with(
+            shell.control_feedback.show_feedback_toast(fill(
                 "Updating Rufin to {version}...",
                 &[("version", version.as_str())],
             ));
@@ -755,7 +755,7 @@ pub fn apply_release_update(shell: &Rc<Preferences>, update: ReleaseUpdate) {
                     gtk_widgets::objects!(builder, resource, { toast: adw::Toast });
                     toast.title().expect("update toast title").to_string()
                 } else {
-                    tr_with(
+                    fill(
                         "Updated Rufin to {version}",
                         &[("version", version.as_str())],
                     )
@@ -765,7 +765,7 @@ pub fn apply_release_update(shell: &Rc<Preferences>, update: ReleaseUpdate) {
             clear_updating_version(shell, &version);
             refresh_open_release_notes(shell);
             warn!(%version, %error, "Rufin update failed");
-            shell.control_feedback.show_feedback_toast(tr_with(
+            shell.control_feedback.show_feedback_toast(fill(
                 "Could not update Rufin to {version}",
                 &[("version", version.as_str())],
             ));

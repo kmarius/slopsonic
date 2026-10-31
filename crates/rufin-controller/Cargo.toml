@@ -15,7 +15,6 @@ development = ["app-identity/development"]
 
 [dependencies]
 app-identity.workspace = true
-localization.workspace = true
 rufin-core.workspace = true
 sources.workspace = true
 playback.workspace = true

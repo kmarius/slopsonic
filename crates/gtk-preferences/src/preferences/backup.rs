@@ -2,7 +2,7 @@ use crate::Preferences;
 use adw::prelude::*;
 use backup::{BackupContents, BackupFrequency};
 use gtk::{gio, glib};
-use localization::{msgid, tr, tr_with};
+use rufin_core::text::{fill};
 use std::rc::Rc;
 
 const CONTENT_FIELDS: [fn(&mut BackupContents) -> &mut bool; 7] = [
@@ -168,7 +168,7 @@ pub(super) fn group(
                     row.set_text("");
                 }
             }
-            feedback(&shell, result, msgid("Scheduled backup password saved"));
+            feedback(&shell, result, "Scheduled backup password saved");
         });
     });
     let weak = Rc::downgrade(shell);
@@ -272,10 +272,10 @@ pub(super) fn group(
             .is_some()
         {
             if let Some(row) = folder.upgrade() {
-                row.set_subtitle(&tr("Rufin data folder"));
+                row.set_subtitle(&"Rufin data folder".to_string());
             }
             if let Some(row) = summary.upgrade() {
-                row.set_subtitle(&tr("Rufin data folder"));
+                row.set_subtitle(&"Rufin data folder".to_string());
             }
             button.set_visible(false);
         }
@@ -371,7 +371,7 @@ fn export_dialog(shell: &Rc<Preferences>) {
                 .map_err(|e| e.to_string())
         }
         .await;
-        feedback(&shell, result, msgid("Backup exported"));
+        feedback(&shell, result, "Backup exported");
     });
 }
 
@@ -419,7 +419,7 @@ pub fn import_dialog(shell: &Rc<Preferences>) {
         let confirm: adw::AlertDialog =
             gtk_widgets::ui_resource::object(&builder, resource, "restore_confirm");
         if preview.contents.settings && !preview.removed_sources.is_empty() {
-            confirm.set_body(&tr_with("Replace the selected contents and remove these configured sources?\n{sources}\nTheir retained user state and saved logins will remain unless selected.",
+            confirm.set_body(&fill("Replace the selected contents and remove these configured sources?\n{sources}\nTheir retained user state and saved logins will remain unless selected.",
                 &[("sources", &preview.removed_sources.join("\n"))]));
         }
         if confirm.choose_future(Some(&shell.window)).await.as_str() != "restore" {
@@ -454,15 +454,15 @@ pub fn import_dialog(shell: &Rc<Preferences>) {
                     shell.player_ui.render_queue_panel();
                 }
                 if !report.warnings.is_empty() {
-                    shell.control_feedback.show_feedback_toast(tr_with(
+                    shell.control_feedback.show_feedback_toast(fill(
                         "Backup restored with warnings: {warnings}",
                         &[("warnings", &report.warnings.join("\n"))],
                     ));
                 } else if report.skipped_playlist_entries > 0 || report.skipped_listens > 0 {
-                    shell.control_feedback.show_feedback_toast(tr_with("Backup restored with {entries} skipped playlist entries and {listens} skipped listens.",
+                    shell.control_feedback.show_feedback_toast(fill("Backup restored with {entries} skipped playlist entries and {listens} skipped listens.",
                         &[("entries", &report.skipped_playlist_entries.to_string()), ("listens", &report.skipped_listens.to_string())]));
                 } else {
-                    feedback(&shell, Ok(()), msgid("Backup restored"));
+                    feedback(&shell, Ok(()), "Backup restored");
                 }
             }
             Err(error) => feedback(&shell, Err(error), ""),
@@ -519,10 +519,10 @@ async fn options(shell: &Preferences, importing: bool) -> Option<(Option<String>
 }
 fn feedback(shell: &Preferences, result: Result<(), String>, success: &str) {
     match result {
-        Ok(()) => shell.control_feedback.show_feedback_toast(tr(success)),
+        Ok(()) => shell.control_feedback.show_feedback_toast(String::from(success)),
         Err(error) => shell
             .control_feedback
-            .show_feedback_toast(tr_with("Backup failed: {error}", &[("error", &error)])),
+            .show_feedback_toast(fill("Backup failed: {error}", &[("error", &error)])),
     }
 }
 fn chooser(id: &str) -> gtk::FileDialog {

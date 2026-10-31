@@ -1,7 +1,6 @@
 use crate::media_menus::MediaMenus;
 use adw::prelude::*;
 use gtk_widgets::interactions::ContextMenuSurface;
-use localization::msgid;
 use std::rc::Rc;
 
 pub fn folder_name_dialog(
@@ -112,7 +111,7 @@ pub fn append_folder_actions(
     let picker = Rc::clone(menus);
     let picker_members = members.clone();
     surface.append_fixed_widget_submenu(
-        msgid("Add to folder"),
+        "Add to folder",
         "folder-picker",
         &picker_content,
         "rufin-folders-symbolic",
@@ -120,7 +119,7 @@ pub fn append_folder_actions(
     );
     if in_folder {
         surface.append_fixed_action(
-            msgid("Remove from folder"),
+            "Remove from folder",
             "remove-from-folder",
             gtk_widgets::controls::REMOVE_ICON,
         );
@@ -222,7 +221,7 @@ pub fn present_folder_context_menu(
         }),
     );
     surface.append_fixed_action(
-        msgid("Rename folder"),
+        "Rename folder",
         "rename",
         gtk_widgets::controls::EDIT_ICON,
     );
@@ -247,7 +246,7 @@ pub fn present_folder_context_menu(
         (rename_menus.present_dialog)(&dialog);
     });
     surface.append_fixed_action(
-        msgid("Delete folder"),
+        "Delete folder",
         "delete",
         gtk_widgets::controls::DELETE_ICON,
     );

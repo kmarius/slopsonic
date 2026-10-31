@@ -5,7 +5,7 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::{gio, glib};
 use library::{GenreView, HomeAlbumRow, HomePage, HomeSectionRows, HomeTrackRow, RadioSeed};
-use localization::{album_count_text, msgid, tr, track_count_text};
+use rufin_core::text::{album_count_text, track_count_text};
 use rufin_core::playback::RadioPlayRequest;
 
 use crate::CatalogUi;
@@ -253,7 +253,7 @@ impl HomeRouteProjection {
                 && let Some(slot) = self.slots.get(&block)
             {
                 let view = shell.home_section_view(
-                    &tr(gtk_widgets::settings::home_block_title(block)),
+                    &String::from(gtk_widgets::settings::home_block_title(block)),
                     items,
                     Some(kind),
                 );
@@ -480,7 +480,7 @@ impl CatalogUi {
         let provider_slot = gtk::Box::new(gtk::Orientation::Vertical, 18);
         provider_slot.set_hexpand(true);
         content.append(&provider_slot);
-        let empty = crate::route_layout::route_empty_view(msgid("Nothing here yet"));
+        let empty = crate::route_layout::route_empty_view("Nothing here yet");
         content.append(&empty);
         let inset_content = library_route_inset(content.clone().upcast());
         scroller.set_child(Some(&inset_content));
@@ -691,7 +691,7 @@ impl CatalogUi {
         });
         let controls = detail_playback_controls(
             &actions,
-            msgid("Play album"),
+            "Play album",
             Some(album.state.favorite),
             play,
         );

@@ -6,7 +6,6 @@ use gtk_widgets::{
     controls::{PLAY_ICON, REMOVE_ICON},
     interactions::ContextMenuSurface,
 };
-use localization::msgid;
 use rufin_core::playback::QueueSelection;
 use rufin_core::settings::ContextMenuItem;
 use std::rc::Rc;
@@ -46,8 +45,8 @@ pub(crate) fn present_queue_selection_context_menu(
     position: Option<(f64, f64)>,
 ) {
     let surface = ContextMenuSurface::new(target, "queue-selection", position);
-    surface.append_fixed_action(msgid("Remove from Queue"), "remove-from-queue", REMOVE_ICON);
-    surface.append_configurable_action(ContextMenuItem::Play, msgid("Play"), "play", PLAY_ICON);
+    surface.append_fixed_action("Remove from Queue", "remove-from-queue", REMOVE_ICON);
+    surface.append_configurable_action(ContextMenuItem::Play, "Play", "play", PLAY_ICON);
     append_context_menu_picker_media_uris(&surface, shell, selection.media_uris.iter().cloned());
     let queue = shell.products.playback.clone();
     let remove = selection.selection.clone();

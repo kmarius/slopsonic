@@ -685,9 +685,9 @@ pub(super) fn build_visualizer_settings(shell: &Rc<PlayerUi>) -> adw::Preference
                 })
             });
             async move {
-                let result = result.ok_or_else(|| localization::tr("Not valid"))?;
+                let result = result.ok_or_else(|| "Not valid".to_string())?;
                 if !result {
-                    return Err(localization::tr("This isn't available"));
+                    return Err("This isn't available".to_string());
                 }
                 Ok(())
             }

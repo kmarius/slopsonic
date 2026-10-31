@@ -41,7 +41,6 @@ pub fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ExitCode {
 }
 
 fn run_inner(arguments: impl Iterator<Item = std::ffi::OsString>) -> Result<(), String> {
-    localization::initialize()?;
     const USAGE: &str = "Usage: rufin --headless [--] [FILE_OR_URI ...]\n       rufin-controller [--] [FILE_OR_URI ...]\nOpen audio files or M3U, PLS and XSPF playlists. Press Ctrl+C to stop.";
     let mut arguments = arguments.peekable();
     let mut files = Vec::new();

@@ -297,7 +297,7 @@ impl Shell {
             .set(BackgroundAccess::Pending);
         let shell = Rc::downgrade(self);
         glib::MainContext::default().spawn_local(async move {
-            let reason = localization::tr("Keep Rufin running after closing the window");
+            let reason = "Keep Rufin running after closing the window".to_string();
             let access = match Background::request()
                 .reason(reason.as_str())
                 .auto_start(false)

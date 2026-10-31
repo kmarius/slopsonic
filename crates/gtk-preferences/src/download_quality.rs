@@ -201,7 +201,7 @@ pub(crate) fn rows(
 
 pub(crate) fn label(quality: DownloadQuality) -> String {
     match quality {
-        DownloadQuality::Original => localization::tr("Original"),
+        DownloadQuality::Original => "Original".to_string(),
         DownloadQuality::Transcoded(encoding) => encoding
             .bitrate_kbps
             .filter(|_| encoding.codec != AudioCodec::Flac)

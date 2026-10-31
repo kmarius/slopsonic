@@ -16,7 +16,6 @@ use gtk_widgets::{
     sparse_model::{SparseObjectItem, connect_sparse_bind},
 };
 use library::QueueRow;
-use localization::tr;
 use rufin_core::playback::{QueueReorderTarget, QueueSelection};
 use rufin_core::settings::layout::{LibraryField, LibraryListKey, LibraryListSettings};
 use std::{
@@ -563,7 +562,7 @@ fn queue_title_column(shell: &Rc<crate::PlayerUi>) -> gtk::ColumnViewColumn {
             }
         }
     });
-    let column = gtk::ColumnViewColumn::new(Some(&tr("Title")), Some(factory));
+    let column = gtk::ColumnViewColumn::new(Some(&"Title".to_string()), Some(factory));
     column.set_fixed_width(gtk_widgets::library_fields::column_width(
         LibraryField::TitleMerged,
     ));
@@ -723,7 +722,7 @@ fn queue_year_column(shell: &Rc<crate::PlayerUi>) -> gtk::ColumnViewColumn {
             label.set_text("");
         }
     });
-    let column = gtk::ColumnViewColumn::new(Some(&tr("Year")), Some(factory));
+    let column = gtk::ColumnViewColumn::new(Some(&"Year".to_string()), Some(factory));
     column.set_fixed_width(62);
     column
 }
@@ -913,7 +912,7 @@ fn queue_text_column(shell: &Rc<crate::PlayerUi>, field: LibraryField) -> gtk::C
         }
     });
     gtk::ColumnViewColumn::new(
-        Some(&tr(gtk_widgets::settings::library_field_title(field))),
+        Some(&String::from(gtk_widgets::settings::library_field_title(field))),
         Some(factory),
     )
 }
@@ -1037,7 +1036,7 @@ fn queue_overlay_empty_label(
         }
         child = widget.next_sibling();
     }
-    let empty = gtk::Label::new(Some(&tr("Nothing queued")));
+    let empty = gtk::Label::new(Some(&"Nothing queued".to_string()));
     empty.add_css_class("dim-label");
     empty.add_css_class("queue-empty-label");
     empty.set_halign(gtk::Align::Center);
@@ -1335,7 +1334,7 @@ fn render_panel(
     );
     if let Some(empty) = queue_overlay_empty_label(&scroller, shell) {
         empty.set_visible(!has_rows);
-        empty.set_text(&tr(if reorderable {
+        empty.set_text(&String::from(if reorderable {
             "Nothing queued"
         } else {
             "No matching tracks"

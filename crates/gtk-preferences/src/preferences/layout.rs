@@ -106,7 +106,7 @@ pub fn populate_home_block_rows(
 
         let row = reorder_row(
             ReorderRowPresentation {
-                title: tr(gtk_widgets::settings::home_block_title(block)),
+                title: String::from(gtk_widgets::settings::home_block_title(block)),
                 subtitle: visibility_position_subtitle(active, position),
                 visible: active,
                 visible_sensitive: !active || visible_blocks.len() > 1,
@@ -157,8 +157,8 @@ pub fn insert_home_block_in_order(
     blocks.insert(insert_at, block);
 }
 pub fn visibility_position_subtitle(visible: bool, position: usize) -> String {
-    let visibility = if visible { tr("Visible") } else { tr("Hidden") };
-    format!("{visibility} · {} {}", tr("Position"), position + 1)
+    let visibility = if visible { "Visible".to_string() } else { "Hidden".to_string() };
+    format!("{visibility} · {} {}", "Position".to_string(), position + 1)
 }
 pub fn reorder_home_blocks(
     blocks: &mut Vec<HomeBlockKind>,
@@ -206,7 +206,7 @@ where
 {
     selection_row(
         title,
-        &[tr("Full"), tr("Compact"), tr("Hidden")],
+        &["Full".to_string(), "Compact".to_string(), "Hidden".to_string()],
         left_sidebar_mode_index(mode),
         on_selected,
     )
@@ -231,7 +231,7 @@ where
 {
     selection_row(
         title,
-        &[tr("Hidden"), tr("Visible")],
+        &["Hidden".to_string(), "Visible".to_string()],
         right_sidebar_mode_index(mode),
         on_selected,
     )
@@ -285,7 +285,6 @@ use crate::{LeftSidebarMode, RightSidebarMode};
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gtk::{CompositeTemplate, TemplateChild, glib};
-use localization::tr;
 use presence::{DisplayType, LinkType};
 use rufin_core::settings::HomeBlockKind;
 

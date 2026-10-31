@@ -82,7 +82,7 @@ impl Draft {
         let (settings, credentials) = self.input()?;
         let name = if source_id.is_none() && self.name.trim().is_empty() {
             gtk_widgets::source_labels::source_kind_title(kind)
-                .map(tr)
+                .map(String::from)
                 .unwrap_or_default()
         } else {
             self.name.trim().into()
@@ -144,7 +144,7 @@ impl Draft {
             .map(|line| {
                 let (name, value) = line
                     .split_once(':')
-                    .ok_or_else(|| tr("One Name: Value header per line"))?;
+                    .ok_or_else(|| "One Name: Value header per line".to_string())?;
                 Ok(sources::FileHeader {
                     name: name.trim().into(),
                     value: value.trim().into(),
@@ -201,7 +201,7 @@ impl SourceSetupFlow for FileSetupFlow {
         let draft = Rc::clone(&self.draft);
         let kind = self.presentation.kind;
         form.connect.connect_clicked(move |button| {
-            begin_connect_attempt(&status, button, &tr("Connecting to music server..."));
+            begin_connect_attempt(&status, button, &"Connecting to music server...".to_string());
             let (value, source, status, button) = (
                 draft.borrow().clone(),
                 source.clone(),
@@ -527,7 +527,7 @@ fn form(
         section.append(&exclusions);
     }
     let display_name = if value.name.is_empty() && !editing {
-        tr(if smb { "SMB / Samba" } else { "WebDAV" })
+        String::from(if smb { "SMB / Samba" } else { "WebDAV" })
     } else {
         value.name.clone()
     };
@@ -598,7 +598,7 @@ fn form(
             }
             if let Some(row) = password.upgrade() {
                 row.set_visible(selected != 1);
-                row.set_title(&tr(if selected == 2 {
+                row.set_title(&String::from(if selected == 2 {
                     "Bearer token"
                 } else {
                     "Password"
@@ -778,9 +778,9 @@ fn form(
         let status = status.clone();
         if let Some(status) = status.upgrade() {
             status.set_text(&if music {
-                tr("Connecting to music server...")
+                "Connecting to music server...".to_string()
             } else {
-                tr("Connecting...")
+                "Connecting...".to_string()
             });
             status.set_visible(true);
         }
@@ -800,7 +800,7 @@ fn form(
                 match events.next().await {
                     Ok(SourceAuthorizationEvent::OpenBrowser { url: address }) => {
                         if let Some(status) = status.upgrade() {
-                            status.set_text(&tr("Complete sign-in in your browser"));
+                            status.set_text(&"Complete sign-in in your browser".to_string());
                             status.set_visible(true);
                         }
                         if let Err(error) = gtk::gio::AppInfo::launch_default_for_uri_future(
@@ -834,7 +834,7 @@ fn form(
                         update_ready();
                         if editing {
                             if let Some(status) = status.upgrade() {
-                                status.set_text(&tr_with(
+                                status.set_text(&fill(
                                     "Connected as {username}",
                                     &[("username", &settings.username)],
                                 ));

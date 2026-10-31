@@ -1,7 +1,7 @@
-pub const DEFAULT_LEFT_TITLE: &str = localization::msgid("Default left sidebar");
-pub const DEFAULT_RIGHT_TITLE: &str = localization::msgid("Default right sidebar");
-pub const NARROW_LEFT_TITLE: &str = localization::msgid("Narrow left sidebar");
-pub const NARROW_RIGHT_TITLE: &str = localization::msgid("Narrow right sidebar");
+pub const DEFAULT_LEFT_TITLE: &str = "Default left sidebar";
+pub const DEFAULT_RIGHT_TITLE: &str = "Default right sidebar";
+pub const NARROW_LEFT_TITLE: &str = "Narrow left sidebar";
+pub const NARROW_RIGHT_TITLE: &str = "Narrow right sidebar";
 mod activity;
 pub mod backup;
 use crate::Preferences;
@@ -12,7 +12,6 @@ use crate::{
 use adw::prelude::*;
 use gtk_widgets::layout::{LARGE_POPUP_BASE_HEIGHT, large_popup_content_height};
 use gtk_widgets::popup::present_light_dismiss_dialog;
-use localization::{language_option_index, language_options, tr};
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
@@ -188,16 +187,16 @@ impl PreferencesPageKind {
 
     fn title(self) -> String {
         match self {
-            Self::General => tr("General"),
-            Self::Customization => tr("Customization"),
-            Self::Theme => tr("Theme"),
-            Self::Playback => tr("Playback"),
-            Self::Equalizer => tr("Equalizer"),
-            Self::Library => tr("Library"),
-            Self::Downloads => tr("Downloads"),
-            Self::Storage => tr("Storage"),
-            Self::Integrations => tr("Integrations"),
-            Self::Privacy => tr("Privacy & Security"),
+            Self::General => "General".to_string(),
+            Self::Customization => "Customization".to_string(),
+            Self::Theme => "Theme".to_string(),
+            Self::Playback => "Playback".to_string(),
+            Self::Equalizer => "Equalizer".to_string(),
+            Self::Library => "Library".to_string(),
+            Self::Downloads => "Downloads".to_string(),
+            Self::Storage => "Storage".to_string(),
+            Self::Integrations => "Integrations".to_string(),
+            Self::Privacy => "Privacy & Security".to_string(),
         }
     }
 
@@ -238,7 +237,7 @@ pub struct PreferencesNavigationControls {
 
 impl PreferencesNavigationControls {
     fn new(back: gtk::Button) -> Self {
-        back.update_property(&[gtk::accessible::Property::Label(&tr("Back"))]);
+        back.update_property(&[gtk::accessible::Property::Label(&"Back".to_string())]);
         set_preferences_back_visible(&back, false);
 
         let controls = Self {
@@ -292,7 +291,7 @@ fn present_preferences_dialog_with_page(
     }
     let dialog = shell.state.active_dialog().unwrap_or_else(|| {
         let dialog = adw::Dialog::builder()
-            .title(tr("Preferences"))
+            .title("Preferences".to_string())
             .content_width(900)
             .content_height(large_popup_content_height(
                 shell.window.height(),
@@ -396,7 +395,7 @@ fn build_preferences_dialog(
         .bind_property("can-close", &category_back, "sensitive")
         .sync_create()
         .build();
-    search_button.update_property(&[gtk::accessible::Property::Label(&tr("Search"))]);
+    search_button.update_property(&[gtk::accessible::Property::Label(&"Search".to_string())]);
     dialog
         .bind_property("can-close", &categories, "sensitive")
         .sync_create()
@@ -690,7 +689,7 @@ fn build_preferences_dialog(
         }
         if !matched {
             let row = adw::ActionRow::builder()
-                .title(tr(r"No results ¯\_(°╭╮°)_/¯"))
+                .title(String::from(r"No results ¯\_(°╭╮°)_/¯"))
                 .build();
             results_group_for_entry.add(&row);
             rendered_rows_for_entry
@@ -842,7 +841,6 @@ fn general_page(
         prefer_distinct_track_covers_row: adw::SwitchRow,
         external_metadata_row: adw::SwitchRow,
         external_lyrics_row: adw::SwitchRow,
-        language_row: adw::ComboRow,
         starting_page_row: adw::ComboRow,
         window_group: adw::PreferencesGroup,
         activity_overview_row: adw::ActionRow,
@@ -897,7 +895,7 @@ fn general_page(
     let starting_pages = SidebarRouteItem::all();
     let starting_page_titles = starting_pages
         .iter()
-        .map(|item| tr(gtk_widgets::route::sidebar_route_descriptor(*item).title))
+        .map(|item| String::from(gtk_widgets::route::sidebar_route_descriptor(*item).title))
         .collect::<Vec<_>>();
     starting_page_row.set_model(Some(&gtk::StringList::new(
         &starting_page_titles
@@ -925,29 +923,6 @@ fn general_page(
                 &mut settings.application.starting_page
             });
     });
-    let language_options = Rc::new(language_options());
-    let language_titles = language_options
-        .iter()
-        .map(|option| option.title.as_str())
-        .collect::<Vec<_>>();
-    let language_model = gtk::StringList::new(&language_titles);
-    language_row.set_model(Some(&language_model));
-    language_row.set_selected(language_option_index(
-        language_options.as_ref(),
-        &settings.appearance.language,
-    ));
-    let language_shell = Rc::clone(shell);
-    language_row.connect_selected_notify(move |row| {
-        let Some(option) = language_options.get(row.selected() as usize) else {
-            return;
-        };
-        language_shell.settings.set_app_setting(
-            "language setting",
-            option.id.clone(),
-            |settings| &mut settings.appearance.language,
-        );
-    });
-
     {
         #[cfg(not(target_os = "macos"))]
         tray_row.set_active(settings.tray_enabled);
@@ -1102,7 +1077,7 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
 
     let default_left_shell = Rc::clone(shell);
     let default_left_row = left_sidebar_row(
-        &tr(DEFAULT_LEFT_TITLE),
+        &String::from(DEFAULT_LEFT_TITLE),
         settings.layout.default_profile.left_sidebar,
         move |selected| {
             let mode = left_sidebar_mode_from_index(selected);
@@ -1122,7 +1097,7 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
 
     let default_right_shell = Rc::clone(shell);
     let default_right_row = right_sidebar_row(
-        &tr(DEFAULT_RIGHT_TITLE),
+        &String::from(DEFAULT_RIGHT_TITLE),
         settings.layout.default_profile.right_sidebar,
         move |selected| {
             let mode = right_sidebar_mode_from_index(selected);
@@ -1211,7 +1186,7 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
 
     let narrow_left_shell = Rc::clone(shell);
     let narrow_left_row = left_sidebar_row(
-        &tr(NARROW_LEFT_TITLE),
+        &String::from(NARROW_LEFT_TITLE),
         settings.layout.narrow_profile.left_sidebar,
         move |selected| {
             let mode = left_sidebar_mode_from_index(selected);
@@ -1232,7 +1207,7 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
 
     let narrow_right_shell = Rc::clone(shell);
     let narrow_right_row = right_sidebar_row(
-        &tr(NARROW_RIGHT_TITLE),
+        &String::from(NARROW_RIGHT_TITLE),
         settings.layout.narrow_profile.right_sidebar,
         move |selected| {
             let mode = right_sidebar_mode_from_index(selected);
@@ -1392,7 +1367,7 @@ fn sidebar_item_row(
 
     reorder_row(
         ReorderRowPresentation {
-            title: tr(descriptor.title),
+            title: String::from(descriptor.title),
             subtitle: sidebar_route_item_subtitle(&entry, position),
             visible: entry.visible,
             visible_sensitive: true,
@@ -1418,7 +1393,7 @@ fn sidebar_route_item_subtitle(entry: &SidebarRouteItemSettings, position: usize
     if entry.item == SidebarRouteItem::Moods {
         format!(
             "{state} · {}",
-            tr("Files need Mood/BPM tags written on them. Not supported for Jellyfin")
+            "Files need Mood/BPM tags written on them. Not supported for Jellyfin".to_string()
         )
     } else {
         state
@@ -1448,7 +1423,7 @@ fn open_folder(shell: &Rc<Preferences>, folder: gtk::gio::File) {
             {
                 shell
                     .control_feedback
-                    .show_feedback_toast(localization::tr_with(
+                    .show_feedback_toast(rufin_core::text::fill(
                         "Could not open folder: {error}",
                         &[("error", &error.to_string())],
                     ));

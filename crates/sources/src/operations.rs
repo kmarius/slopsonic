@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{SourceEntityKind, SourceId};
-use localization::msgid;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
@@ -49,7 +48,7 @@ impl MetadataDraft {
         if kind != SourceEntityKind::Track
             && let Some(field) = fields.iter_mut().find(|field| field.key == "comment")
         {
-            field.label = msgid("Overview").into();
+            field.label = "Overview".into();
         }
         Self {
             kind,
@@ -115,24 +114,24 @@ impl MetadataField {
     pub fn new(key: &str, value: impl Into<String>, writable: bool) -> Self {
         use MetadataFieldKind::*;
         let (label, kind) = match key {
-            "title" => (msgid("Title"), Text),
-            "sort_title" => (msgid("Sort title"), Text),
-            "artist" => (msgid("Artists"), List),
-            "album" => (msgid("Album"), Text),
-            "album_artist" => (msgid("Album artists"), List),
-            "track_number" => (msgid("Track number"), Number),
-            "disc_number" => (msgid("Disc number"), Number),
-            "year" => (msgid("Year"), Number),
-            "recording_date" => (msgid("Date"), Date),
-            "genre" => (msgid("Genres"), List),
-            "comment" => (msgid("Comment"), Text),
-            "bpm" => (msgid("BPM"), Number),
-            "locked" => (msgid("Lock metadata"), Boolean),
-            "musicbrainz_recording_id" => (msgid("MusicBrainz recording ID"), Text),
-            "musicbrainz_release_track_id" => (msgid("MusicBrainz release track ID"), Text),
-            "musicbrainz_album_id" => (msgid("MusicBrainz release ID"), Text),
-            "musicbrainz_release_group_id" => (msgid("MusicBrainz release group ID"), Text),
-            "musicbrainz_artist_id" => (msgid("MusicBrainz artist ID"), Text),
+            "title" => ("Title", Text),
+            "sort_title" => ("Sort title", Text),
+            "artist" => ("Artists", List),
+            "album" => ("Album", Text),
+            "album_artist" => ("Album artists", List),
+            "track_number" => ("Track number", Number),
+            "disc_number" => ("Disc number", Number),
+            "year" => ("Year", Number),
+            "recording_date" => ("Date", Date),
+            "genre" => ("Genres", List),
+            "comment" => ("Comment", Text),
+            "bpm" => ("BPM", Number),
+            "locked" => ("Lock metadata", Boolean),
+            "musicbrainz_recording_id" => ("MusicBrainz recording ID", Text),
+            "musicbrainz_release_track_id" => ("MusicBrainz release track ID", Text),
+            "musicbrainz_album_id" => ("MusicBrainz release ID", Text),
+            "musicbrainz_release_group_id" => ("MusicBrainz release group ID", Text),
+            "musicbrainz_artist_id" => ("MusicBrainz artist ID", Text),
             _ => (key, Text),
         };
         Self {

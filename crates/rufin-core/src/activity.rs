@@ -1,7 +1,7 @@
 //! Listening report formatting and screen-independent PNG export.
 use artwork::{Artwork, ArtworkBinding, ArtworkOutcome, ArtworkRequest, ExternalPolicy};
 use library::{ActivityOverview, CalendarActivityPeriod};
-use localization::{msgid, tr_with};
+use crate::text::{fill};
 
 use crate::settings::app::ActivityOverviewSettings;
 
@@ -96,21 +96,21 @@ pub fn period_label(period: CalendarActivityPeriod) -> String {
     match period {
         CalendarActivityPeriod::Month { year, month } => {
             let message = match month {
-                1 => msgid("January {year}"),
-                2 => msgid("February {year}"),
-                3 => msgid("March {year}"),
-                4 => msgid("April {year}"),
-                5 => msgid("May {year}"),
-                6 => msgid("June {year}"),
-                7 => msgid("July {year}"),
-                8 => msgid("August {year}"),
-                9 => msgid("September {year}"),
-                10 => msgid("October {year}"),
-                11 => msgid("November {year}"),
-                12 => msgid("December {year}"),
+                1 => "January {year}",
+                2 => "February {year}",
+                3 => "March {year}",
+                4 => "April {year}",
+                5 => "May {year}",
+                6 => "June {year}",
+                7 => "July {year}",
+                8 => "August {year}",
+                9 => "September {year}",
+                10 => "October {year}",
+                11 => "November {year}",
+                12 => "December {year}",
                 _ => return period_key(period),
             };
-            tr_with(message, &[("year", &year.to_string())])
+            fill(message, &[("year", &year.to_string())])
         }
         _ => period_key(period),
     }

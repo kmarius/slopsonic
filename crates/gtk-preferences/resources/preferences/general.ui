@@ -6,17 +6,6 @@
     <property name="title" translatable="yes">General</property>
     <property name="icon-name">rufin-preferences-system-symbolic</property>
     <child>
-      <object class="AdwPreferencesGroup">
-        <property name="title" translatable="yes">Language</property>
-        <child>
-          <object class="AdwComboRow" id="language_row">
-            <property name="title" translatable="yes">Language</property>
-            <property name="subtitle" translatable="yes">Changes take effect after restarting Rufin</property>
-          </object>
-        </child>
-      </object>
-    </child>
-    <child>
       <object class="AdwPreferencesGroup" id="window_group">
         <property name="title" translatable="yes">App settings</property>
         <child>

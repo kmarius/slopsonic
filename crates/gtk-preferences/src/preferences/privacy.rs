@@ -2,7 +2,6 @@ use std::{cell::Cell, rc::Rc};
 
 use adw::prelude::*;
 use gtk_player::outputs::casting_network_dropdown;
-use localization::tr;
 use secrets::SecretStorageMode;
 
 use crate::Preferences;
@@ -37,7 +36,7 @@ pub(super) fn page(
     private_row.connect_active_notify(move |row| {
         private_shell.set_private_mode(row.is_active());
     });
-    let secret_storage_titles = [tr("Legacy"), tr("System keyring")];
+    let secret_storage_titles = ["Legacy".to_string(), "System keyring".to_string()];
     let secret_storage_refs = secret_storage_titles
         .iter()
         .map(String::as_str)
@@ -69,13 +68,11 @@ pub(super) fn page(
         }
 
         let confirm = adw::AlertDialog::builder()
-            .heading(tr("Change Secret Storage"))
-            .body(tr(
-                "This will log you out and clear your secrets including API ones. Your app cache is not touched.",
-            ))
+            .heading("Change Secret Storage".to_string())
+            .body("This will log you out and clear your secrets including API ones. Your app cache is not touched.".to_string())
             .build();
-        let cancel = tr("Cancel");
-        let change = tr("Change");
+        let cancel = "Cancel".to_string();
+        let change = "Change".to_string();
         confirm.add_responses(&[("cancel", cancel.as_str()), ("change", change.as_str())]);
         confirm.set_default_response(Some("cancel"));
         confirm.set_close_response("cancel");

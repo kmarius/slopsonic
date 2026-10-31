@@ -203,7 +203,7 @@ pub async fn files(
         if opened {
             Ok(())
         } else {
-            Err(failure.unwrap_or_else(|| localization::tr("No playable entries were found")))
+            Err(failure.unwrap_or_else(|| "No playable entries were found".to_string()))
         }
     })
     .await

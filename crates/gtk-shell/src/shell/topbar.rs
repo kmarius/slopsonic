@@ -136,7 +136,7 @@ impl Topbar {
             ResolvedLeftSidebarMode::Compact => "Expand sidebar",
             ResolvedLeftSidebarMode::Hidden => "Show sidebar",
         };
-        let label = localization::tr(label);
+        let label = String::from(label);
         self.sidebar.set_tooltip_text(Some(&label));
         self.sidebar
             .update_property(&[gtk::accessible::Property::Label(&label)]);

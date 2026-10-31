@@ -10,7 +10,7 @@ use adw::prelude::*;
 use gtk::gio;
 use gtk::subclass::prelude::ObjectSubclassIsExt;
 use library::{ArtistKey, ArtistView, GenreKey, GenreView, MoodKey, MoodView};
-use localization::{album_count_text, msgid, track_count_text};
+use rufin_core::text::{album_count_text, track_count_text};
 
 use crate::CatalogUi;
 use crate::{LibraryLayout, LibraryListKey};
@@ -50,7 +50,7 @@ impl CatalogUi {
     ) -> MountedRoute {
         self.collection_list_route(
             LibraryListKey::Genres,
-            msgid("Nothing here yet"),
+            "Nothing here yet",
             page,
             |row: &GenreView| row.genre_key,
             read,
@@ -64,7 +64,7 @@ impl CatalogUi {
     ) -> MountedRoute {
         self.collection_list_route(
             LibraryListKey::Moods,
-            msgid("Nothing here yet"),
+            "Nothing here yet",
             page,
             |row: &MoodView| row.mood_key,
             read,
@@ -837,7 +837,7 @@ struct NamedCollectionGridCell<T: NamedCollectionRow> {
 impl<T: NamedCollectionRow> NamedCollectionGridCell<T> {
     fn new(shell: Rc<CatalogUi>, fields: &[LibraryField], key: LibraryListKey) -> Self {
         let current = Rc::new(std::cell::RefCell::new(None::<T>));
-        let controls = super::cards::CollectionGridCoverView::without_favorite(msgid("Play"));
+        let controls = super::cards::CollectionGridCoverView::without_favorite("Play");
         let cover_host = controls.imp().cover_host.get();
         let cover = shell.artwork.elastic_cover_group_projection_for_artwork(
             &[],

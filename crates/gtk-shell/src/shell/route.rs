@@ -438,7 +438,7 @@ impl Shell {
             self.cancel_root_order_read();
             self.replace_mounted_route(route, None, render_started, |_| {
                 MountedRoute::static_widget(gtk_library::route_layout::route_empty_view(
-                    localization::msgid("Nothing here yet"),
+                    "Nothing here yet",
                 ))
             });
             return;

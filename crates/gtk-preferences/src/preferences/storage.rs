@@ -334,7 +334,7 @@ impl CacheRow {
         if let Some(count) = self.count.upgrade() {
             let text = usage
                 .map(|usage| {
-                    localization::trn_with(
+                    rufin_core::text::fill_plural(
                         "{count} entry",
                         "{count} entries",
                         usage.entries,

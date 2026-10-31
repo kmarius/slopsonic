@@ -18,7 +18,6 @@ gio.workspace = true
 glib = { workspace = true, features = ["v2_66"] }
 library.workspace = true
 blake3.workspace = true
-localization.workspace = true
 playback.workspace = true
 rufin-core.workspace = true
 presence.workspace = true

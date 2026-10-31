@@ -12,7 +12,6 @@ use artwork::ArtworkBinding;
 use gtk::subclass::prelude::ObjectSubclassIsExt;
 use gtk::{gio, glib};
 use library::{ReadCancellation, SearchResults};
-use localization::{msgid, tr};
 use rufin_core::playback::QueuePlacement;
 
 use crate::CatalogUi;
@@ -321,7 +320,7 @@ struct SearchGridCell {
 impl SearchGridCell {
     fn new(shell: Rc<CatalogUi>, fields: &[LibraryField]) -> Self {
         let current = Rc::new(RefCell::new(None::<SearchItem>));
-        let controls = cards::CollectionGridCoverView::new(msgid("Play"));
+        let controls = cards::CollectionGridCoverView::new("Play");
         let cover_host = controls.imp().cover_host.get();
         let favorite = controls.favorite();
         let cover = ArtworkTile::new_elastic_square();
@@ -798,7 +797,7 @@ fn collection_category_tabs(
         stack.add_titled_with_icon(
             &page,
             Some(category.name()),
-            &tr(category.title()),
+            &String::from(category.title()),
             category.icon_name(),
         );
     }
@@ -1260,7 +1259,7 @@ fn search_merged_column(
             }
         }
     });
-    let column = gtk::ColumnViewColumn::new(Some(&tr("Title")), Some(factory));
+    let column = gtk::ColumnViewColumn::new(Some(&"Title".to_string()), Some(factory));
     column.set_fixed_width(width);
     column
 }

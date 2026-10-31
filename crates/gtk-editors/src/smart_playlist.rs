@@ -11,7 +11,6 @@ use ::library::{
 use adw::prelude::*;
 use gtk_widgets::controls::REMOVE_ICON;
 use gtk_widgets::layout::large_popup_content_width;
-use localization::{msgid, tr};
 
 const SMART_PLAYLIST_DIALOG_WIDTH: i32 = 700;
 const SMART_PLAYLIST_ARTWORK_WIDTH: i32 = 320;
@@ -43,20 +42,20 @@ fn smart_playlist_templates() -> Vec<SmartPlaylistTemplate> {
     };
     vec![
         most_played(
-            msgid("Most Played (Weekly)"),
+            "Most Played (Weekly)",
             SmartPlaylistActivityPeriod::Weekly,
         ),
         most_played(
-            msgid("Most Played (Monthly)"),
+            "Most Played (Monthly)",
             SmartPlaylistActivityPeriod::Monthly,
         ),
         most_played(
-            msgid("Most Played (Yearly)"),
+            "Most Played (Yearly)",
             SmartPlaylistActivityPeriod::Yearly,
         ),
-        most_played(msgid("Most Played"), SmartPlaylistActivityPeriod::Lifetime),
+        most_played("Most Played", SmartPlaylistActivityPeriod::Lifetime),
         SmartPlaylistTemplate {
-            name: msgid("Never Played"),
+            name: "Never Played",
             definition: SmartPlaylistDefinition {
                 source_id: None,
                 match_all: vec![SmartPlaylistRule {
@@ -191,14 +190,14 @@ fn smart_playlist_dialog(
         settings: adw::WrapBox, period_control: gtk::Box,
     });
 
-    dialog.set_title(&tr(dialog_title));
-    title.set_title(&tr(dialog_title));
+    dialog.set_title(&String::from(dialog_title));
+    title.set_title(&String::from(dialog_title));
     if let Some(name) = name {
         name_entry.set_text(name);
     }
     let definition = definition.cloned().unwrap_or_default();
     let mut source_ids = vec![None];
-    let mut labels = vec![tr("All")];
+    let mut labels = vec!["All".to_string()];
     for configured in sources.iter() {
         source_ids.push(Some(configured.id.clone()));
         labels.push(gtk_widgets::source_labels::configured_source_display_name(
@@ -227,7 +226,7 @@ fn smart_playlist_dialog(
     if let Some(value) = definition.limit {
         limit.set_text(&value.to_string());
     }
-    submit.set_label(&tr(submit_label));
+    submit.set_label(&String::from(submit_label));
     let rules_width = settings.measure(gtk::Orientation::Horizontal, -1).1
         + rules_column.margin_start()
         + rules_column.margin_end();
@@ -287,7 +286,7 @@ fn configure_smart_playlist_editor(
     if !templates.is_empty() {
         let default_titles = templates
             .iter()
-            .map(|template| tr(template.name))
+            .map(|template| String::from(template.name))
             .collect::<Vec<_>>();
         set_dropdown_labels(&surface.template_dropdown, &default_titles, 0);
         surface.template_control.set_visible(true);
@@ -380,7 +379,7 @@ fn configure_smart_playlist_editor(
             let Some(template) = templates.get(dropdown.selected() as usize) else {
                 return;
             };
-            editor.name.set_text(&tr(template.name));
+            editor.name.set_text(&String::from(template.name));
             editor
                 .match_all
                 .replace(template.definition.match_all.clone());
@@ -506,7 +505,7 @@ fn append_rule_row(
 
     let remove = gtk::Button::from_icon_name(REMOVE_ICON);
     remove.add_css_class("flat");
-    remove.set_tooltip_text(Some(&tr("Remove rule")));
+    remove.set_tooltip_text(Some(&"Remove rule".to_string()));
     {
         let rules = Rc::clone(&rules);
         let rerender = Rc::clone(&rerender);
@@ -596,7 +595,7 @@ fn append_value_editor(
             let max_spin = number_spin(max_value, min_bound, max_bound, rating);
             connect_number_range(rules, index, min_spin.clone(), max_spin.clone(), rating);
             container.append(&min_spin);
-            container.append(&gtk::Label::new(Some(&tr("to"))));
+            container.append(&gtk::Label::new(Some(&"to".to_string())));
             container.append(&max_spin);
         }
         SmartPlaylistRuleValueKind::Date => {
@@ -628,12 +627,12 @@ fn append_value_editor(
             }
             connect_date_range(rules, index, start.clone(), end.clone());
             container.append(&start);
-            container.append(&gtk::Label::new(Some(&tr("to"))));
+            container.append(&gtk::Label::new(Some(&"to".to_string())));
             container.append(&end);
         }
         SmartPlaylistRuleValueKind::Bool => {
             let active = matches!(rule.value, Some(SmartPlaylistRuleValue::Bool(true)));
-            let dropdown = dropdown_from_titles(&[msgid("Yes"), msgid("No")], usize::from(!active));
+            let dropdown = dropdown_from_titles(&["Yes", "No"], usize::from(!active));
             dropdown.connect_selected_notify(move |dropdown| {
                 if let Some(rule) = rules.borrow_mut().get_mut(index) {
                     rule.value = Some(SmartPlaylistRuleValue::Bool(dropdown.selected() == 0));
@@ -783,14 +782,14 @@ fn remove_rule(
 fn field_labels() -> Vec<String> {
     SmartPlaylistRuleField::ALL
         .iter()
-        .map(|field| tr(field_title(*field)))
+        .map(|field| String::from(field_title(*field)))
         .collect()
 }
 
 fn sort_labels() -> Vec<String> {
     SmartPlaylistSort::ALL
         .iter()
-        .map(|field| tr(sort_title(*field)))
+        .map(|field| String::from(sort_title(*field)))
         .collect()
 }
 
@@ -800,43 +799,43 @@ fn op_labels(
 ) -> Vec<String> {
     operators
         .iter()
-        .map(|operator| tr(op_title(field, *operator)))
+        .map(|operator| String::from(op_title(field, *operator)))
         .collect()
 }
 
 fn field_title(field: SmartPlaylistRuleField) -> &'static str {
     match field {
-        SmartPlaylistRuleField::Title => msgid("Title"),
-        SmartPlaylistRuleField::Artist => msgid("Artist"),
-        SmartPlaylistRuleField::Album => msgid("Album"),
-        SmartPlaylistRuleField::Comment => msgid("Comment"),
-        SmartPlaylistRuleField::Genre => msgid("Genre"),
-        SmartPlaylistRuleField::Mood => msgid("Mood"),
-        SmartPlaylistRuleField::Bpm => msgid("BPM"),
-        SmartPlaylistRuleField::Rating => msgid("Rating"),
-        SmartPlaylistRuleField::Year => msgid("Year"),
-        SmartPlaylistRuleField::Favorite => msgid("Favorite"),
-        SmartPlaylistRuleField::Played => msgid("Ever played"),
-        SmartPlaylistRuleField::PlayCount => msgid("Play count"),
-        SmartPlaylistRuleField::SkipCount => msgid("Skip count"),
-        SmartPlaylistRuleField::LastPlayed => msgid("Last played"),
-        SmartPlaylistRuleField::DateAdded => msgid("Date added"),
+        SmartPlaylistRuleField::Title => "Title",
+        SmartPlaylistRuleField::Artist => "Artist",
+        SmartPlaylistRuleField::Album => "Album",
+        SmartPlaylistRuleField::Comment => "Comment",
+        SmartPlaylistRuleField::Genre => "Genre",
+        SmartPlaylistRuleField::Mood => "Mood",
+        SmartPlaylistRuleField::Bpm => "BPM",
+        SmartPlaylistRuleField::Rating => "Rating",
+        SmartPlaylistRuleField::Year => "Year",
+        SmartPlaylistRuleField::Favorite => "Favorite",
+        SmartPlaylistRuleField::Played => "Ever played",
+        SmartPlaylistRuleField::PlayCount => "Play count",
+        SmartPlaylistRuleField::SkipCount => "Skip count",
+        SmartPlaylistRuleField::LastPlayed => "Last played",
+        SmartPlaylistRuleField::DateAdded => "Date added",
     }
 }
 
 fn sort_title(field: SmartPlaylistSort) -> &'static str {
     match field {
-        SmartPlaylistSort::Title => msgid("Title"),
-        SmartPlaylistSort::Artist => msgid("Artist"),
-        SmartPlaylistSort::Album => msgid("Album"),
-        SmartPlaylistSort::Year => msgid("Year"),
-        SmartPlaylistSort::DateAdded => msgid("Date added"),
-        SmartPlaylistSort::LastPlayed => msgid("Last played"),
-        SmartPlaylistSort::PlayCount => msgid("Play count"),
-        SmartPlaylistSort::SkipCount => msgid("Skip count"),
-        SmartPlaylistSort::Bpm => msgid("BPM"),
-        SmartPlaylistSort::Rating => msgid("Rating"),
-        SmartPlaylistSort::Duration => msgid("Duration"),
+        SmartPlaylistSort::Title => "Title",
+        SmartPlaylistSort::Artist => "Artist",
+        SmartPlaylistSort::Album => "Album",
+        SmartPlaylistSort::Year => "Year",
+        SmartPlaylistSort::DateAdded => "Date added",
+        SmartPlaylistSort::LastPlayed => "Last played",
+        SmartPlaylistSort::PlayCount => "Play count",
+        SmartPlaylistSort::SkipCount => "Skip count",
+        SmartPlaylistSort::Bpm => "BPM",
+        SmartPlaylistSort::Rating => "Rating",
+        SmartPlaylistSort::Duration => "Duration",
     }
 }
 
@@ -845,29 +844,29 @@ fn op_title(field: SmartPlaylistRuleField, operator: SmartPlaylistRuleOperator) 
         (
             SmartPlaylistRuleField::Genre | SmartPlaylistRuleField::Mood,
             SmartPlaylistRuleOperator::NotContains,
-        ) => msgid("excludes"),
+        ) => "excludes",
         (
             SmartPlaylistRuleField::Genre | SmartPlaylistRuleField::Mood,
             SmartPlaylistRuleOperator::NotEquals,
-        ) => msgid("is not"),
-        (_, SmartPlaylistRuleOperator::Contains) => msgid("contains"),
-        (_, SmartPlaylistRuleOperator::NotContains) => msgid("does not contain"),
-        (_, SmartPlaylistRuleOperator::Equals) => msgid("equals"),
-        (_, SmartPlaylistRuleOperator::NotEquals) => msgid("does not equal"),
-        (_, SmartPlaylistRuleOperator::Above) => msgid("above"),
-        (_, SmartPlaylistRuleOperator::Below) => msgid("below"),
-        (_, SmartPlaylistRuleOperator::Between) => msgid("range"),
-        (_, SmartPlaylistRuleOperator::Is) => msgid("is"),
-        (_, SmartPlaylistRuleOperator::IsNot) => msgid("is not"),
-        (_, SmartPlaylistRuleOperator::Before) => msgid("before"),
-        (_, SmartPlaylistRuleOperator::After) => msgid("after"),
-        (_, SmartPlaylistRuleOperator::IsEmpty) => msgid("is empty"),
-        (_, SmartPlaylistRuleOperator::IsNotEmpty) => msgid("is not empty"),
+        ) => "is not",
+        (_, SmartPlaylistRuleOperator::Contains) => "contains",
+        (_, SmartPlaylistRuleOperator::NotContains) => "does not contain",
+        (_, SmartPlaylistRuleOperator::Equals) => "equals",
+        (_, SmartPlaylistRuleOperator::NotEquals) => "does not equal",
+        (_, SmartPlaylistRuleOperator::Above) => "above",
+        (_, SmartPlaylistRuleOperator::Below) => "below",
+        (_, SmartPlaylistRuleOperator::Between) => "range",
+        (_, SmartPlaylistRuleOperator::Is) => "is",
+        (_, SmartPlaylistRuleOperator::IsNot) => "is not",
+        (_, SmartPlaylistRuleOperator::Before) => "before",
+        (_, SmartPlaylistRuleOperator::After) => "after",
+        (_, SmartPlaylistRuleOperator::IsEmpty) => "is empty",
+        (_, SmartPlaylistRuleOperator::IsNotEmpty) => "is not empty",
     }
 }
 
 fn dropdown_from_titles(titles: &[&str], selected: usize) -> gtk::DropDown {
-    let labels = titles.iter().map(|title| tr(title)).collect::<Vec<_>>();
+    let labels = titles.iter().map(|title| title.to_string()).collect::<Vec<_>>();
     dropdown_from_labels(&labels, selected)
 }
 
@@ -936,12 +935,12 @@ fn spin_value(spin: &gtk::SpinButton, rating: bool) -> i64 {
 
 fn text_placeholder(field: SmartPlaylistRuleField) -> String {
     match field {
-        SmartPlaylistRuleField::Genre => tr("Genre"),
-        SmartPlaylistRuleField::Mood => tr("Mood"),
-        SmartPlaylistRuleField::Comment => tr("Comment text"),
-        SmartPlaylistRuleField::Artist => tr("Artist name"),
-        SmartPlaylistRuleField::Album => tr("Album title"),
-        _ => tr("Text"),
+        SmartPlaylistRuleField::Genre => "Genre".to_string(),
+        SmartPlaylistRuleField::Mood => "Mood".to_string(),
+        SmartPlaylistRuleField::Comment => "Comment text".to_string(),
+        SmartPlaylistRuleField::Artist => "Artist name".to_string(),
+        SmartPlaylistRuleField::Album => "Album title".to_string(),
+        _ => "Text".to_string(),
     }
 }
 
@@ -1065,9 +1064,9 @@ pub fn build_dialog(
         .then(smart_playlist_templates)
         .unwrap_or_default();
     let (title, submit_label) = if playlist.is_some() {
-        (msgid("Edit Smart Playlist"), msgid("Save"))
+        ("Edit Smart Playlist", "Save")
     } else {
-        (msgid("New Smart Playlist"), msgid("Create"))
+        ("New Smart Playlist", "Create")
     };
     let surface = smart_playlist_dialog(
         title,

@@ -3,7 +3,6 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use adw::prelude::*;
-use localization::msgid;
 
 use crate::shell::Shell;
 use gtk_widgets::downloads::OperationFeedback;
@@ -50,7 +49,7 @@ pub(crate) fn append_context_menu_picker_source(
     let click_shell = Rc::downgrade(shell);
     surface.append_configurable_widget_submenu(
         ContextMenuItem::AddToPlaylist,
-        msgid("Add to Playlist"),
+        "Add to Playlist",
         "playlist-picker",
         &picker,
         ADD_TO_PLAYLIST_ICON,

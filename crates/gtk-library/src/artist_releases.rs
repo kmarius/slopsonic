@@ -378,7 +378,7 @@ impl ArtistRouteListCell {
         for (position, field) in fields.iter().enumerate() {
             let widget = if header {
                 let title = album_table_title(*field)
-                    .map(localization::tr)
+                    .map(String::from)
                     .unwrap_or_default();
                 gtk_widgets::table_header::HeaderCell::new(&title, Some(*field), position).upcast()
             } else {
@@ -411,7 +411,7 @@ impl ArtistRouteListCell {
             .iter()
             .zip(&preferred)
             .map(|(field, preferred)| {
-                let title = album_table_title(*field).map(localization::tr);
+                let title = album_table_title(*field).map(String::from);
                 gtk_widgets::table_sizing::column_header_minimum_width(title.as_deref(), *preferred)
             })
             .collect::<Vec<_>>();
@@ -449,7 +449,7 @@ impl ArtistAlbumProjection {
     ) -> Rc<Self> {
         let search = gtk::SearchEntry::new();
         gtk_widgets::controls::configure_search_entry(&search);
-        search.set_placeholder_text(Some(&localization::tr("Search")));
+        search.set_placeholder_text(Some(&"Search".to_string()));
         search.set_hexpand(true);
         let toolbar =
             shell.library_toolbar_projection(LibraryListKey::ArtistAlbums, search.clone());

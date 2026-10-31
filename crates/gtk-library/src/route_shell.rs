@@ -25,7 +25,6 @@ use gtk_widgets::localization::{
 };
 use gtk_widgets::mounted_route::{MountedRoute, MountedRouteCommand, MountedRouteResume};
 use gtk_widgets::popup::present_light_dismiss_dialog;
-use localization::{msgid, tr};
 
 use gtk_widgets::library_fields::{
     field_set_for_layout, layout_button_content, layout_icon, layout_title, next_layout,
@@ -130,7 +129,7 @@ impl LibraryPageShell {
         changed: impl Fn(bool) + 'static,
     ) {
         let dropdown = &self.toolbar.sort_dropdown;
-        let labels = gtk::StringList::new(&[&tr("All")]);
+        let labels = gtk::StringList::new(&[&"All".to_string()]);
         if let Some(name) = current_source_name.as_deref() {
             labels.append(name);
         }
@@ -216,11 +215,11 @@ impl CatalogUi {
         let wrapper = LibraryPageView::new();
         let toolbar = self.library_toolbar_projection(options.key, options.search.clone());
         wrapper.imp().toolbar_host.append(&toolbar.widget());
-        wrapper.imp().empty_label.set_label(&tr(options.empty_body));
+        wrapper.imp().empty_label.set_label(&String::from(options.empty_body));
         wrapper
             .imp()
             .search_empty_label
-            .set_label(&tr(msgid(r"No results ¯\_(°╭╮°)_/¯")));
+            .set_label(r"No results ¯\_(°╭╮°)_/¯");
         wrapper.imp().contents.add_child(&options.content);
         show_library_page_child(
             &wrapper,
@@ -421,8 +420,8 @@ impl CatalogUi {
         bind_widget_tooltip_with(&layout, move || {
             format!(
                 "{}: {}",
-                tr("Layout"),
-                tr(layout_title(layout_mode_for_locale.get()))
+                "Layout".to_string(),
+                String::from(layout_title(layout_mode_for_locale.get()))
             )
         });
         {
@@ -505,7 +504,7 @@ impl CatalogUi {
             fields_group: adw::PreferencesGroup,
             display_host: gtk::Box,
         });
-        title.set_subtitle(&tr(gtk_widgets::settings::library_list_title(key)));
+        title.set_subtitle(&String::from(gtk_widgets::settings::library_list_title(key)));
         configure_fill_width_clip(&scroller, gtk::PolicyType::Automatic);
         dialog.set_content_width(large_popup_content_width(LIBRARY_CONFIG_DIALOG_WIDTH));
         dialog.set_content_height(large_popup_content_height(
@@ -527,7 +526,7 @@ impl CatalogUi {
             let button = gtk::ToggleButton::new();
             button.add_css_class("preference-selection-button");
             button.set_child(Some(&layout_button_content(layout)));
-            button.set_tooltip_text(Some(&tr(layout_title(layout))));
+            button.set_tooltip_text(Some(&String::from(layout_title(layout))));
             if let Some(first) = &first_button {
                 button.set_group(Some(first));
             } else {
@@ -719,7 +718,7 @@ mod search_empty_tests {
 
 fn library_sort_title(key: LibraryListKey, field: LibraryField) -> &'static str {
     if key == LibraryListKey::PlaylistTracks && field == LibraryField::RowIndex {
-        msgid("Playlist order")
+        "Playlist order"
     } else {
         gtk_widgets::settings::library_field_title(field)
     }
@@ -758,7 +757,7 @@ pub fn library_toolbar_sort_width_for_labels<'a>(labels: impl IntoIterator<Item 
                 .iter()
                 .map(move |field| library_sort_title(key, *field))
         })
-        .map(|title| toolbar_sort_label_width(&tr(title)))
+        .map(|title| toolbar_sort_label_width(&String::from(title)))
         .max()
         .unwrap_or(LIBRARY_TOOLBAR_SORT_MIN_WIDTH);
     route_width.max(shared_library_width)

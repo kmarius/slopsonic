@@ -4,7 +4,7 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::{gdk, glib};
 use gtk_widgets::route::Route;
-use localization::tr_with;
+use rufin_core::text::fill;
 
 use super::Shell;
 
@@ -41,7 +41,7 @@ async fn import(shell: Rc<Shell>, paths: Vec<PathBuf>) {
         name: adw::EntryRow, name_group: gtk::ListBox,
         playlist_description: gtk::Label, library_description: gtk::Label,
     });
-    dialog.set_body(&tr_with(
+    dialog.set_body(&fill(
         "Selected items: {count}",
         &[("count", &paths.len().to_string())],
     ));

@@ -4,7 +4,7 @@ use std::{
 };
 
 use adw::prelude::*;
-use localization::{tr, tr_with};
+use rufin_core::text::{fill};
 
 use gtk_widgets::field_layout::{compact_field_row_group, style_compact_field_row};
 use gtk_widgets::layout::large_popup_content_width;
@@ -183,11 +183,11 @@ fn build_editor_view(
         let model = editor.model();
         let parent = parent.clone();
         let weak = Rc::downgrade(&editor);
-        editor.set_busy(true, &tr("Save"));
+        editor.set_busy(true, &"Save".to_string());
         gtk::glib::spawn_future_local(async move {
             let review = rufin_core::metadata::MetadataLookupReview::open(model).await;
             let Some(editor) = weak.upgrade() else { return };
-            editor.set_busy(false, &tr("Save"));
+            editor.set_busy(false, &"Save".to_string());
             match review {
                 Ok(review) => {
                     if let Some(parent) = parent.upgrade() {
@@ -296,13 +296,11 @@ fn append_lock(
 ) {
     let row = adw::SwitchRow::builder()
         .title(if mixed {
-            mixed_field_label(&tr("Lock metadata"), count)
+            mixed_field_label(&"Lock metadata".to_string(), count)
         } else {
-            tr("Lock metadata")
+            "Lock metadata".to_string()
         })
-        .subtitle(tr(
-            "Prevent automatic metadata refreshes from replacing these values",
-        ))
+        .subtitle("Prevent automatic metadata refreshes from replacing these values".to_string())
         .active(value.unwrap_or(false))
         .build();
     row.set_sensitive(writable);
@@ -355,7 +353,7 @@ fn connect_editor_changes(editor: &Rc<Editor>) {
             };
             let model = editor_undo.model().clone();
             let field = field.clone();
-            editor_undo.set_busy(true, &tr("Reset"));
+            editor_undo.set_busy(true, &"Reset".to_string());
             let weak = Rc::downgrade(&editor_undo);
             gtk::glib::spawn_future_local(async move {
                 let result = model.reset_field(field).await;
@@ -364,7 +362,7 @@ fn connect_editor_changes(editor: &Rc<Editor>) {
                         editor.show_error(&error.to_string());
                     }
                     refresh_editor_fields(&editor);
-                    editor.set_busy(false, &tr("Save"));
+                    editor.set_busy(false, &"Save".to_string());
                     editor.changed();
                 }
             });
@@ -461,7 +459,7 @@ fn refresh_identified_field(editor: &Editor, field: &str, identified: bool) {
         } else {
             presented.original_value.clone()
         };
-        let label = tr_with("Original: {value}", &[("value", original.as_str())]);
+        let label = fill("Original: {value}", &[("value", original.as_str())]);
         row.undo.set_tooltip_text(Some(&label));
     }
     if identified {
@@ -491,7 +489,7 @@ fn connect_save(dialog: &adw::Dialog, editor: &Rc<Editor>) {
         };
         lyrics::commit(&editor);
         editor.lyrics.cancel();
-        editor.set_busy(true, &tr("Saving..."));
+        editor.set_busy(true, &"Saving...".to_string());
         let model = editor.model().clone();
         let editor = Rc::downgrade(&editor);
         let dialog = dialog.clone();
@@ -544,7 +542,7 @@ fn connect_save(dialog: &adw::Dialog, editor: &Rc<Editor>) {
                     }
                 }
                 Ok(false) => {
-                    editor.set_busy(false, &tr("Save"));
+                    editor.set_busy(false, &"Save".to_string());
                     refresh_save_state(&editor);
                 }
                 Err(error) => {
@@ -553,7 +551,7 @@ fn connect_save(dialog: &adw::Dialog, editor: &Rc<Editor>) {
                         editor.finish_committed_save(fully_saved);
                     } else {
                         refresh_editor_fields(&editor);
-                        editor.set_busy(false, &tr("Save"));
+                        editor.set_busy(false, &"Save".to_string());
                         refresh_save_state(&editor);
                     }
                 }
@@ -606,7 +604,7 @@ impl Editor {
         if busy {
             self.save.set_label(label);
         } else {
-            self.save.set_label(&tr("Save"));
+            self.save.set_label(&"Save".to_string());
         }
     }
     fn show_error(&self, message: &str) {
@@ -621,9 +619,9 @@ impl Editor {
         self.lookup.set_sensitive(false);
         self.save.set_sensitive(false);
         self.save
-            .set_label(&if fully_saved { tr("Saved") } else { tr("Save") });
+            .set_label(&if fully_saved { "Saved".to_string() } else { "Save".to_string() });
         self.cancel.set_sensitive(true);
-        self.cancel.set_label(&tr("Close"));
+        self.cancel.set_label(&"Close".to_string());
         for row in self.entries.iter() {
             row.entry.set_sensitive(false);
         }

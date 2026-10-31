@@ -15,7 +15,7 @@ gtk_widgets::composite_box!(
 
 pub fn home_section_header(title: &str) -> HomeSectionHeaderView {
     let header = HomeSectionHeaderView::new();
-    header.imp().heading.set_label(&localization::tr(title));
+    header.imp().heading.set_label(&String::from(title));
     header
 }
 

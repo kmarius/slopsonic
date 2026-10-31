@@ -1,7 +1,6 @@
 pub mod detail_links;
 
 use library::{GenreKey, MoodKey, PlaylistKey, SmartPlaylistKey};
-use localization::msgid;
 use serde::{Deserialize, Serialize};
 
 use crate::settings::SidebarRouteItem;
@@ -129,19 +128,19 @@ impl SidebarRouteDescriptor {
 #[rustfmt::skip]
     pub fn sidebar_route_descriptor(item: SidebarRouteItem) -> SidebarRouteDescriptor {
         match item {
-            SidebarRouteItem::Home => SidebarRouteDescriptor::new("Home", msgid("Home"), "rufin-home-symbolic", None, Route::Home),
-            SidebarRouteItem::Search => SidebarRouteDescriptor::new("Search", msgid("Search"), "rufin-search-symbolic", None, Route::Search),
-            SidebarRouteItem::Favorites => SidebarRouteDescriptor::new("Favorites", msgid("Favorites"), "rufin-heart-outline-symbolic", Some("rufin-heart-filled-symbolic"), Route::Favorites),
-            SidebarRouteItem::Albums => SidebarRouteDescriptor::new("Albums", msgid("Albums"), "rufin-albums-symbolic", None, Route::Albums),
-            SidebarRouteItem::Tracks => SidebarRouteDescriptor::new("Tracks", msgid("Tracks"), "rufin-tracks-symbolic", None, Route::Tracks),
-            SidebarRouteItem::Artists => SidebarRouteDescriptor::new("Artists", msgid("Artists"), "rufin-artists-symbolic", None, Route::Artists),
-            SidebarRouteItem::AlbumArtists => SidebarRouteDescriptor::new("AlbumArtists", msgid("Album Artists"), "rufin-album-artists-symbolic", None, Route::AlbumArtists),
-            SidebarRouteItem::Genres => SidebarRouteDescriptor::new("Genres", msgid("Genres"), "rufin-tag-outline-symbolic", None, Route::Genres),
-            SidebarRouteItem::Moods => SidebarRouteDescriptor::new("Moods", msgid("Moods"), "rufin-moods-symbolic", None, Route::Moods),
-            SidebarRouteItem::History => SidebarRouteDescriptor::new("History", msgid("History"), "rufin-history-symbolic", None, Route::History),
-            SidebarRouteItem::Folders => SidebarRouteDescriptor::new("Folders", msgid("Folders"), "rufin-folders-symbolic", Some("rufin-folders-selected-symbolic"), Route::Folders { path: Vec::new() }),
-            SidebarRouteItem::Playlists => SidebarRouteDescriptor::new("Playlists", msgid("Playlists"), "rufin-playlists-symbolic", None, Route::Playlists),
-            SidebarRouteItem::SmartPlaylists => SidebarRouteDescriptor::new("SmartPlaylists", msgid("Smart Playlists"), "rufin-smart-playlists-symbolic", None, Route::SmartPlaylists),
+            SidebarRouteItem::Home => SidebarRouteDescriptor::new("Home", "Home", "rufin-home-symbolic", None, Route::Home),
+            SidebarRouteItem::Search => SidebarRouteDescriptor::new("Search", "Search", "rufin-search-symbolic", None, Route::Search),
+            SidebarRouteItem::Favorites => SidebarRouteDescriptor::new("Favorites", "Favorites", "rufin-heart-outline-symbolic", Some("rufin-heart-filled-symbolic"), Route::Favorites),
+            SidebarRouteItem::Albums => SidebarRouteDescriptor::new("Albums", "Albums", "rufin-albums-symbolic", None, Route::Albums),
+            SidebarRouteItem::Tracks => SidebarRouteDescriptor::new("Tracks", "Tracks", "rufin-tracks-symbolic", None, Route::Tracks),
+            SidebarRouteItem::Artists => SidebarRouteDescriptor::new("Artists", "Artists", "rufin-artists-symbolic", None, Route::Artists),
+            SidebarRouteItem::AlbumArtists => SidebarRouteDescriptor::new("AlbumArtists", "Album Artists", "rufin-album-artists-symbolic", None, Route::AlbumArtists),
+            SidebarRouteItem::Genres => SidebarRouteDescriptor::new("Genres", "Genres", "rufin-tag-outline-symbolic", None, Route::Genres),
+            SidebarRouteItem::Moods => SidebarRouteDescriptor::new("Moods", "Moods", "rufin-moods-symbolic", None, Route::Moods),
+            SidebarRouteItem::History => SidebarRouteDescriptor::new("History", "History", "rufin-history-symbolic", None, Route::History),
+            SidebarRouteItem::Folders => SidebarRouteDescriptor::new("Folders", "Folders", "rufin-folders-symbolic", Some("rufin-folders-selected-symbolic"), Route::Folders { path: Vec::new() }),
+            SidebarRouteItem::Playlists => SidebarRouteDescriptor::new("Playlists", "Playlists", "rufin-playlists-symbolic", None, Route::Playlists),
+            SidebarRouteItem::SmartPlaylists => SidebarRouteDescriptor::new("SmartPlaylists", "Smart Playlists", "rufin-smart-playlists-symbolic", None, Route::SmartPlaylists),
         }
     }
 
@@ -165,9 +164,9 @@ impl CollectionCategory {
 
     pub const fn title(self) -> &'static str {
         match self {
-            Self::Tracks => msgid("Tracks"),
-            Self::Albums => msgid("Albums"),
-            Self::Artists => msgid("Artists"),
+            Self::Tracks => "Tracks",
+            Self::Albums => "Albums",
+            Self::Artists => "Artists",
         }
     }
 

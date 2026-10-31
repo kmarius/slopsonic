@@ -17,7 +17,7 @@ pub fn delete_playlists_dialog(count: usize, delete: impl Fn() + 'static) -> adw
     let resource = crate::ui_resource::PLAYLIST_DELETE_DIALOG_RESOURCE;
     let builder = crate::ui_resource::builder(resource);
     crate::objects!(builder, resource, { selection_dialog: adw::AlertDialog });
-    selection_dialog.set_body(&localization::trn_with(
+    selection_dialog.set_body(&rufin_core::text::fill_plural(
         "Delete {count} playlist?",
         "Delete {count} playlists?",
         count as u64,

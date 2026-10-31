@@ -5,7 +5,6 @@ use app_identity::DISPLAY_NAME;
 use gtk_player::state::playback_window_title;
 
 use gtk_widgets::layout::configure_fill_width_clip;
-use localization::tr;
 
 pub(super) const RIGHT_RESIZE_HANDLE_WIDTH: i32 = 8;
 pub(crate) struct WindowChrome {
@@ -58,7 +57,7 @@ pub(super) fn build_content_chrome(right_panel: &gtk::Box) -> ContentChromeParts
 
     right_resize_handle.set_width_request(RIGHT_RESIZE_HANDLE_WIDTH);
     right_resize_handle.set_cursor_from_name(Some("col-resize"));
-    let resize_label = tr("Hold and drag to resize");
+    let resize_label = "Hold and drag to resize".to_string();
     right_resize_handle.update_property(&[gtk::accessible::Property::Label(&resize_label)]);
     root.set_measure_overlay(&right_resize_handle, false);
 

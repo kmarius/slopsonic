@@ -155,21 +155,21 @@ impl SourceOperation {
 pub fn source_progress_text(progress: &SourceProgress) -> String {
     let stage = match progress.stage {
         SourceProgressStage::Connecting => {
-            return localization::tr("Connecting to music server...");
+            return "Connecting to music server...".to_string();
         }
-        SourceProgressStage::Finalizing => return localization::tr("Preparing library..."),
-        SourceProgressStage::Albums => localization::tr("Fetching albums"),
-        SourceProgressStage::Tracks => localization::tr("Scanning tracks"),
-        SourceProgressStage::Artists => localization::tr("Fetching artists"),
-        SourceProgressStage::Genres => localization::tr("Fetching genres"),
-        SourceProgressStage::Playlists => localization::tr("Fetching playlists"),
-        SourceProgressStage::Home => localization::tr("Fetching Home"),
-        SourceProgressStage::Artwork => localization::tr("Fetching artwork"),
-        SourceProgressStage::Lyrics => localization::tr("Fetching lyrics"),
+        SourceProgressStage::Finalizing => return "Preparing library...".to_string(),
+        SourceProgressStage::Albums => "Fetching albums".to_string(),
+        SourceProgressStage::Tracks => "Scanning tracks".to_string(),
+        SourceProgressStage::Artists => "Fetching artists".to_string(),
+        SourceProgressStage::Genres => "Fetching genres".to_string(),
+        SourceProgressStage::Playlists => "Fetching playlists".to_string(),
+        SourceProgressStage::Home => "Fetching Home".to_string(),
+        SourceProgressStage::Artwork => "Fetching artwork".to_string(),
+        SourceProgressStage::Lyrics => "Fetching lyrics".to_string(),
     };
     let completed = progress.completed.to_string();
     match progress.total {
-        Some(total) if total > 0 => localization::tr_with(
+        Some(total) if total > 0 => crate::text::fill(
             "{stage}: {completed} / {total}",
             &[
                 ("stage", &stage),
@@ -177,7 +177,7 @@ pub fn source_progress_text(progress: &SourceProgress) -> String {
                 ("total", &total.to_string()),
             ],
         ),
-        _ => localization::tr_with(
+        _ => crate::text::fill(
             "{stage}: {completed}",
             &[("stage", &stage), ("completed", &completed)],
         ),
@@ -187,12 +187,12 @@ pub fn source_progress_text(progress: &SourceProgress) -> String {
 pub fn source_download_text(progress: &SourceProgress) -> String {
     let message = match progress.stage {
         SourceProgressStage::Artwork => {
-            localization::msgid("Downloading artwork... {count} checked")
+            "Downloading artwork... {count} checked"
         }
-        SourceProgressStage::Lyrics => localization::msgid("Downloading lyrics... {count} checked"),
+        SourceProgressStage::Lyrics => "Downloading lyrics... {count} checked",
         _ => return source_progress_text(progress),
     };
-    localization::tr_with(message, &[("count", &progress.completed.to_string())])
+    crate::text::fill(message, &[("count", &progress.completed.to_string())])
 }
 
 #[cfg_attr(feature = "bindings", uniffi::export)]
@@ -203,7 +203,7 @@ pub fn source_operation_text(operation: &SourceOperation) -> Option<String> {
         SourceOperation::Adding { progress } | SourceOperation::Refreshing { progress, .. } => {
             Some(source_progress_text(progress))
         }
-        SourceOperation::Switching { .. } => Some(localization::tr("Switching library...")),
+        SourceOperation::Switching { .. } => Some("Switching library...".to_string()),
         SourceOperation::Failed { message, .. } => Some(message.clone()),
     }
 }
@@ -314,14 +314,14 @@ mod tests {
 
 pub fn source_kind_title(kind: &str) -> Option<&'static str> {
     Some(match kind {
-        "jellyfin" => localization::msgid("Jellyfin"),
-        "emby" => localization::msgid("Emby"),
-        "plex" => localization::msgid("Plex"),
-        "navidrome" => localization::msgid("Navidrome"),
-        "subsonic" => localization::msgid("OpenSubsonic"),
-        "local" => localization::msgid("Local"),
-        "webdav" => localization::msgid("WebDAV"),
-        "smb" => localization::msgid("SMB / Samba"),
+        "jellyfin" => "Jellyfin",
+        "emby" => "Emby",
+        "plex" => "Plex",
+        "navidrome" => "Navidrome",
+        "subsonic" => "OpenSubsonic",
+        "local" => "Local",
+        "webdav" => "WebDAV",
+        "smb" => "SMB / Samba",
         _ => return None,
     })
 }

@@ -9,7 +9,6 @@ use std::time::{Duration, Instant};
 
 use gtk::glib;
 use gtk::prelude::*;
-use localization::{msgid, tr};
 use lyrics::{
     JapaneseReadingSegment, LyricsAgentRole, LyricsDocument, LyricsLine, PreparedCueLine,
     PreparedLyrics, PreparedLyricsLine,
@@ -318,17 +317,17 @@ impl LyricsPane {
             matches_current && matches!(content, Some(CurrentLyricsContent::Instrumental));
         let available = document.is_some();
         let (search_label, search_enabled) = if settings.application.private_mode {
-            (tr("Private mode is on"), false)
+            ("Private mode is on".to_string(), false)
         } else if current_media.is_some() {
-            (tr("Search lyrics"), true)
+            ("Search lyrics".to_string(), true)
         } else {
-            (tr("Nothing playing"), false)
+            ("Nothing playing".to_string(), false)
         };
-        self.set_save_action(&tr("Save Lyrics"), available);
+        self.set_save_action(&"Save Lyrics".to_string(), available);
         self.set_edit_action(available && writable);
         self.set_search_action(&search_label, search_enabled);
         self.set_clear_auto_search_action(
-            &tr("Clear fetched lyrics for this track"),
+            &"Clear fetched lyrics for this track".to_string(),
             current_track.is_some_and(|track| {
                 settings.lyrics.can_suppress_auto_lyrics(
                     settings.application.private_mode,
@@ -339,9 +338,9 @@ impl LyricsPane {
             !instrumental,
         );
         self.set_offset_action(
-            &tr("Lyrics offset (ms)"),
-            &tr("Decrease"),
-            &tr("Increase"),
+            &"Lyrics offset (ms)".to_string(),
+            &"Decrease".to_string(),
+            &"Increase".to_string(),
             offset,
             available,
         );
@@ -369,11 +368,11 @@ impl LyricsPane {
             LyricsPaneContent::Loading
         } else {
             LyricsPaneContent::Empty(if settings.application.private_mode {
-                tr("Server lyrics are off in private mode")
+                "Server lyrics are off in private mode".to_string()
             } else if !settings.lyrics.preferences.external_lyrics_enabled {
-                tr("External lyric lookup is off")
+                "External lyric lookup is off".to_string()
             } else {
-                tr("No lyrics")
+                "No lyrics".to_string()
             })
         };
         self.set_content(content, seek);
@@ -510,7 +509,7 @@ impl LyricsPane {
             offset_entry: gtk::Entry,
             offset_increase_button: gtk::Button,
         });
-        let edit_label = tr("Edit lyrics");
+        let edit_label = "Edit lyrics".to_string();
         edit_button.set_tooltip_text(Some(&edit_label));
         edit_button.update_property(&[gtk::accessible::Property::Label(&edit_label)]);
         root.set_measure_overlay(&controls, false);
@@ -754,7 +753,7 @@ impl LyricsPane {
                 Rc::clone(&seek),
             );
             if *show_romanization && let Some(pronunciation) = pronunciation {
-                let heading = gtk::Label::new(Some(&tr(msgid("Pronunciation"))));
+                let heading = gtk::Label::new(Some(&"Pronunciation".to_string()));
                 heading.add_css_class("lyrics-track-heading");
                 self.body.append(&heading);
                 self.append_document_rows(
@@ -778,7 +777,7 @@ impl LyricsPane {
             icon.add_css_class("dim-label");
             indicator.append(&icon);
 
-            let label = gtk::Label::new(Some(&tr(msgid("Instrumental"))));
+            let label = gtk::Label::new(Some(&"Instrumental".to_string()));
             label.add_css_class("lyrics-instrumental");
             indicator.append(&label);
             self.body.append(&indicator);

@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use gtk::glib;
 use gtk::prelude::WidgetExt;
-use localization::{tr, tr_with};
+use rufin_core::text::{fill};
 use tracing::warn;
 
 use crate::player::{now_playing_notification_can_send, now_playing_notification_should_withdraw};
@@ -148,7 +148,7 @@ fn apply_source_event(shell: &Rc<Shell>, event: SourceEvent) {
                 .find(|source| source.id == source_id)
                 .map(gtk_widgets::source_labels::configured_source_display_name)
                 .unwrap_or_else(|| source_id.as_str().to_string());
-            shell.control_feedback.show_feedback_toast(tr_with(
+            shell.control_feedback.show_feedback_toast(fill(
                 "This playlist only accepts {source} tracks",
                 &[("source", &source_name)],
             ));
@@ -240,7 +240,7 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
         if favorite.requested != favorite.effective {
             shell
                 .control_feedback
-                .show_feedback_toast(tr("Could not update favorites"));
+                .show_feedback_toast("Could not update favorites".to_string());
         }
         shell.apply_favorite_settlement_to_mounted_route(favorite);
         return;
@@ -362,8 +362,8 @@ fn apply_source_notice(shell: &Rc<Shell>, notice: SourceNotice) {
     shell
         .control_feedback
         .show_feedback_toast(match notice.kind {
-            SourceNoticeKind::ServerUnreachable => tr("Server is unreachable"),
-            SourceNoticeKind::FavoriteRejected => tr("Could not update favorites"),
+            SourceNoticeKind::ServerUnreachable => "Server is unreachable".to_string(),
+            SourceNoticeKind::FavoriteRejected => "Could not update favorites".to_string(),
         });
 }
 
@@ -750,8 +750,8 @@ fn show_playback_failure(shell: &Rc<Shell>, next: &playback::PlaybackView, error
 }
 
 fn show_local_folder_recovery(shell: &Rc<Shell>, folder: String) {
-    let toast = adw::Toast::new(&tr("Local music folder is unavailable"));
-    toast.set_button_label(Some(&tr("Locate Folder")));
+    let toast = adw::Toast::new(&"Local music folder is unavailable".to_string());
+    toast.set_button_label(Some(&"Locate Folder".to_string()));
     toast.set_timeout(0);
     let recovery_shell = Rc::clone(shell);
     toast.connect_button_clicked(move |toast| {
@@ -847,7 +847,7 @@ fn apply_lyrics_event(shell: &Rc<Shell>, event: rufin_core::lyrics::LyricsEvent)
                 shell.control_feedback.show_feedback_toast(match error {
                     sources::SourceMetadataError::Unavailable
                     | sources::SourceMetadataError::LocalAccessRequired { .. } => {
-                        tr("Metadata editing is no longer available")
+                        "Metadata editing is no longer available".to_string()
                     }
                     error => error.to_string(),
                 });
@@ -863,13 +863,13 @@ fn playback_error_toast(error: &str) -> String {
         | "Resource not found"
         | "Resource not found."
         | "the configured source no longer exists"
-        | "Could not play this track" => tr("Could not play this track"),
-        "Track unavailable" => tr("Track unavailable"),
-        "Format not supported" => tr("Format not supported"),
-        "Couldn't decode this track" => tr("Couldn't decode this track"),
-        "Access denied" => tr("Access denied"),
-        "Couldn't connect to the server" => tr("Couldn't connect to the server"),
-        "Audio output failed" => tr("Audio output failed"),
+        | "Could not play this track" => "Could not play this track".to_string(),
+        "Track unavailable" => "Track unavailable".to_string(),
+        "Format not supported" => "Format not supported".to_string(),
+        "Couldn't decode this track" => "Couldn't decode this track".to_string(),
+        "Access denied" => "Access denied".to_string(),
+        "Couldn't connect to the server" => "Couldn't connect to the server".to_string(),
+        "Audio output failed" => "Audio output failed".to_string(),
         _ => error.to_owned(),
     }
 }
@@ -891,15 +891,15 @@ mod tests {
     fn playback_toasts_omit_backend_diagnostics() {
         assert_eq!(
             super::playback_error_toast("the configured source no longer exists"),
-            localization::tr("Could not play this track")
+            "Could not play this track".to_string()
         );
         assert_eq!(
             super::playback_error_toast("Resource not found"),
-            localization::tr("Could not play this track")
+            "Could not play this track".to_string()
         );
         assert_eq!(
             super::playback_error_toast("Could not play this track"),
-            localization::tr("Could not play this track")
+            "Could not play this track".to_string()
         );
         let rejected =
             "Plex Companion queues require Plex music from one configured server and profile";

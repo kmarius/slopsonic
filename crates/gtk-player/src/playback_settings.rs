@@ -1,6 +1,6 @@
-pub const CROSSFADE_DURATION_TITLE: &str = localization::msgid("Crossfade duration");
-pub const PLAYBACK_SPEED_TITLE: &str = localization::msgid("Playback speed");
-pub const PRESERVE_PITCH_TITLE: &str = localization::msgid("Preserve pitch");
+pub const CROSSFADE_DURATION_TITLE: &str = "Crossfade duration";
+pub const PLAYBACK_SPEED_TITLE: &str = "Playback speed";
+pub const PRESERVE_PITCH_TITLE: &str = "Preserve pitch";
 use gtk_widgets::scale::{install_scale_scroll_forwarding, install_sliding_value_bubble};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -8,7 +8,6 @@ use std::time::Duration;
 
 use adw::prelude::*;
 use gtk::glib;
-use localization::tr;
 use playback::{
     MAX_CROSSFADE_SECONDS, MAX_PLAYBACK_RATE, MIN_CROSSFADE_SECONDS, MIN_PLAYBACK_RATE,
     PlaybackTransitionMode,
@@ -54,7 +53,7 @@ fn playback_settings_popover(
         waveform_row: adw::SwitchRow,
     });
     if !local_output {
-        settings_group.set_description(Some(&tr("Audio processing is unavailable while casting")));
+        settings_group.set_description(Some(&"Audio processing is unavailable while casting".to_string()));
     }
     let device = crate::outputs::audio_output_dropdown(shell, 180);
     gtk_widgets::interactions::keep_parent_grab_for_dropdown(&device);
@@ -206,7 +205,7 @@ fn crossfade_duration_row(
     scale_width: i32,
 ) -> adw::ActionRow {
     let row = adw::ActionRow::builder()
-        .title(tr(CROSSFADE_DURATION_TITLE))
+        .title(String::from(CROSSFADE_DURATION_TITLE))
         .build();
     let scale = gtk::Scale::with_range(
         gtk::Orientation::Horizontal,
@@ -242,7 +241,7 @@ pub fn playback_rate_row(
     initial_rate: f64,
     scale_width: i32,
 ) -> adw::ActionRow {
-    let title_text = tr(PLAYBACK_SPEED_TITLE);
+    let title_text = String::from(PLAYBACK_SPEED_TITLE);
     let row = adw::ActionRow::builder().title(&title_text).build();
     let scale = gtk::Scale::with_range(
         gtk::Orientation::Horizontal,
@@ -287,7 +286,7 @@ pub fn playback_rate_row(
 
 pub fn preserve_pitch_row(shell: &Rc<PlayerUi>, active: bool) -> adw::SwitchRow {
     let row = adw::SwitchRow::builder()
-        .title(tr(PRESERVE_PITCH_TITLE))
+        .title(String::from(PRESERVE_PITCH_TITLE))
         .active(active)
         .build();
     let pitch_shell = Rc::clone(shell);

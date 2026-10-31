@@ -4,7 +4,6 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::{gio, glib};
 
-use localization::{msgid, tr};
 
 use crate::controls::{PLAY_ICON, PLAY_LATER_ICON, PLAY_NEXT_ICON};
 use rufin_core::settings::context_menu::{ContextMenuItem, ContextMenuSettings};
@@ -209,7 +208,7 @@ impl ContextMenuSurface {
         let item = gio::MenuItem::from_model(&play_menu, 0);
         item.set_icon(&gio::ThemedIcon::new(PLAY_ICON));
         if settings.is_visible(ContextMenuItem::Play) {
-            self.submenu_actions.borrow_mut().push((tr("Play"), "play"));
+            self.submenu_actions.borrow_mut().push(("Play".to_string(), "play"));
         }
         self.entries
             .borrow_mut()
@@ -220,7 +219,7 @@ impl ContextMenuSurface {
         self.entries
             .borrow_mut()
             .push(ContextMenuEntry::Fixed(menu_action_item(
-                &tr(label),
+                &String::from(label),
                 &format!("{}.{}", self.group_name, action),
                 icon_name,
             )));
@@ -254,7 +253,7 @@ impl ContextMenuSurface {
             .push(ContextMenuEntry::Configurable(
                 item,
                 menu_action_item(
-                    &tr(label),
+                    &String::from(label),
                     &format!("{}.{}", self.group_name, action),
                     icon_name,
                 ),
@@ -268,12 +267,12 @@ impl ContextMenuSurface {
         submenu: &gio::Menu,
         icon_name: &str,
     ) {
-        let item = gio::MenuItem::new_submenu(Some(&tr(label)), submenu);
+        let item = gio::MenuItem::new_submenu(Some(&String::from(label)), submenu);
         item.set_icon(&gio::ThemedIcon::new(icon_name));
         if setting == ContextMenuItem::PlayRadio {
             self.submenu_actions
                 .borrow_mut()
-                .push((tr(label), "play-radio"));
+                .push((String::from(label), "play-radio"));
         }
         self.entries
             .borrow_mut()
@@ -292,7 +291,7 @@ impl ContextMenuSurface {
         let custom = gio::MenuItem::new(None, None);
         custom.set_attribute_value("custom", Some(&id.to_variant()));
         submenu.append_item(&custom);
-        let item = gio::MenuItem::new_submenu(Some(&tr(label)), &submenu);
+        let item = gio::MenuItem::new_submenu(Some(&String::from(label)), &submenu);
         item.set_icon(&gio::ThemedIcon::new(icon_name));
         self.entries
             .borrow_mut()
@@ -627,7 +626,7 @@ fn menu_action_item(label: &str, action: &str, icon_name: &str) -> gio::MenuItem
 }
 
 fn append_menu_action(menu: &gio::Menu, label: &str, action: &str, icon_name: &str) {
-    menu.append_item(&menu_action_item(&tr(label), action, icon_name));
+    menu.append_item(&menu_action_item(&String::from(label), action, icon_name));
 }
 
 pub fn radio_context_submenu(group: &str) -> gio::Menu {
@@ -653,7 +652,7 @@ pub fn go_to_context_submenu(group: &str, artist_names: &[String], has_album: bo
     for (index, artist_name) in artist_names.iter().enumerate() {
         append_menu_action(
             &menu,
-            &localization::tr_with("Go to {artist}", &[("artist", artist_name)]),
+            &rufin_core::text::fill("Go to {artist}", &[("artist", artist_name)]),
             &if artist_names.len() == 1 {
                 format!("{group}.go-artist")
             } else {
@@ -665,7 +664,7 @@ pub fn go_to_context_submenu(group: &str, artist_names: &[String], has_album: bo
     if has_album {
         append_menu_action(
             &menu,
-            msgid("Go to Album"),
+            "Go to Album",
             &format!("{group}.go-album"),
             ALBUM_ICON,
         );

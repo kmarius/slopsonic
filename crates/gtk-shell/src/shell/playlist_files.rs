@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use adw::prelude::*;
 use gtk::glib;
-use localization::tr;
 
 use crate::shell::Shell;
 use gtk_widgets::route::Route;
@@ -137,9 +136,7 @@ impl Shell {
                     Ok(Ok(report)) => {
                         shell.navigate(Route::PlaylistDetail(report.playlist));
                         if report.skipped > 0 {
-                            shell.control_feedback.show_feedback_toast(tr(
-                                "Some playlist entries could not be imported",
-                            ));
+                            shell.control_feedback.show_feedback_toast("Some playlist entries could not be imported".to_string());
                         }
                     }
                     Ok(Err(error)) => shell.control_feedback.show_feedback_toast(error),

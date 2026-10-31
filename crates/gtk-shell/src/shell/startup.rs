@@ -57,7 +57,7 @@ fn library_loading_status(
     initial_launch: bool,
 ) -> Option<String> {
     if initial_launch {
-        return Some(localization::tr("Preparing library..."));
+        return Some("Preparing library...".to_string());
     }
     source_operation_text(operation)
 }

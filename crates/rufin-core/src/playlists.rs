@@ -1258,11 +1258,10 @@ async fn local_playlist_changed(
 }
 
 pub fn smart_playlist_display_name(object_id: &str, name: &str) -> String {
-    use localization::{msgid, tr};
     match object_id {
-        "builtin:most_played" => tr(msgid("Most Played")),
-        "builtin:never_played" => tr(msgid("Never Played")),
-        "builtin:most_skipped" => tr(msgid("Most Skipped")),
+        "builtin:most_played" => "Most Played".to_string(),
+        "builtin:never_played" => "Never Played".to_string(),
+        "builtin:most_skipped" => "Most Skipped".to_string(),
         _ => name.to_owned(),
     }
 }

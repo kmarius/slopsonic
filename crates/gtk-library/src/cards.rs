@@ -10,7 +10,6 @@ use gtk_widgets::cover_controls::{
 };
 use gtk_widgets::favorites::{favorite_button_is_active, favorite_icon_button};
 use gtk_widgets::interactions::ContextMenuOpen;
-use localization::msgid;
 use rufin_core::playback::QueuePlacement;
 use std::rc::Rc;
 
@@ -234,7 +233,7 @@ impl CollectionGridCoverView {
         for (button, label, variant) in [
             (
                 &*imp.play_next,
-                msgid("Play Next"),
+                "Play Next",
                 ActionButtonVariant::CoverSideTransport,
             ),
             (
@@ -244,17 +243,17 @@ impl CollectionGridCoverView {
             ),
             (
                 &*imp.play_last,
-                msgid("Play Later"),
+                "Play Later",
                 ActionButtonVariant::CoverSideTransport,
             ),
         ] {
             bind_widget_tooltip(button, label);
             configure_action_button(button, variant);
         }
-        bind_widget_accessible_label(&*imp.menu, msgid("More actions"));
+        bind_widget_accessible_label(&*imp.menu, "More actions");
         configure_action_button(&imp.menu, ActionButtonVariant::CoverCornerMenu);
         let favorite = with_favorite.then(|| {
-            let favorite = favorite_icon_button(msgid("Favorite"));
+            let favorite = favorite_icon_button("Favorite");
             configure_action_button(&favorite, ActionButtonVariant::CoverCornerFavorite);
             favorite.set_margin_top(COVER_CORNER_VERTICAL_INSET);
             favorite.set_margin_end(COVER_CORNER_HORIZONTAL_INSET);

@@ -3,7 +3,6 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 use adw::prelude::*;
 use gtk::subclass::prelude::ObjectSubclassIsExt;
 use library::ReadCancellation;
-use localization::{msgid, tr};
 use rufin_core::playback::QueuePlacement;
 
 use crate::{CatalogUi, LibraryField, LibraryListKey};
@@ -44,7 +43,7 @@ impl CatalogUi {
         let wrapper = FoldersRouteView::new();
         let search = gtk::SearchEntry::new();
         gtk_widgets::controls::configure_search_entry(&search);
-        search.set_placeholder_text(Some(&tr("Search current folder")));
+        search.set_placeholder_text(Some(&"Search current folder".to_string()));
         let toolbar = self.library_toolbar_projection_without_detail(
             LibraryListKey::Folders,
             Some(search.clone()),
@@ -694,7 +693,7 @@ fn folder_merged_column(shell: &Rc<CatalogUi>, path: Vec<FolderPathItem>) -> gtk
         }
     });
     let column = gtk::ColumnViewColumn::new(
-        Some(&tr(gtk_widgets::settings::library_field_title(
+        Some(&String::from(gtk_widgets::settings::library_field_title(
             LibraryField::Title,
         ))),
         Some(factory),
@@ -883,7 +882,7 @@ fn folder_text_column(
         };
         cell.clear();
     });
-    gtk::ColumnViewColumn::new(Some(&tr(title)), Some(factory))
+    gtk::ColumnViewColumn::new(Some(&String::from(title)), Some(factory))
 }
 
 fn install_folder_cell_activation(
@@ -927,7 +926,7 @@ fn folder_path_switcher(shell: &Rc<CatalogUi>, path: &[FolderPathItem]) -> gtk::
     switcher.set_hexpand(true);
     switcher.set_halign(gtk::Align::Fill);
     switcher.set_width_request(1);
-    let root = folder_path_button(shell, &tr("Folders"), Vec::new(), path.is_empty(), None);
+    let root = folder_path_button(shell, &"Folders".to_string(), Vec::new(), path.is_empty(), None);
     switcher.append(&root);
     for (index, entry) in path.iter().enumerate() {
         let destination = path.iter().take(index + 1).cloned().collect::<Vec<_>>();
@@ -983,11 +982,11 @@ fn folder_context_id(path: &[FolderPathItem]) -> String {
 }
 
 fn folder_error_view(shell: &Rc<CatalogUi>) -> gtk::Widget {
-    folder_status_view(shell, msgid("Couldn't load this folder"), false)
+    folder_status_view(shell, "Couldn't load this folder", false)
 }
 
 fn folder_empty_view(shell: &Rc<CatalogUi>) -> gtk::Widget {
-    folder_status_view(shell, msgid("Nothing in this folder"), true)
+    folder_status_view(shell, "Nothing in this folder", true)
 }
 
 fn folder_status_view(shell: &Rc<CatalogUi>, message: &'static str, empty: bool) -> gtk::Widget {
@@ -998,13 +997,13 @@ fn folder_status_view(shell: &Rc<CatalogUi>, message: &'static str, empty: bool)
         view.set_hexpand(true);
         view.set_valign(gtk::Align::Center);
         view.set_halign(gtk::Align::Center);
-        let label = gtk::Label::new(Some(&tr(message)));
+        let label = gtk::Label::new(Some(&String::from(message)));
         label.add_css_class("muted");
         view.append(&label);
     } else {
         view.append(&crate::route_layout::route_empty_view(message));
     }
-    let refresh = gtk::Button::with_label(&tr(msgid("Refresh")));
+    let refresh = gtk::Button::with_label(&"Refresh".to_string());
     if empty {
         refresh.add_css_class("pill");
     }

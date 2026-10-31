@@ -46,7 +46,6 @@ scrobbling.workspace = true
 sources.workspace = true
 secrets.workspace = true
 library.workspace = true
-localization.workspace = true
 lyrics.workspace = true
 serde.workspace = true
 serde_json.workspace = true

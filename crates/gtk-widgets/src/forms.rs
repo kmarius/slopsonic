@@ -1,5 +1,4 @@
 use adw::prelude::*;
-use localization::tr;
 use playback::StreamQuality;
 use std::rc::Rc;
 pub fn selection_row<F>(
@@ -37,7 +36,7 @@ pub fn row_action_content(title: &str, icon_name: &str) -> gtk::Box {
     content.set_halign(gtk::Align::Center);
     content.set_valign(gtk::Align::Center);
     content.append(&gtk::Image::from_icon_name(icon_name));
-    let label = gtk::Label::new(Some(&tr(title)));
+    let label = gtk::Label::new(Some(&String::from(title)));
     label.set_ellipsize(gtk::pango::EllipsizeMode::End);
     label.set_width_chars(0);
     label.set_max_width_chars(18);
@@ -79,7 +78,7 @@ where
     title_label.set_wrap(true);
     title_label.set_wrap_mode(gtk::pango::WrapMode::WordChar);
     title_group.append(&title_label);
-    let unit = gtk::Label::new(Some(&tr("kbps")));
+    let unit = gtk::Label::new(Some(&"kbps".to_string()));
     unit.add_css_class("dim-label");
     title_group.append(&unit);
 
@@ -157,18 +156,18 @@ fn selection_buttons_unconnected(
 
 fn quality_accessible_title(quality: StreamQuality) -> String {
     match quality {
-        StreamQuality::Original => tr("Original"),
-        StreamQuality::MaxBitrateKbps(320) => tr("320 kbps"),
-        StreamQuality::MaxBitrateKbps(256) => tr("256 kbps"),
-        StreamQuality::MaxBitrateKbps(192) => tr("192 kbps"),
-        StreamQuality::MaxBitrateKbps(128) => tr("128 kbps"),
+        StreamQuality::Original => "Original".to_string(),
+        StreamQuality::MaxBitrateKbps(320) => "320 kbps".to_string(),
+        StreamQuality::MaxBitrateKbps(256) => "256 kbps".to_string(),
+        StreamQuality::MaxBitrateKbps(192) => "192 kbps".to_string(),
+        StreamQuality::MaxBitrateKbps(128) => "128 kbps".to_string(),
         StreamQuality::MaxBitrateKbps(bitrate) => format!("{bitrate} kbps"),
     }
 }
 
 fn quality_button_title(quality: StreamQuality) -> String {
     match quality {
-        StreamQuality::Original => tr("Original"),
+        StreamQuality::Original => "Original".to_string(),
         StreamQuality::MaxBitrateKbps(bitrate) => bitrate.to_string(),
     }
 }

@@ -14,7 +14,6 @@ use gtk_widgets::interactions::install_context_menu_openers;
 use gtk_widgets::media_drag::{MediaDragSource, install_compact_media_drag_source};
 use gtk_widgets::mounted_route::{MountedRouteItemNavigation, item_navigation_entry_position};
 use gtk_widgets::sparse_model::{item_at, item_at_from_item};
-use localization::msgid;
 use rufin_core::playback::QueuePlacement;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -673,7 +672,7 @@ impl<T: gtk_widgets::library_fields::TrackPresentation> TrackGridCell<T> {
     ) -> Self {
         let current = Rc::new(RefCell::new(None::<T>));
         let position = Rc::new(Cell::new(0));
-        let controls = cards::CollectionGridCoverView::new(msgid("Play track"));
+        let controls = cards::CollectionGridCoverView::new("Play track");
         let cover_host = controls.imp().cover_host.get();
         let menu = controls.imp().menu.get();
         let play_now_button = controls.imp().play.get();
@@ -841,7 +840,7 @@ impl AlbumGridCell {
 
     pub fn new(shell: &Rc<CatalogUi>, fields: &[LibraryField], context: Option<String>) -> Self {
         let current = Rc::new(RefCell::new(None::<AlbumView>));
-        let controls = cards::CollectionGridCoverView::new(msgid("Play album"));
+        let controls = cards::CollectionGridCoverView::new("Play album");
         let cover_host = controls.imp().cover_host.get();
         let menu = controls.imp().menu.get();
         let play = controls.imp().play.get();
@@ -929,7 +928,7 @@ impl ArtistGridCell {
 
     pub fn new(shell: &Rc<CatalogUi>, fields: &[LibraryField], album_artist: bool) -> Self {
         let current = Rc::new(RefCell::new(None::<ArtistView>));
-        let controls = cards::CollectionGridCoverView::new(msgid("Play artist"));
+        let controls = cards::CollectionGridCoverView::new("Play artist");
         let cover_host = controls.imp().cover_host.get();
         let menu = controls.imp().menu.get();
         let play = controls.imp().play.get();
@@ -1190,7 +1189,7 @@ pub struct CollectionGridCardCell {
 
 impl CollectionGridCardCell {
     fn set_play_count_caption(&self, count: i64) {
-        let text = localization::trn_with(
+        let text = rufin_core::text::fill_plural(
             "{count} play",
             "{count} plays",
             count as u64,

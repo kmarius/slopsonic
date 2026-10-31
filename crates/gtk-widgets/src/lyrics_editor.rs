@@ -1,7 +1,6 @@
 use crate::format_duration;
 use adw::prelude::*;
 use gtk::glib;
-use localization::tr;
 use lyrics::{LyricsSearchContent, LyricsSearchResult};
 use std::{cell::Cell, rc::Rc};
 
@@ -194,23 +193,23 @@ pub fn lyrics_result_subtitle(result: &LyricsSearchResult) -> String {
         subtitle.push_str(" - ");
     }
     if matches!(result.content, LyricsSearchContent::Instrumental) {
-        subtitle.push_str(&tr("Instrumental"));
+        subtitle.push_str(&"Instrumental".to_string());
     } else if result
         .content
         .synced_lyrics()
         .is_some_and(|lyrics| !lyrics.trim().is_empty())
     {
-        subtitle.push_str(&tr("Synced lyrics"));
+        subtitle.push_str(&"Synced lyrics".to_string());
     } else if result
         .content
         .plain_lyrics()
         .is_some_and(|lyrics| !lyrics.trim().is_empty())
     {
-        subtitle.push_str(&tr("Plain lyrics"));
+        subtitle.push_str(&"Plain lyrics".to_string());
     } else if matches!(result.content, LyricsSearchContent::Deferred) {
-        subtitle.push_str(&tr("Remote lyrics"));
+        subtitle.push_str(&"Remote lyrics".to_string());
     } else {
-        subtitle.push_str(&tr("No lyrics"));
+        subtitle.push_str(&"No lyrics".to_string());
     }
     subtitle
 }

@@ -1,7 +1,6 @@
 use super::equalizer::EqualizerSurface;
 use adw::prelude::*;
 use gtk_widgets::artwork::ArtworkTile;
-use localization::tr;
 use playback::PlaybackView;
 use std::{
     cell::{Cell, OnceCell, RefCell},
@@ -241,9 +240,9 @@ pub fn build_fullscreen_player(
     let lyrics_enabled = Rc::new(Cell::new(true));
     let visualizer_enabled = Rc::new(Cell::new(false));
     hero.append(&hero_content);
-    stack.add_titled(&queue_panel, Some("queue"), &tr("Queue"));
-    stack.add_titled(&related_panel, Some("related"), &tr("Related"));
-    stack.add_titled(&equalizer_panel, Some("equalizer"), &tr("Equalizer"));
+    stack.add_titled(&queue_panel, Some("queue"), &"Queue".to_string());
+    stack.add_titled(&related_panel, Some("related"), &"Related".to_string());
+    stack.add_titled(&equalizer_panel, Some("equalizer"), &"Equalizer".to_string());
     stack.set_visible_child_name("queue");
     visualizer_panel.append(visualizer_area);
     let experience_base = gtk::Box::new(gtk::Orientation::Vertical, 0);

@@ -32,10 +32,6 @@ pub use lyrics::{
 
 pub const LYRICS_PROVIDER_SETTINGS_VERSION: u8 = 1;
 
-const fn msgid(message: &'static str) -> &'static str {
-    message
-}
-
 #[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum ExternalLyricsProvider {
@@ -56,10 +52,10 @@ impl ExternalLyricsProvider {
 
     pub const fn title(self) -> &'static str {
         match self {
-            Self::Lrclib => msgid("LRCLIB"),
-            Self::Netease => msgid("NetEase"),
-            Self::Genius => msgid("Genius"),
-            Self::SimpMusic => msgid("SimpMusic"),
+            Self::Lrclib => "LRCLIB",
+            Self::Netease => "NetEase",
+            Self::Genius => "Genius",
+            Self::SimpMusic => "SimpMusic",
         }
     }
 
@@ -1181,5 +1177,5 @@ mod tests {
 
 #[cfg_attr(feature = "bindings", uniffi::export)]
 pub fn external_lyrics_provider_title(provider: ExternalLyricsProvider) -> String {
-    localization::tr(provider.title())
+    String::from(provider.title())
 }

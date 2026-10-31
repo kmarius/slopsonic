@@ -11,7 +11,7 @@ use gtk_widgets::lyrics_editor::{
     lyrics_search_result_has_content,
 };
 use gtk_widgets::popup::present_light_dismiss_dialog;
-use localization::{result_count_text, tr};
+use rufin_core::text::{result_count_text};
 use lyrics::LyricsSearchResult;
 use rufin_core::lyrics::{CurrentLyrics, CurrentLyricsContent};
 use std::cell::{Cell, RefCell};
@@ -162,7 +162,7 @@ impl PlayerUi {
         let shell = Rc::clone(self);
         gtk::glib::spawn_future_local(async move {
             let dialog = gtk::FileDialog::builder()
-                .title(tr("Save Lyrics"))
+                .title("Save Lyrics".to_string())
                 .initial_name(lyrics_save_filename(&current.row.track.metadata.title))
                 .build();
             let Some(window) = shell.window.upgrade() else {
@@ -418,7 +418,7 @@ impl PlayerUi {
         );
         clear_list_box(&dialog.list);
         if results.is_empty() {
-            dialog.status.set_text(&tr("No lyrics"));
+            dialog.status.set_text(&"No lyrics".to_string());
             return;
         }
 
@@ -453,7 +453,7 @@ impl PlayerUi {
                 .subtitle(subtitle.as_str())
                 .build();
             row.set_activatable(has_content);
-            let button = gtk::Button::with_label(&tr("Save"));
+            let button = gtk::Button::with_label(&"Save".to_string());
             button.set_valign(gtk::Align::Center);
             button.add_css_class("suggested-action");
             button.set_sensitive(can_save);
@@ -470,7 +470,7 @@ impl PlayerUi {
                     if let Some(lyrics) = preview_shell.selected_lyrics()
                         && let Some(dialog) = lyrics.search_dialog.borrow().as_ref()
                     {
-                        dialog.status.set_text(&tr("Searching..."));
+                        dialog.status.set_text(&"Searching...".to_string());
                     }
                 });
             }
@@ -487,7 +487,7 @@ impl PlayerUi {
                 }
                 gtk::glib::spawn_future_local(async move {
                     let dialog = gtk::FileDialog::builder()
-                        .title(tr("Save Lyrics"))
+                        .title("Save Lyrics".to_string())
                         .initial_name(lyrics_save_filename(&result.track_name))
                         .build();
                     let Some(window) = shell.window.upgrade() else {
@@ -502,7 +502,7 @@ impl PlayerUi {
                     if let Some(lyrics) = shell.selected_lyrics()
                         && let Some(dialog) = lyrics.search_dialog.borrow().as_ref()
                     {
-                        dialog.status.set_text(&tr("Searching..."));
+                        dialog.status.set_text(&"Searching...".to_string());
                     }
                     shell.lyrics_service.save_result(media_id, result, path);
                 });
@@ -555,7 +555,7 @@ impl PlayerUi {
             "applying lyric search failure"
         );
         clear_list_box(&dialog.list);
-        dialog.status.set_text(&tr("Couldn't search for lyrics"));
+        dialog.status.set_text(&"Couldn't search for lyrics".to_string());
     }
     fn schedule_lyrics_search(self: &Rc<Self>) {
         let Some(lyrics) = self.selected_lyrics() else {
@@ -593,7 +593,7 @@ impl PlayerUi {
             return;
         };
         clear_list_box(&dialog.list);
-        dialog.status.set_text(&tr("Ready"));
+        dialog.status.set_text(&"Ready".to_string());
     }
     pub fn apply_lyrics_saved(&self, media_id: playback::CurrentMediaId, path: PathBuf) {
         let Some(lyrics) = self.selected_lyrics() else {
@@ -604,7 +604,7 @@ impl PlayerUi {
         {
             dialog
                 .status
-                .set_text(&format!("{} {}", tr("Saved to"), path.display()));
+                .set_text(&format!("{} {}", "Saved to".to_string(), path.display()));
         }
     }
 }

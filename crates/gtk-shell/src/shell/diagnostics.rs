@@ -5,7 +5,6 @@ use std::time::Duration;
 use adw::prelude::*;
 use gtk::gio::prelude::FileExtManual;
 use gtk::{gio, glib};
-use localization::tr;
 use tracing::warn;
 
 use gtk_widgets::layout::{large_popup_content_height, large_popup_content_width};
@@ -31,7 +30,7 @@ pub(super) fn present_diagnostics(shell: &Rc<Shell>) {
     debug.set_active(shell.diagnostics.debug_enabled());
 
     let log: gtk::TextView = gtk_widgets::ui_resource::object(&builder, resource, "log");
-    log.update_property(&[gtk::accessible::Property::Label(&tr("Diagnostic log"))]);
+    log.update_property(&[gtk::accessible::Property::Label(&"Diagnostic log".to_string())]);
     let scroller: gtk::ScrolledWindow =
         gtk_widgets::ui_resource::object(&builder, resource, "log_scroller");
     let copy: gtk::Button = gtk_widgets::ui_resource::object(&builder, resource, "copy");
@@ -104,7 +103,7 @@ pub(super) fn present_diagnostics(shell: &Rc<Shell>) {
         let contents = buffer.text(&buffer.start_iter(), &buffer.end_iter(), true);
         button.display().clipboard().set_text(&contents);
         copy_status.remove_css_class("error");
-        copy_status.set_text(&tr("Logs are copied"));
+        copy_status.set_text(&"Logs are copied".to_string());
     });
 
     let save_window = shell.chrome.window.clone();
@@ -116,7 +115,7 @@ pub(super) fn present_diagnostics(shell: &Rc<Shell>) {
         let status = save_status.clone();
         glib::spawn_future_local(async move {
             let chooser = gtk::FileDialog::builder()
-                .title(tr("Save Diagnostic Log"))
+                .title("Save Diagnostic Log".to_string())
                 .initial_name("rufin-debug.log")
                 .build();
             let Ok(file) = chooser.save_future(Some(&window)).await else {
@@ -137,13 +136,13 @@ pub(super) fn present_diagnostics(shell: &Rc<Shell>) {
             {
                 Ok(_) => {
                     status.remove_css_class("error");
-                    status.set_text(&tr("Diagnostic log saved"));
+                    status.set_text(&"Diagnostic log saved".to_string());
                     status.set_visible(true);
                 }
                 Err((_, error)) => {
                     warn!(%error, "could not save diagnostic log");
                     status.add_css_class("error");
-                    status.set_text(&format!("{}: {error}", tr("Could not save diagnostic log")));
+                    status.set_text(&format!("{}: {error}", "Could not save diagnostic log".to_string()));
                     status.set_visible(true);
                 }
             }

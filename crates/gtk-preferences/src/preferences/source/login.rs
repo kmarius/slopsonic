@@ -24,7 +24,7 @@ use crate::Preferences;
 use gtk_widgets::controls::text_button;
 use gtk_widgets::layout::large_popup_content_width;
 use gtk_widgets::popup::present_light_dismiss_dialog;
-use localization::{tr, tr_with};
+use rufin_core::text::{fill};
 use rufin_core::runtime::source::source_operation_text;
 
 const ADD_SERVER_CLAMP_WIDTH: i32 = 560;
@@ -298,7 +298,7 @@ impl Preferences {
         let context = self.setup_view_context(Some(preferences_dialog.clone()), flow, false);
         mount_setup_flow(self, &context);
         *self.source.add_server.borrow_mut() = Some(SourceSetupViewHandle::new(context.clone()));
-        adw::NavigationPage::new(&context.content, &tr("Add Source"))
+        adw::NavigationPage::new(&context.content, &"Add Source".to_string())
     }
 
     pub fn update_add_server_dialog(self: &Rc<Self>) {
@@ -431,7 +431,7 @@ impl Preferences {
 
     fn source_connection_progress_text(&self) -> String {
         source_operation_text(&self.source.operation.borrow())
-            .unwrap_or_else(|| tr("Preparing library..."))
+            .unwrap_or_else(|| "Preparing library...".to_string())
     }
 
     fn start_server_discovery_once(&self) {
@@ -535,14 +535,14 @@ fn subsonic_settings_group_for(
     let snapshot = credential_draft(Some(saved.credentials.clone()));
     let authentication = authentication.map(|value| Rc::new(Cell::new(value)));
     let host = credential_host_view(&snapshot, true, authentication);
-    host.fields_group.set_title(&tr("Server Settings"));
+    host.fields_group.set_title(&"Server Settings".to_string());
     host.fields_group
-        .set_description(Some(&tr(gtk_widgets::source_labels::source_kind_title(
+        .set_description(Some(&String::from(gtk_widgets::source_labels::source_kind_title(
             presentation.kind,
         )
         .expect("registered source presentation"))));
     host.cert_verify
-        .set_subtitle(&tr("Off only for a server you control"));
+        .set_subtitle(&"Off only for a server you control".to_string());
 
     let save = &host.save;
     save.set_visible(true);
@@ -615,7 +615,7 @@ fn complete_source_save(
         match result {
             Ok(()) => {
                 if let Some(button) = button.upgrade() {
-                    button.set_label(&tr("Saved..."));
+                    button.set_label(&"Saved...".to_string());
                 }
                 gtk::glib::timeout_future(std::time::Duration::from_secs(2)).await;
             }
@@ -626,7 +626,7 @@ fn complete_source_save(
             }
         }
         if let Some(button) = button.upgrade() {
-            button.set_label(&tr("Save"));
+            button.set_label(&"Save".to_string());
             button.set_sensitive(true);
         }
     });
@@ -737,11 +737,11 @@ impl SourceSetupFlow for LocalSetupFlow {
         login.connect_clicked(move |login| {
             let roots = folders.borrow().clone();
             if roots.is_empty() {
-                status_for_login.set_text(&tr("Choose at least one local music folder"));
+                status_for_login.set_text(&"Choose at least one local music folder".to_string());
                 status_for_login.set_visible(true);
                 return;
             }
-            let message = tr("Caching local library...");
+            let message = "Caching local library...".to_string();
             begin_connect_attempt(&status_for_login, login, &message);
             submit(&source, roots);
         });
@@ -778,7 +778,7 @@ fn setup_scaffold(
         gtk_widgets::source_labels::source_kind_icon_name(registration.kind)
             .expect("registered source presentation"),
     ));
-    source_title.set_label(&tr(gtk_widgets::source_labels::source_kind_title(
+    source_title.set_label(&String::from(gtk_widgets::source_labels::source_kind_title(
         registration.kind,
     )
     .expect("registered source presentation")));
@@ -821,7 +821,7 @@ fn source_choice_selector(shell: &Rc<Preferences>, context: &SetupViewContext) -
         gtk_widgets::objects!(builder, resource, {
             row: adw::ActionRow, icon: gtk::Image,
         });
-        row.set_title(&tr(gtk_widgets::source_labels::source_kind_title(
+        row.set_title(&String::from(gtk_widgets::source_labels::source_kind_title(
             presentation.kind,
         )
         .expect("registered source presentation")));
@@ -829,10 +829,8 @@ fn source_choice_selector(shell: &Rc<Preferences>, context: &SetupViewContext) -
             gtk_widgets::source_labels::source_kind_icon_name(presentation.kind)
                 .expect("registered source presentation"),
         ));
-        row.update_property(&[gtk::accessible::Property::Label(&tr(
-            gtk_widgets::source_labels::source_kind_title(presentation.kind)
-                .expect("registered source presentation"),
-        ))]);
+        row.update_property(&[gtk::accessible::Property::Label(&String::from(gtk_widgets::source_labels::source_kind_title(presentation.kind)
+                .expect("registered source presentation")))]);
         let weak = Rc::downgrade(shell);
         row.connect_activated(move |_| {
             let Some(shell) = weak.upgrade() else { return };
@@ -1042,7 +1040,7 @@ fn credential_host_view(
     fields.append(&compact_field_row_group(&url));
     let fields = install_compact_field_row_responsiveness_at(&fields, 440);
     if !compact {
-        fields_group.set_title(&tr("Server"));
+        fields_group.set_title(&"Server".to_string());
     }
     fields_group.add(&fields);
 
@@ -1090,9 +1088,9 @@ pub(super) fn update_open_subsonic_authentication_fields(
     let api_key = authentication == SubsonicAuthentication::ApiKey;
     username.set_visible(!api_key);
     secret.set_title(&if api_key {
-        tr("API key")
+        "API key".to_string()
     } else {
-        tr("Password")
+        "Password".to_string()
     });
 }
 
@@ -1244,15 +1242,15 @@ fn append_credential_connect(
                 .is_some_and(|authentication| {
                     authentication.get() == SubsonicAuthentication::ApiKey
                 }) {
-                tr("Enter a server address and API key")
+                "Enter a server address and API key".to_string()
             } else {
-                tr("Enter a server address, username, and password")
+                "Enter a server address, username, and password".to_string()
             };
             status_for_login.set_text(&message);
             status_for_login.set_visible(true);
             return;
         }
-        let message = tr("Connecting to music server...");
+        let message = "Connecting to music server...".to_string();
         begin_connect_attempt(&status_for_login, login, &message);
         submit(&source, host_for_click.input());
     });
@@ -1270,7 +1268,7 @@ fn begin_connect_attempt(status: &gtk::Label, login: &gtk::Button, message: &str
 
 fn discovered_servers_view(host: &CredentialHost, kind: &'static str) -> DiscoveredServersView {
     let group = adw::PreferencesGroup::builder()
-        .title(tr("Found Servers"))
+        .title("Found Servers".to_string())
         .build();
     DiscoveredServersView {
         group,
@@ -1303,9 +1301,9 @@ fn refresh_discovered_servers_view(shell: &Rc<Preferences>, view: &DiscoveredSer
     if servers.is_empty() {
         let row = adw::ActionRow::builder()
             .title(if running {
-                tr("Searching Local Network")
+                "Searching Local Network".to_string()
             } else {
-                tr("No Servers Found")
+                "No Servers Found".to_string()
             })
             .build();
         row.add_prefix(&gtk::Image::from_icon_name("rufin-network-server-symbolic"));
@@ -1337,9 +1335,9 @@ fn refresh_discovered_servers_view(shell: &Rc<Preferences>, view: &DiscoveredSer
     }
     let search = adw::ButtonRow::builder()
         .title(if running {
-            tr("Searching...")
+            "Searching...".to_string()
         } else {
-            tr("Search Again")
+            "Search Again".to_string()
         })
         .start_icon_name("rufin-view-refresh-symbolic")
         .build();
@@ -1356,18 +1354,18 @@ fn refresh_discovered_servers_view(shell: &Rc<Preferences>, view: &DiscoveredSer
 
 fn discovery_status_label(status: &DiscoveryStatus, kind: &str) -> String {
     match status {
-        DiscoveryStatus::Idle => tr("Searching will start automatically"),
-        DiscoveryStatus::Searching => tr_with(
+        DiscoveryStatus::Idle => "Searching will start automatically".to_string(),
+        DiscoveryStatus::Searching => fill(
             "Searching for {provider} servers on the local network...",
             &[(
                 "provider",
-                &tr(gtk_widgets::source_labels::source_kind_title(kind).unwrap_or(kind)),
+                &String::from(gtk_widgets::source_labels::source_kind_title(kind).unwrap_or(kind)),
             )],
         ),
-        DiscoveryStatus::Empty => tr("No servers found, add one manually or try again"),
+        DiscoveryStatus::Empty => "No servers found, add one manually or try again".to_string(),
         DiscoveryStatus::Found(_) => String::new(),
         DiscoveryStatus::Failed(error) => {
-            tr_with("Server discovery failed: {error}", &[("error", error)])
+            fill("Server discovery failed: {error}", &[("error", error)])
         }
     }
 }
@@ -1398,7 +1396,7 @@ fn refresh_local_folder_selection_rows(selection: &LocalFolderSelectionRows) {
             .build();
         row.add_prefix(&gtk::Image::from_icon_name("rufin-folders-symbolic"));
         let remove = gtk::Button::from_icon_name("rufin-window-close-symbolic");
-        remove.set_tooltip_text(Some(&tr("Remove folder")));
+        remove.set_tooltip_text(Some(&"Remove folder".to_string()));
         remove.add_css_class("flat");
         remove.add_css_class("destructive-action");
         row.add_suffix(&remove);
@@ -1520,7 +1518,7 @@ fn path_subtitle(path: &Path) -> String {
 
 fn local_folders_subtitle(folders: &[PathBuf]) -> String {
     match folders {
-        [] => tr("No folders selected"),
+        [] => "No folders selected".to_string(),
         [folder] => path_subtitle(folder),
         folders => folder_selected_text(folders.len() as u64),
     }
@@ -1563,7 +1561,7 @@ fn connect_add_local_folder_button(
                 .or_else(default_music_folder)
                 .map(gtk::gio::File::for_path);
             let dialog = gtk::FileDialog::builder()
-                .title(tr("Select Music Folder"))
+                .title("Select Music Folder".to_string())
                 .build();
             if let Some(folder) = selected_folder.as_ref() {
                 dialog.set_initial_folder(Some(folder));

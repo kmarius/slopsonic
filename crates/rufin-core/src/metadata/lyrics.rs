@@ -193,7 +193,7 @@ impl EditSession {
                     .map(|document| ::lyrics::lyrics_to_lrc_text(document, 0))
             })
             .ok_or_else(|| {
-                Error::InvalidInput(localization::tr(localization::msgid("No lyrics")))
+                Error::InvalidInput("No lyrics".to_string())
             })?;
         let revision = match &self.destination {
             EditDestination::Files(files) => {

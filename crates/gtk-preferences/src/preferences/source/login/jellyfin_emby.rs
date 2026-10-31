@@ -316,7 +316,7 @@ impl Flow {
                 }
                 if let Some(status) = status.upgrade() {
                     status.set_text(&if empty {
-                        tr("No linked servers found")
+                        "No linked servers found".to_string()
                     } else {
                         String::new()
                     });
@@ -351,7 +351,7 @@ impl Flow {
             drop(state);
             button.set_sensitive(false);
             if let Some(status) = login_status.upgrade() {
-                status.set_text(&tr("Connecting to music server..."));
+                status.set_text(&"Connecting to music server...".to_string());
                 status.set_visible(true);
             }
             let (status, complete, update) =
@@ -479,7 +479,7 @@ impl Flow {
             if source_id.is_none()
                 && let Some(status) = submit_status.upgrade()
             {
-                begin_connect_attempt(&status, button, &tr("Connecting to music server..."));
+                begin_connect_attempt(&status, button, &"Connecting to music server...".to_string());
             }
             if !draft.manual
                 && let Some(authorization) = draft.authorization.clone()
@@ -704,7 +704,7 @@ fn present_code_dialog(
             if let Some(link) = view.approval.upgrade() {
                 link.set_sensitive(false);
             }
-            show_error(&view.status, &tr("Connecting to music server..."));
+            show_error(&view.status, &"Connecting to music server...".to_string());
             *task.borrow_mut() = Some(start(view.clone()));
         }
     };

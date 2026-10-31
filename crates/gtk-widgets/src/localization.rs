@@ -1,8 +1,7 @@
 use gtk::prelude::*;
-use localization::tr;
 
 pub fn localized_label(message: &str) -> gtk::Label {
-    gtk::Label::new(Some(&tr(message)))
+    gtk::Label::new(Some(&String::from(message)))
 }
 
 pub fn bind_label_text_with(label: &gtk::Label, text: impl Fn() -> String + 'static) {
@@ -10,14 +9,14 @@ pub fn bind_label_text_with(label: &gtk::Label, text: impl Fn() -> String + 'sta
 }
 
 pub fn bind_widget_tooltip(widget: &impl IsA<gtk::Widget>, message: &str) {
-    widget.set_tooltip_text(Some(&tr(message)));
+    widget.set_tooltip_text(Some(&String::from(message)));
 }
 
 pub fn bind_widget_accessible_label(
     widget: &(impl IsA<gtk::Widget> + IsA<gtk::Accessible>),
     message: &str,
 ) {
-    let label = tr(message);
+    let label = String::from(message);
     widget.update_property(&[gtk::accessible::Property::Label(&label)]);
 }
 
@@ -30,11 +29,11 @@ pub fn bind_widget_tooltip_with(
 }
 
 pub fn bind_search_placeholder(entry: &gtk::SearchEntry, message: &str) {
-    entry.set_placeholder_text(Some(&tr(message)));
+    entry.set_placeholder_text(Some(&String::from(message)));
 }
 
 pub fn bind_column_title(column: &gtk::ColumnViewColumn, message: &str) {
-    column.set_title(Some(&tr(message)));
+    column.set_title(Some(&String::from(message)));
 }
 
 pub fn localized_column(
@@ -53,7 +52,7 @@ pub fn bind_drop_down_options_with(
 ) {
     let translated = messages()
         .iter()
-        .map(|message| tr(message))
+        .map(|message| message.to_string())
         .collect::<Vec<_>>();
     let Some(model) = drop_down
         .model()

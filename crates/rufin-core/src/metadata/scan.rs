@@ -100,7 +100,7 @@ impl MetadataEditor {
             if cached_only {
                 return Ok(None);
             }
-            report(&localization::tr("Calculating fingerprint..."));
+            report(&"Calculating fingerprint...".to_string());
             let local = self.source.shared.settings.local_configuration();
             let owner = self.source.clone();
             let stream = crate::playback::prepare_stream(
@@ -156,7 +156,7 @@ impl MetadataEditor {
             encoded: fingerprint,
             duration_seconds: duration,
         } = fingerprint;
-        report(&localization::tr("Searching AcoustID..."));
+        report(&"Searching AcoustID...".to_string());
         let uri = self
             .session
             .as_ref()

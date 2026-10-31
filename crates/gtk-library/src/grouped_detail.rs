@@ -2,7 +2,6 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use artwork::ArtworkBinding;
-use localization::msgid;
 
 use crate::CatalogUi;
 use crate::LibraryListKey;
@@ -167,7 +166,7 @@ impl CatalogUi {
         track_stack.add_named(
             &library_route_inset(crate::route_layout::placeholder_view(
                 "Tracks",
-                msgid("No tracks here yet"),
+                "No tracks here yet",
             )),
             Some("empty"),
         );

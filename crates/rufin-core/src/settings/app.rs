@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use downloads::{DownloadRules, SourceDownloadSettings};
 use library::PlayedFilter;
-use localization::{default_language_preference, sanitize_language_preference};
 use lyrics::Settings as LyricsSettings;
 use playback::{
     DEFAULT_AUTO_DJ_REFILL_THRESHOLD, MAX_AUTO_DJ_REFILL_THRESHOLD, MIN_AUTO_DJ_REFILL_THRESHOLD,
@@ -265,8 +264,6 @@ preference_group!(#[derive(Eq)] AppearancePreferences, appearance, {
     accent_preference: AccentPreference = AccentPreference::System => set_accent;
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     theme_accents: std::collections::BTreeMap<String, String> = Default::default();
-    #[serde(default = "default_language_preference")]
-    language: String = default_language_preference() => set_language;
 });
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -421,7 +418,6 @@ impl Settings {
             .map(str::trim)
             .filter(|name| !name.is_empty())
             .map(str::to_string);
-        self.appearance.language = sanitize_language_preference(&self.appearance.language);
         self.release_notification_seen_version = self
             .release_notification_seen_version
             .as_deref()

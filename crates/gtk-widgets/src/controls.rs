@@ -1,6 +1,5 @@
 use crate::localization::{bind_widget_accessible_label, bind_widget_tooltip};
 use adw::prelude::*;
-use localization::tr;
 
 pub const PLAY_ICON: &str = "rufin-media-playback-start-symbolic";
 pub const PLAY_NEXT_ICON: &str = "rufin-mail-forward-symbolic";
@@ -174,7 +173,7 @@ pub fn text_button(icon_name: &str, label: &str) -> gtk::Button {
     button.add_css_class("pill");
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     content.append(&gtk::Image::from_icon_name(icon_name));
-    content.append(&gtk::Label::new(Some(&tr(label))));
+    content.append(&gtk::Label::new(Some(&String::from(label))));
     button.set_child(Some(&content));
     button
 }

@@ -4,7 +4,7 @@ use artwork::RgbaImage;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use image::ImageEncoder;
 use library::{ActivityOverview, CalendarActivityPeriod};
-use localization::{tr, tr_with, trn_with};
+use crate::text::{fill, fill_plural};
 use resvg::{tiny_skia, usvg};
 
 use super::{percentage_change, period_label};
@@ -76,7 +76,7 @@ pub(super) fn png(
         );
     }
     let limit = settings.result_count;
-    let title = tr_with(
+    let title = fill(
         if settings.show_rufin_in_headline {
             "Your {period} in Rufin"
         } else {
@@ -101,7 +101,7 @@ pub(super) fn png(
     let previous = &data.previous;
     let metrics = [
         (
-            tr("Hours"),
+            "Hours".to_string(),
             format!("{:.1}", totals.duration_millis as f64 / 3_600_000.0),
             totals.duration_millis,
             previous.duration_millis,
@@ -110,7 +110,7 @@ pub(super) fn png(
             ),
         ),
         (
-            tr("Plays"),
+            "Plays".to_string(),
             totals.plays.to_string(),
             totals.plays,
             previous.plays,
@@ -119,7 +119,7 @@ pub(super) fn png(
             ),
         ),
         (
-            tr("Artists"),
+            "Artists".to_string(),
             totals.artists.to_string(),
             totals.artists,
             previous.artists,
@@ -128,7 +128,7 @@ pub(super) fn png(
             ),
         ),
         (
-            tr("Tracks"),
+            "Tracks".to_string(),
             totals.tracks.to_string(),
             totals.tracks,
             previous.tracks,
@@ -180,7 +180,7 @@ pub(super) fn png(
                 )
             });
             bottom =
-                bottom.max(svg.collection(&tr("Top artists"), MARGIN, y, width, entries, &encoded));
+                bottom.max(svg.collection(&"Top artists".to_string(), MARGIN, y, width, entries, &encoded));
         }
         if settings.albums {
             let x = MARGIN + if settings.artists { COLUMN + GAP } else { 0.0 };
@@ -191,7 +191,7 @@ pub(super) fn png(
                     row.artwork_binding.as_deref(),
                 )
             });
-            bottom = bottom.max(svg.collection(&tr("Top albums"), x, y, width, entries, &encoded));
+            bottom = bottom.max(svg.collection(&"Top albums".to_string(), x, y, width, entries, &encoded));
         }
         y = bottom + 44.0;
     }
@@ -208,11 +208,11 @@ pub(super) fn png(
         };
         let mut bottom = y;
         if settings.tracks {
-            svg.text(MARGIN, y, 32.0, 700, &tr("Top tracks"), width);
+            svg.text(MARGIN, y, 32.0, 700, &"Top tracks".to_string(), width);
             let top = y + 58.0;
             svg.text(MARGIN + 28.0, top, 21.0, 400, "#", 50.0);
-            svg.text(MARGIN + 90.0, top, 21.0, 400, &tr("Title"), width - 220.0);
-            svg.text(MARGIN + width - 90.0, top, 21.0, 400, &tr("Plays"), 90.0);
+            svg.text(MARGIN + 90.0, top, 21.0, 400, &"Title".to_string(), width - 220.0);
+            svg.text(MARGIN + width - 90.0, top, 21.0, 400, &"Plays".to_string(), 90.0);
             svg.rule(MARGIN, top + 18.0, width);
             for (index, row) in data.tracks.iter().take(limit).enumerate() {
                 let row_y = top + 34.0 + index as f32 * 108.0;
@@ -264,7 +264,7 @@ pub(super) fn png(
         }
         if show_genres {
             let x = MARGIN + if settings.tracks { COLUMN + GAP } else { 0.0 };
-            svg.text(x, y, 32.0, 700, &tr("Top genres"), width);
+            svg.text(x, y, 32.0, 700, &"Top genres".to_string(), width);
             let maximum = data.genres.first().map_or(1, |genre| genre.plays).max(1) as f32;
             for (index, genre) in data.genres.iter().take(limit).enumerate() {
                 let (name, count) = (&genre.name, &genre.plays);
@@ -458,7 +458,7 @@ impl ReportSvg {
             let top = y + 40.0 + (index / columns) as f32 * (size + 110.0);
             self.cover(left, top, size, binding.and_then(|key| images.get(key)));
             self.text(left, top + size + 30.0, 23.0, 400, name, size);
-            let caption = trn_with(
+            let caption = fill_plural(
                 "{count} play",
                 "{count} plays",
                 count as u64,

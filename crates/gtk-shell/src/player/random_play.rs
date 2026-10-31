@@ -8,7 +8,6 @@ use gtk::glib;
 use rufin_core::playback::{QueuePlacement, RandomPlayRequest};
 use tracing::warn;
 
-use localization::tr;
 
 use crate::shell::Shell;
 use rufin_core::settings::{RandomPlayGenreSelection, RandomPlaySettings};
@@ -170,7 +169,7 @@ fn configure_genre_dropdown(
     selected: Option<&str>,
 ) {
     let mut labels = Vec::with_capacity(genres.len() + 1);
-    labels.push(tr("Any genre"));
+    labels.push("Any genre".to_string());
     labels.extend(genres.iter().map(|genre| genre.name.clone()));
     let refs = labels.iter().map(String::as_str).collect::<Vec<_>>();
     let model = gtk::StringList::new(&refs);
@@ -190,9 +189,9 @@ fn configure_played_filter_dropdown(
     let labels = filters
         .iter()
         .map(|filter| match filter {
-            PlayedFilter::All => tr("All tracks"),
-            PlayedFilter::Unplayed => tr("Only unplayed tracks"),
-            PlayedFilter::Played => tr("Only played tracks"),
+            PlayedFilter::All => "All tracks".to_string(),
+            PlayedFilter::Unplayed => "Only unplayed tracks".to_string(),
+            PlayedFilter::Played => "Only played tracks".to_string(),
         })
         .collect::<Vec<_>>();
     let refs = labels.iter().map(String::as_str).collect::<Vec<_>>();

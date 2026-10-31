@@ -568,8 +568,8 @@ impl MediaDragSource {
         let selection = self.track_selection(database).await?;
         let title = match self {
             Self::Target { .. } | Self::LiveCollection { .. } => selection_title(Some(&selection)),
-            Self::PlaylistEntries(_) => localization::tr("Playlist"),
-            _ => localization::tr("Selection"),
+            Self::PlaylistEntries(_) => "Playlist".to_string(),
+            _ => "Selection".to_string(),
         };
         let preview = database
             .selected_track_uris(&selection, Some(4), &library::ReadCancellation::new())
@@ -649,7 +649,7 @@ impl MediaDragSource {
 fn selection_title(selection: Option<&library::MemberSelection>) -> String {
     use library::{Collection, MemberSelection};
     match selection {
-        Some(MemberSelection::Members { read, .. }) => localization::tr(match read.collection {
+        Some(MemberSelection::Members { read, .. }) => String::from(match read.collection {
             Collection::Album(_) => "Album",
             Collection::Artist { .. } => "Artist",
             Collection::Genre(_) => "Genre",
@@ -658,8 +658,8 @@ fn selection_title(selection: Option<&library::MemberSelection>) -> String {
             Collection::Smart { .. } => "Smart Playlist",
             _ => "Folder",
         }),
-        Some(MemberSelection::Keys { .. } | MemberSelection::Uris(_)) => localization::tr("Track"),
-        _ => localization::tr("Selection"),
+        Some(MemberSelection::Keys { .. } | MemberSelection::Uris(_)) => "Track".to_string(),
+        _ => "Selection".to_string(),
     }
 }
 

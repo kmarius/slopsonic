@@ -10,7 +10,6 @@ use crate::settings::presentation::{
     self, display_unix_date, format_duration_units, stored_rating,
 };
 use library::{LibraryError, LibraryResult, ReadCancellation, TrackState};
-use localization::{msgid, tr};
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
@@ -79,14 +78,14 @@ pub async fn media_details(
     super::on_runtime(runtime, async {
         let db = &source.shared.database;
         let cancel = ReadCancellation::new();
-        let unavailable = || LibraryError::InvalidRequest(tr(msgid("Item is no longer available")));
-        let mut origin = section(msgid("Source"));
-        let mut ids = section(msgid("MusicBrainz"));
+        let unavailable = || LibraryError::InvalidRequest("Item is no longer available".to_string());
+        let mut origin = section("Source");
+        let mut ids = section("MusicBrainz");
         let (mut details, source_id, object_id, state) = match &item {
             MediaDetailsItem::Track(uri) => {
                 let track = db.track(uri, &cancel).await?.ok_or_else(unavailable)?;
                 let mut details = MediaDetails {
-                    heading: tr(msgid("Track details")),
+                    heading: "Track details".to_string(),
                     title: track.metadata.title.clone(),
                     subtitle: [
                         track.metadata.artist.as_str(),
@@ -102,7 +101,7 @@ pub async fn media_details(
                     audio_summary: Vec::new(),
                     sections: Vec::new(),
                 };
-                let mut general = section(msgid("General"));
+                let mut general = section("General");
                 for field in [
                     LibraryField::Title,
                     LibraryField::Artist,
@@ -139,7 +138,7 @@ pub async fn media_details(
                     push_field(&mut general, fact);
                 }
                 details.sections.push(general);
-                let mut audio = section(msgid("Original audio"));
+                let mut audio = section("Original audio");
                 for field in [
                     LibraryField::Format,
                     LibraryField::Bitrate,
@@ -177,43 +176,43 @@ pub async fn media_details(
                     .filter(|current| current.id.media_uri == *uri)
                     && let Some(stream) = &current.stream
                 {
-                    let mut playing = section(msgid("Playing stream"));
+                    let mut playing = section("Playing stream");
                     add(
                         &mut playing,
-                        msgid("Format"),
+                        "Format",
                         presentation::audio_source_label(stream.format.as_deref(), None),
                     );
                     add(
                         &mut playing,
-                        msgid("Delivery"),
-                        Some(tr(if stream.local {
-                            msgid("Local")
+                        "Delivery",
+                        Some(String::from(if stream.local {
+                            "Local"
                         } else {
-                            msgid("Streaming")
+                            "Streaming"
                         })),
                     );
                     add(
                         &mut playing,
-                        msgid("Transcoded"),
-                        Some(tr(if stream.transcoded {
-                            msgid("Yes")
+                        "Transcoded",
+                        Some(String::from(if stream.transcoded {
+                            "Yes"
                         } else {
-                            msgid("No")
+                            "No"
                         })),
                     );
                     details.sections.push(playing);
                 }
-                let mut loudness = section(msgid("ReplayGain tags"));
+                let mut loudness = section("ReplayGain tags");
                 for (gain, gain_title, peak_title) in [
                     (
                         track.metadata.source_loudness,
-                        msgid("Track gain"),
-                        msgid("Track peak"),
+                        "Track gain",
+                        "Track peak",
                     ),
                     (
                         track.metadata.album_loudness,
-                        msgid("Album gain"),
-                        msgid("Album peak"),
+                        "Album gain",
+                        "Album peak",
                     ),
                 ] {
                     if let Some(gain) = gain {
@@ -232,71 +231,71 @@ pub async fn media_details(
                 details.sections.push(loudness);
                 add(
                     &mut origin,
-                    msgid("Source"),
+                    "Source",
                     Some(track.access.source_name.clone()),
                 );
                 copy(
                     &mut origin,
-                    msgid("File path"),
+                    "File path",
                     track.access.source_path.clone(),
                 );
                 if let Some(size) = db.media_file_size(uri).await? {
                     add(
                         &mut origin,
                         if track.access.cue_path.is_some() {
-                            msgid("Shared file size")
+                            "Shared file size"
                         } else {
-                            msgid("File size")
+                            "File size"
                         },
                         Some(glib::format_size(size.max(0) as u64).to_string()),
                     );
                 }
                 copy(
                     &mut origin,
-                    msgid("CUE file"),
+                    "CUE file",
                     track.access.cue_path.clone(),
                 );
                 if let Some(start) = track.access.cue_start_millis {
                     add(
                         &mut origin,
-                        msgid("Segment start"),
+                        "Segment start",
                         Some(format_duration_units((start.max(0) / 1000) as u32)),
                     );
                 }
                 if let Some(end) = track.access.cue_end_millis {
                     add(
                         &mut origin,
-                        msgid("Segment end"),
+                        "Segment end",
                         Some(format_duration_units((end.max(0) / 1000) as u32)),
                     );
                 }
                 musicbrainz(
                     &mut ids,
-                    msgid("MusicBrainz recording ID"),
+                    "MusicBrainz recording ID",
                     "recording",
                     track.metadata.musicbrainz_recording_id.clone(),
                 );
                 musicbrainz(
                     &mut ids,
-                    msgid("MusicBrainz release track ID"),
+                    "MusicBrainz release track ID",
                     "track",
                     track.metadata.musicbrainz_release_track_id.clone(),
                 );
                 musicbrainz(
                     &mut ids,
-                    msgid("MusicBrainz release ID"),
+                    "MusicBrainz release ID",
                     "release",
                     track.metadata.musicbrainz_album_id.clone(),
                 );
                 musicbrainz(
                     &mut ids,
-                    msgid("MusicBrainz release group ID"),
+                    "MusicBrainz release group ID",
                     "release-group",
                     track.metadata.musicbrainz_release_group_id.clone(),
                 );
                 musicbrainz(
                     &mut ids,
-                    msgid("MusicBrainz artist ID"),
+                    "MusicBrainz artist ID",
                     "artist",
                     track.metadata.primary_artist_musicbrainz_id.clone(),
                 );
@@ -307,34 +306,34 @@ pub async fn media_details(
                     .album(uri, true, &cancel)
                     .await?
                     .ok_or_else(unavailable)?;
-                let mut general = section(msgid("General"));
+                let mut general = section("General");
                 add(
                     &mut general,
-                    msgid("Title"),
+                    "Title",
                     Some(album.metadata.title.clone()),
                 );
                 let mut artists = field_value(LibraryField::AlbumArtist, String::new());
-                artists.label = tr(msgid("Album artists"));
+                artists.label = "Album artists".to_string();
                 set_links(&mut artists, album_artist_links(&album));
                 push_field(&mut general, artists);
                 add(
                     &mut general,
-                    msgid("Release date"),
+                    "Release date",
                     album.metadata.release_date.clone(),
                 );
                 add(
                     &mut general,
-                    msgid("Year"),
+                    "Year",
                     album.metadata.year.map(|v| v.to_string()),
                 );
                 add(
                     &mut general,
-                    msgid("Release type"),
+                    "Release type",
                     Some(album.metadata.release_types.join(", ")),
                 );
                 add(
                     &mut general,
-                    msgid("Genre"),
+                    "Genre",
                     Some(
                         album
                             .links
@@ -348,18 +347,18 @@ pub async fn media_details(
                 add_summary(&mut general, &album.summary);
                 musicbrainz(
                     &mut ids,
-                    msgid("MusicBrainz release ID"),
+                    "MusicBrainz release ID",
                     "release",
                     album.metadata.musicbrainz_release_id.clone(),
                 );
                 musicbrainz(
                     &mut ids,
-                    msgid("MusicBrainz release group ID"),
+                    "MusicBrainz release group ID",
                     "release-group",
                     album.metadata.musicbrainz_release_group_id.clone(),
                 );
                 let details = MediaDetails {
-                    heading: tr(msgid("Album details")),
+                    heading: "Album details".to_string(),
                     title: album.metadata.title.clone(),
                     subtitle: album.metadata.artist.clone(),
                     artwork_binding: album.artwork_binding,
@@ -382,26 +381,26 @@ pub async fn media_details(
                     .artist(uri, *album_artist, true, &cancel)
                     .await?
                     .ok_or_else(unavailable)?;
-                let mut general = section(msgid("General"));
+                let mut general = section("General");
                 add(
                     &mut general,
-                    msgid("Name"),
+                    "Name",
                     Some(artist.metadata.name.clone()),
                 );
                 add(
                     &mut general,
-                    msgid("Sort name"),
+                    "Sort name",
                     artist.metadata.sort_text.clone(),
                 );
                 add_summary(&mut general, &artist.summary);
                 musicbrainz(
                     &mut ids,
-                    msgid("MusicBrainz artist ID"),
+                    "MusicBrainz artist ID",
                     "artist",
                     artist.metadata.musicbrainz_artist_id.clone(),
                 );
                 let details = MediaDetails {
-                    heading: tr(msgid("Artist details")),
+                    heading: "Artist details".to_string(),
                     title: artist.metadata.name.clone(),
                     subtitle: String::new(),
                     artwork_binding: artist.artwork_binding,
@@ -424,18 +423,18 @@ pub async fn media_details(
             if origin.fields.is_empty() {
                 add(
                     &mut origin,
-                    msgid("Source"),
+                    "Source",
                     Some(configured.configuration.name.clone()),
                 );
             }
             copy(
                 &mut origin,
-                msgid("Server"),
+                "Server",
                 configured.configuration.server_address(),
             );
         }
-        copy(&mut origin, msgid("Item ID"), object_id);
-        let mut listening = section(msgid("Listening"));
+        copy(&mut origin, "Item ID", object_id);
+        let mut listening = section("Listening");
         add_state(&mut listening, &state);
         details.sections.insert(1, listening);
         details.sections.push(origin);
@@ -511,7 +510,7 @@ fn musicbrainz(section: &mut MediaDetailSection, label: &str, entity: &str, valu
         push_field(
             section,
             MediaDetailField {
-                label: tr(label),
+                label: String::from(label),
                 value,
                 copy: true,
                 musicbrainz_url: Some(url),
@@ -523,13 +522,13 @@ fn musicbrainz(section: &mut MediaDetailSection, label: &str, entity: &str, valu
 
 fn section(title: &str) -> MediaDetailSection {
     MediaDetailSection {
-        title: tr(title),
+        title: String::from(title),
         fields: Vec::new(),
     }
 }
 fn field_value(field: LibraryField, value: String) -> MediaDetailField {
     MediaDetailField {
-        label: tr(presentation::library_field_title(field)),
+        label: String::from(presentation::library_field_title(field)),
         value,
         copy: false,
         musicbrainz_url: None,
@@ -546,7 +545,7 @@ fn add(section: &mut MediaDetailSection, label: &str, value: Option<String>) {
         push_field(
             section,
             MediaDetailField {
-                label: tr(label),
+                label: String::from(label),
                 value,
                 copy: false,
                 musicbrainz_url: None,
@@ -560,7 +559,7 @@ fn copy(section: &mut MediaDetailSection, label: &str, value: Option<String>) {
         push_field(
             section,
             MediaDetailField {
-                label: tr(label),
+                label: String::from(label),
                 value,
                 copy: true,
                 musicbrainz_url: None,
@@ -577,12 +576,12 @@ fn add_state(section: &mut MediaDetailSection, state: &TrackState) {
     );
     add(
         section,
-        msgid("Play count"),
+        "Play count",
         Some(state.play_count.to_string()),
     );
     add(
         section,
-        msgid("Last played"),
+        "Last played",
         state
             .last_played
             .map(|_| display_unix_date(state.last_played)),
@@ -591,19 +590,19 @@ fn add_state(section: &mut MediaDetailSection, state: &TrackState) {
 fn add_summary(section: &mut MediaDetailSection, summary: &library::CollectionSummary) {
     add(
         section,
-        msgid("Tracks"),
+        "Tracks",
         Some(summary.track_count.to_string()),
     );
     if summary.album_count > 0 {
         add(
             section,
-            msgid("Albums"),
+            "Albums",
             Some(summary.album_count.to_string()),
         );
     }
     add(
         section,
-        msgid("Duration"),
+        "Duration",
         Some(format_duration_units(
             (summary.duration_millis.max(0) / 1000) as u32,
         )),

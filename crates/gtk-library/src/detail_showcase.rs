@@ -18,7 +18,6 @@ use gtk_widgets::controls::{PLAY_LATER_ICON, PLAY_NEXT_ICON};
 use gtk_widgets::interactions::{ContextMenuOpen, RADIO_ICON};
 use gtk_widgets::layout::{AllocationOwner, width_allocation_owner};
 use gtk_widgets::localization::bind_label_text_with;
-use localization::tr;
 
 use crate::route_layout::detail_showcase_cover_size;
 use gtk_media_menus::media_menus::CollectionPlay;
@@ -142,7 +141,7 @@ impl DetailShowcaseView {
         view.add_css_class("detail-showcase");
         view.add_css_class(route_class);
         add_album_seed_gradient_class(&view, seed);
-        bind_label_text_with(&view.imp().kind, move || tr(kind));
+        bind_label_text_with(&view.imp().kind, move || String::from(kind));
         if genre_kind {
             view.imp().kind_row.add_css_class("album-detail-genre-row");
         }
@@ -495,7 +494,7 @@ pub fn detail_radio_button() -> gtk::Button {
     button.add_css_class("detail-kind-radio-button");
     button.set_halign(gtk::Align::Start);
     button.set_valign(gtk::Align::Center);
-    button.set_tooltip_text(Some(&tr("Play radio")));
+    button.set_tooltip_text(Some(&"Play radio".to_string()));
     let icon = gtk::Image::from_icon_name(RADIO_ICON);
     icon.set_pixel_size(16);
     button.set_child(Some(&icon));
@@ -825,7 +824,7 @@ fn detail_link_button(icon_name: &str, label: &str) -> gtk::Button {
     button.add_css_class("flat");
     button.add_css_class("circular");
     button.add_css_class("detail-external-link-button");
-    button.set_tooltip_text(Some(&tr(label)));
+    button.set_tooltip_text(Some(&String::from(label)));
     let image = gtk::Image::from_icon_name(icon_name);
     image.set_pixel_size(18);
     button.set_child(Some(&image));

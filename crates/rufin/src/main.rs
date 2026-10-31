@@ -42,17 +42,9 @@ fn main() -> ExitCode {
         None => false,
     };
     let settings = app::startup_settings(&paths::roots());
-    if let Some(result) =
-        restart_with_language(&settings.load().ui.appearance.language, updated_restart)
-    {
-        return result;
-    }
     if headless {
         let _desktop_platform = desktop_integration::Platform::initialize();
         return rufin_controller::run(env::args_os().skip(2));
-    }
-    if let Err(error) = localization::initialize() {
-        let _ = writeln!(io::stderr().lock(), "Could not initialize gettext: {error}");
     }
     let (diagnostics, _stderr_guard) = diagnostics::Diagnostics::install(paths::state_dir());
     let _desktop_platform = desktop_integration::Platform::initialize();
@@ -140,66 +132,6 @@ fn restart_after_storage_reset() -> io::Result<ExitCode> {
             command.spawn().map(|_| ExitCode::SUCCESS)
         }
     })
-}
-
-fn restart_with_language(saved_language: &str, updated_restart: bool) -> Option<ExitCode> {
-    let language = localization::process_language(saved_language)?;
-    if env::var("LANGUAGE").ok().as_deref() == Some(language.as_str()) {
-        return None;
-    }
-    let executable = env::current_exe().ok()?;
-    let mut command = Command::new(executable);
-    command
-        .args(env::args_os().skip(1))
-        .env("LANGUAGE", language);
-    if updated_restart {
-        // The helper has already acknowledged this version before the language relaunch.
-        command.env(UPDATED_RESTART_VERSION_ENV, env!("CARGO_PKG_VERSION"));
-    }
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt as _;
-
-        let error = command.exec();
-        let _ = writeln!(
-            io::stderr().lock(),
-            "Could not select Rufin language: {error}"
-        );
-        Some(ExitCode::FAILURE)
-    }
-    #[cfg(not(unix))]
-    {
-        match command.spawn() {
-            Ok(mut child) => {
-                if env::args_os().nth(1).as_deref() == Some(OsStr::new("--headless")) {
-                    return Some(match child.wait() {
-                        Ok(status) => ExitCode::from(status.code().unwrap_or(1) as u8),
-                        Err(error) => {
-                            let _ =
-                                writeln!(io::stderr().lock(), "Could not wait for Rufin: {error}");
-                            ExitCode::FAILURE
-                        }
-                    });
-                }
-                #[cfg(target_os = "windows")]
-                if updated_restart
-                    && let Err(error) =
-                        desktop_integration::Platform::allow_foreground_activation(child.id())
-                {
-                    let _ = writeln!(io::stderr().lock(), "{error}");
-                }
-                Some(ExitCode::SUCCESS)
-            }
-            Err(error) => {
-                let _ = writeln!(
-                    io::stderr().lock(),
-                    "Could not select Rufin language: {error}"
-                );
-                Some(ExitCode::FAILURE)
-            }
-        }
-    }
 }
 
 #[cfg(target_os = "macos")]

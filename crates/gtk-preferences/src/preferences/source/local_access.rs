@@ -5,7 +5,6 @@ use adw::prelude::*;
 use gtk::{gio, glib};
 use rufin_core::runtime::source::SourceSummary;
 
-use localization::tr;
 use sources::SourceId;
 
 use super::login::source_settings_group;
@@ -105,7 +104,7 @@ fn manage_server_content(
     }
     if let Some(half_stars) = super::half_stars_row(shell, &server) {
         let library = adw::PreferencesGroup::builder()
-            .title(tr("Library"))
+            .title("Library".to_string())
             .build();
         library.add(&half_stars);
         content.append(&library);
@@ -136,7 +135,7 @@ fn manage_server_content(
 
     let sample_subtitle = sample_source_path
         .clone()
-        .unwrap_or_else(|| tr("No cached server path yet"));
+        .unwrap_or_else(|| "No cached server path yet".to_string());
     sample_row.set_subtitle(&sample_subtitle);
 
     preview_row.set_subtitle(&preview_local_path_text(
@@ -146,9 +145,9 @@ fn manage_server_content(
         saved_folder.as_deref(),
     ));
     let subtitle = if access.is_some() {
-        tr("Local file access configured")
+        "Local file access configured".to_string()
     } else {
-        tr("Use local files for playback, lyrics, and supported metadata editing")
+        "Use local files for playback, lyrics, and supported metadata editing".to_string()
     };
     mapping_expander.set_subtitle(&subtitle);
     content.append(&mapping_group);
@@ -223,7 +222,7 @@ fn manage_server_content(
                 draft.folder.as_deref(),
             );
             sample_row.set_subtitle(
-                &sample_source_path.unwrap_or_else(|| tr("No cached server path yet")),
+                &sample_source_path.unwrap_or_else(|| "No cached server path yet".to_string()),
             );
             let operation = editor.operation();
             let pending = matches!(operation, LocalAccessOperation::Pending);
@@ -373,15 +372,15 @@ pub fn confirm_forget_source(
     after_forget: Rc<dyn Fn()>,
 ) {
     let dialog = adw::AlertDialog::builder()
-        .heading(tr("Forget Source"))
+        .heading("Forget Source".to_string())
         .body(format!(
             "{} {}",
-            tr("This removes the server, cached library metadata, queue snapshot, and saved token for"),
+            "This removes the server, cached library metadata, queue snapshot, and saved token for".to_string(),
             server_name
         ))
         .build();
-    let cancel = tr("Cancel");
-    let forget = tr("Forget Source");
+    let cancel = "Cancel".to_string();
+    let forget = "Forget Source".to_string();
     dialog.add_responses(&[("cancel", cancel.as_str()), ("forget", forget.as_str())]);
     dialog.set_default_response(Some("cancel"));
     dialog.set_close_response("cancel");
@@ -404,7 +403,7 @@ pub fn confirm_forget_source(
 fn server_display_name(server: &SourceSummary) -> String {
     if server.name.trim().is_empty() {
         source_kind_title(&server.kind)
-            .map(tr)
+            .map(String::from)
             .unwrap_or_else(|| server.kind.clone())
     } else {
         server.name.clone()

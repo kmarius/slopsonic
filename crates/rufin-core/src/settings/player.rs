@@ -182,7 +182,7 @@ impl SettingsOwner {
 
     pub fn import_visualizer_preset(&self, text: String) -> Result<(), SettingsError> {
         let preset = visualizer::VisualizerPreset::from_json(&text)
-            .ok_or_else(|| SettingsError::from(localization::tr("Not valid")))?;
+            .ok_or_else(|| SettingsError::from("Not valid".to_string()))?;
         self.update_preferences(move |ui| {
             ui.visualizer.import_preset(preset);
             Ok(())

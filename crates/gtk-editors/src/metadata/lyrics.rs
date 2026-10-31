@@ -221,7 +221,7 @@ pub(super) fn connect(editor: &Rc<Editor>) {
                         refresh_save_state(&editor);
                     }
                 }
-                Ok(None) => editor.lyrics.message(&localization::tr("No lyrics")),
+                Ok(None) => editor.lyrics.message(&"No lyrics".to_string()),
                 Err(error) => editor.lyrics.message(&error.to_string()),
             }
         });
@@ -299,10 +299,10 @@ fn search(editor: &Rc<Editor>, delayed: bool) {
     editor.lyrics.results.remove_all();
     editor.lyrics.candidates.borrow_mut().clear();
     if artist.is_empty() && title.is_empty() {
-        editor.lyrics.message(&localization::tr("Type to search"));
+        editor.lyrics.message(&"Type to search".to_string());
         return;
     }
-    editor.lyrics.message(&localization::tr("Searching..."));
+    editor.lyrics.message(&"Searching...".to_string());
     let model = editor.model();
     let weak = Rc::downgrade(editor);
     let task = gtk::glib::spawn_future_local(async move {
@@ -331,7 +331,7 @@ fn search(editor: &Rc<Editor>, delayed: bool) {
                     editor.lyrics.results.append(&row);
                 }
                 let message = if results.is_empty() {
-                    localization::tr("No results")
+                    "No results".to_string()
                 } else {
                     String::new()
                 };

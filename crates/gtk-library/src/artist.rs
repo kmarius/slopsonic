@@ -4,7 +4,7 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 use adw::prelude::*;
 use artwork::ArtworkBinding;
 use library::{ArtistKey, ArtistView, RadioSeed};
-use localization::{album_count_text, msgid, track_count_text};
+use rufin_core::text::{album_count_text, track_count_text};
 use rufin_core::playback::RadioPlayRequest;
 
 use crate::CatalogUi;
@@ -30,12 +30,12 @@ use gtk_media_menus::media_menus::present_artist_context_menu;
 use gtk_widgets::route::Route;
 
 const ARTIST_RELEASE_TITLES: [&str; 6] = [
-    msgid("Albums"),
-    msgid("EPs"),
-    msgid("Singles"),
-    msgid("Collections"),
-    msgid("Other releases"),
-    msgid("Appears On"),
+    "Albums",
+    "EPs",
+    "Singles",
+    "Collections",
+    "Other releases",
+    "Appears On",
 ];
 
 pub fn artist_detail_route(artist: String, album_artist: bool) -> Route {
@@ -79,7 +79,7 @@ impl CatalogUi {
         else {
             return MountedRoute::static_widget(crate::route_layout::placeholder_view(
                 "Artist",
-                msgid("No music from this artist yet"),
+                "No music from this artist yet",
             ));
         };
         let artist_uri = summary.media_uri.clone();
@@ -106,7 +106,7 @@ impl CatalogUi {
         let favorite_present = !favorite.source_is_empty();
         let favorite_section = gtk::Box::new(gtk::Orientation::Vertical, 10);
         favorite_section.set_visible(favorite_present);
-        let heading = localized_label(msgid("Favorite tracks"));
+        let heading = localized_label("Favorite tracks");
         heading.add_css_class("section-heading");
         heading.set_xalign(0.0);
         favorite_section.append(&heading);
@@ -133,9 +133,7 @@ impl CatalogUi {
                 header: header.widget(),
                 favorite: Some((favorite_section.clone().upcast(), favorite.search())),
                 favorite_present,
-                empty: crate::route_layout::route_empty_view(msgid(
-                    "No music from this artist yet",
-                )),
+                empty: crate::route_layout::route_empty_view("No music from this artist yet"),
             },
             ARTIST_RELEASE_TITLES,
             *page,
@@ -331,8 +329,8 @@ impl CatalogUi {
         }) = detail
         else {
             return MountedRoute::static_widget(crate::route_layout::placeholder_view(
-                msgid("Tracks"),
-                msgid("This isn't available"),
+                "Tracks",
+                "This isn't available",
             ));
         };
         self.artist_track_surface_restored(
@@ -355,8 +353,8 @@ impl CatalogUi {
         }) = detail
         else {
             return MountedRoute::static_widget(crate::route_layout::placeholder_view(
-                msgid("Favorite tracks"),
-                msgid("No favorites yet"),
+                "Favorite tracks",
+                "No favorites yet",
             ));
         };
         self.artist_track_surface_restored(summary.artist_key, *summary, tracks, album_artist, true)
@@ -369,19 +367,17 @@ impl CatalogUi {
         }) = detail
         else {
             return MountedRoute::static_widget(crate::route_layout::placeholder_view(
-                msgid("Discography"),
-                msgid("No albums from this artist yet"),
+                "Discography",
+                "No albums from this artist yet",
             ));
         };
         let releases = Rc::new(ArtistReleaseProjections::new(
             self,
             ArtistReleaseRoutePreamble {
-                header: artist_subroute_header(self, &summary, msgid("Discography")),
+                header: artist_subroute_header(self, &summary, "Discography"),
                 favorite: None,
                 favorite_present: false,
-                empty: crate::route_layout::route_empty_view(msgid(
-                    "No albums from this artist yet",
-                )),
+                empty: crate::route_layout::route_empty_view("No albums from this artist yet"),
             },
             ARTIST_RELEASE_TITLES,
             *page,
@@ -503,9 +499,9 @@ impl CatalogUi {
             self,
             &summary,
             if favorites_only {
-                msgid("Favorite tracks")
+                "Favorite tracks"
             } else {
-                msgid("Tracks")
+                "Tracks"
             },
         ));
         root.append(&tracks_widget);
@@ -713,7 +709,7 @@ fn artist_detail_header_restored(
     });
     let controls = detail_playback_controls(
         &actions,
-        msgid("Play artist"),
+        "Play artist",
         Some(artist.state.favorite),
         Rc::clone(&play),
     );

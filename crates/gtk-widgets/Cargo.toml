@@ -24,7 +24,6 @@ rufin-core.workspace = true
 gtk = { workspace = true, features = ["v4_20"] }
 library.workspace = true
 lyrics.workspace = true
-localization.workspace = true
 serde.workspace = true
 tokio.workspace = true
 tracing.workspace = true

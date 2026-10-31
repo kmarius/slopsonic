@@ -17,7 +17,7 @@ use gtk_widgets::favorites::{
 };
 use gtk_widgets::format_duration_units;
 use gtk_widgets::mounted_route::MountedRoute;
-use localization::{msgid, track_count_text};
+use rufin_core::text::{track_count_text};
 use rufin_core::playback::RadioPlayRequest;
 
 use super::collections::library_route_inset;
@@ -42,7 +42,7 @@ impl CatalogUi {
         else {
             return MountedRoute::static_widget(crate::route_layout::placeholder_view(
                 "Album",
-                msgid("This isn't available"),
+                "This isn't available",
             ));
         };
         let album = *album;
@@ -141,7 +141,7 @@ impl CatalogUi {
         });
         let cover_controls = detail_playback_controls(
             &actions,
-            msgid("Play album"),
+            "Play album",
             Some(album.state.favorite),
             Rc::clone(&play),
         );
@@ -202,7 +202,7 @@ impl CatalogUi {
         route_stack.set_vexpand(true);
         route_stack.add_named(&wrapper, Some("content"));
         route_stack.add_named(
-            &crate::route_layout::placeholder_view("Album", msgid("This isn't available")),
+            &crate::route_layout::placeholder_view("Album", "This isn't available"),
             Some("missing"),
         );
         route_stack.set_visible_child_name("content");

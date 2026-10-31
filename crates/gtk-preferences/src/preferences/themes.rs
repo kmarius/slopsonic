@@ -51,7 +51,7 @@ pub(super) fn bind(shell: &Rc<Preferences>, builder: &gtk::Builder, resource: &s
                 Err(error) => {
                     shell
                         .control_feedback
-                        .show_feedback_toast(localization::tr_with(
+                        .show_feedback_toast(rufin_core::text::fill(
                             "Could not open folder: {error}",
                             &[("error", &error.to_string())],
                         ));
@@ -144,7 +144,7 @@ fn populate(
                         {
                             shell
                                 .control_feedback
-                                .show_feedback_toast(localization::tr_with(
+                                .show_feedback_toast(rufin_core::text::fill(
                                     "Could not open file: {error}",
                                     &[("error", &error.to_string())],
                                 ));

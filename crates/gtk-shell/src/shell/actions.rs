@@ -12,8 +12,7 @@ use crate::preferences::present_preferences_dialog;
 use crate::preferences::source::selector::install_source_menu_actions;
 use gtk_widgets::popup::present_light_dismiss_dialog;
 #[cfg(any(target_os = "macos", test))]
-use localization::tr_with;
-use localization::{TRANSLATOR_CREDITS, tr};
+use rufin_core::text::fill;
 
 use super::{Shell, layout, navigation};
 
@@ -99,9 +98,9 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
                 shell
                     .control_feedback
                     .show_control_feedback_toast(if enabled {
-                        tr("Private mode is on")
+                        "Private mode is on".to_string()
                     } else {
-                        tr("Private mode is off")
+                        "Private mode is off".to_string()
                     });
             }
         }
@@ -513,38 +512,38 @@ fn macos_menu_model() -> gio::Menu {
     let edit = gio::Menu::new();
     append_macos_menu_section(
         &edit,
-        &[(tr("Undo"), "text.undo"), (tr("Redo"), "text.redo")],
+        &[("Undo".to_string(), "text.undo"), ("Redo".to_string(), "text.redo")],
     );
     append_macos_menu_section(
         &edit,
         &[
-            (tr("Cut"), "clipboard.cut"),
-            (tr("Copy"), "clipboard.copy"),
-            (tr("Paste"), "clipboard.paste"),
-            (tr("Delete"), "selection.delete"),
-            (tr("Select All"), "selection.select-all"),
+            ("Cut".to_string(), "clipboard.cut"),
+            ("Copy".to_string(), "clipboard.copy"),
+            ("Paste".to_string(), "clipboard.paste"),
+            ("Delete".to_string(), "selection.delete"),
+            ("Select All".to_string(), "selection.select-all"),
         ],
     );
-    menu.append_submenu(Some(&tr("Edit")), &edit);
+    menu.append_submenu(Some(&"Edit".to_string()), &edit);
 
     let view = gio::Menu::new();
     append_macos_menu_section(
         &view,
         &[
-            (tr("Back"), "win.go-back"),
-            (tr("Forward"), "win.go-forward"),
-            (tr("Search"), "win.focus-search"),
-            (tr("Navigate to Search"), "win.navigate-search"),
-            (tr("Switch between layouts"), "win.cycle-layout"),
-            (tr("Switch Search/Favorites tabs"), "win.cycle-tabs"),
-            (tr("Menu"), "win.show-primary-menu"),
+            ("Back".to_string(), "win.go-back"),
+            ("Forward".to_string(), "win.go-forward"),
+            ("Search".to_string(), "win.focus-search"),
+            ("Navigate to Search".to_string(), "win.navigate-search"),
+            ("Switch between layouts".to_string(), "win.cycle-layout"),
+            ("Switch Search/Favorites tabs".to_string(), "win.cycle-tabs"),
+            ("Menu".to_string(), "win.show-primary-menu"),
         ],
     );
 
     let sidebar_routes = gio::Menu::new();
     for position in 1..=10 {
         let position_label = position.to_string();
-        let label = tr_with(
+        let label = fill(
             "Sidebar item {position}",
             &[("position", position_label.as_str())],
         );
@@ -552,67 +551,67 @@ fn macos_menu_model() -> gio::Menu {
         let action = gio::Action::print_detailed_name("win.navigate-sidebar", Some(&target));
         sidebar_routes.append(Some(&label), Some(action.as_str()));
     }
-    view.append_submenu(Some(&tr("Sidebar Items")), &sidebar_routes);
+    view.append_submenu(Some(&"Sidebar Items".to_string()), &sidebar_routes);
 
     append_macos_menu_section(
         &view,
         &[
-            (tr("Collapse/expand sidebar"), "win.toggle-left-sidebar"),
-            (tr("Show/hide right sidebar"), "win.toggle-queue"),
-            (tr("Show/hide lyrics"), "win.toggle-lyrics"),
-            (tr("Private mode"), "win.toggle-private-mode"),
-            (tr("Toggle Fullscreen"), "win.toggle-fullscreen"),
+            ("Collapse/expand sidebar".to_string(), "win.toggle-left-sidebar"),
+            ("Show/hide right sidebar".to_string(), "win.toggle-queue"),
+            ("Show/hide lyrics".to_string(), "win.toggle-lyrics"),
+            ("Private mode".to_string(), "win.toggle-private-mode"),
+            ("Toggle Fullscreen".to_string(), "win.toggle-fullscreen"),
         ],
     );
-    menu.append_submenu(Some(&tr("View")), &view);
+    menu.append_submenu(Some(&"View".to_string()), &view);
 
     let playback = gio::Menu::new();
     append_macos_menu_section(
         &playback,
         &[
-            (tr("Play/Pause"), "win.play-pause"),
-            (tr("Previous Track"), "win.previous-track"),
-            (tr("Next Track"), "win.next-track"),
+            ("Play/Pause".to_string(), "win.play-pause"),
+            ("Previous Track".to_string(), "win.previous-track"),
+            ("Next Track".to_string(), "win.next-track"),
         ],
     );
     append_macos_menu_section(
         &playback,
         &[
-            (tr("Seek Backward"), "win.seek-backward"),
-            (tr("Seek Forward"), "win.seek-forward"),
+            ("Seek Backward".to_string(), "win.seek-backward"),
+            ("Seek Forward".to_string(), "win.seek-forward"),
         ],
     );
     append_macos_menu_section(
         &playback,
         &[
-            (tr("Shuffle"), "win.toggle-shuffle"),
-            (tr("Repeat"), "win.cycle-repeat"),
-            (tr("Favorite"), "win.toggle-favorite"),
-            (tr("Auto DJ"), "win.toggle-auto-dj"),
-            (tr("Clear queue"), "win.clear-queue"),
+            ("Shuffle".to_string(), "win.toggle-shuffle"),
+            ("Repeat".to_string(), "win.cycle-repeat"),
+            ("Favorite".to_string(), "win.toggle-favorite"),
+            ("Auto DJ".to_string(), "win.toggle-auto-dj"),
+            ("Clear queue".to_string(), "win.clear-queue"),
         ],
     );
     append_macos_menu_section(
         &playback,
         &[
-            (tr("Mute"), "win.mute"),
-            (tr("Volume Up"), "win.volume-up"),
-            (tr("Volume Down"), "win.volume-down"),
+            ("Mute".to_string(), "win.mute"),
+            ("Volume Up".to_string(), "win.volume-up"),
+            ("Volume Down".to_string(), "win.volume-down"),
         ],
     );
-    menu.append_submenu(Some(&tr("Playback")), &playback);
+    menu.append_submenu(Some(&"Playback".to_string()), &playback);
 
     let window = gio::Menu::new();
-    window.append(Some(&tr("Close Window")), Some("window.close"));
-    let window_item = gio::MenuItem::new_submenu(Some(&tr("Window")), &window);
+    window.append(Some(&"Close Window".to_string()), Some("window.close"));
+    let window_item = gio::MenuItem::new_submenu(Some(&"Window".to_string()), &window);
     window_item.set_attribute_value("gtk-macos-special", Some(&"window-submenu".to_variant()));
     menu.append_item(&window_item);
 
     let help = gio::Menu::new();
-    help.append(Some(&tr("Keyboard Shortcuts")), Some("app.show-shortcuts"));
-    help.append(Some(&tr("Version History")), Some("win.show-release-notes"));
-    help.append(Some(&tr("Troubleshooting")), Some("win.troubleshooting"));
-    menu.append_submenu(Some(&tr("Help")), &help);
+    help.append(Some(&"Keyboard Shortcuts".to_string()), Some("app.show-shortcuts"));
+    help.append(Some(&"Version History".to_string()), Some("win.show-release-notes"));
+    help.append(Some(&"Troubleshooting".to_string()), Some("win.troubleshooting"));
+    menu.append_submenu(Some(&"Help".to_string()), &help);
 
     menu
 }
@@ -690,8 +689,8 @@ fn set_transition_mode_shortcut(shell: &Rc<Shell>, mode: PlaybackTransitionMode)
     shell
         .control_feedback
         .show_control_feedback_toast(match mode {
-            PlaybackTransitionMode::Gapless => tr("Gapless"),
-            PlaybackTransitionMode::Crossfade => tr("Crossfade"),
+            PlaybackTransitionMode::Gapless => "Gapless".to_string(),
+            PlaybackTransitionMode::Crossfade => "Crossfade".to_string(),
         });
 }
 
@@ -741,7 +740,7 @@ pub(crate) fn toggle_mute_shortcut(shell: &Rc<Shell>) {
         return;
     };
     shell.player_ui.apply_user_muted(muted);
-    let title = if muted { tr("Muted") } else { tr("Unmuted") };
+    let title = if muted { "Muted".to_string() } else { "Unmuted".to_string() };
     shell.control_feedback.show_control_feedback_toast(title);
 }
 
@@ -858,7 +857,6 @@ fn show_about_dialog(shell: &Shell) {
         .set_title(&sponsor.label().expect("sponsor link label"));
     dialog.set_application_name(DISPLAY_NAME);
     dialog.set_application_icon(APP_ID);
-    dialog.set_translator_credits(TRANSLATOR_CREDITS);
     dialog.set_version(env!("CARGO_PKG_VERSION"));
     present_light_dismiss_dialog(&dialog, &shell.chrome.window);
 }

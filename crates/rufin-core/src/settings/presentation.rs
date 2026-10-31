@@ -112,13 +112,13 @@ pub fn now_playing_labels(
     }
     let mut place = Vec::from_iter(output_name.map(str::to_owned));
     if let Some(stream) = &media.stream {
-        place.push(localization::tr(if stream.local {
-            msgid("Local")
+        place.push(String::from(if stream.local {
+            "Local"
         } else {
-            msgid("Streaming")
+            "Streaming"
         }));
         if stream.bitstream {
-            place.push(localization::tr(msgid("Bitstream")));
+            place.push("Bitstream".to_string());
         }
     }
     labels.extend(
@@ -146,76 +146,75 @@ pub fn home_provider_title(section_id: &str, title: Option<&str>) -> String {
             .join(" ")
     })
 }
-use localization::msgid;
 
 pub fn home_block_title(value: HomeBlockKind) -> &'static str {
     match value {
-        HomeBlockKind::Showcase => msgid("Showcase"),
-        HomeBlockKind::Explore => msgid("Explore"),
-        HomeBlockKind::MostPlayed => msgid("Most played"),
-        HomeBlockKind::NewlyAdded => msgid("Newly added"),
-        HomeBlockKind::RecentlyPlayed => msgid("Recently played"),
-        HomeBlockKind::RecentlyReleased => msgid("Recently released"),
-        HomeBlockKind::Genres => msgid("Featured genres"),
+        HomeBlockKind::Showcase => "Showcase",
+        HomeBlockKind::Explore => "Explore",
+        HomeBlockKind::MostPlayed => "Most played",
+        HomeBlockKind::NewlyAdded => "Newly added",
+        HomeBlockKind::RecentlyPlayed => "Recently played",
+        HomeBlockKind::RecentlyReleased => "Recently released",
+        HomeBlockKind::Genres => "Featured genres",
     }
 }
 
 pub fn library_list_title(value: LibraryListKey) -> &'static str {
     match value {
-        LibraryListKey::Queue => msgid("Queue"),
-        LibraryListKey::FullscreenTracks => msgid("Fullscreen player"),
-        LibraryListKey::Albums => msgid("Albums"),
-        LibraryListKey::Artists => msgid("Artists"),
-        LibraryListKey::AlbumArtists => msgid("Album artists"),
-        LibraryListKey::Tracks => msgid("Tracks"),
-        LibraryListKey::Folders => msgid("Folders"),
-        LibraryListKey::FavoriteTracks => msgid("Favorites"),
-        LibraryListKey::History => msgid("History"),
-        LibraryListKey::Genres => msgid("Genres"),
-        LibraryListKey::Moods => msgid("Moods"),
-        LibraryListKey::Playlists => msgid("Playlists"),
-        LibraryListKey::SmartPlaylists => msgid("Smart playlists"),
-        LibraryListKey::AlbumDetailTracks => msgid("Album tracks"),
-        LibraryListKey::ArtistAlbums => msgid("Artist albums"),
-        LibraryListKey::ArtistTracks => msgid("Artist tracks"),
-        LibraryListKey::GenreTracks => msgid("Genre tracks"),
-        LibraryListKey::MoodTracks => msgid("Mood tracks"),
-        LibraryListKey::PlaylistTracks => msgid("Playlist tracks"),
-        LibraryListKey::SmartPlaylistTracks => msgid("Smart playlist tracks"),
+        LibraryListKey::Queue => "Queue",
+        LibraryListKey::FullscreenTracks => "Fullscreen player",
+        LibraryListKey::Albums => "Albums",
+        LibraryListKey::Artists => "Artists",
+        LibraryListKey::AlbumArtists => "Album artists",
+        LibraryListKey::Tracks => "Tracks",
+        LibraryListKey::Folders => "Folders",
+        LibraryListKey::FavoriteTracks => "Favorites",
+        LibraryListKey::History => "History",
+        LibraryListKey::Genres => "Genres",
+        LibraryListKey::Moods => "Moods",
+        LibraryListKey::Playlists => "Playlists",
+        LibraryListKey::SmartPlaylists => "Smart playlists",
+        LibraryListKey::AlbumDetailTracks => "Album tracks",
+        LibraryListKey::ArtistAlbums => "Artist albums",
+        LibraryListKey::ArtistTracks => "Artist tracks",
+        LibraryListKey::GenreTracks => "Genre tracks",
+        LibraryListKey::MoodTracks => "Mood tracks",
+        LibraryListKey::PlaylistTracks => "Playlist tracks",
+        LibraryListKey::SmartPlaylistTracks => "Smart playlist tracks",
     }
 }
 
 pub fn library_field_title(value: LibraryField) -> &'static str {
     match value {
         LibraryField::RowIndex => "#",
-        LibraryField::Image => msgid("Image"),
-        LibraryField::Title => msgid("Title"),
-        LibraryField::TitleMerged => msgid("Title (merged)"),
-        LibraryField::Artist => msgid("Artist"),
-        LibraryField::AlbumArtist => msgid("Album artist"),
-        LibraryField::Album => msgid("Album"),
-        LibraryField::Year => msgid("Year"),
-        LibraryField::ReleaseDate => msgid("Release date"),
-        LibraryField::DateAdded => msgid("Date added"),
-        LibraryField::LastPlayed => msgid("Last played"),
-        LibraryField::PlayCount => msgid("Plays"),
-        LibraryField::UserRating => msgid("Rating"),
-        LibraryField::Genre => msgid("Genre"),
-        LibraryField::Bpm => msgid("BPM"),
-        LibraryField::Bitrate => msgid("Bitrate"),
-        LibraryField::SampleRate => msgid("Sample rate"),
-        LibraryField::BitDepth => msgid("Bit depth"),
-        LibraryField::Channels => msgid("Channels"),
-        LibraryField::Format => msgid("Format"),
-        LibraryField::FilePath => msgid("File path"),
-        LibraryField::Source => msgid("Source"),
-        LibraryField::TrackNumber => msgid("Track"),
-        LibraryField::DiscNumber => msgid("Disc"),
-        LibraryField::SongCount => msgid("Number of songs"),
-        LibraryField::AlbumCount => msgid("Albums"),
-        LibraryField::Duration => msgid("Duration"),
-        LibraryField::Favorite => msgid("Favorite"),
-        LibraryField::Tools => msgid("Tools"),
+        LibraryField::Image => "Image",
+        LibraryField::Title => "Title",
+        LibraryField::TitleMerged => "Title (merged)",
+        LibraryField::Artist => "Artist",
+        LibraryField::AlbumArtist => "Album artist",
+        LibraryField::Album => "Album",
+        LibraryField::Year => "Year",
+        LibraryField::ReleaseDate => "Release date",
+        LibraryField::DateAdded => "Date added",
+        LibraryField::LastPlayed => "Last played",
+        LibraryField::PlayCount => "Plays",
+        LibraryField::UserRating => "Rating",
+        LibraryField::Genre => "Genre",
+        LibraryField::Bpm => "BPM",
+        LibraryField::Bitrate => "Bitrate",
+        LibraryField::SampleRate => "Sample rate",
+        LibraryField::BitDepth => "Bit depth",
+        LibraryField::Channels => "Channels",
+        LibraryField::Format => "Format",
+        LibraryField::FilePath => "File path",
+        LibraryField::Source => "Source",
+        LibraryField::TrackNumber => "Track",
+        LibraryField::DiscNumber => "Disc",
+        LibraryField::SongCount => "Number of songs",
+        LibraryField::AlbumCount => "Albums",
+        LibraryField::Duration => "Duration",
+        LibraryField::Favorite => "Favorite",
+        LibraryField::Tools => "Tools",
     }
 }
 

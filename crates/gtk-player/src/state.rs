@@ -7,7 +7,6 @@ use playback::{CurrentMediaId, PlaybackView, RemoteOutput};
 
 use gtk_widgets::detail_links::{DetailLinks, track_artist_links};
 use gtk_widgets::route::Route;
-use localization::tr;
 use rufin_core::settings::presentation::now_playing_labels;
 
 #[derive(Default)]
@@ -37,10 +36,10 @@ impl NowPlayingPresentation {
         let current = player.and_then(|player| player.transport.current.as_ref());
         let title = current
             .map(|entry| entry.row.track.metadata.title.clone())
-            .unwrap_or_else(|| tr("Nothing playing"));
+            .unwrap_or_else(|| "Nothing playing".to_string());
         let artist = current
             .map(|entry| entry.row.track.metadata.artist.clone())
-            .unwrap_or_else(|| tr("Queue a track to begin"));
+            .unwrap_or_else(|| "Queue a track to begin".to_string());
         let album = current
             .map(|entry| entry.row.track.metadata.album.clone())
             .unwrap_or_default();

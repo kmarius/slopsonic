@@ -1,6 +1,5 @@
 use ::library::AlbumView;
 
-use localization::msgid;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AlbumReleaseKind {
@@ -54,11 +53,11 @@ pub fn album_release_kind_label(album: &AlbumView) -> &'static str {
 impl AlbumReleaseKind {
     fn detail_label(self) -> &'static str {
         match self {
-            AlbumReleaseKind::Album => msgid("Album"),
-            AlbumReleaseKind::Ep => msgid("EP"),
-            AlbumReleaseKind::Single => msgid("Single"),
-            AlbumReleaseKind::Collection => msgid("Collection"),
-            AlbumReleaseKind::Other => msgid("Release"),
+            AlbumReleaseKind::Album => "Album",
+            AlbumReleaseKind::Ep => "EP",
+            AlbumReleaseKind::Single => "Single",
+            AlbumReleaseKind::Collection => "Collection",
+            AlbumReleaseKind::Other => "Release",
         }
     }
 }

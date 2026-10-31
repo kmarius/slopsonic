@@ -13,7 +13,7 @@ use gtk_widgets::{
         install_value_bubble_dismissal, point_value_bubble_at_slider,
     },
 };
-use localization::{msgid, tr, tr_with};
+use rufin_core::text::{fill};
 use playback::{
     CurrentMediaId, PlaybackOutput, PlaybackView, RemoteOutput, RemoteOutputProtocol, RepeatMode,
     TransportStatus,
@@ -200,7 +200,7 @@ impl WaveformSeekBar {
         area.set_width_request(BOTTOM_PLAYER_PROGRESS_WIDTH);
         area.set_focusable(true);
         area.set_valign(gtk::Align::Center);
-        let seek_label = localization::tr(msgid("Seek playback"));
+        let seek_label = "Seek playback".to_string();
         area.update_property(&[
             gtk::accessible::Property::Label(&seek_label),
             gtk::accessible::Property::ValueMin(0.0),
@@ -586,7 +586,7 @@ pub fn build_now_playing_controls(builder: &gtk::Builder, resource: &str) -> Now
     let cover = ArtworkTile::new(BOTTOM_PLAYER_COVER_SIZE);
     cover.area.set_valign(gtk::Align::Center);
     cover.area.set_cursor_from_name(Some("pointer"));
-    let cover_label = tr("Open fullscreen player");
+    let cover_label = "Open fullscreen player".to_string();
     cover.area.set_tooltip_text(Some(&cover_label));
     cover
         .area
@@ -822,7 +822,7 @@ pub fn build_player_action_controls(
     root.add_overlay(rating.widget());
     root.set_measure_overlay(rating.widget(), false);
 
-    bind_widget_accessible_label(&output_button, msgid("Choose playback output"));
+    bind_widget_accessible_label(&output_button, "Choose playback output");
     bind_widget_tooltip(&settings_button, "Settings");
     bind_widget_accessible_label(&settings_button, "Settings");
     volume_group.set_spacing(BOTTOM_PLAYER_VOLUME_SPACING);
@@ -1136,7 +1136,7 @@ impl crate::PlayerUi {
         set_active_class(&controls.repeat_button, repeat_mode != RepeatMode::Off);
         set_repeat_button_icon(&controls.repeat_button, repeat_mode);
         set_active_class(&controls.dj_button, auto_dj_enabled);
-        controls.dj_button.set_tooltip_text(Some(&tr("Auto DJ")));
+        controls.dj_button.set_tooltip_text(Some(&"Auto DJ".to_string()));
         controls
             .repeat_button
             .set_tooltip_text(Some(&repeat_label(repeat_mode)));
@@ -1343,25 +1343,25 @@ fn should_clear_seek_preview(
 
 fn playback_state_label(state: TransportStatus) -> String {
     match state {
-        TransportStatus::Stopped | TransportStatus::Failed => tr("Play"),
-        TransportStatus::Paused => tr("Resume"),
+        TransportStatus::Stopped | TransportStatus::Failed => "Play".to_string(),
+        TransportStatus::Paused => "Resume".to_string(),
         TransportStatus::Resolving | TransportStatus::Buffering | TransportStatus::Playing => {
-            tr("Pause")
+            "Pause".to_string()
         }
     }
 }
 
 fn repeat_label(repeat_mode: RepeatMode) -> String {
     match repeat_mode {
-        RepeatMode::Off => tr("Repeat off"),
-        RepeatMode::One => tr("Repeat one"),
-        RepeatMode::All => tr("Repeat all"),
+        RepeatMode::Off => "Repeat off".to_string(),
+        RepeatMode::One => "Repeat one".to_string(),
+        RepeatMode::All => "Repeat all".to_string(),
     }
 }
 
 fn playback_output_label(output: &PlaybackOutput) -> String {
     match output {
-        PlaybackOutput::Local => tr("This device"),
+        PlaybackOutput::Local => "This device".to_string(),
         PlaybackOutput::Remote(output) => output.name.clone(),
     }
 }
@@ -1427,7 +1427,7 @@ impl OutputPopoverStatus {
         self.label.remove_css_class("error");
         if empty {
             self.root.set_visible(true);
-            self.label.set_text(&tr("No network devices found"));
+            self.label.set_text(&"No network devices found".to_string());
         } else {
             self.root.set_visible(false);
         }
@@ -1451,13 +1451,13 @@ pub fn present_output_popover(anchor: &gtk::Button, shell: &Rc<crate::PlayerUi>)
     content.set_width_request(300);
 
     let outputs = adw::PreferencesGroup::new();
-    outputs.set_title(&tr("Casting"));
+    outputs.set_title(&"Casting".to_string());
     let searching = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     searching.set_margin_start(8);
     let spinner = gtk::Spinner::new();
     spinner.start();
     searching.append(&spinner);
-    let searching_label = gtk::Label::new(Some(&tr("Searching for devices...")));
+    let searching_label = gtk::Label::new(Some(&"Searching for devices...".to_string()));
     searching_label.add_css_class("caption");
     searching_label.add_css_class("dim-label");
     searching.append(&searching_label);
@@ -1574,10 +1574,10 @@ fn add_output_row(
         PlaybackOutput::Remote(remote) => {
             let name = glib::markup_escape_text(&remote.name);
             let protocol = glib::markup_escape_text(&match remote.protocol {
-                RemoteOutputProtocol::Upnp => tr("UPnP"),
-                RemoteOutputProtocol::GoogleCast => tr("Google Cast"),
+                RemoteOutputProtocol::Upnp => "UPnP".to_string(),
+                RemoteOutputProtocol::GoogleCast => "Google Cast".to_string(),
                 RemoteOutputProtocol::PlexCompanion => "Plex Companion".into(),
-                RemoteOutputProtocol::RufinConnect => tr("Rufin Connect"),
+                RemoteOutputProtocol::RufinConnect => "Rufin Connect".to_string(),
             });
             format!("{name}  <span size=\"small\" alpha=\"55%\">{protocol}</span>").into()
         }
@@ -1638,7 +1638,7 @@ fn select_output_async(
     status.spinner.start();
     status.label.remove_css_class("error");
     let device = playback_output_label(&output);
-    status.label.set_text(&tr_with(
+    status.label.set_text(&fill(
         "Connecting to {device}...",
         &[("device", device.as_str())],
     ));
@@ -1672,7 +1672,7 @@ fn select_output_async(
             }
             if let Some(label) = status_label.upgrade() {
                 label.add_css_class("error");
-                label.set_text(&tr("Connection failed"));
+                label.set_text(&"Connection failed".to_string());
             }
         }
     };
@@ -1702,9 +1702,9 @@ fn select_output_async(
                     .output_button
                     .set_tooltip_text(Some(&playback_output_label(&output)));
                 let message = match &output {
-                    PlaybackOutput::Local => tr("Playing on this device"),
+                    PlaybackOutput::Local => "Playing on this device".to_string(),
                     PlaybackOutput::Remote(output) => {
-                        tr_with("Playing on {device}", &[("device", output.name.as_str())])
+                        fill("Playing on {device}", &[("device", output.name.as_str())])
                     }
                 };
                 shell.control_feedback.show_feedback_toast(message.clone());

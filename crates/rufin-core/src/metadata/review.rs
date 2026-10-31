@@ -1,7 +1,6 @@
 use super::{
     MetadataBatch, MetadataCandidate, MetadataEditor, MetadataMatchKind, MetadataTrackSummary,
 };
-use localization::{msgid, tr};
 use metadata_lookup::{CacheMode, LookupCache};
 use sources::{SourceEntityKind, SourceMetadataError as Error};
 use std::sync::{Arc, Mutex};
@@ -165,7 +164,7 @@ impl MetadataLookupReview {
         }
         let count = self.progress().total;
         let mut pending = Vec::new();
-        self.report(0, &tr(msgid("Loading cached lookups...")));
+        self.report(0, &"Loading cached lookups...".to_string());
         for start in (0..count).step_by(512) {
             if self.cancelled.is_cancelled() {
                 break;
@@ -496,7 +495,7 @@ impl MetadataLookupReview {
         report: LookupProgress,
         mode: CacheMode,
     ) -> Result<Discovery, Error> {
-        report(&tr(msgid("Reading tags...")));
+        report(&"Reading tags...".to_string());
         let mut editor = self.editor(index, false).await?;
         if mode != CacheMode::Refresh
             && query.is_empty()
@@ -521,7 +520,7 @@ impl MetadataLookupReview {
             }
         }
         if candidates.is_empty() {
-            report(&tr(msgid("Searching MusicBrainz...")));
+            report(&"Searching MusicBrainz...".to_string());
             let Some(found) = self
                 .search_candidates(&editor, query.clone(), cache.clone())
                 .await?
@@ -578,7 +577,7 @@ impl MetadataLookupReview {
                 })
         };
         let resolved = if let Some(chosen) = chosen {
-            report(&tr(msgid("Fetching metadata...")));
+            report(&"Fetching metadata...".to_string());
             match self
                 .resolve_candidate(&editor, chosen.clone(), cache.clone())
                 .await
@@ -686,7 +685,7 @@ impl MetadataLookupReview {
         for (index, row) in rows.into_iter().take(count).enumerate() {
             let outer = report.clone();
             let progress: LookupProgress = Arc::new(move |stage| {
-                outer(&localization::tr_with(
+                outer(&crate::text::fill(
                     "{stage} ({count} of {total} tracks)",
                     &[
                         ("stage", stage),
@@ -784,7 +783,7 @@ impl MetadataLookupReview {
                 },
             )
             .map(Some)
-            .ok_or_else(|| Error::InvalidInput(tr(msgid("No matching track in this release"))))
+            .ok_or_else(|| Error::InvalidInput("No matching track in this release".to_string()))
     }
 }
 
@@ -795,9 +794,9 @@ fn title_values(state: &super::editor::Editing) -> String {
 pub(super) fn lookup_status(state: &super::editor::Editing) -> String {
     match &state.lookup_candidates {
         None => String::new(),
-        Some(_) if state.lookup_choice.is_some() => localization::tr("Matched"),
-        Some(candidates) if candidates.is_empty() => localization::tr("No results"),
-        Some(_) => localization::tr("Needs review"),
+        Some(_) if state.lookup_choice.is_some() => "Matched".to_string(),
+        Some(candidates) if candidates.is_empty() => "No results".to_string(),
+        Some(_) => "Needs review".to_string(),
     }
 }
 

@@ -1,6 +1,6 @@
 use adw::prelude::*;
 use gtk::glib;
-use localization::{tr, trn_with};
+use rufin_core::text::{fill_plural};
 use rufin_core::runtime::source::{LocalAccessStatus, SourceHandle, SourceLocalAccess};
 use sources::SourceId;
 use std::{
@@ -144,7 +144,7 @@ impl LocalAccessEditor {
             let update = Rc::downgrade(&update);
             glib::spawn_future_local(async move {
                 let dialog = gtk::FileDialog::builder()
-                    .title(tr("Select Music Folder"))
+                    .title("Select Music Folder".to_string())
                     .build();
                 if let Some(folder) = selected_folder.as_ref() {
                     dialog.set_initial_folder(Some(folder));
@@ -323,7 +323,7 @@ pub fn mount_metadata_local_access_mapping(
             status.set_text(&view.message);
             status.set_visible(!view.message.is_empty());
             sample_row.set_subtitle(
-                &sample_source_path.unwrap_or_else(|| tr("No cached server path yet")),
+                &sample_source_path.unwrap_or_else(|| "No cached server path yet".to_string()),
             );
             preview_row.set_subtitle(&preview_local_path_text(
                 editor.sample_source_path().as_deref(),
@@ -397,7 +397,7 @@ fn local_access_recovery_view(
     let pending = matches!(operation, LocalAccessOperation::Pending);
     let message = match operation {
         LocalAccessOperation::Failed(error) => error.clone(),
-        _ if !has_location => tr("Choose a local music folder"),
+        _ if !has_location => "Choose a local music folder".to_string(),
         _ => String::new(),
     };
     LocalAccessRecoveryView {
@@ -417,12 +417,12 @@ pub fn preview_local_path_text(
         .map(str::trim)
         .filter(|path| !path.is_empty())
     else {
-        return tr("No cached server path yet");
+        return "No cached server path yet".to_string();
     };
     let server_prefix = server_prefix.trim();
     let local_prefix = local_prefix.trim();
     let Some(folder) = folder else {
-        return tr("Choose a local music folder");
+        return "Choose a local music folder".to_string();
     };
     let projected = sources::project_local_access_path(
         folder,
@@ -435,7 +435,7 @@ pub fn preview_local_path_text(
         return projected
             .as_deref()
             .map(desktop_integration::display_path)
-            .unwrap_or_else(|| tr("Server prefix doesn't match"));
+            .unwrap_or_else(|| "Server prefix doesn't match".to_string());
     }
 
     let sample_path = Path::new(sample);
@@ -446,7 +446,7 @@ pub fn preview_local_path_text(
     if sample_path.starts_with(folder) {
         return desktop_integration::display_path(sample_path);
     }
-    tr("Add a matching server prefix")
+    "Add a matching server prefix".to_string()
 }
 
 pub fn local_access_status_text(
@@ -455,19 +455,19 @@ pub fn local_access_status_text(
     status: &LocalAccessStatus,
 ) -> String {
     if draft.folder.is_none() {
-        return tr("Choose a local music folder");
+        return "Choose a local music folder".to_string();
     }
     if changed {
-        return tr("Reload to apply changes");
+        return "Reload to apply changes".to_string();
     }
     if status.total_track_count == 0 {
-        return tr("Saved");
+        return "Saved".to_string();
     }
 
     let total = status.total_track_count.to_string();
     let matched = status.matched_track_count.to_string();
     let args = [("matched", matched.as_str()), ("total", total.as_str())];
-    trn_with(
+    fill_plural(
         "Saved mapping. {matched} of {total} server path matches",
         "Saved mapping. {matched} of {total} server paths match",
         status.total_track_count as u64,

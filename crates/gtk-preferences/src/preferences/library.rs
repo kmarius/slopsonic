@@ -7,7 +7,7 @@ use adw::prelude::*;
 use downloads::{DownloadQueueState, DownloadRule};
 use gtk::gio;
 
-use localization::{msgid, tr, trn_with};
+use rufin_core::text::{fill_plural};
 
 use super::{
     PreferencesNavigationControls,
@@ -15,12 +15,12 @@ use super::{
 };
 use crate::Preferences;
 use gtk_widgets::source_labels::{configured_source_display_name, configured_source_icon_name};
-use localization::{album_count_text, track_count_text};
+use rufin_core::text::{album_count_text, track_count_text};
 use rufin_core::runtime::source::{LocalAccessStatus, SourceLocalAccessSummary, SourceSummary};
 
 const SERVER_PROVIDER_ICON_SIZE: i32 = 28;
 const DOWNLOAD_JOB_DRAG_PREFIX: &str = "rufin-download-job:";
-const DEFAULT_DOWNLOAD_DIRECTORY_SUBTITLE: &str = msgid("Default");
+const DEFAULT_DOWNLOAD_DIRECTORY_SUBTITLE: &str = "Default";
 
 pub(super) fn library_page(
     shell: &Rc<Preferences>,
@@ -31,7 +31,7 @@ pub(super) fn library_page(
     navigation_controls.set_navigation(&navigation);
     navigation_controls.set_nested_page_visible(false);
     let page = library_sources_page(shell, dialog, &navigation, navigation_controls);
-    let root = adw::NavigationPage::new(&page, &tr("Library"));
+    let root = adw::NavigationPage::new(&page, &"Library".to_string());
     navigation.push(&root);
     let shell_for_pop = Rc::clone(shell);
     navigation.connect_popped(move |_, _| {
@@ -166,7 +166,7 @@ fn library_sources_page(
     }
 
     if local_source.is_some() || !configured.local_folders.is_empty() {
-        let mut subtitle = localization::tr_with(
+        let mut subtitle = rufin_core::text::fill(
             "Configured items: {count}",
             &[("count", &configured.local_folders.len().to_string())],
         );
@@ -327,7 +327,7 @@ fn source_downloads_group(
                     .map(desktop_integration::display_path)
                     .unwrap_or_else(|| directory.to_string())
             })
-            .unwrap_or_else(|| tr(DEFAULT_DOWNLOAD_DIRECTORY_SUBTITLE)),
+            .unwrap_or_else(|| String::from(DEFAULT_DOWNLOAD_DIRECTORY_SUBTITLE)),
     );
     reset_folder.set_visible(download_settings.directory.is_some());
     let weak = Rc::downgrade(shell);
@@ -353,7 +353,7 @@ fn source_downloads_group(
         let reset = choose_reset.clone();
         gtk::glib::spawn_future_local(async move {
             let chooser = gtk::FileDialog::builder()
-                .title(tr("Select Download Folder"))
+                .title("Select Download Folder".to_string())
                 .build();
             let initial_directory = shell
                 .settings
@@ -401,7 +401,7 @@ fn source_downloads_group(
             .is_some()
         {
             if let Some(row) = reset_row.upgrade() {
-                row.set_subtitle(&tr(DEFAULT_DOWNLOAD_DIRECTORY_SUBTITLE));
+                row.set_subtitle(&String::from(DEFAULT_DOWNLOAD_DIRECTORY_SUBTITLE));
             }
             reset_button.set_visible(false);
         }
@@ -497,7 +497,7 @@ pub fn local_sources_page(shell: &Rc<Preferences>, dialog: &adw::Dialog) -> adw:
                 .build();
             row.add_prefix(&gtk::Image::from_icon_name("rufin-library-music-symbolic"));
             let remove = gtk::Button::from_icon_name("rufin-window-close-symbolic");
-            remove.set_tooltip_text(Some(&tr("Remove")));
+            remove.set_tooltip_text(Some(&"Remove".to_string()));
             remove.add_css_class("flat");
             remove.add_css_class("destructive-action");
             remove.set_valign(gtk::Align::Center);
@@ -525,7 +525,7 @@ pub fn local_sources_page(shell: &Rc<Preferences>, dialog: &adw::Dialog) -> adw:
         let shell = Rc::clone(&add_shell);
         gtk::glib::spawn_future_local(async move {
             let chooser = gtk::FileDialog::builder()
-                .title(tr("Select Music Folder"))
+                .title("Select Music Folder".to_string())
                 .build();
             let Ok(folder) = chooser.select_folder_future(Some(&shell.window)).await else {
                 return;
@@ -668,8 +668,8 @@ fn add_download_rules(
     let mut rows = Vec::new();
     for rule in DownloadRule::ALL {
         let row = adw::ActionRow::builder()
-            .title(tr(download_rule_title(rule)))
-            .subtitle(tr(download_rule_subtitle(rule)))
+            .title(String::from(download_rule_title(rule)))
+            .subtitle(String::from(download_rule_subtitle(rule)))
             .build();
         row.set_visible(rules.contains(rule));
         let artwork = gtk_widgets::downloads::download_rule_artwork(
@@ -687,14 +687,14 @@ fn add_download_rules(
         more.set_icon_name("rufin-view-more-symbolic");
         more.add_css_class("flat");
         more.set_valign(gtk::Align::Center);
-        more.set_tooltip_text(Some(&tr("Rule actions")));
+        more.set_tooltip_text(Some(&"Rule actions".to_string()));
         let menu = gio::Menu::new();
         menu.append(
-            Some(&tr("Remove Rule, Keep Downloads")),
+            Some(&"Remove Rule, Keep Downloads".to_string()),
             Some("download-rule.remove"),
         );
         menu.append(
-            Some(&tr("Remove Rule and Delete Downloads")),
+            Some(&"Remove Rule and Delete Downloads".to_string()),
             Some("download-rule.delete"),
         );
         let popover = gtk::PopoverMenu::from_model(Some(&menu));
@@ -740,7 +740,7 @@ fn add_download_rules(
     for (rule, row) in rows {
         let action_name = download_rule_action_name(rule);
         menu.append(
-            Some(&tr(download_rule_title(rule))),
+            Some(&String::from(download_rule_title(rule))),
             Some(&format!("download-rules.{action_name}")),
         );
         let action = gio::SimpleAction::new(action_name, None);
@@ -779,7 +779,7 @@ fn add_download_rules(
     add.add_css_class("flat");
     add.set_halign(gtk::Align::Fill);
     add.set_hexpand(true);
-    add.set_tooltip_text(Some(&tr("New download rule")));
+    add.set_tooltip_text(Some(&"New download rule".to_string()));
     add.insert_action_group("download-rules", Some(&actions));
     add.set_popover(Some(&gtk::PopoverMenu::from_model(Some(&menu))));
     add
@@ -817,13 +817,11 @@ fn confirm_remove_download_rule(
     row: adw::ActionRow,
 ) {
     let dialog = adw::AlertDialog::builder()
-        .heading(tr("Remove Rule and Downloads"))
-        .body(tr(
-            "Only downloads from this rule will be deleted. Shared and manual downloads stay",
-        ))
+        .heading("Remove Rule and Downloads".to_string())
+        .body("Only downloads from this rule will be deleted. Shared and manual downloads stay".to_string())
         .build();
-    dialog.add_response("cancel", &tr("Cancel"));
-    dialog.add_response("remove", &tr("Remove and Delete"));
+    dialog.add_response("cancel", &"Cancel".to_string());
+    dialog.add_response("remove", &"Remove and Delete".to_string());
     dialog.set_default_response(Some("cancel"));
     dialog.set_close_response("cancel");
     dialog.set_response_appearance("remove", adw::ResponseAppearance::Destructive);
@@ -841,21 +839,21 @@ fn confirm_remove_download_rule(
 
 pub(super) fn download_rule_title(rule: DownloadRule) -> &'static str {
     match rule {
-        DownloadRule::EntireLibrary => msgid("Entire Library"),
-        DownloadRule::Favorites => msgid("Favorites"),
-        DownloadRule::AllPlaylists => msgid("All Playlists"),
-        DownloadRule::LatestFiveAlbums => msgid("5 Latest Albums"),
+        DownloadRule::EntireLibrary => "Entire Library",
+        DownloadRule::Favorites => "Favorites",
+        DownloadRule::AllPlaylists => "All Playlists",
+        DownloadRule::LatestFiveAlbums => "5 Latest Albums",
     }
 }
 
 pub(super) fn download_rule_subtitle(rule: DownloadRule) -> &'static str {
     match rule {
-        DownloadRule::EntireLibrary => msgid("Everything, including new tracks"),
+        DownloadRule::EntireLibrary => "Everything, including new tracks",
         DownloadRule::Favorites => {
-            msgid("Favorite tracks, plus tracks from favorite albums and artists")
+            "Favorite tracks, plus tracks from favorite albums and artists"
         }
-        DownloadRule::AllPlaylists => msgid("Tracks from every playlist"),
-        DownloadRule::LatestFiveAlbums => msgid("Tracks from your five latest albums"),
+        DownloadRule::AllPlaylists => "Tracks from every playlist",
+        DownloadRule::LatestFiveAlbums => "Tracks from your five latest albums",
     }
 }
 
@@ -1105,9 +1103,9 @@ fn add_download_queue(
             .map_or(0, |queue| queue.total_jobs as usize);
         pause.set_visible(count > 0);
         let (icon, label) = if state.paused {
-            ("rufin-media-playback-start-symbolic", tr("Continue"))
+            ("rufin-media-playback-start-symbolic", "Continue".to_string())
         } else {
-            ("rufin-media-playback-pause-symbolic", tr("Pause"))
+            ("rufin-media-playback-pause-symbolic", "Pause".to_string())
         };
         pause.set_icon_name(icon);
         pause.set_tooltip_text(Some(&label));
@@ -1164,10 +1162,10 @@ fn download_queue_item_subtitle(job: &downloads::DownloadQueueItem) -> String {
         job.total_tracks
     );
     let state = match job.state {
-        DownloadQueueState::Queued => tr("Queued"),
-        DownloadQueueState::Downloading => tr("Downloading"),
-        DownloadQueueState::WaitingForConnection => tr("Waiting for connection"),
-        DownloadQueueState::NeedsAttention => tr("Needs attention"),
+        DownloadQueueState::Queued => "Queued".to_string(),
+        DownloadQueueState::Downloading => "Downloading".to_string(),
+        DownloadQueueState::WaitingForConnection => "Waiting for connection".to_string(),
+        DownloadQueueState::NeedsAttention => "Needs attention".to_string(),
     };
     let quality = crate::download_quality::label(job.quality);
     format!("{state} · {progress} · {quality}")
@@ -1179,13 +1177,11 @@ fn confirm_remove_all_downloads(
     source_id: sources::SourceId,
 ) {
     let dialog = adw::AlertDialog::builder()
-        .heading(tr("Remove All Downloads"))
-        .body(tr(
-            "Downloads from this source will be removed, and automatic rules will be turned off",
-        ))
+        .heading("Remove All Downloads".to_string())
+        .body("Downloads from this source will be removed, and automatic rules will be turned off".to_string())
         .build();
-    dialog.add_response("cancel", &tr("Cancel"));
-    dialog.add_response("remove", &tr("Remove"));
+    dialog.add_response("cancel", &"Cancel".to_string());
+    dialog.add_response("remove", &"Remove".to_string());
     dialog.set_default_response(Some("cancel"));
     dialog.set_close_response("cancel");
     dialog.set_response_appearance("remove", adw::ResponseAppearance::Destructive);
@@ -1220,11 +1216,11 @@ fn confirm_remove_all_downloads(
 
 fn confirm_remove_local_folder(shell: &Rc<Preferences>, path: String, row: adw::ActionRow) {
     let dialog = adw::AlertDialog::builder()
-        .heading(tr("Remove"))
+        .heading("Remove".to_string())
         .body(path.clone())
         .build();
-    let cancel = tr("Cancel");
-    let remove = tr("Remove");
+    let cancel = "Cancel".to_string();
+    let remove = "Remove".to_string();
     dialog.add_responses(&[("cancel", cancel.as_str()), ("remove", remove.as_str())]);
     dialog.set_default_response(Some("cancel"));
     dialog.set_close_response("cancel");
@@ -1246,7 +1242,7 @@ pub fn locate_local_folder(shell: &Rc<Preferences>, current: String) {
     let shell = Rc::clone(shell);
     gtk::glib::spawn_future_local(async move {
         let chooser = gtk::FileDialog::builder()
-            .title(tr("Select Music Folder"))
+            .title("Select Music Folder".to_string())
             .build();
         let Ok(folder) = chooser.select_folder_future(Some(&shell.window)).await else {
             return;
@@ -1275,15 +1271,15 @@ fn source_summary_subtitle(
     let folder = summary
         .and_then(|summary| summary.selected_music_folder_name.as_deref())
         .map(ToOwned::to_owned)
-        .unwrap_or_else(|| tr("All Music"));
+        .unwrap_or_else(|| "All Music".to_string());
     let mapping = local_mapping_status(summary, status);
     let account = username
         .filter(|username| !username.trim().is_empty())
-        .map(|username| format!("{}: {}", tr("User"), username))
+        .map(|username| format!("{}: {}", "User".to_string(), username))
         .unwrap_or_default();
     let cache = summary.map(source_cache_line).unwrap_or_default();
     let provider_line = metadata_line([configured_source_kind_display_name(&server.kind), address]);
-    let folder_line = metadata_line([account, format!("{}: {}", tr("Music Folder"), folder)]);
+    let folder_line = metadata_line([account, format!("{}: {}", "Music Folder".to_string(), folder)]);
     let cache_line = metadata_line([cache, mapping]);
     [provider_line, folder_line, cache_line]
         .into_iter()
@@ -1303,7 +1299,7 @@ fn metadata_line(parts: impl IntoIterator<Item = String>) -> String {
 fn source_cache_line(summary: &SourceLocalAccessSummary) -> String {
     format!(
         "{}: {}, {}",
-        tr("Cached"),
+        "Cached".to_string(),
         album_count_text(summary.album_count as u64),
         track_count_text(summary.track_count as u64)
     )
@@ -1314,20 +1310,20 @@ fn local_mapping_status(
     status: Option<&LocalAccessStatus>,
 ) -> String {
     let Some(summary) = summary else {
-        return tr("No local file mapping");
+        return "No local file mapping".to_string();
     };
     if summary.access.is_none() {
-        return tr("No local file mapping");
+        return "No local file mapping".to_string();
     }
     let Some(status) = status else {
-        return tr("Local playback saved");
+        return "Local playback saved".to_string();
     };
     if status.total_track_count == 0 {
-        return tr("Local playback saved");
+        return "Local playback saved".to_string();
     }
     let matched = status.matched_track_count.to_string();
     let total = status.total_track_count.to_string();
-    trn_with(
+    fill_plural(
         "Local file mapping: {matched} of {total} server path matches",
         "Local file mapping: {matched} of {total} server paths match",
         status.total_track_count as u64,

@@ -10,24 +10,23 @@ use audio_processing::effects::{
 };
 use gtk::glib;
 use gtk::subclass::prelude::*;
-use localization::tr;
 use rufin_core::playback::PlaybackOwner;
 use rufin_core::{EqCastFormat, EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView};
 
 pub fn equalizer_preset_title(name: &str) -> String {
     match name {
-        "Custom" => tr("Custom"),
-        "Flat" => tr("Flat"),
-        "Classical" => tr("Classical"),
-        "Club" => tr("Club"),
-        "Dance" => tr("Dance"),
-        "Full Bass" => tr("Full Bass"),
-        "Full Treble" => tr("Full Treble"),
-        "Full Bass & Treble" => tr("Full Bass & Treble"),
-        "Laptop/Headphones" => tr("Laptop/Headphones"),
-        "Rock" => tr("Rock"),
-        "Pop" => tr("Pop"),
-        "Techno" => tr("Techno"),
+        "Custom" => "Custom".to_string(),
+        "Flat" => "Flat".to_string(),
+        "Classical" => "Classical".to_string(),
+        "Club" => "Club".to_string(),
+        "Dance" => "Dance".to_string(),
+        "Full Bass" => "Full Bass".to_string(),
+        "Full Treble" => "Full Treble".to_string(),
+        "Full Bass & Treble" => "Full Bass & Treble".to_string(),
+        "Laptop/Headphones" => "Laptop/Headphones".to_string(),
+        "Rock" => "Rock".to_string(),
+        "Pop" => "Pop".to_string(),
+        "Techno" => "Techno".to_string(),
         _ => name.to_owned(),
     }
 }

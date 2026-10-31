@@ -9,7 +9,6 @@ use crate::CatalogUi;
 use crate::{LibraryLayout, LibraryListKey, LibraryListSettings};
 use gtk_widgets::localization::bind_search_placeholder;
 use gtk_widgets::mounted_route::{LatestMountedRouteRead, MountedRoute};
-use localization::msgid;
 
 use super::album_detail::AlbumCollectionModels;
 use super::collections::{
@@ -368,9 +367,9 @@ impl CatalogUi {
             key,
             empty: models.borrow().is_empty(),
             empty_body: if favorites_only {
-                msgid("No favorite albums yet")
+                "No favorite albums yet"
             } else {
-                msgid("Nothing here yet")
+                "Nothing here yet"
             },
             search: search.clone(),
             has_visible_results: {
@@ -543,7 +542,7 @@ impl CatalogUi {
             RootTrackRouteOptions {
                 key: LibraryListKey::Tracks,
                 context: "tracks",
-                empty_body: msgid("Nothing here yet"),
+                empty_body: "Nothing here yet",
             },
             page,
             selected,
@@ -561,7 +560,7 @@ impl CatalogUi {
             RootTrackRouteOptions {
                 key,
                 context: "favorite-tracks",
-                empty_body: msgid("No favorites yet"),
+                empty_body: "No favorites yet",
             },
             page,
             selected,
@@ -605,7 +604,7 @@ impl CatalogUi {
                 search: None,
             },
         );
-        let page = self.track_page_shell(key, msgid("Nothing played yet"), &projection);
+        let page = self.track_page_shell(key, "Nothing played yet", &projection);
         let apply_page = page.clone();
         let apply_projection = projection.clone();
         let read = projection.page_read(self, "History filter", move || {
@@ -652,9 +651,9 @@ impl CatalogUi {
         self.collection_list_route(
             key,
             if captured.favorites_only {
-                msgid("No favorite artists yet")
+                "No favorite artists yet"
             } else {
-                msgid("Nothing here yet")
+                "Nothing here yet"
             },
             initial,
             |row: &library::ArtistView| row.artist_key,
@@ -669,7 +668,7 @@ impl CatalogUi {
     ) -> MountedRoute {
         self.collection_list_route(
             LibraryListKey::Playlists,
-            msgid("No playlists yet"),
+            "No playlists yet",
             page,
             |row: &library::PlaylistListRow| row.key(),
             read,
@@ -683,7 +682,7 @@ impl CatalogUi {
     ) -> MountedRoute {
         self.collection_list_route(
             LibraryListKey::SmartPlaylists,
-            msgid("No smart playlists yet"),
+            "No smart playlists yet",
             page,
             |row: &library::PlaylistListRow| row.key(),
             read,

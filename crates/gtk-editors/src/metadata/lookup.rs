@@ -214,9 +214,9 @@ pub(super) fn present(
         let index = view.current.get() as u64;
         let review = view.review.clone();
         let stage = if candidate.is_some() {
-            localization::tr("Fetching metadata...")
+            "Fetching metadata...".to_string()
         } else {
-            localization::tr("Reading tags...")
+            "Reading tags...".to_string()
         };
         view.start_action(&stage, async move { review.choose(index, candidate).await });
     });
@@ -238,7 +238,7 @@ pub(super) fn present(
             let review = view.review.clone();
             let index = view.current.get() as u64;
             let query = view.query.text().trim().to_string();
-            view.start_action(&localization::tr("Searching MusicBrainz..."), async move {
+            view.start_action(&"Searching MusicBrainz...".to_string(), async move {
                 review.refresh(index, query).await
             });
         }
@@ -375,9 +375,9 @@ impl ReviewView {
                 ("cached", &progress.cached.to_string()),
             ];
             if progress.stage.is_empty() {
-                localization::tr_with("{completed} of {total} ({cached} cached)", &values)
+                rufin_core::text::fill("{completed} of {total} ({cached} cached)", &values)
             } else {
-                localization::tr_with("{stage} ({completed} of {total}, {cached} cached)", &values)
+                rufin_core::text::fill("{stage} ({completed} of {total}, {cached} cached)", &values)
             }
         });
         self.progress.set_subtitle(&label);
@@ -418,7 +418,7 @@ impl ReviewView {
         }
         let review = self.review.clone();
         let index = self.current.get() as u64;
-        self.start_action(&localization::tr("Searching MusicBrainz..."), async move {
+        self.start_action(&"Searching MusicBrainz...".to_string(), async move {
             if delayed {
                 gtk::glib::timeout_future(std::time::Duration::from_millis(600)).await;
             }
@@ -500,7 +500,7 @@ impl ReviewView {
         self.message(item.failure.as_deref().unwrap_or(""));
         let finished = self.review.progress().finished;
         if item.failure.is_none() && item.ready && item.candidates.is_empty() {
-            self.message(&localization::tr("No results"));
+            self.message(&"No results".to_string());
         }
         self.query.set_sensitive(item.ready || finished);
         self.matches.set_sensitive(item.ready);

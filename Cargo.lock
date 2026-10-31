@@ -1611,7 +1611,6 @@ dependencies = [
  "glib",
  "ksni",
  "library",
- "localization",
  "metadata-lookup",
  "mpris-server",
  "playback",
@@ -2973,7 +2972,6 @@ dependencies = [
  "gtk4",
  "libadwaita",
  "library",
- "localization",
  "lyrics",
  "rufin-core",
  "sources",
@@ -2992,7 +2990,6 @@ dependencies = [
  "gtk4",
  "libadwaita",
  "library",
- "localization",
  "playback",
  "rufin-core",
  "sources",
@@ -3011,7 +3008,6 @@ dependencies = [
  "gtk4",
  "libadwaita",
  "library",
- "localization",
  "playback",
  "rufin-core",
  "sources",
@@ -3030,7 +3026,6 @@ dependencies = [
  "gtk4",
  "libadwaita",
  "library",
- "localization",
  "lyrics",
  "playback",
  "regex",
@@ -3054,7 +3049,6 @@ dependencies = [
  "gtk4",
  "libadwaita",
  "library",
- "localization",
  "playback",
  "presence",
  "pulldown-cmark",
@@ -3086,7 +3080,6 @@ dependencies = [
  "gtk4",
  "libadwaita",
  "library",
- "localization",
  "lyrics",
  "playback",
  "proptest",
@@ -3112,7 +3105,6 @@ dependencies = [
  "gtk4",
  "libadwaita",
  "library",
- "localization",
  "lyrics",
  "playback",
  "process-memory",
@@ -4283,10 +4275,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
-name = "localization"
-version = "0.16.6"
-
-[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4558,7 +4546,6 @@ version = "0.16.6"
 dependencies = [
  "futures-util",
  "lindera",
- "localization",
  "reqwest 0.13.5",
  "serde",
  "serde_json",
@@ -6515,7 +6502,6 @@ dependencies = [
  "app-identity",
  "desktop-integration",
  "gtk-shell",
- "localization",
  "playback",
  "playback-gstreamer",
  "rufin-controller",
@@ -6529,7 +6515,6 @@ name = "rufin-controller"
 version = "0.16.6"
 dependencies = [
  "app-identity",
- "localization",
  "playback",
  "playback-gstreamer",
  "process-memory",
@@ -6560,7 +6545,6 @@ dependencies = [
  "glib",
  "image",
  "library",
- "localization",
  "lyrics",
  "md-5 0.10.6",
  "metadata-lookup",
@@ -7449,7 +7433,6 @@ dependencies = [
  "image",
  "jxl-image-rs-integration",
  "library",
- "localization",
  "lofty",
  "lyrics",
  "md-5 0.10.6",

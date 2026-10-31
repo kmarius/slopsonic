@@ -160,9 +160,6 @@ pub fn present_lyrics_settings_dialog(
 use std::cell::RefCell;
 
 use adw::prelude::*;
-use localization::{
-    default_language_preference, language_option_index, language_options, msgid, tr,
-};
 
 use gtk_widgets::popup::present_light_dismiss_dialog;
 
@@ -231,11 +228,11 @@ fn build_lyrics_settings(
             return;
         }
         let confirm = adw::AlertDialog::builder()
-            .heading(tr("Save lyrics automatically"))
-            .body(tr(msgid("This will overwrite your lyrics file with what Rufin fetched, it may be a better experience to use a dedicated program or plugin to fetch lyrics instead.")))
+            .heading("Save lyrics automatically".to_string())
+            .body("This will overwrite your lyrics file with what Rufin fetched, it may be a better experience to use a dedicated program or plugin to fetch lyrics instead.".to_string())
             .build();
-        confirm.add_response("cancel", &tr("Cancel"));
-        confirm.add_response("confirm", &tr("Confirm"));
+        confirm.add_response("cancel", &"Cancel".to_string());
+        confirm.add_response("confirm", &"Confirm".to_string());
         confirm.set_default_response(Some("cancel"));
         confirm.set_close_response("cancel");
         let shell = Rc::clone(&automatic_shell);
@@ -301,22 +298,19 @@ fn build_lyrics_settings(
     });
     translations.set_active(settings.prefer_translations);
 
-    let translation_languages = Rc::new(
-        language_options()
-            .into_iter()
-            .filter(|option| option.id != default_language_preference())
-            .collect::<Vec<_>>(),
-    );
+    let translation_languages: Rc<[(&str, &str)]> = Rc::from([("en", "English")]);
     let language_titles = translation_languages
         .iter()
-        .map(|option| option.title.as_str())
+        .map(|(_, title)| *title)
         .collect::<Vec<_>>();
     let language_model = gtk::StringList::new(&language_titles);
     language_row.set_model(Some(&language_model));
-    language_row.set_selected(language_option_index(
-        translation_languages.as_ref(),
-        &settings.preferred_translation_language,
-    ));
+    language_row.set_selected(
+        translation_languages
+            .iter()
+            .position(|(id, _)| *id == settings.preferred_translation_language)
+            .unwrap_or_default() as u32,
+    );
     language_row.set_sensitive(settings.prefer_translations);
     let language_shell = Rc::clone(shell);
     let translation_languages_for_row = Rc::clone(&translation_languages);
@@ -325,7 +319,7 @@ fn build_lyrics_settings(
             return;
         };
         language_shell.set_lyrics_setting("lyrics translation language", false, |settings| {
-            settings.preferred_translation_language = language.id.clone()
+            settings.preferred_translation_language = language.0.to_string()
         });
     });
     let translations_shell = Rc::clone(shell);
@@ -400,7 +394,7 @@ fn build_lyrics_settings(
         );
     });
     let font_families = Rc::new(system_font_families(window));
-    let mut font_titles = vec![tr("Default")];
+    let mut font_titles = vec!["Default".to_string()];
     font_titles.extend(font_families.iter().cloned());
     let font_title_refs = font_titles.iter().map(String::as_str).collect::<Vec<_>>();
     font.set_model(Some(&gtk::StringList::new(&font_title_refs)));
@@ -482,14 +476,14 @@ fn populate_provider_rows(
     for (index, provider) in providers.into_iter().enumerate() {
         let provider_enabled = enabled.contains(&provider);
         let row = adw::ActionRow::builder()
-            .title(tr(provider.title()))
+            .title(String::from(provider.title()))
             .build();
         row.add_css_class("lyrics-provider-order");
         row.set_sensitive(settings.external_lyrics_enabled);
         if provider_enabled {
             let drag = gtk::Image::from_icon_name("rufin-list-drag-handle-symbolic");
             drag.add_css_class("dim-label");
-            drag.set_tooltip_text(Some(&tr("Drag to reorder")));
+            drag.set_tooltip_text(Some(&"Drag to reorder".to_string()));
             row.add_prefix(&drag);
 
             let source = gtk::DragSource::builder()
@@ -531,7 +525,7 @@ fn populate_provider_rows(
             });
             row.add_controller(drop_target);
 
-            let up = small_icon_button("rufin-go-up-symbolic", msgid("Move provider up"));
+            let up = small_icon_button("rufin-go-up-symbolic", "Move provider up");
             up.set_sensitive(index > 0);
             let up_shell = Rc::clone(shell);
             let up_group = group.downgrade();
@@ -546,7 +540,7 @@ fn populate_provider_rows(
                 populate_provider_rows(&up_shell, &group, &up_rows);
             });
             row.add_suffix(&up);
-            let down = small_icon_button("rufin-go-down-symbolic", msgid("Move provider down"));
+            let down = small_icon_button("rufin-go-down-symbolic", "Move provider down");
             down.set_sensitive(index + 1 < enabled.len());
             let down_shell = Rc::clone(shell);
             let down_group = group.downgrade();
@@ -611,6 +605,6 @@ fn small_icon_button(icon: &str, label: &str) -> gtk::Button {
     let button = gtk::Button::from_icon_name(icon);
     button.add_css_class("flat");
     button.add_css_class("circular");
-    button.set_tooltip_text(Some(&tr(label)));
+    button.set_tooltip_text(Some(&String::from(label)));
     button
 }

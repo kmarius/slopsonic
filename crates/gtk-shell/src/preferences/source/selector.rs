@@ -3,7 +3,6 @@ use std::rc::Rc;
 use ::library::FolderChoice;
 use adw::prelude::*;
 use gtk::{gio, glib};
-use localization::tr;
 use sources::SourceId;
 
 use crate::preferences::{
@@ -117,7 +116,7 @@ pub(crate) fn source_submenu(shell: &Rc<Shell>) -> (String, &'static str, gio::M
     let menu = gio::Menu::new();
     let sources = gio::Menu::new();
     if content.sources.is_empty() && content.local_folders.is_empty() {
-        sources.append(Some(&tr("No sources configured")), None);
+        sources.append(Some(&"No sources configured".to_string()), None);
     } else {
         for index in source_order(&content.sources, content.selected_source_id.as_ref()) {
             let source = &content.sources[index];
@@ -130,21 +129,21 @@ pub(crate) fn source_submenu(shell: &Rc<Shell>) -> (String, &'static str, gio::M
         }
     }
     sources.append_item(&source_menu_item(
-        &tr("Manage"),
+        &"Manage".to_string(),
         MANAGE_LIBRARIES_DETAILED_ACTION,
         "rufin-document-edit-symbolic",
     ));
     sources.append_item(&source_menu_item(
-        &tr("Add a new source"),
+        &"Add a new source".to_string(),
         ADD_LIBRARY_DETAILED_ACTION,
         "rufin-list-add-symbolic",
     ));
-    menu.append_section(Some(&tr("Select Source")), &sources);
+    menu.append_section(Some(&"Select Source".to_string()), &sources);
 
     if !content.music_folders.is_empty() {
         let folders = gio::Menu::new();
         folders.append(
-            Some(&tr("All Music")),
+            Some(&"All Music".to_string()),
             Some(&format!("win.{MUSIC_FOLDER_CHOICE_ACTION_PREFIX}0")),
         );
         for (index, folder) in content.music_folders.iter().enumerate() {
@@ -156,7 +155,7 @@ pub(crate) fn source_submenu(shell: &Rc<Shell>) -> (String, &'static str, gio::M
                 )),
             );
         }
-        menu.append_section(Some(&tr("Server Library")), &folders);
+        menu.append_section(Some(&"Server Library".to_string()), &folders);
     }
 
     (content.name, content.icon_name, menu)
@@ -176,7 +175,7 @@ fn source_menu_content<'a>(
     });
     let Some(source) = active_source else {
         return SourceMenuContent {
-            name: tr("No source"),
+            name: "No source".to_string(),
             icon_name: "rufin-network-server-symbolic",
             selected_source_id,
             sources: &configured.sources,

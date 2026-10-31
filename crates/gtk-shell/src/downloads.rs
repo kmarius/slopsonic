@@ -6,7 +6,7 @@ use std::time::Duration;
 use adw::prelude::*;
 use downloads::{DownloadEvent, DownloadFeedbackKind};
 use gtk::glib;
-use localization::{tr, track_count_text};
+use rufin_core::text::{track_count_text};
 
 use crate::shell::Shell;
 
@@ -86,7 +86,7 @@ impl Shell {
             OperationFeedbackKind::DownloadStarted | OperationFeedbackKind::DownloadQueued
         );
         self.download_feedback.feedback_opens_queue.set(opens_queue);
-        self.chrome.operation_feedback_action.set_label(&tr("Undo"));
+        self.chrome.operation_feedback_action.set_label(&"Undo".to_string());
         self.chrome
             .operation_feedback_action
             .set_visible(action.is_some());
@@ -168,16 +168,16 @@ impl Shell {
 fn operation_feedback_subtitle(kind: &OperationFeedbackKind, count: &str) -> String {
     match kind {
         OperationFeedbackKind::DownloadStarted => {
-            format!("{} · {count}", tr("Download started"))
+            format!("{} · {count}", "Download started".to_string())
         }
         OperationFeedbackKind::DownloadQueued => {
-            format!("{} · {count}", tr("Download queued"))
+            format!("{} · {count}", "Download queued".to_string())
         }
         OperationFeedbackKind::PlaylistAdded { destination } => {
-            format!("{} {destination} · {count}", tr("Added to"))
+            format!("{} {destination} · {count}", "Added to".to_string())
         }
         OperationFeedbackKind::PlaylistRemoved { destination } => {
-            format!("{} {destination} · {count}", tr("Removed from"))
+            format!("{} {destination} · {count}", "Removed from".to_string())
         }
     }
 }

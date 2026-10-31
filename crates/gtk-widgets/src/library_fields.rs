@@ -7,8 +7,7 @@ use artwork::ArtworkBinding;
 use gtk::glib;
 
 use crate::format_duration_units;
-use localization::{album_count_text, track_count_text};
-use localization::{msgid, tr};
+use rufin_core::text::{album_count_text, track_count_text};
 use rufin_core::settings::layout::{
     LibraryField, LibraryLayout, LibraryListKey, LibraryListSettings,
 };
@@ -209,7 +208,7 @@ pub enum LibraryFieldSet {
 pub fn layout_button_content(layout: LibraryLayout) -> gtk::Widget {
     let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     content.append(&gtk::Image::from_icon_name(layout_icon(layout)));
-    content.append(&gtk::Label::new(Some(&tr(layout_title(layout)))));
+    content.append(&gtk::Label::new(Some(&String::from(layout_title(layout)))));
     content.upcast()
 }
 pub fn sync_layout_buttons(
@@ -229,9 +228,9 @@ pub fn supported_layouts(key: LibraryListKey) -> Vec<LibraryLayout> {
 }
 pub fn field_group_title(field_set: LibraryFieldSet) -> &'static str {
     match field_set {
-        LibraryFieldSet::Row => msgid("Columns"),
-        LibraryFieldSet::Grid => msgid("Grid labels"),
-        LibraryFieldSet::Detail => msgid("Detail track columns"),
+        LibraryFieldSet::Row => "Columns",
+        LibraryFieldSet::Grid => "Grid labels",
+        LibraryFieldSet::Detail => "Detail track columns",
     }
 }
 pub fn field_set_for_layout(layout: LibraryLayout) -> LibraryFieldSet {
@@ -376,9 +375,9 @@ pub fn layout_icon(layout: LibraryLayout) -> &'static str {
 }
 pub fn layout_title(layout: LibraryLayout) -> &'static str {
     match layout {
-        LibraryLayout::Grid => msgid("Grid"),
-        LibraryLayout::Row => msgid("Rows"),
-        LibraryLayout::Detail => msgid("Detail"),
+        LibraryLayout::Grid => "Grid",
+        LibraryLayout::Row => "Rows",
+        LibraryLayout::Detail => "Detail",
     }
 }
 pub fn column_fit_width(field: LibraryField, width: i32) -> i32 {
@@ -418,10 +417,10 @@ pub fn column_width(field: LibraryField) -> i32 {
     }
 }
 pub fn play_count_column_width() -> i32 {
-    compact_header_column_width(msgid("Plays"), 56)
+    compact_header_column_width("Plays", 56)
 }
 pub fn compact_header_column_width(header: &str, min_width: i32) -> i32 {
-    crate::table_sizing::compact_header_text_width(&tr(header), min_width)
+    crate::table_sizing::compact_header_text_width(&String::from(header), min_width)
 }
 pub use rufin_core::settings::presentation::{
     count, display_unix_date, favorite_text, optional_year, stored_rating,

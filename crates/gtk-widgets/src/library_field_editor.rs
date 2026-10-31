@@ -1,7 +1,6 @@
 use crate::library_fields::*;
 use crate::settings::SettingsState;
 use adw::prelude::*;
-use localization::tr;
 use rufin_core::settings::layout::{LibraryField, LibraryListKey};
 use std::{cell::RefCell, rc::Rc};
 pub fn populate_library_field_rows(
@@ -34,7 +33,7 @@ pub fn populate_library_field_rows_for_set(
     }
 
     let config = settings.current.borrow().library_list(key);
-    group.set_title(&tr(field_group_title(field_set)));
+    group.set_title(&String::from(field_group_title(field_set)));
 
     let active = active_fields_for_set(&config, field_set).to_vec();
     let mut order = active.clone();
@@ -70,13 +69,13 @@ pub fn library_field_config_row(
 ) -> adw::ActionRow {
     let enabled = active.contains(&field);
     let row = adw::ActionRow::builder()
-        .title(tr(crate::settings::library_field_title(field)))
-        .subtitle(if enabled { tr("Visible") } else { tr("Hidden") })
+        .title(String::from(crate::settings::library_field_title(field)))
+        .subtitle(if enabled { "Visible".to_string() } else { "Hidden".to_string() })
         .build();
 
     let drag = gtk::Image::from_icon_name("rufin-list-drag-handle-symbolic");
     drag.add_css_class("dim-label");
-    drag.set_tooltip_text(Some(&tr("Drag to reorder")));
+    drag.set_tooltip_text(Some(&"Drag to reorder".to_string()));
     row.add_prefix(&drag);
 
     let check = gtk::CheckButton::new();
@@ -88,14 +87,14 @@ pub fn library_field_config_row(
 
     let up = gtk::Button::from_icon_name("rufin-go-up-symbolic");
     up.add_css_class("flat");
-    up.set_tooltip_text(Some(&tr("Move up")));
+    up.set_tooltip_text(Some(&"Move up".to_string()));
     up.set_valign(gtk::Align::Center);
     up.set_sensitive(enabled);
     row.add_suffix(&up);
 
     let down = gtk::Button::from_icon_name("rufin-go-down-symbolic");
     down.add_css_class("flat");
-    down.set_tooltip_text(Some(&tr("Move down")));
+    down.set_tooltip_text(Some(&"Move down".to_string()));
     down.set_valign(gtk::Align::Center);
     down.set_sensitive(enabled);
     row.add_suffix(&down);

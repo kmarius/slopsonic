@@ -7,7 +7,7 @@ use std::{
 use adw::prelude::*;
 use artwork::ArtworkBinding;
 use library::{GenreKey, GenreView, MoodKey, MoodView, RadioSeed, ReadCancellation};
-use localization::{msgid, track_count_text};
+use rufin_core::text::{track_count_text};
 use rufin_core::playback::RadioPlayRequest;
 
 use crate::CatalogUi;
@@ -98,8 +98,8 @@ impl NamedDetailId {
 
     fn play_label(self) -> &'static str {
         match self {
-            Self::Genre(_) => msgid("Play genre"),
-            Self::Mood(_) => msgid("Play mood"),
+            Self::Genre(_) => "Play genre",
+            Self::Mood(_) => "Play mood",
         }
     }
 
@@ -112,7 +112,7 @@ impl NamedDetailId {
 
     fn missing_body(self) -> &'static str {
         match self {
-            Self::Genre(_) => msgid("This isn't available"),
+            Self::Genre(_) => "This isn't available",
             Self::Mood(_) => "Files need Mood/BPM tags written on them. Not supported for Jellyfin",
         }
     }

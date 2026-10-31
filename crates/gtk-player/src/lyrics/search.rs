@@ -1,5 +1,4 @@
 use gtk::glib;
-use localization::tr;
 use std::{cell::RefCell, rc::Rc};
 #[derive(Clone)]
 pub struct LyricsSearchDialog {
@@ -98,11 +97,11 @@ pub fn submit_lyrics_search(shell: &Rc<PlayerUi>) {
     let artist_name = dialog.artist_entry.text().trim().to_string();
     let track_name = dialog.title_entry.text().trim().to_string();
     if artist_name.is_empty() && track_name.is_empty() {
-        dialog.status.set_text(&tr("Type to search"));
+        dialog.status.set_text(&"Type to search".to_string());
         return;
     }
     clear_list_box(&dialog.list);
-    dialog.status.set_text(&tr("Searching..."));
+    dialog.status.set_text(&"Searching...".to_string());
     debug!(
         artist_name = %artist_name,
         track_name = %track_name,

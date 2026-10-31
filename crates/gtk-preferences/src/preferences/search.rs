@@ -1,6 +1,5 @@
 use super::{PreferencesPageKind as Page, PreferencesSearchItem};
 use crate::{Preferences, ui_resource::*};
-use localization::tr;
 
 fn property(node: roxmltree::Node<'_, '_>, name: &str) -> String {
     node.children()
@@ -8,7 +7,7 @@ fn property(node: roxmltree::Node<'_, '_>, name: &str) -> String {
         .and_then(|property| {
             property.text().map(|text| {
                 if property.attribute("translatable") == Some("yes") {
-                    tr(text)
+                    String::from(text)
                 } else {
                     text.into()
                 }
@@ -103,7 +102,7 @@ pub(super) fn items(shell: &Preferences) -> Vec<PreferencesSearchItem> {
         super::NARROW_LEFT_TITLE,
         super::NARROW_RIGHT_TITLE,
     ] {
-        add(&mut items, Page::Customization, tr(title), "", "", None);
+        add(&mut items, Page::Customization, String::from(title), "", "", None);
     }
     for title in [
         super::general::NORMALIZATION_SCOPE_TITLE,
@@ -114,21 +113,21 @@ pub(super) fn items(shell: &Preferences) -> Vec<PreferencesSearchItem> {
         gtk_player::playback_settings::PLAYBACK_SPEED_TITLE,
         gtk_player::playback_settings::PRESERVE_PITCH_TITLE,
     ] {
-        add(&mut items, Page::Playback, tr(title), "", "", None);
+        add(&mut items, Page::Playback, String::from(title), "", "", None);
     }
     for (id, titles) in [
         (
             "sidebar_items",
             crate::SidebarRouteItem::all()
                 .iter()
-                .map(|item| tr(gtk_widgets::route::sidebar_route_descriptor(*item).title))
+                .map(|item| String::from(gtk_widgets::route::sidebar_route_descriptor(*item).title))
                 .collect::<Vec<_>>(),
         ),
         (
             "home_blocks",
             rufin_core::settings::HomeBlockKind::all()
                 .iter()
-                .map(|item| tr(gtk_widgets::settings::home_block_title(*item)))
+                .map(|item| String::from(gtk_widgets::settings::home_block_title(*item)))
                 .collect(),
         ),
     ] {
@@ -160,8 +159,8 @@ pub(super) fn items(shell: &Preferences) -> Vec<PreferencesSearchItem> {
         add(
             &mut items,
             Page::Downloads,
-            tr(super::library::download_rule_title(rule)),
-            &tr(super::library::download_rule_subtitle(rule)),
+            String::from(super::library::download_rule_title(rule)),
+            &String::from(super::library::download_rule_subtitle(rule)),
             "",
             None,
         );

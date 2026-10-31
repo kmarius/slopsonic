@@ -2,7 +2,6 @@ use adw::prelude::*;
 use artwork::ArtworkBinding;
 use downloads::DownloadSubject;
 use gtk::glib;
-use localization::tr;
 use sources::SourceId;
 use std::{
     cell::{Cell, RefCell},
@@ -81,7 +80,7 @@ impl DownloadsState {
         image.set_icon_name(Some("rufin-folder-download-symbolic"));
         image.add_css_class("downloaded-badge");
         image.set_pixel_size(14);
-        image.set_tooltip_text(Some(&tr("Downloaded")));
+        image.set_tooltip_text(Some(&"Downloaded".to_string()));
         let binding = DownloadBadgeBinding {
             image: image.downgrade(),
             downloaded: Cell::new(false),
@@ -145,11 +144,11 @@ impl DownloadsState {
 
 pub fn download_subject_title(subject: &DownloadSubject) -> String {
     match subject {
-        DownloadSubject::Rule(downloads::DownloadRule::EntireLibrary) => tr("Entire Library"),
-        DownloadSubject::Rule(downloads::DownloadRule::Favorites) => tr("Favorites"),
-        DownloadSubject::Rule(downloads::DownloadRule::AllPlaylists) => tr("All Playlists"),
-        DownloadSubject::Rule(downloads::DownloadRule::LatestFiveAlbums) => tr("5 Latest Albums"),
-        DownloadSubject::Prepared { title, .. } => title.clone().unwrap_or_else(|| tr("Selection")),
+        DownloadSubject::Rule(downloads::DownloadRule::EntireLibrary) => "Entire Library".to_string(),
+        DownloadSubject::Rule(downloads::DownloadRule::Favorites) => "Favorites".to_string(),
+        DownloadSubject::Rule(downloads::DownloadRule::AllPlaylists) => "All Playlists".to_string(),
+        DownloadSubject::Rule(downloads::DownloadRule::LatestFiveAlbums) => "5 Latest Albums".to_string(),
+        DownloadSubject::Prepared { title, .. } => title.clone().unwrap_or_else(|| "Selection".to_string()),
     }
 }
 

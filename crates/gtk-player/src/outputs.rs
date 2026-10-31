@@ -1,6 +1,5 @@
 use crate::PlayerUi;
 use gtk::prelude::*;
-use localization::tr;
 use playback::AudioOutput;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -10,7 +9,7 @@ type AudioOutputOptions = Vec<(Option<String>, String)>;
 const AUDIO_OUTPUT_REFRESH_INTERVAL: Duration = Duration::from_secs(2);
 
 pub fn default_audio_output_options() -> AudioOutputOptions {
-    vec![(None, tr("System default"))]
+    vec![(None, "System default".to_string())]
 }
 
 pub fn warm_audio_output_cache(shell: &Rc<PlayerUi>) {
@@ -105,7 +104,7 @@ pub fn casting_network_dropdown(shell: &Rc<PlayerUi>, width: i32) -> gtk::DropDo
         .borrow()
         .cast_network_interface
         .clone();
-    let mut options = vec![(None, tr("Automatic"))];
+    let mut options = vec![(None, "Automatic".to_string())];
     options.extend(
         shell
             .playback_owner

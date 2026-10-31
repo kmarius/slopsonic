@@ -4,7 +4,6 @@ use gtk::{gio, glib};
 use gtk_widgets::downloads::{OperationArtwork, OperationFeedback, OperationFeedbackKind};
 use gtk_widgets::interactions::popdown_native_menu;
 use gtk_widgets::library_fields::playlist_artwork;
-use localization::tr;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 gtk_widgets::composite_box!(
@@ -293,7 +292,7 @@ pub fn playlist_picker_dialog(
     search.connect_search_changed(move |entry| {
         let text = entry.text();
         let query = text.trim().to_lowercase();
-        filter_create_label.set_label(&format!("{} {}", tr("Create"), text.trim()));
+        filter_create_label.set_label(&format!("{} {}", "Create".to_string(), text.trim()));
         filter_create.set_visible(!query.is_empty());
         for row in filter_rows.borrow().iter() {
             row.row
@@ -345,7 +344,7 @@ pub fn playlist_picker_dialog(
                         let names = accepted_names.borrow();
                         let destination = match names.as_slice() {
                             [name] => name.clone(),
-                            _ => format!("{} {}", names.len(), tr("Playlists")),
+                            _ => format!("{} {}", names.len(), "Playlists".to_string()),
                         };
                         feedback(&OperationFeedback {
                             title: feedback_title.clone(),
@@ -395,7 +394,7 @@ fn replace_picker_rows(
         row.imp().title.set_label(&playlist.name);
         row.imp()
             .track_count
-            .set_label(&localization::track_count_text(
+            .set_label(&rufin_core::text::track_count_text(
                 playlist.track_count.max(0) as u64
             ));
         row.imp()

@@ -1,5 +1,4 @@
 use library::{AlbumView, ArtistView};
-use localization::msgid;
 
 use crate::settings::ExternalSiteLinkSettings;
 
@@ -20,7 +19,7 @@ pub fn navigation_source_link(
     );
     if folder {
         return Some(DetailLink {
-            title: msgid("Folder"),
+            title: "Folder",
             icon_name: "rufin-document-open-symbolic",
             url: None,
         });
@@ -43,12 +42,12 @@ pub fn source_link(source: &sources::SourceConfiguration, media_uri: &str) -> Op
     let (_, kind, object_id) = library::source_entity_parts(media_uri)?;
     let folder = matches!(source.kind.as_str(), "local" | "webdav" | "smb");
     let title = match source.kind.as_str() {
-        "local" | "webdav" | "smb" => msgid("Open Folder"),
-        "jellyfin" => msgid("Open on Jellyfin"),
-        "emby" => msgid("Open on Emby"),
-        "plex" => msgid("Open on Plex"),
-        "navidrome" => msgid("Open on Navidrome"),
-        "subsonic" => msgid("Open on server"),
+        "local" | "webdav" | "smb" => "Open Folder",
+        "jellyfin" => "Open on Jellyfin",
+        "emby" => "Open on Emby",
+        "plex" => "Open on Plex",
+        "navidrome" => "Open on Navidrome",
+        "subsonic" => "Open on server",
         _ => return None,
     };
     Some(DetailLink {
@@ -79,7 +78,7 @@ pub fn album_external_links(
         && let Some(url) = lastfm_album_url(&album.metadata.artist, &album.metadata.title)
     {
         links.push(DetailLink {
-            title: msgid("Open on Last.fm"),
+            title: "Open on Last.fm",
             icon_name: "io.github.screwys.Rufin.external.lastfm",
             url: Some(url),
         });
@@ -88,7 +87,7 @@ pub fn album_external_links(
         && let Some(url) = musicbrainz_album_url(album)
     {
         links.push(DetailLink {
-            title: msgid("Open on MusicBrainz"),
+            title: "Open on MusicBrainz",
             icon_name: "io.github.screwys.Rufin.external.musicbrainz",
             url: Some(url),
         });
@@ -115,7 +114,7 @@ pub fn artist_external_links(
         && let Some(url) = lastfm_artist_url(&artist.metadata.name)
     {
         links.push(DetailLink {
-            title: msgid("Open on Last.fm"),
+            title: "Open on Last.fm",
             icon_name: "io.github.screwys.Rufin.external.lastfm",
             url: Some(url),
         });
@@ -124,7 +123,7 @@ pub fn artist_external_links(
         && let Some(url) = musicbrainz_artist_url(artist)
     {
         links.push(DetailLink {
-            title: msgid("Open on MusicBrainz"),
+            title: "Open on MusicBrainz",
             icon_name: "io.github.screwys.Rufin.external.musicbrainz",
             url: Some(url),
         });

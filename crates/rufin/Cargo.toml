@@ -25,7 +25,6 @@ rufin-controller.workspace = true
 rufin-core.workspace = true
 app-identity.workspace = true
 desktop-integration.workspace = true
-localization.workspace = true
 playback.workspace = true
 playback-gstreamer.workspace = true
 sources.workspace = true

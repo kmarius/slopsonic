@@ -1,7 +1,7 @@
-pub const NORMALIZATION_SCOPE_TITLE: &str = localization::msgid("Normalization scope");
-pub const NORMALIZATION_TITLE: &str = localization::msgid("Loudness normalization");
-pub const VOLUME_SCALE_TITLE: &str = localization::msgid("Volume scale");
-pub const STREAM_QUALITY_TITLE: &str = localization::msgid("Stream quality");
+pub const NORMALIZATION_SCOPE_TITLE: &str = "Normalization scope";
+pub const NORMALIZATION_TITLE: &str = "Loudness normalization";
+pub const VOLUME_SCALE_TITLE: &str = "Volume scale";
+pub const STREAM_QUALITY_TITLE: &str = "Stream quality";
 use gtk_player::equalizer::EqualizerSurface;
 use gtk_player::outputs::audio_output_dropdown;
 use gtk_player::playback_settings::{
@@ -28,7 +28,7 @@ use super::{
 
 use crate::Preferences;
 use adw::prelude::*;
-use localization::{tr, tr_with};
+use rufin_core::text::{fill};
 use playback::StreamQuality;
 use playback::{
     LoudnessNormalization, LoudnessNormalizationScope, MAX_AUTO_DJ_REFILL_THRESHOLD,
@@ -152,7 +152,7 @@ pub fn scrobbling_page(
             );
             show_discord_flatpak_help(row);
         });
-        let display_titles = [tr("Application name"), tr("Song title"), tr("Artist name")];
+        let display_titles = ["Application name".to_string(), "Song title".to_string(), "Artist name".to_string()];
         let display_refs = display_titles
             .iter()
             .map(String::as_str)
@@ -169,10 +169,10 @@ pub fn scrobbling_page(
             );
         });
         let link_titles = [
-            tr("None"),
-            tr("Last.fm"),
-            tr("MusicBrainz"),
-            tr("MusicBrainz + Last.fm"),
+            "None".to_string(),
+            "Last.fm".to_string(),
+            "MusicBrainz".to_string(),
+            "MusicBrainz + Last.fm".to_string(),
         ];
         let link_refs = link_titles.iter().map(String::as_str).collect::<Vec<_>>();
         let link_options = gtk::StringList::new(&link_refs);
@@ -214,10 +214,10 @@ pub fn scrobbling_page(
         |settings, active| replace_if_changed(&mut settings.lastfm.enabled, active),
     );
     lastfm_api_help.set_subtitle(&inline_link_markup(
-        &tr("If you do not have API keys, create them"),
+        &"If you do not have API keys, create them".to_string(),
         LASTFM_API_CREATE_URL,
-        &tr("here"),
-        &tr(". You only need to fill email and an application name parts"),
+        &"here".to_string(),
+        &". You only need to fill email and an application name parts".to_string(),
     ));
 
     lastfm_api_key.set_text(&drafts.borrow().lastfm.api_key);
@@ -257,9 +257,9 @@ pub fn scrobbling_page(
         &settings.lastfm.username,
     ));
     let lastfm_connect_label = if settings.lastfm.connected {
-        tr("Reconnect")
+        "Reconnect".to_string()
     } else {
-        tr("Connect")
+        "Connect".to_string()
     };
     lastfm_connect.set_label(&lastfm_connect_label);
     lastfm_connection.set_activatable_widget(Some(&lastfm_connect));
@@ -280,11 +280,11 @@ pub fn scrobbling_page(
         let api_key = lastfm_api_key_row.text().trim().to_string();
         let api_secret = lastfm_secret_row.text().trim().to_string();
         if api_key.is_empty() || api_secret.is_empty() {
-            lastfm_connection_row.set_subtitle(&tr("Enter API credentials first"));
+            lastfm_connection_row.set_subtitle(&"Enter API credentials first".to_string());
             return;
         }
         button.set_sensitive(false);
-        lastfm_connection_row.set_subtitle(&tr("Opening Last.fm authorization..."));
+        lastfm_connection_row.set_subtitle(&"Opening Last.fm authorization...".to_string());
         let shell = Rc::clone(&lastfm_connect_shell);
         let row = lastfm_connection_row.clone();
         let button = button.clone();
@@ -297,14 +297,14 @@ pub fn scrobbling_page(
                 &shell,
                 request,
                 "Failed to open Last.fm authorization: ",
-                tr_with("Couldn't connect to {service}", &[("service", "Last.fm")]),
+                fill("Couldn't connect to {service}", &[("service", "Last.fm")]),
                 true,
             )
             .await
             {
                 Ok(username) => {
                     row.set_subtitle(&audioscrobbler_connected_subtitle(&username));
-                    button.set_label(&tr("Reconnect"));
+                    button.set_label(&"Reconnect".to_string());
                 }
                 Err(error) => {
                     row.set_subtitle(&error);
@@ -332,9 +332,9 @@ pub fn scrobbling_page(
         &settings.librefm.username,
     ));
     let librefm_connect_label = if settings.librefm.connected {
-        tr("Reconnect")
+        "Reconnect".to_string()
     } else {
-        tr("Connect")
+        "Connect".to_string()
     };
     librefm_connect.set_label(&librefm_connect_label);
     librefm_connection.set_activatable_widget(Some(&librefm_connect));
@@ -345,7 +345,7 @@ pub fn scrobbling_page(
             return;
         };
         button.set_sensitive(false);
-        librefm_connection_row.set_subtitle(&tr("Opening Libre.fm authorization..."));
+        librefm_connection_row.set_subtitle(&"Opening Libre.fm authorization...".to_string());
         let shell = Rc::clone(&librefm_connect_shell);
         let row = librefm_connection_row.clone();
         let button = button.clone();
@@ -354,14 +354,14 @@ pub fn scrobbling_page(
                 &shell,
                 ScrobblingConnection::LibreFm,
                 "Failed to open Libre.fm authorization: ",
-                tr_with("Couldn't connect to {service}", &[("service", "Libre.fm")]),
+                fill("Couldn't connect to {service}", &[("service", "Libre.fm")]),
                 false,
             )
             .await
             {
                 Ok(username) => {
                     row.set_subtitle(&audioscrobbler_connected_subtitle(&username));
-                    button.set_label(&tr("Reconnect"));
+                    button.set_label(&"Reconnect".to_string());
                 }
                 Err(error) => {
                     row.set_subtitle(&error);
@@ -385,9 +385,9 @@ pub fn scrobbling_page(
         |settings, active| replace_if_changed(&mut settings.listenbrainz.enabled, active),
     );
     listenbrainz_token_help.set_subtitle(&inline_link_markup(
-        &tr("Find your ListenBrainz user token"),
+        &"Find your ListenBrainz user token".to_string(),
         LISTENBRAINZ_TOKEN_URL,
-        &tr("here"),
+        &"here".to_string(),
         ".",
     ));
 
@@ -455,9 +455,9 @@ pub fn scrobbling_page(
             if button.is_sensitive() {
                 row.set_subtitle(&audioscrobbler_connection_subtitle(connected, &username));
                 button.set_label(&if connected {
-                    tr("Reconnect")
+                    "Reconnect".to_string()
                 } else {
-                    tr("Connect")
+                    "Connect".to_string()
                 });
             }
         }
@@ -489,7 +489,7 @@ fn replace_if_changed(current: &mut bool, next: bool) -> bool {
 
 pub fn audioscrobbler_connection_subtitle(connected: bool, username: &str) -> String {
     if !connected {
-        tr("Not connected")
+        "Not connected".to_string()
     } else {
         audioscrobbler_connected_subtitle(username)
     }
@@ -497,9 +497,9 @@ pub fn audioscrobbler_connection_subtitle(connected: bool, username: &str) -> St
 pub fn audioscrobbler_connected_subtitle(username: &str) -> String {
     let username = username.trim();
     if username.is_empty() {
-        tr("Connected")
+        "Connected".to_string()
     } else {
-        tr_with("Connected as {username}", &[("username", username)])
+        fill("Connected as {username}", &[("username", username)])
     }
 }
 pub fn inline_link_markup(before: &str, url: &str, label: &str, after: &str) -> String {
@@ -643,8 +643,8 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
 
     let loudness_scope_shell = Rc::clone(shell);
     let loudness_scope_row = selection_row(
-        &tr(NORMALIZATION_SCOPE_TITLE),
-        &[tr("Track"), tr("Album")],
+        &String::from(NORMALIZATION_SCOPE_TITLE),
+        &["Track".to_string(), "Album".to_string()],
         loudness_scope_index(settings.loudness_normalization_scope),
         move |selected| {
             loudness_scope_shell
@@ -654,9 +654,7 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
                 });
         },
     );
-    loudness_scope_row.set_subtitle(&tr(
-        "Track evens out every song, while Album preserves the intended differences within each album",
-    ));
+    loudness_scope_row.set_subtitle(&"Track evens out every song, while Album preserves the intended differences within each album".to_string());
 
     ebu_target.set_range(MIN_EBU_R128_TARGET_LUFS, MAX_EBU_R128_TARGET_LUFS);
     ebu_target.set_increments(1.0, 10.0);
@@ -685,9 +683,9 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
             });
     });
 
-    let mode_titles = [tr("Off"), tr("ReplayGain"), tr("EBU R128")];
+    let mode_titles = ["Off".to_string(), "ReplayGain".to_string(), "EBU R128".to_string()];
     let (loudness_normalization_row, mode_buttons) = controlled_selection_row(
-        &tr(NORMALIZATION_TITLE),
+        &String::from(NORMALIZATION_TITLE),
         &mode_titles,
         loudness_normalization_index(settings.loudness_normalization),
     );
@@ -737,11 +735,11 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
             }
             guard.set(false);
             let confirm = adw::AlertDialog::builder()
-                .heading(tr("Enable EBU R128 Analysis?"))
-                .body(tr("Rufin will calculate the missing EBU R128 metadata for the whole library. This can use significant CPU, battery, and network bandwidth for a long time."))
+                .heading("Enable EBU R128 Analysis?".to_string())
+                .body("Rufin will calculate the missing EBU R128 metadata for the whole library. This can use significant CPU, battery, and network bandwidth for a long time.".to_string())
                 .build();
-            confirm.add_response("cancel", &tr("Cancel"));
-            confirm.add_response("enable", &tr("Enable"));
+            confirm.add_response("cancel", &"Cancel".to_string());
+            confirm.add_response("enable", &"Enable".to_string());
             confirm.set_default_response(Some("cancel"));
             confirm.set_close_response("cancel");
             let shell = Rc::clone(&shell);
@@ -788,8 +786,8 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
 
     let volume_scale_shell = Rc::clone(shell);
     let volume_scale_row = selection_row(
-        &tr(VOLUME_SCALE_TITLE),
-        &[tr("Perceptual"), tr("Linear")],
+        &String::from(VOLUME_SCALE_TITLE),
+        &["Perceptual".to_string(), "Linear".to_string()],
         volume_scale_index(settings.volume_scale),
         move |selected| {
             volume_scale_shell
@@ -799,14 +797,12 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
                 });
         },
     );
-    volume_scale_row.set_subtitle(&tr(
-        "Perceptual for a finer control at low volume; Linear for a direct scale",
-    ));
+    volume_scale_row.set_subtitle(&"Perceptual for a finer control at low volume; Linear for a direct scale".to_string());
     audio_group.add(&volume_scale_row);
 
     let quality_shell = Rc::clone(shell);
     let quality_row = quality_selection_row(
-        &tr(STREAM_QUALITY_TITLE),
+        &String::from(STREAM_QUALITY_TITLE),
         &[
             StreamQuality::Original,
             StreamQuality::MaxBitrateKbps(320),

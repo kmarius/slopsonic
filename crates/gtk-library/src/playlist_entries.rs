@@ -8,7 +8,6 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::glib;
 use library::{PlaylistEntryView, PlaylistKey};
-use localization::msgid;
 use std::sync::Arc;
 
 use crate::CatalogUi;
@@ -184,7 +183,7 @@ impl CatalogUi {
         stack.add_named(
             &library_route_inset(crate::route_layout::placeholder_view(
                 "Tracks",
-                msgid("No tracks here yet"),
+                "No tracks here yet",
             )),
             Some("empty"),
         );

@@ -4,7 +4,6 @@ use std::rc::Rc;
 use gtk::prelude::*;
 use playback::RepeatMode;
 
-use localization::tr;
 
 pub const TRANSPORT_ICON_SIZE: i32 = 23;
 
@@ -58,7 +57,7 @@ pub fn widget_icon_button(label: &str, icon: &impl IsA<gtk::Widget>) -> gtk::But
     button.add_css_class("icon-button");
     button.add_css_class("flat");
     button.add_css_class("circular");
-    button.set_tooltip_text(Some(&tr(label)));
+    button.set_tooltip_text(Some(&String::from(label)));
     button.set_child(Some(icon));
     button
 }
@@ -122,7 +121,7 @@ pub fn volume_icon_button(label: &str) -> (gtk::Button, gtk::Image, Rc<Cell<Volu
     button.add_css_class("icon-button");
     button.add_css_class("flat");
     button.add_css_class("circular");
-    button.set_tooltip_text(Some(&tr(label)));
+    button.set_tooltip_text(Some(&String::from(label)));
     button.set_child(Some(&icon));
     (button, icon, state)
 }
@@ -145,7 +144,7 @@ pub fn queue_sidebar_button(label: &str) -> (gtk::Button, gtk::Image) {
     button.add_css_class("icon-button");
     button.add_css_class("flat");
     button.add_css_class("circular");
-    let label = tr(label);
+    let label = String::from(label);
     button.set_tooltip_text(Some(&label));
     button.update_property(&[gtk::accessible::Property::Label(&label)]);
     button.set_child(Some(&icon));

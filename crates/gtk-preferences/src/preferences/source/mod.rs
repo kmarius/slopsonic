@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use localization::{tr, trn_with};
+use rufin_core::text::{fill_plural};
 
 use rufin_core::runtime::source::{
     ConfiguredSources, DiscoveredServer, DiscoveryStatus, SourceOperation, SourceSummary,
@@ -54,7 +54,7 @@ pub(super) fn preference_source_choices(
 }
 
 pub fn configured_source_kind_display_name(kind: &str) -> String {
-    gtk_widgets::source_labels::source_kind_title(kind).map_or_else(|| kind.to_string(), tr)
+    gtk_widgets::source_labels::source_kind_title(kind).map_or_else(|| kind.to_string(), String::from)
 }
 
 pub fn half_stars_row(
@@ -65,10 +65,8 @@ pub fn half_stars_row(
         return None;
     }
     let row = adw::SwitchRow::builder()
-        .title(tr("Enable partial star ratings"))
-        .subtitle(tr(
-            "This is not supported natively by this source, but Rufin can show partial stars and then round them up for the source",
-        ))
+        .title("Enable partial star ratings".to_string())
+        .subtitle("This is not supported natively by this source, but Rufin can show partial stars and then round them up for the source".to_string())
         .active(source.half_stars_enabled)
         .build();
     let source_handle = shell.products.source.clone();
@@ -135,7 +133,7 @@ pub fn playlist_auto_save_row(
 
 pub fn folder_selected_text(count: u64) -> String {
     let label = count.to_string();
-    trn_with(
+    fill_plural(
         "{count} folder selected",
         "{count} folders selected",
         count,

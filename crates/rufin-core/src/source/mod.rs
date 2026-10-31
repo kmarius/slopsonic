@@ -3568,7 +3568,7 @@ pub(crate) fn source_error_allows_cache(error: &SourceError) -> bool {
 
 fn source_refresh_error_text(error: &SourceError) -> String {
     if source_error_allows_cache(error) {
-        localization::tr("Server is unreachable")
+        "Server is unreachable".to_string()
     } else {
         error.to_string()
     }
