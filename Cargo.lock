@@ -1258,12 +1258,9 @@ dependencies = [
  "glib",
  "ksni",
  "library",
- "metadata-lookup",
  "mpris-server",
  "playback",
- "presence",
  "rufin-core",
- "serde_json",
  "tracing",
  "url",
 ]
@@ -2485,7 +2482,6 @@ dependencies = [
  "libadwaita",
  "library",
  "playback",
- "presence",
  "pulldown-cmark",
  "roxmltree 0.21.1",
  "rufin-core",
@@ -4651,15 +4647,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "presence"
-version = "0.16.6"
-dependencies = [
- "playback",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "pretty_assertions"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5279,7 +5266,6 @@ dependencies = [
  "metadata-lookup",
  "playback",
  "playback-cast",
- "presence",
  "pulldown-cmark",
  "reqwest",
  "resvg",

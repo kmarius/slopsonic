@@ -35,7 +35,6 @@ playback = { path = "crates/playback" }
 playback-cast = { path = "crates/playback-cast" }
 playback-gstreamer = { path = "crates/playback-gstreamer" }
 process-memory = { path = "crates/process-memory" }
-presence = { path = "crates/presence" }
 rufin-core = { path = "crates/rufin-core" }
 scrobbling = { path = "crates/scrobbling" }
 secrets = { path = "crates/secrets" }

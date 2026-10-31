@@ -104,7 +104,6 @@ pub(in crate::playback) async fn seeded(
         settings,
         runtime,
         artwork,
-        Arc::new(|_| {}),
         Vec::new,
         scrobbler,
         move |_| Ok(Box::new(IdleBackend(backend_commands.clone()))),

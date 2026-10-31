@@ -19,7 +19,6 @@
     <file compressed="true">preferences/theme_tile.ui</file>
     <file compressed="true">preferences/dialogs/backup.ui</file>
     <file compressed="true">preferences/dialogs/release_notes.ui</file>
-    <file compressed="true">preferences/dialogs/discord_flatpak.ui</file>
     <file compressed="true">preferences/dialogs/release_note_row.ui</file>
     <file compressed="true">preferences/dialogs/update_ready.ui</file>
     <file compressed="true">preferences/source/choice.ui</file>

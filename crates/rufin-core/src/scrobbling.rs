@@ -45,7 +45,6 @@ pub struct ScrobblingOwner {
     secrets: Arc<SwitchableSecretStore>,
     runtime: tokio::runtime::Handle,
     scrobbler: Arc<Scrobbler>,
-    settings_committed: Arc<dyn Fn(&crate::settings::Settings) + Send + Sync>,
     credential_work: Arc<Mutex<bool>>,
 }
 
@@ -55,14 +54,12 @@ impl ScrobblingOwner {
         secrets: Arc<SwitchableSecretStore>,
         runtime: tokio::runtime::Handle,
         scrobbler: Arc<Scrobbler>,
-        settings_committed: Arc<dyn Fn(&crate::settings::Settings) + Send + Sync>,
     ) -> Arc<Self> {
         Arc::new(Self {
             settings,
             secrets,
             runtime,
             scrobbler,
-            settings_committed,
             credential_work: Arc::new(Mutex::new(false)),
         })
     }
@@ -113,7 +110,6 @@ impl ScrobblingOwner {
         if let Err(error) = self.scrobbler.update_credentials(committed.clone()) {
             warn!(%error, "could not update external scrobbling settings");
         }
-        (self.settings_committed)(&self.settings.load().ui);
         Ok(preferences(&committed))
     }
 

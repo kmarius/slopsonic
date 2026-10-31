@@ -28,7 +28,6 @@ metadata-lookup.workspace = true
 async-channel.workspace = true
 futures-util.workspace = true
 artwork.workspace = true
-presence.workspace = true
 pulldown-cmark = { workspace = true, features = ["html"] }
 directories.workspace = true
 downloads.workspace = true

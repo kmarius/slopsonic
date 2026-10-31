@@ -18,7 +18,6 @@
         <child><object class="AdwPreferencesGroup" id="privacy">
           <property name="title" translatable="yes">Privacy and Security</property>
           <child><object class="AdwSwitchRow" id="external_metadata"><property name="title" translatable="yes">External metadata lookup</property></object></child>
-          <child><object class="AdwSwitchRow" id="discord_presence"><property name="title" translatable="yes">Discord Rich Presence</property></object></child>
         </object></child>
         <child><object class="GtkButton" id="import_backup"><property name="label" translatable="yes">Import Backup</property><property name="halign">center</property><style><class name="flat"/></style></object></child>
       </object></property>

@@ -248,36 +248,6 @@ pub fn right_sidebar_mode_from_index(index: u32) -> RightSidebarMode {
         _ => RightSidebarMode::Hidden,
     }
 }
-pub fn discord_display_index(display_type: DisplayType) -> u32 {
-    match display_type {
-        DisplayType::Application => 0,
-        DisplayType::Track => 1,
-        DisplayType::Artist => 2,
-    }
-}
-pub fn discord_display_from_index(index: u32) -> DisplayType {
-    match index {
-        1 => DisplayType::Track,
-        2 => DisplayType::Artist,
-        _ => DisplayType::Application,
-    }
-}
-pub fn discord_link_index(link_type: LinkType) -> u32 {
-    match link_type {
-        LinkType::None => 0,
-        LinkType::LastFm => 1,
-        LinkType::MusicBrainz => 2,
-        LinkType::MusicBrainzLastFm => 3,
-    }
-}
-pub fn discord_link_from_index(index: u32) -> LinkType {
-    match index {
-        1 => LinkType::LastFm,
-        2 => LinkType::MusicBrainz,
-        3 => LinkType::MusicBrainzLastFm,
-        _ => LinkType::None,
-    }
-}
 use std::rc::Rc;
 
 use crate::Preferences;
@@ -285,7 +255,6 @@ use crate::{LeftSidebarMode, RightSidebarMode};
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gtk::{CompositeTemplate, TemplateChild, glib};
-use presence::{DisplayType, LinkType};
 use rufin_core::settings::HomeBlockKind;
 
 mod reorder_row_imp {

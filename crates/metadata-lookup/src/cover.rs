@@ -92,55 +92,6 @@ pub fn lookup_album_cover(
     missing_or_errors(failures)
 }
 
-/// Finds a public cover URL for Discord, which cannot use Rufin's cached bytes.
-pub fn public_album_cover_url(
-    album: &AlbumCover,
-    lastfm_api_key: &str,
-) -> Result<Option<String>, String> {
-    let mut failures = Vec::new();
-    for (root, id) in [
-        (RELEASE_GROUP_URL, album.release_group_id()),
-        (RELEASE_URL, album.release_id()),
-    ] {
-        let Some(id) = id else {
-            continue;
-        };
-        let url = Url::parse(&format!("{root}/{id}")).map_err(|error| error.to_string())?;
-        match fetch_optional_json(client()?, url, "Cover Art Archive listing") {
-            Ok(Some(listing)) => {
-                if let Some(url) = listing
-                    .get("images")
-                    .and_then(Value::as_array)
-                    .into_iter()
-                    .flatten()
-                    .filter(|image| image.get("front").and_then(Value::as_bool) == Some(true))
-                    .find_map(|image| {
-                        image
-                            .pointer("/thumbnails/250")
-                            .or_else(|| image.get("image"))
-                            .and_then(Value::as_str)
-                            .filter(|url| !url.is_empty())
-                    })
-                {
-                    return Ok(Some(url.to_string()));
-                }
-            }
-            Ok(None) => {}
-            Err(error) => failures.push(error),
-        }
-    }
-    if !lastfm_api_key.trim().is_empty()
-        && let Some((artist, title)) = album.text()
-    {
-        match lastfm_url(client()?, artist, title, lastfm_api_key) {
-            Ok(Some(url)) => return Ok(Some(url)),
-            Ok(None) => {}
-            Err(error) => failures.push(error),
-        }
-    }
-    missing_or_errors(failures)
-}
-
 fn download_identities(
     client: &reqwest::blocking::Client,
     root: &str,
@@ -288,8 +239,6 @@ mod tests {
 
     #[test]
     fn artwork_urls_preserve_requested_sizes_and_provider_availability() {
-        let album = AlbumCover::new("Artist", "Album", None, None).expect("album cover");
-        assert_eq!(public_album_cover_url(&album, ""), Ok(None));
         for (size, suffix) in [
             (Some(96), "front-250"),
             (Some(250), "front-250"),

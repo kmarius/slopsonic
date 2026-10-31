@@ -460,7 +460,7 @@ mod freedesktop {
             RepeatMode, TransportStatus, mpris_desired_state, mpris_loop_status, mpris_metadata,
             mpris_set_position_matches, mpris_time, mpris_track_id, repeat_mode_from_mpris,
         };
-        use crate::discord::tests::test_view;
+        use crate::test_support::test_view;
         use playback::{CurrentMediaId, RunId};
 
         #[test]

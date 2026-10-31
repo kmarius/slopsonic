@@ -605,7 +605,6 @@ fn source_choice_selector(shell: &Rc<Preferences>, context: &SetupViewContext) -
         wrapper: gtk::ScrolledWindow,
         server_sources: adw::PreferencesGroup, import_backup: gtk::Button,
         privacy: adw::PreferencesGroup, external_metadata: adw::SwitchRow,
-        discord_presence: adw::SwitchRow,
     });
     for &presentation in source_presentations() {
         let resource = crate::ui_resource::SOURCE_CHOICE_RESOURCE;
@@ -638,23 +637,11 @@ fn source_choice_selector(shell: &Rc<Preferences>, context: &SetupViewContext) -
     {
         let settings = shell.settings.current.borrow();
         external_metadata.set_active(settings.application.external_metadata_enabled);
-        discord_presence.set_active(settings.rich_presence.enabled);
     }
     let weak = Rc::downgrade(shell);
     external_metadata.connect_active_notify(move |row| {
         if let Some(shell) = weak.upgrade() {
             shell.set_external_metadata_enabled(row.is_active());
-        }
-    });
-    let weak = Rc::downgrade(shell);
-    discord_presence.connect_active_notify(move |row| {
-        if let Some(shell) = weak.upgrade() {
-            shell.settings.set_app_setting(
-                "Discord presence setting",
-                row.is_active(),
-                |settings| &mut settings.rich_presence.enabled,
-            );
-            crate::preferences::show_discord_flatpak_help(row);
         }
     });
 

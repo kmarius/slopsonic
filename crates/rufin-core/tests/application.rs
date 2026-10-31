@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use playback::{BackendCommand, BackendError, BackendEvent, PlaybackBackend};
@@ -38,8 +37,6 @@ fn application_starts_on_a_worker_and_reopens_saved_settings_without_a_ui() {
             paths.clone(),
             |_| Ok(Box::new(IdleBackend) as Box<dyn PlaybackBackend>),
             Vec::new,
-            Arc::new(|_| {}),
-            Arc::new(|_, _| {}),
         ));
         assert!(opened.is_err());
         assert_eq!(
@@ -74,8 +71,6 @@ fn application_starts_on_a_worker_and_reopens_saved_settings_without_a_ui() {
                     paths.clone(),
                     |_| Ok(Box::new(IdleBackend) as Box<dyn PlaybackBackend>),
                     Vec::new,
-                    Arc::new(|_| {}),
-                    Arc::new(|_, _| {}),
                 )))
                 .unwrap()
                 .unwrap();

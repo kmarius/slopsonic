@@ -24,7 +24,7 @@
       <li>Control the player from its Web UI or custom scripts, additionally enable Rufin Connect for cross-device synchronization</li>
       <li>Powerful transition and loudness normalization implementation</li>
       <li>Auto DJ with server or app-matched recommendations and random play filters</li>
-      <li>Built-in Last.fm, Libre.fm, ListenBrainz and Discord Rich presence integrations</li>
+      <li>Built-in Last.fm, Libre.fm, ListenBrainz integrations</li>
       <li>Remote tracks are downloadable with automatic download rules and playable while offline</li>
       <li>Casting and audio device selection support</li>
       <li>Advanced smart playlist support with in app activity recording and multiple rule combinations</li>

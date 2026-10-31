@@ -26,8 +26,6 @@ pub const BACKUP_DIALOG_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/dialogs/backup.ui";
 pub const RELEASE_NOTES_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/dialogs/release_notes.ui";
-pub const DISCORD_FLATPAK_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/dialogs/discord_flatpak.ui";
 pub const RELEASE_NOTE_ROW_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/dialogs/release_note_row.ui";
 pub const UPDATE_READY_RESOURCE: &str =
@@ -67,7 +65,6 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     THEME_TILE_RESOURCE,
     BACKUP_DIALOG_RESOURCE,
     RELEASE_NOTES_RESOURCE,
-    DISCORD_FLATPAK_RESOURCE,
     RELEASE_NOTE_ROW_RESOURCE,
     UPDATE_READY_RESOURCE,
     SOURCE_CHOICE_RESOURCE,

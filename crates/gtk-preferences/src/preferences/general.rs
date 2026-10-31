@@ -19,11 +19,7 @@ use super::{
     LASTFM_API_CREATE_URL, LISTENBRAINZ_TOKEN_URL, configure_sidebar_items_expander,
     context_menu::configure_context_menus,
     layout::populate_home_block_rows,
-    layout::{
-        discord_display_from_index, discord_display_index, discord_link_from_index,
-        discord_link_index,
-    },
-    populate_layout_group, show_discord_flatpak_help,
+    populate_layout_group,
 };
 
 use crate::Preferences;
@@ -52,11 +48,6 @@ pub fn scrobbling_page(
         lastfm_links_row: adw::SwitchRow,
         musicbrainz_links_row: adw::SwitchRow,
         server_links_row: adw::SwitchRow,
-        presence_row: adw::SwitchRow,
-        display_row: adw::ComboRow,
-        link_row: adw::ComboRow,
-        paused_row: adw::SwitchRow,
-        listening_row: adw::SwitchRow,
         lastfm_enabled: adw::SwitchRow,
         lastfm_api_help: adw::ActionRow,
         lastfm_api_key: adw::PasswordEntryRow,
@@ -140,68 +131,6 @@ pub fn scrobbling_page(
             {
                 (server_links_shell.effects)(crate::Effect::CatalogChanged);
             }
-        });
-        presence_row.set_active(settings.rich_presence.enabled);
-        let presence_shell = Rc::clone(shell);
-        presence_row.connect_active_notify(move |row| {
-            presence_shell.settings.set_app_setting(
-                "Discord presence setting",
-                row.is_active(),
-                |settings| &mut settings.rich_presence.enabled,
-            );
-            show_discord_flatpak_help(row);
-        });
-        let display_titles = ["Application name".to_string(), "Song title".to_string(), "Artist name".to_string()];
-        let display_refs = display_titles
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>();
-        let display_options = gtk::StringList::new(&display_refs);
-        display_row.set_model(Some(&display_options));
-        display_row.set_selected(discord_display_index(settings.rich_presence.display_type));
-        let display_shell = Rc::clone(shell);
-        display_row.connect_selected_notify(move |row| {
-            display_shell.settings.set_app_setting(
-                "Discord display setting",
-                discord_display_from_index(row.selected()),
-                |settings| &mut settings.rich_presence.display_type,
-            );
-        });
-        let link_titles = [
-            "None".to_string(),
-            "Last.fm".to_string(),
-            "MusicBrainz".to_string(),
-            "MusicBrainz + Last.fm".to_string(),
-        ];
-        let link_refs = link_titles.iter().map(String::as_str).collect::<Vec<_>>();
-        let link_options = gtk::StringList::new(&link_refs);
-        link_row.set_model(Some(&link_options));
-        link_row.set_selected(discord_link_index(settings.rich_presence.link_type));
-        let link_shell = Rc::clone(shell);
-        link_row.connect_selected_notify(move |row| {
-            link_shell.settings.set_app_setting(
-                "Discord link setting",
-                discord_link_from_index(row.selected()),
-                |settings| &mut settings.rich_presence.link_type,
-            );
-        });
-        paused_row.set_active(settings.rich_presence.show_paused);
-        let paused_shell = Rc::clone(shell);
-        paused_row.connect_active_notify(move |row| {
-            paused_shell.settings.set_app_setting(
-                "Discord paused setting",
-                row.is_active(),
-                |settings| &mut settings.rich_presence.show_paused,
-            );
-        });
-        listening_row.set_active(settings.rich_presence.show_as_listening);
-        let listening_shell = Rc::clone(shell);
-        listening_row.connect_active_notify(move |row| {
-            listening_shell.settings.set_app_setting(
-                "Discord activity type setting",
-                row.is_active(),
-                |settings| &mut settings.rich_presence.show_as_listening,
-            );
         });
     }
 

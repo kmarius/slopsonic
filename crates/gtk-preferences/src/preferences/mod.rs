@@ -38,33 +38,6 @@ use layout::{
     right_sidebar_mode_from_index, right_sidebar_row, visibility_position_subtitle,
 };
 
-fn show_discord_flatpak_help(row: &adw::SwitchRow) {
-    if !row.is_active() || std::env::var_os("FLATPAK_ID").is_none() {
-        return;
-    }
-    let resource = crate::ui_resource::DISCORD_FLATPAK_RESOURCE;
-    let builder = gtk_widgets::ui_resource::builder(resource);
-    gtk_widgets::objects!(builder, resource, {
-        dialog: adw::AlertDialog,
-        user_command: gtk::Label,
-        system_command: gtk::Label,
-        copy_user: gtk::Button,
-        copy_system: gtk::Button,
-        copy_user_icon: gtk::Image,
-        copy_system_icon: gtk::Image,
-    });
-    for (button, icon, command) in [
-        (copy_user, copy_user_icon, user_command),
-        (copy_system, copy_system_icon, system_command),
-    ] {
-        let copy = gtk_widgets::clipboard::copy_action(button.upcast_ref(), &icon);
-        button.connect_clicked(move |_| {
-            copy(&command.text());
-        });
-    }
-    present_light_dismiss_dialog(&dialog, row);
-}
-
 const LASTFM_API_CREATE_URL: &str = "https://www.last.fm/api/account/create";
 const LISTENBRAINZ_TOKEN_URL: &str = "https://listenbrainz.org/settings/";
 

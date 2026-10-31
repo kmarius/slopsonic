@@ -4,11 +4,12 @@
 //! GTK window policy and Rufin's current-media authority remain with their
 //! existing owners.
 
-mod discord;
 mod folders;
 mod media_controls;
 mod notification;
 mod path_display;
+#[cfg(test)]
+mod test_support;
 mod tray;
 
 #[cfg(target_os = "windows")]
@@ -20,7 +21,6 @@ use tracing::warn;
 ))]
 pub(crate) use app_identity::APP_ID;
 
-pub use discord::Discord;
 #[cfg(target_os = "macos")]
 pub use folders::open_in_finder;
 pub use folders::{FolderTarget, folder_target};

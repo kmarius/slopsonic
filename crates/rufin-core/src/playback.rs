@@ -49,7 +49,6 @@ pub struct PlaybackOwner {
     runtime: tokio::runtime::Handle,
     pub updates: playback::PlaybackUpdates,
     loudness: Arc<LoudnessAnalysisOwner>,
-    observe_playback: Arc<dyn Fn(Option<&PlaybackProjection>) + Send + Sync>,
     audio_outputs: fn() -> Vec<playback::AudioOutput>,
     scrobbler: Arc<Scrobbler>,
     source: Mutex<std::sync::Weak<SourceOwner>>,
@@ -131,7 +130,6 @@ impl PlaybackOwner {
         settings: SettingsFile,
         runtime: tokio::runtime::Handle,
         artwork: artwork::Artwork,
-        observe_playback: Arc<dyn Fn(Option<&PlaybackProjection>) + Send + Sync>,
         audio_outputs: fn() -> Vec<playback::AudioOutput>,
         scrobbler: Arc<Scrobbler>,
         start_backend: StartBackend,
@@ -167,7 +165,6 @@ impl PlaybackOwner {
             runtime: runtime.clone(),
             updates: playback::PlaybackUpdates::default(),
             loudness: LoudnessAnalysisOwner::new(runtime),
-            observe_playback,
             audio_outputs,
             scrobbler,
             source: Mutex::new(std::sync::Weak::new()),
@@ -289,13 +286,11 @@ impl PlaybackOwner {
     fn take_active(&self) -> Option<Playback> {
         let active = self.active.lock().unwrap_or_else(|p| p.into_inner()).take();
         self.loudness.cancel();
-        (self.observe_playback)(None);
         self.updates.clear();
         active
     }
 
     fn publish(&self, projection: PlaybackProjection) {
-        (self.observe_playback)(Some(&projection));
         self.updates.publish(projection);
     }
 
@@ -551,12 +546,6 @@ impl PlaybackOwner {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .upgrade()
-    }
-    pub(crate) fn current_projection(&self) -> Option<PlaybackProjection> {
-        self.updates.current().map(|view| PlaybackProjection {
-            view: (*view).clone(),
-            notices: Vec::new(),
-        })
     }
     fn send(&self, command: Command) {
         if let Some(active) = self.active() {

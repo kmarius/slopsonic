@@ -42,10 +42,6 @@ pub async fn runtime_inputs<StartBackend>(
     paths: Paths,
     start_backend: StartBackend,
     audio_outputs: fn() -> Vec<playback::AudioOutput>,
-    observe_playback: Arc<dyn Fn(Option<&playback::PlaybackProjection>) + Send + Sync>,
-    observe_settings: Arc<
-        dyn Fn(&crate::settings::Settings, Option<&playback::PlaybackProjection>) + Send + Sync,
-    >,
 ) -> Result<RuntimeInputs, String>
 where
     StartBackend: Fn(
@@ -195,17 +191,10 @@ where
         settings.clone(),
         runtime.clone(),
         artwork.clone(),
-        observe_playback,
         audio_outputs,
         Arc::clone(&scrobbler),
         start_backend,
     );
-    let observed_playback = Arc::clone(&playback);
-    let settings_committed: Arc<dyn Fn(&crate::settings::Settings) + Send + Sync> =
-        Arc::new(move |settings| {
-            observe_settings(settings, observed_playback.current_projection().as_ref())
-        });
-    settings_committed(&stored.ui);
     playback.install_source_owner(&source);
     playback.start().await?;
     let scrobbling = ScrobblingOwner::new(
@@ -213,7 +202,6 @@ where
         Arc::clone(&secrets),
         runtime.clone(),
         scrobbler,
-        Arc::clone(&settings_committed),
     );
     scrobbling.start();
 
@@ -239,12 +227,6 @@ where
                         warn!(%error, "could not update artwork preference");
                     }
                 });
-            }
-            if previous.ui.rich_presence != current.ui.rich_presence
-                || previous.ui.application.private_mode != current.ui.application.private_mode
-                || previous.ui.lastfm_api_key != current.ui.lastfm_api_key
-            {
-                settings_committed(&current.ui);
             }
             if previous.ui.playback != current.ui.playback {
                 settings_playback.playback_settings_changed(current.ui.playback.clone());

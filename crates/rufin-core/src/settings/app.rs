@@ -7,7 +7,6 @@ use playback::{
     DEFAULT_AUTO_DJ_REFILL_THRESHOLD, MAX_AUTO_DJ_REFILL_THRESHOLD, MIN_AUTO_DJ_REFILL_THRESHOLD,
     PlaybackSettings, RepeatMode,
 };
-use presence::Settings as RichPresenceSettings;
 use secrets::SecretStorageMode;
 use serde::{Deserialize, Serialize};
 use sources::SourceId;
@@ -287,8 +286,6 @@ pub struct Settings {
     pub start_minimized: bool,
     #[serde(default = "default_true")]
     pub type_to_search_enabled: bool,
-    #[serde(flatten)]
-    pub rich_presence: RichPresenceSettings,
     #[serde(default)]
     pub lastfm_api_key: String,
     #[serde(default)]
@@ -330,7 +327,6 @@ impl Default for Settings {
             keep_running_after_close: false,
             start_minimized: false,
             type_to_search_enabled: true,
-            rich_presence: RichPresenceSettings::default(),
             lastfm_api_key: String::new(),
             auto_dj_enabled: false,
             shuffle_enabled: false,
@@ -375,7 +371,6 @@ impl Settings {
         if ![1, 6, 12, 24].contains(&self.application.release_check_interval_hours) {
             self.application.release_check_interval_hours = default_release_check_interval_hours();
         }
-        self.rich_presence.sanitize();
         self.playback.sanitize();
         self.random_play.sanitize();
         self.application.auto_dj_refill_threshold = self
