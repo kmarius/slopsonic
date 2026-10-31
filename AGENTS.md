@@ -26,3 +26,7 @@ Do not implement or expand:
 - `android/` — Out of scope
 
 When in doubt, prefer simplicity and removing code over adding features.
+
+## Commits
+
+Keep commit messages extremely brief—a few words, not sentences.
