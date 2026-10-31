@@ -4,13 +4,8 @@
     <file>hicolor/512x512/apps/io.github.screwys.Rufin.png</file>
     <file>hicolor/64x64/apps/io.github.screwys.Rufin.external.lastfm.png</file>
     <file>hicolor/64x64/apps/io.github.screwys.Rufin.external.musicbrainz.png</file>
-    <file>hicolor/64x64/apps/io.github.screwys.Rufin.source.jellyfin.png</file>
-    <file>hicolor/64x64/apps/io.github.screwys.Rufin.source.plex.png</file>
-    <file>hicolor/64x64/apps/io.github.screwys.Rufin.source.emby.png</file>
     <file>hicolor/64x64/apps/io.github.screwys.Rufin.source.navidrome.png</file>
     <file>hicolor/64x64/apps/io.github.screwys.Rufin.source.opensubsonic.png</file>
-    <file>hicolor/64x64/apps/io.github.screwys.Rufin.source.webdav.png</file>
-    <file>hicolor/64x64/apps/io.github.screwys.Rufin.source.smb.png</file>
     <file>hicolor/scalable/actions/rufin-shuffle-symbolic.svg</file>
     <file>hicolor/scalable/actions/rufin-keyboard-enter-symbolic.svg</file>
     <file>hicolor/scalable/actions/rufin-repeat-symbolic.svg</file>

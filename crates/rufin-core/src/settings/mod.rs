@@ -53,7 +53,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock, mpsc};
 
 use app::Settings as UiSettings;
-use playback::StreamQuality;
 use scrobbling::Settings as ScrobblingSettings;
 use secrets::{
     CachedSecretStore, ConfigSecretStore, SecretKey, SecretStorageMode, SecretStore,
@@ -127,18 +126,16 @@ pub(crate) struct SavedLocalAccess {
 pub(crate) struct SourceSettings {
     #[serde(default)]
     pub(crate) configured: Vec<ConfiguredSource>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(crate) integrations: Vec<ConfiguredSource>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) selected_source_id: Option<SourceId>,
 }
 
 impl SourceSettings {
     pub(crate) fn connections(&self) -> impl Iterator<Item = &ConfiguredSource> {
-        self.configured.iter().chain(&self.integrations)
+        self.configured.iter()
     }
     pub(crate) fn connections_mut(&mut self) -> impl Iterator<Item = &mut ConfiguredSource> {
-        self.configured.iter_mut().chain(&mut self.integrations)
+        self.configured.iter_mut()
     }
 }
 
@@ -192,8 +189,6 @@ pub struct StoredSettings {
     pub(crate) sources: SourceSettings,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub(crate) secret_scope_id: String,
-    #[serde(default)]
-    pub(crate) jellyfin_device_id: String,
     #[serde(default, rename = "home_sections", skip_serializing)]
     pub(crate) legacy_home_sections: Option<Vec<HomeSectionKind>>,
     #[serde(default, rename = "track_table", skip_serializing)]
@@ -210,7 +205,6 @@ impl Default for StoredSettings {
             scrobbling_credentials: Default::default(),
             sources: SourceSettings::default(),
             secret_scope_id: String::new(),
-            jellyfin_device_id: String::new(),
             legacy_home_sections: None,
             legacy_track_table: None,
         }
@@ -341,15 +335,6 @@ impl SettingsFile {
                 }
             }
         }
-        if value.jellyfin_device_id.trim().is_empty() {
-            match random_identity("rufin-") {
-                Ok(identity) => {
-                    value.jellyfin_device_id = identity;
-                    changed = true;
-                }
-                Err(error) => warn!(%error, "could not create a Jellyfin device identity"),
-            }
-        }
         if changed {
             if let Err(error) = write_settings(&path, &value) {
                 warn!(%error, "could not save startup settings");
@@ -380,7 +365,6 @@ impl SettingsFile {
     pub(crate) fn memory_at(config_dir: PathBuf) -> Self {
         let mut value = StoredSettings::default();
         value.migrate_defaults();
-        value.jellyfin_device_id = random_identity("rufin-").unwrap_or_default();
         Self {
             path: None,
             sidebar: tokio::sync::watch::channel(value.ui.sidebar.clone()).0,
@@ -431,26 +415,6 @@ impl SettingsFile {
             .find(|source| &source.configuration.source_id == source_id)
             .map(|source| source.configuration.name.clone())
             .unwrap_or_default()
-    }
-
-    pub(crate) fn playback_stream_quality(&self) -> StreamQuality {
-        self.value
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .ui
-            .playback
-            .stream_quality
-    }
-
-    pub(crate) fn local_configuration(&self) -> Option<SourceConfiguration> {
-        self.value
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .sources
-            .configured
-            .iter()
-            .find(|source| source.configuration.is_local())
-            .map(|source| source.configuration.clone())
     }
 
     /// Apply preferences immediately. The shared writer reports durable failures separately.
@@ -592,10 +556,6 @@ pub struct SettingsOwner {
 }
 
 impl SettingsOwner {
-    pub fn local_configuration(&self) -> Option<sources::SourceConfiguration> {
-        self.file.local_configuration()
-    }
-
     pub(crate) fn new(
         file: SettingsFile,
         secrets: Arc<SwitchableSecretStore>,

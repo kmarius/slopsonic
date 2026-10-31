@@ -1,37 +1,22 @@
-mod files;
-pub use files::{bind_integrations, choose_integration};
-mod jellyfin_emby;
-mod plex;
-
-use rufin_core::source::authorization::{
-    SourceAuthorization, SourceAuthorizationEvent, SourceAuthorizationInput,
-    SourceAuthorizationMethod, SourceChoice,
-};
 use std::cell::{Cell, RefCell};
-use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::Arc;
 
 use adw::prelude::*;
-use rufin_core::runtime::source::{DiscoveryStatus, EditableSource, SourceHandle, SourceOperation};
+use rufin_core::runtime::source::{EditableSource, SourceHandle, SourceOperation};
 
 use sources::{
-    CredentialInput, CredentialPreset, SourceSetup, SubsonicAuthentication, SubsonicFlavor,
+    CredentialInput, CredentialPreset, SubsonicAuthentication, SubsonicFlavor,
 };
 
-use super::folder_selected_text;
 use crate::Preferences;
 use gtk_widgets::controls::text_button;
 use gtk_widgets::layout::large_popup_content_width;
 use gtk_widgets::popup::present_light_dismiss_dialog;
-use rufin_core::text::{fill};
 use rufin_core::runtime::source::source_operation_text;
 
 const ADD_SERVER_CLAMP_WIDTH: i32 = 560;
 const SETUP_FORM_PAGE: &str = "form";
 const SETUP_PROGRESS_PAGE: &str = "progress";
-const JELLYFIN_SOURCE_KIND: &str = "jellyfin";
-const LOCAL_SOURCE_KIND: &str = "local";
 
 type SetupFlowFactory =
     fn(&Rc<Preferences>, &'static SourcePresentation) -> Rc<dyn SourceSetupFlow>;
@@ -48,16 +33,6 @@ struct SourcePresentation {
     settings_group: Option<SettingsGroupFactory>,
 }
 
-static JELLYFIN: SourcePresentation = SourcePresentation {
-    kind: JELLYFIN_SOURCE_KIND,
-    setup_flow: jellyfin_emby::setup_flow,
-    settings_group: Some(jellyfin_emby::settings_group),
-};
-static EMBY: SourcePresentation = SourcePresentation {
-    kind: "emby",
-    setup_flow: jellyfin_emby::setup_flow,
-    settings_group: Some(jellyfin_emby::settings_group),
-};
 static NAVIDROME: SourcePresentation = SourcePresentation {
     kind: "navidrome",
     setup_flow: navidrome_setup_flow,
@@ -68,29 +43,7 @@ static SUBSONIC: SourcePresentation = SourcePresentation {
     setup_flow: subsonic_setup_flow,
     settings_group: Some(subsonic_settings_group),
 };
-static LOCAL: SourcePresentation = SourcePresentation {
-    kind: LOCAL_SOURCE_KIND,
-    setup_flow: local_setup_flow,
-    settings_group: None,
-};
-static WEBDAV: SourcePresentation = SourcePresentation {
-    kind: "webdav",
-    setup_flow: files::setup_flow,
-    settings_group: Some(files::settings_group),
-};
-static SMB: SourcePresentation = SourcePresentation {
-    kind: "smb",
-    setup_flow: files::setup_flow,
-    settings_group: Some(files::settings_group),
-};
-static PLEX: SourcePresentation = SourcePresentation {
-    kind: "plex",
-    setup_flow: plex::setup_flow,
-    settings_group: Some(plex::settings_group),
-};
-static SOURCE_PRESENTATIONS: [&SourcePresentation; 8] = [
-    &JELLYFIN, &NAVIDROME, &SUBSONIC, &EMBY, &PLEX, &WEBDAV, &SMB, &LOCAL,
-];
+static SOURCE_PRESENTATIONS: [&SourcePresentation; 2] = [&NAVIDROME, &SUBSONIC];
 
 fn source_presentations() -> &'static [&'static SourcePresentation] {
     &SOURCE_PRESENTATIONS
@@ -142,7 +95,6 @@ pub struct SetupViewContext {
     progress_status: gtk::Label,
     flow: Rc<RefCell<Rc<dyn SourceSetupFlow>>>,
     actions: Rc<RefCell<Option<SetupActions>>>,
-    discovery: Rc<RefCell<Option<DiscoveredServersView>>>,
     retry_focus: Rc<RefCell<Option<gtk::Widget>>>,
     preferences_dialog: Option<adw::Dialog>,
 }
@@ -151,13 +103,6 @@ struct SetupActions {
     status: gtk::Label,
     connect: gtk::Button,
     ready: Rc<dyn Fn() -> bool>,
-}
-
-struct DiscoveredServersView {
-    group: adw::PreferencesGroup,
-    rows: Rc<RefCell<Vec<gtk::Widget>>>,
-    kind: &'static str,
-    select: Rc<dyn Fn(sources::DiscoveredServer)>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -198,17 +143,10 @@ impl SourceSetupFlow for SourceChoiceFlow {
     }
 }
 
-struct LocalSetupFlow {
-    presentation: &'static SourcePresentation,
-    folders: Rc<RefCell<Vec<PathBuf>>>,
-    submit: Rc<dyn Fn(&SourceHandle, Vec<PathBuf>)>,
-}
-
 #[derive(Clone)]
 struct CredentialHost {
     widget: gtk::Box,
     fields_group: adw::PreferencesGroup,
-    rows: adw::PreferencesGroup,
     name: adw::EntryRow,
     url: adw::EntryRow,
     username: adw::EntryRow,
@@ -306,15 +244,6 @@ impl Preferences {
             return;
         };
         update_setup_surface(self, &context);
-    }
-
-    pub fn update_add_server_discovery(self: &Rc<Self>) {
-        let Some(context) = self.mounted_add_server_context() else {
-            return;
-        };
-        if let Some(discovery) = context.discovery.borrow().as_ref() {
-            refresh_discovered_servers_view(self, discovery);
-        }
     }
 
     pub fn complete_add_server_dialog(&self) {
@@ -419,7 +348,6 @@ impl Preferences {
             progress_status: status,
             flow,
             actions: Rc::new(RefCell::new(None)),
-            discovery: Rc::new(RefCell::new(None)),
             retry_focus: Rc::new(RefCell::new(None)),
             preferences_dialog,
         }
@@ -434,51 +362,7 @@ impl Preferences {
             .unwrap_or_else(|| "Preparing library...".to_string())
     }
 
-    fn start_server_discovery_once(&self) {
-        if self.source.discovery_started.replace(true) {
-            return;
-        }
-        self.source.discovery_running.set(true);
-        *self.source.discovery_status.borrow_mut() = DiscoveryStatus::Searching;
-        self.products
-            .source
-            .discover_servers(self.source.discovery_provider.get());
-    }
 
-    fn select_discovery_provider(&self, provider: sources::DiscoveryProvider) {
-        if self.source.discovery_provider.replace(provider) != provider {
-            self.source.discovery_started.set(false);
-            self.source.discovery_running.set(false);
-            self.source.discovered_servers.borrow_mut().clear();
-            *self.source.discovery_status.borrow_mut() = DiscoveryStatus::Idle;
-        }
-    }
-
-    fn refresh_server_discovery(self: &Rc<Self>) {
-        if self.source.discovery_running.get() {
-            return;
-        }
-        self.source.discovery_running.set(true);
-        *self.source.discovered_servers.borrow_mut() = Vec::new();
-        *self.source.discovery_status.borrow_mut() = DiscoveryStatus::Searching;
-        self.products
-            .source
-            .discover_servers(self.source.discovery_provider.get());
-        self.update_add_server_discovery();
-    }
-}
-
-fn local_setup_flow(
-    _shell: &Rc<Preferences>,
-    presentation: &'static SourcePresentation,
-) -> Rc<dyn SourceSetupFlow> {
-    Rc::new(LocalSetupFlow {
-        presentation,
-        folders: Rc::new(RefCell::new(Vec::new())),
-        submit: Rc::new(|source, roots| {
-            source.configure_source(SourceSetup::Local { roots });
-        }),
-    })
 }
 
 fn subsonic_setup_flow_for(
@@ -660,97 +544,6 @@ impl SourceSetupFlow for CredentialSetupFlow {
     }
 }
 
-impl SourceSetupFlow for LocalSetupFlow {
-    fn view(&self, shell: &Rc<Preferences>, context: &SetupViewContext) -> gtk::Widget {
-        if shell
-            .source
-            .configured
-            .borrow()
-            .sources
-            .iter()
-            .any(|source| source.kind == LOCAL_SOURCE_KIND)
-        {
-            if let Some(dialog) = &context.preferences_dialog {
-                return crate::preferences::library::local_sources_page(shell, dialog).upcast();
-            }
-        }
-        let (scroller, content, actions, status) =
-            setup_scaffold(shell, context, self.presentation);
-        let resource = crate::ui_resource::LOCAL_SETUP_RESOURCE;
-        let builder = gtk_widgets::ui_resource::builder(resource);
-        gtk_widgets::objects!(builder, resource, {
-            group: adw::PreferencesGroup,
-            summary: adw::ActionRow,
-            add: gtk::Button,
-            connect: gtk::Button,
-        });
-        summary.set_subtitle(&local_folders_subtitle(&self.folders.borrow()));
-        summary.set_activatable_widget(Some(&add));
-        content.append(&group);
-
-        let login = connect;
-        actions.append(&login);
-        content.append(&actions);
-        content.append(&status);
-
-        let rows = Rc::new(RefCell::new(Vec::new()));
-        let selection = LocalFolderSelectionRows {
-            group,
-            summary,
-            rows,
-            folders: Rc::clone(&self.folders),
-            login: login.clone(),
-        };
-        refresh_local_folder_selection_rows(&selection);
-        let folders_for_ready = Rc::clone(&self.folders);
-        *context.actions.borrow_mut() = Some(SetupActions {
-            status: status.clone(),
-            connect: login.clone(),
-            ready: Rc::new(move || !folders_for_ready.borrow().is_empty()),
-        });
-        connect_add_local_folder_button(&shell.window, &add, Rc::clone(&self.folders), {
-            let group = selection.group.downgrade();
-            let summary = selection.summary.downgrade();
-            let rows = Rc::clone(&selection.rows);
-            let folders = Rc::clone(&selection.folders);
-            let login = selection.login.downgrade();
-            move || {
-                let (Some(group), Some(summary), Some(login)) =
-                    (group.upgrade(), summary.upgrade(), login.upgrade())
-                else {
-                    return;
-                };
-                refresh_local_folder_selection_rows(&LocalFolderSelectionRows {
-                    group,
-                    summary,
-                    rows: Rc::clone(&rows),
-                    folders: Rc::clone(&folders),
-                    login,
-                });
-            }
-        });
-
-        let source = shell.products.source.clone();
-        let folders = Rc::clone(&self.folders);
-        let status_for_login = status.clone();
-        let submit = Rc::clone(&self.submit);
-        login.connect_clicked(move |login| {
-            let roots = folders.borrow().clone();
-            if roots.is_empty() {
-                status_for_login.set_text(&"Choose at least one local music folder".to_string());
-                status_for_login.set_visible(true);
-                return;
-            }
-            let message = "Caching local library...".to_string();
-            begin_connect_attempt(&status_for_login, login, &message);
-            submit(&source, roots);
-        });
-        source_enter_controller(&login);
-
-        scroller.upcast()
-    }
-}
-
 fn setup_scaffold(
     shell: &Rc<Preferences>,
     _context: &SetupViewContext,
@@ -809,9 +602,8 @@ fn source_choice_selector(shell: &Rc<Preferences>, context: &SetupViewContext) -
     let resource = crate::ui_resource::SOURCE_CHOICE_SELECTOR_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
-        wrapper: gtk::ScrolledWindow, device_sources: adw::PreferencesGroup,
+        wrapper: gtk::ScrolledWindow,
         server_sources: adw::PreferencesGroup, import_backup: gtk::Button,
-        remote_sources: adw::PreferencesGroup,
         privacy: adw::PreferencesGroup, external_metadata: adw::SwitchRow,
         discord_presence: adw::SwitchRow,
     });
@@ -840,11 +632,7 @@ fn source_choice_selector(shell: &Rc<Preferences>, context: &SetupViewContext) -
             *context.flow.borrow_mut() = (presentation.setup_flow)(&shell, presentation);
             mount_setup_flow(&shell, &context);
         });
-        match presentation.kind {
-            LOCAL_SOURCE_KIND => device_sources.add(&row),
-            "webdav" | "smb" => remote_sources.add(&row),
-            _ => server_sources.add(&row),
-        }
+        server_sources.add(&row);
     }
     privacy.set_visible(context.onboarding);
     {
@@ -883,14 +671,10 @@ fn source_choice_selector(shell: &Rc<Preferences>, context: &SetupViewContext) -
 
 fn mount_setup_flow(shell: &Rc<Preferences>, context: &SetupViewContext) {
     context.actions.borrow_mut().take();
-    context.discovery.borrow_mut().take();
     context.retry_focus.borrow_mut().take();
     let flow = context.flow.borrow().clone();
     let view = flow.view(shell, context);
     replace_add_server_content(&context.form, view);
-    if let Some(discovery) = context.discovery.borrow().as_ref() {
-        refresh_discovered_servers_view(shell, discovery);
-    }
     update_setup_surface(shell, context);
 }
 
@@ -1061,7 +845,6 @@ fn credential_host_view(
     CredentialHost {
         widget: section,
         fields_group,
-        rows,
         name,
         url,
         username,
@@ -1259,190 +1042,6 @@ fn begin_connect_attempt(status: &gtk::Label, login: &gtk::Button, message: &str
     login.set_sensitive(false);
 }
 
-fn discovered_servers_view(host: &CredentialHost, kind: &'static str) -> DiscoveredServersView {
-    let group = adw::PreferencesGroup::builder()
-        .title("Found Servers".to_string())
-        .build();
-    DiscoveredServersView {
-        group,
-        rows: Rc::new(RefCell::new(Vec::new())),
-        kind,
-        select: {
-            let name = host.name.downgrade();
-            let url = host.url.downgrade();
-            Rc::new(move |server| {
-                if let Some(name) = name.upgrade() {
-                    name.set_text(&server.name);
-                }
-                if let Some(url) = url.upgrade() {
-                    url.set_text(&server.address);
-                }
-            })
-        },
-    }
-}
-
-fn refresh_discovered_servers_view(shell: &Rc<Preferences>, view: &DiscoveredServersView) {
-    let status = shell.source.discovery_status.borrow().clone();
-    let running = shell.source.discovery_running.get();
-    let servers = shell.source.discovered_servers.borrow().clone();
-    view.group
-        .set_description(Some(&discovery_status_label(&status, view.kind)));
-    for row in view.rows.borrow_mut().drain(..) {
-        view.group.remove(&row);
-    }
-    if servers.is_empty() {
-        let row = adw::ActionRow::builder()
-            .title(if running {
-                "Searching Local Network".to_string()
-            } else {
-                "No Servers Found".to_string()
-            })
-            .build();
-        row.add_prefix(&gtk::Image::from_icon_name("rufin-network-server-symbolic"));
-        if running {
-            let spinner = gtk::Spinner::new();
-            spinner.start();
-            row.add_suffix(&spinner);
-        }
-        view.group.add(&row);
-        view.rows.borrow_mut().push(row.upcast());
-    } else {
-        for server in servers {
-            let row = adw::ActionRow::builder()
-                .title(server.name.clone())
-                .subtitle(server.address.clone())
-                .build();
-            row.add_prefix(&gtk::Image::from_icon_name(
-                gtk_widgets::source_labels::source_kind_icon_name(view.kind)
-                    .unwrap_or("rufin-network-server-symbolic"),
-            ));
-            row.set_activatable(true);
-            let select = Rc::clone(&view.select);
-            row.connect_activated(move |_| {
-                select(server.clone());
-            });
-            view.group.add(&row);
-            view.rows.borrow_mut().push(row.upcast());
-        }
-    }
-    let search = adw::ButtonRow::builder()
-        .title(if running {
-            "Searching...".to_string()
-        } else {
-            "Search Again".to_string()
-        })
-        .start_icon_name("rufin-view-refresh-symbolic")
-        .build();
-    search.set_sensitive(!running);
-    let shell = Rc::downgrade(shell);
-    search.connect_activated(move |_| {
-        if let Some(shell) = shell.upgrade() {
-            shell.refresh_server_discovery();
-        }
-    });
-    view.group.add(&search);
-    view.rows.borrow_mut().push(search.upcast());
-}
-
-fn discovery_status_label(status: &DiscoveryStatus, kind: &str) -> String {
-    match status {
-        DiscoveryStatus::Idle => "Searching will start automatically".to_string(),
-        DiscoveryStatus::Searching => fill(
-            "Searching for {provider} servers on the local network...",
-            &[(
-                "provider",
-                &String::from(gtk_widgets::source_labels::source_kind_title(kind).unwrap_or(kind)),
-            )],
-        ),
-        DiscoveryStatus::Empty => "No servers found, add one manually or try again".to_string(),
-        DiscoveryStatus::Found(_) => String::new(),
-        DiscoveryStatus::Failed(error) => {
-            fill("Server discovery failed: {error}", &[("error", error)])
-        }
-    }
-}
-
-#[derive(Clone)]
-struct LocalFolderSelectionRows {
-    group: adw::PreferencesGroup,
-    summary: adw::ActionRow,
-    rows: Rc<RefCell<Vec<adw::ActionRow>>>,
-    folders: Rc<RefCell<Vec<PathBuf>>>,
-    login: gtk::Button,
-}
-
-fn refresh_local_folder_selection_rows(selection: &LocalFolderSelectionRows) {
-    let folders = selection.folders.borrow().clone();
-    selection
-        .summary
-        .set_subtitle(&local_folders_subtitle(&folders));
-    selection.login.set_sensitive(!folders.is_empty());
-    for row in selection.rows.borrow_mut().drain(..) {
-        selection.group.remove(&row);
-    }
-    for folder in folders {
-        let row = adw::ActionRow::builder()
-            .title(local_folder_title(&folder))
-            .subtitle(path_subtitle(&folder))
-            .subtitle_lines(2)
-            .build();
-        row.add_prefix(&gtk::Image::from_icon_name("rufin-folders-symbolic"));
-        let remove = gtk::Button::from_icon_name("rufin-window-close-symbolic");
-        remove.set_tooltip_text(Some(&"Remove folder".to_string()));
-        remove.add_css_class("flat");
-        remove.add_css_class("destructive-action");
-        row.add_suffix(&remove);
-        let group = selection.group.downgrade();
-        let summary = selection.summary.downgrade();
-        let rows = Rc::downgrade(&selection.rows);
-        let folders = Rc::clone(&selection.folders);
-        let login = selection.login.downgrade();
-        let folder = folder.clone();
-        remove.connect_clicked(move |_| {
-            folders
-                .borrow_mut()
-                .retain(|candidate| candidate != &folder);
-            let (Some(group), Some(summary), Some(rows), Some(login)) = (
-                group.upgrade(),
-                summary.upgrade(),
-                rows.upgrade(),
-                login.upgrade(),
-            ) else {
-                return;
-            };
-            refresh_local_folder_selection_rows(&LocalFolderSelectionRows {
-                group,
-                summary,
-                rows,
-                folders: Rc::clone(&folders),
-                login,
-            });
-        });
-        selection.group.add(&row);
-        selection.rows.borrow_mut().push(row);
-    }
-}
-
-fn source_enter_controller(login: &gtk::Button) {
-    let controller = gtk::EventControllerKey::new();
-    controller.set_propagation_phase(gtk::PropagationPhase::Capture);
-    let login_for_key = login.downgrade();
-    controller.connect_key_pressed(move |_, key, _, _| {
-        let enter = key == gtk::gdk::Key::Return || key == gtk::gdk::Key::KP_Enter;
-        if enter
-            && login_for_key
-                .upgrade()
-                .is_some_and(|login| activate_connect_if_ready(&login))
-        {
-            gtk::glib::Propagation::Stop
-        } else {
-            gtk::glib::Propagation::Proceed
-        }
-    });
-    login.add_controller(controller);
-}
-
 fn connect_entry_row_activation(entry: &adw::EntryRow, login: &gtk::Button) {
     let login = login.downgrade();
     entry.connect_entry_activated(move |_| {
@@ -1493,82 +1092,6 @@ fn remote_login_ready(
         } else {
             !username.text().trim().is_empty()
         }
-}
-
-fn default_music_folder() -> Option<PathBuf> {
-    let user_dirs = directories::UserDirs::new()?;
-    Some(
-        user_dirs
-            .audio_dir()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| user_dirs.home_dir().join("Music")),
-    )
-}
-
-fn path_subtitle(path: &Path) -> String {
-    desktop_integration::display_path(path)
-}
-
-fn local_folders_subtitle(folders: &[PathBuf]) -> String {
-    match folders {
-        [] => "No folders selected".to_string(),
-        [folder] => path_subtitle(folder),
-        folders => folder_selected_text(folders.len() as u64),
-    }
-}
-
-fn append_local_folder(folders: &Rc<RefCell<Vec<PathBuf>>>, path: PathBuf) {
-    let mut folders = folders.borrow_mut();
-    if !folders.iter().any(|folder| folder == &path) {
-        folders.push(path);
-    }
-}
-
-fn local_folder_title(path: &Path) -> String {
-    path.file_name()
-        .and_then(|name| name.to_str())
-        .filter(|name| !name.trim().is_empty())
-        .map(ToString::to_string)
-        .unwrap_or_else(|| path_subtitle(path))
-}
-
-fn connect_add_local_folder_button(
-    window: &gtk::ApplicationWindow,
-    button: &gtk::Button,
-    folders: Rc<RefCell<Vec<PathBuf>>>,
-    on_changed: impl Fn() + 'static,
-) {
-    let window = window.downgrade();
-    let on_changed: Rc<dyn Fn()> = Rc::new(on_changed);
-    button.connect_clicked(move |_| {
-        let Some(window) = window.upgrade() else {
-            return;
-        };
-        let folders = Rc::clone(&folders);
-        let on_changed = Rc::clone(&on_changed);
-        gtk::glib::spawn_future_local(async move {
-            let selected_folder = folders
-                .borrow()
-                .last()
-                .cloned()
-                .or_else(default_music_folder)
-                .map(gtk::gio::File::for_path);
-            let dialog = gtk::FileDialog::builder()
-                .title("Select Music Folder".to_string())
-                .build();
-            if let Some(folder) = selected_folder.as_ref() {
-                dialog.set_initial_folder(Some(folder));
-            }
-            let Ok(folder) = dialog.select_folder_future(Some(&window)).await else {
-                return;
-            };
-            let Some(path) = folder.path() else {
-                return;
-            };
-            append_local_folder(&folders, path);
-            on_changed();
-        });
-    });
 }
 
 fn replace_add_server_content(content: &gtk::Box, child: gtk::Widget) {

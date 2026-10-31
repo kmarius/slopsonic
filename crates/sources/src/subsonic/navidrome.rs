@@ -1220,9 +1220,7 @@ mod tests {
             library::SourceId::new("source"),
             crate::Implementation::OpenSubsonic(source),
         );
-        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation else {
-            unreachable!()
-        };
+        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation;
         let directory = tempfile::tempdir().unwrap();
         let database = library::Database::open(directory.path().join("library.sqlite"))
             .await
@@ -1507,9 +1505,7 @@ mod tests {
             library::SourceId::new("navidrome:test"),
             crate::Implementation::OpenSubsonic(source),
         );
-        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation else {
-            unreachable!()
-        };
+        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation;
         let directory = tempfile::tempdir().expect("Library directory");
         let database = library::Database::open(directory.path().join("library.sqlite3"))
             .await

@@ -55,10 +55,6 @@
       </object>
     </child>
   </object>
-  <object class="AdwSwitchRow" id="write_ebu_tags_row">
-    <property name="title" translatable="yes">Write EBU R128 tags to files</property>
-    <property name="subtitle" translatable="yes">Store calculated loudness in supported Local music files</property>
-  </object>
   <object class="AdwActionRow" id="output_row">
     <property name="title" translatable="yes">Audio output</property>
   </object>

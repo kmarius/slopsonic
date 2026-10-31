@@ -33,12 +33,6 @@ pub struct SourceSummary {
     pub supports_playlist_public: bool,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
-pub struct LocalFolder {
-    pub path: String,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct SourceLocalAccess {
@@ -64,10 +58,7 @@ pub struct SourceLocalAccessSummary {
 pub struct ConfiguredSources {
     pub sources: Vec<SourceSummary>,
     pub selected_source_id: Option<SourceId>,
-    pub local_folders: Vec<LocalFolder>,
-    pub local_excluded_folders: Vec<PathBuf>,
     pub local_access: Vec<SourceLocalAccessSummary>,
-    pub document_roots: Vec<sources::DocumentRoot>,
 }
 
 impl ConfiguredSources {
@@ -86,13 +77,8 @@ impl ConfiguredSources {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
 #[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct EditableSource {
-    pub integration: bool,
-    pub plex_settings: Option<sources::PlexSettingsInput>,
-    pub file_settings: Option<sources::FileSourceSettings>,
     pub source: SourceSummary,
     pub credentials: CredentialPreset,
-    pub use_instant_mix: Option<bool>,
-    pub emby_connect: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize)]
@@ -205,71 +191,6 @@ pub fn source_operation_text(operation: &SourceOperation) -> Option<String> {
     }
 }
 
-pub use sources::{DiscoveredServer, DiscoveryProvider};
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
-pub enum DiscoveryStatus {
-    Idle,
-    Searching,
-    Empty,
-    Found(u64),
-    Failed(String),
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
-pub struct DiscoveryUpdate {
-    pub provider: DiscoveryProvider,
-    pub servers: Vec<DiscoveredServer>,
-    pub status: DiscoveryStatus,
-}
-
-#[derive(serde::Serialize)]
-#[serde(tag = "event", content = "data", rename_all = "snake_case")]
-pub enum SourceLoginEvent {
-    Code {
-        code: String,
-        url: String,
-    },
-    OpenBrowser(String),
-    Servers(Vec<sources::EmbyConnectServer>),
-    #[serde(rename = "authorized")]
-    Jellyfin(sources::JellyfinQuickConnectLogin),
-    #[serde(rename = "authorized")]
-    Plex(Box<sources::PlexLogin>),
-    #[serde(rename = "authorized")]
-    Files {
-        settings: sources::FileSourceSettings,
-        credentials: sources::FileCredentials,
-    },
-}
-
-#[derive(serde::Deserialize)]
-#[serde(tag = "method", content = "data", rename_all = "snake_case")]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
-pub enum EmbyConnectLoginMethod {
-    Password { username: String, password: String },
-    Pin,
-}
-
-#[derive(serde::Deserialize)]
-#[serde(tag = "method", content = "data", rename_all = "snake_case")]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
-pub enum PlexLoginMethod {
-    Browser,
-    Password {
-        username: String,
-        password: String,
-        verification_code: Option<String>,
-    },
-}
-
-pub enum PlaylistExport {
-    Playlist(library::PlaylistKey),
-    Smart(library::SmartPlaylistKey),
-}
-
 pub type SourceHandle = Arc<crate::source::SourceOwner>;
 
 #[cfg(test)]
@@ -311,28 +232,16 @@ mod tests {
 
 pub fn source_kind_title(kind: &str) -> Option<&'static str> {
     Some(match kind {
-        "jellyfin" => "Jellyfin",
-        "emby" => "Emby",
-        "plex" => "Plex",
         "navidrome" => "Navidrome",
         "subsonic" => "OpenSubsonic",
-        "local" => "Local",
-        "webdav" => "WebDAV",
-        "smb" => "SMB / Samba",
         _ => return None,
     })
 }
 
 pub fn source_kind_icon_name(kind: &str) -> Option<&'static str> {
     Some(match kind {
-        "jellyfin" => "io.github.screwys.Rufin.source.jellyfin",
-        "emby" => "io.github.screwys.Rufin.source.emby",
-        "plex" => "io.github.screwys.Rufin.source.plex",
         "navidrome" => "io.github.screwys.Rufin.source.navidrome",
         "subsonic" => "io.github.screwys.Rufin.source.opensubsonic",
-        "local" => "io.github.screwys.Rufin-symbolic",
-        "webdav" => "io.github.screwys.Rufin.source.webdav",
-        "smb" => "io.github.screwys.Rufin.source.smb",
         _ => return None,
     })
 }

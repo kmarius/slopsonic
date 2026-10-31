@@ -142,7 +142,6 @@ fn retained_connections(previous: StoredSettings) -> StoredSettings {
         scrobbling_secrets_present: previous.scrobbling_secrets_present,
         scrobbling_credentials: previous.scrobbling_credentials,
         secret_scope_id: previous.secret_scope_id,
-        jellyfin_device_id: previous.jellyfin_device_id,
         ..StoredSettings::default()
     };
     next.ui.application.secret_storage_mode = previous.ui.application.secret_storage_mode;

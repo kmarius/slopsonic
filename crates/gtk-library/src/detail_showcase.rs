@@ -717,15 +717,12 @@ pub fn album_external_links(shell: &Rc<CatalogUi>, album: &AlbumView) -> Option<
             source.as_ref(),
             album,
         ),
-        &album.media_uri,
-        false,
     )
 }
 
 pub fn artist_external_links(
     shell: &Rc<CatalogUi>,
     artist: &ArtistView,
-    album_artist: bool,
 ) -> Option<gtk::Widget> {
     let settings = shell.settings.current.borrow();
     let source = library::source_entity_parts(&artist.media_uri)
@@ -737,29 +734,21 @@ pub fn artist_external_links(
             source.as_ref(),
             artist,
         ),
-        &artist.media_uri,
-        album_artist,
     )
 }
 
 fn detail_external_links(
     shell: &Rc<CatalogUi>,
     links: Vec<rufin_core::detail_links::DetailLink>,
-    media_uri: &str,
-    album_artist: bool,
 ) -> Option<gtk::Widget> {
     let row = detail_external_link_row();
     for link in links {
-        if let Some(url) = link.url {
-            row.append(&detail_external_link_button(
-                shell,
-                link.icon_name,
-                link.title,
-                url,
-            ));
-        } else if let Some(button) = detail_source_button(shell, media_uri, album_artist) {
-            row.append(&button);
-        }
+        row.append(&detail_external_link_button(
+            shell,
+            link.icon_name,
+            link.title,
+            link.url,
+        ));
     }
     row.first_child().is_some().then(|| row.upcast())
 }
@@ -831,45 +820,3 @@ fn detail_link_button(icon_name: &str, label: &str) -> gtk::Button {
     button
 }
 
-fn detail_source_button(
-    shell: &CatalogUi,
-    media_uri: &str,
-    album_artist: bool,
-) -> Option<gtk::Button> {
-    let (source_id, _, _) = library::source_entity_parts(media_uri)?;
-    let source = shell.source.configuration(&source_id)?;
-    let link = rufin_core::detail_links::source_link(&source, media_uri)?;
-    let button = detail_link_button(link.icon_name, link.title);
-    if let Some(uri) = link.url {
-        connect_web_link(&button, shell.window.clone(), uri);
-        return Some(button);
-    }
-    let source = shell.source.clone();
-    let window = shell.window.clone();
-    let media_uri = media_uri.to_owned();
-    let scope = shell
-        .selected_library()
-        .and_then(|selected| selected.music_folder_key);
-    button.connect_clicked(move |button| {
-        let Some(window) = window.upgrade() else {
-            return;
-        };
-        button.set_sensitive(false);
-        let button = button.downgrade();
-        let receiver = source.collection_folder_uri(media_uri.clone(), album_artist, scope);
-        glib::spawn_future_local(async move {
-            let result = async {
-                let uri = receiver.recv().await.map_err(|error| error.to_string())??;
-                gtk_widgets::folder_launcher::open_folder_uri(&window, &uri).await
-            }
-            .await;
-            if let Some(button) = button.upgrade() {
-                button.set_sensitive(true);
-            }
-            if let Err(error) = result {
-                warn!(%error, "failed to open source detail location");
-            }
-        });
-    });
-    Some(button)
-}

@@ -18,9 +18,9 @@
     <color type="primary" scheme_preference="dark">#28596b</color>
   </branding>
   <description>
-    <p>Enjoy your music library, local/remote folders or music server; with a powerful all-in-one music player.</p>
+    <p>Enjoy your Navidrome or Subsonic music server with a powerful native music player.</p>
     <ul>
-      <li>Supports Jellyfin, Navidrome/OpenSubsonic, Plex, and Emby servers; local folders,  WebDAV including a direct Nextcloud browser login path, Samba and NAS shares.</li>
+      <li>Supports Navidrome and Subsonic servers.</li>
       <li>Control the player from its Web UI or custom scripts, additionally enable Rufin Connect for cross-device synchronization</li>
       <li>Powerful transition and loudness normalization implementation</li>
       <li>Auto DJ with server or app-matched recommendations and random play filters</li>

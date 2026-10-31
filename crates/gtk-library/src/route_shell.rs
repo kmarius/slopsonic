@@ -63,7 +63,6 @@ gtk_widgets::composite_box!(
         search_host: gtk::Box,
         controls: gtk::Box,
         command_button: gtk::MenuButton,
-        import_button: gtk::Button,
         sort_dropdown: gtk::DropDown,
         direction: gtk::Button,
         layout: gtk::Button,
@@ -306,14 +305,6 @@ impl CatalogUi {
             include_detail,
             sort_fields,
         }));
-        toolbar
-            .imp()
-            .import_button
-            .set_visible(key == LibraryListKey::Playlists);
-        toolbar
-            .imp()
-            .import_button
-            .set_action_name(Some("win.import-playlist"));
         let command_button = toolbar.imp().command_button.get();
         command_button.set_visible(matches!(
             key,

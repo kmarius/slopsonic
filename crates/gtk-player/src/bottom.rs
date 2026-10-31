@@ -1233,7 +1233,6 @@ fn add_output_row(
             let protocol = glib::markup_escape_text(&match remote.protocol {
                 RemoteOutputProtocol::Upnp => "UPnP".to_string(),
                 RemoteOutputProtocol::GoogleCast => "Google Cast".to_string(),
-                RemoteOutputProtocol::PlexCompanion => "Plex Companion".into(),
                 RemoteOutputProtocol::RufinConnect => "Rufin Connect".to_string(),
             });
             format!("{name}  <span size=\"small\" alpha=\"55%\">{protocol}</span>").into()
@@ -1313,7 +1312,7 @@ fn select_output_async(
     let selection_cancelled = Arc::clone(&cancelled);
     let selection = shell
         .runtime
-        .spawn_blocking(move || transport.select_playback_output(selected, cancelled));
+        .spawn_blocking(move || transport.select_playback_output(selected));
     let shell = Rc::downgrade(shell);
     let outputs = outputs.downgrade();
     let popover = popover.downgrade();

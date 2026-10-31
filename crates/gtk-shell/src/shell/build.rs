@@ -59,7 +59,6 @@ pub async fn build(
     force_initial_presentation: bool,
     presented: Option<Box<dyn FnOnce()>>,
     window_bar_preview: Option<crate::application::WindowBarPreview>,
-    open_requests: async_channel::Receiver<Vec<gtk::gio::File>>,
 ) -> Result<(), String> {
     let appearance = Rc::new(gtk_preferences::appearance::ApplicationAppearance::install());
 
@@ -164,11 +163,6 @@ pub async fn build(
     let source = Rc::new(SourceState {
         configured: RefCell::new(configured_sources),
         operation: RefCell::new(source_operation),
-        discovered_servers: RefCell::new(Vec::new()),
-        discovery_status: RefCell::new(rufin_core::runtime::source::DiscoveryStatus::Idle),
-        discovery_running: Cell::new(false),
-        discovery_started: Cell::new(false),
-        discovery_provider: Cell::new(rufin_core::runtime::source::DiscoveryProvider::Jellyfin),
         add_server: RefCell::new(None),
         refresh_feedback_generation: Rc::new(Cell::new(0)),
     });
@@ -509,27 +503,6 @@ pub async fn build(
     build_normal_navigation(&shell);
     build_compact_navigation(&shell);
     connect_shell_actions(&shell);
-    super::drop_import::install(&shell);
-    let weak = Rc::downgrade(&shell);
-    let open_task = gtk::glib::spawn_future_local(async move {
-        while let Ok(files) = open_requests.recv().await {
-            let Some(shell) = weak.upgrade() else {
-                break;
-            };
-            let local = shell.products.settings.local_configuration();
-            if let Err(error) = rufin_core::open::files(
-                std::sync::Arc::clone(&shell.products.playback),
-                &shell.products.library,
-                local.as_ref(),
-                files,
-            )
-            .await
-            {
-                shell.control_feedback.show_feedback_toast(error);
-            }
-        }
-    });
-    app.connect_shutdown(move |_| open_task.abort());
     shell.chrome.topbar.bind(&shell);
     install_application_quit(&shell);
     install_desktop_lifecycle(&shell);

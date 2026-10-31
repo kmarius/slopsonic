@@ -76,7 +76,7 @@ fn present(parent: &gtk::Window, menus: &Rc<MediaMenus>, item: MediaDetailsItem)
     let resource = crate::ui_resource::MEDIA_DETAILS_RESOURCE;
     let builder = crate::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
-        dialog: adw::Dialog, header: adw::HeaderBar, heading: adw::WindowTitle, state: gtk::Stack, edit: gtk::Button,
+        dialog: adw::Dialog, header: adw::HeaderBar, heading: adw::WindowTitle, state: gtk::Stack,
         cover: gtk::Box, title: gtk::Label, subtitle: gtk::Label, summary: gtk::Box, sections: gtk::Box,
     });
     gtk_widgets::controls::configure_dialog_header(&header);
@@ -100,15 +100,6 @@ fn present(parent: &gtk::Window, menus: &Rc<MediaMenus>, item: MediaDetailsItem)
                 subtitle.set_visible(!details.subtitle.is_empty());
                 bind_cover(&cover, &menus, details.artwork_binding.as_deref(), 86);
                 populate(&summary, &sections, &details, &menus, &parent);
-                edit.set_visible(details.can_edit);
-                let editor = menus.edit_metadata.clone();
-                let weak = dialog.downgrade();
-                edit.connect_clicked(move |_| {
-                    if let Some(dialog) = weak.upgrade() {
-                        dialog.close();
-                    }
-                    editor(item.metadata_item());
-                });
                 state.set_visible_child_name("details");
             }
             Err(error) => {

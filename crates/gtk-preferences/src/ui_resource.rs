@@ -26,8 +26,6 @@ pub const BACKUP_DIALOG_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/dialogs/backup.ui";
 pub const RELEASE_NOTES_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/dialogs/release_notes.ui";
-pub const PLAYLIST_FILE_DIALOG_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/dialogs/playlist_file.ui";
 pub const DISCORD_FLATPAK_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/dialogs/discord_flatpak.ui";
 pub const RELEASE_NOTE_ROW_RESOURCE: &str =
@@ -41,24 +39,12 @@ pub const CONNECTION_PROGRESS_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/source/connection_progress.ui";
 pub const CREDENTIAL_HOST_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/source/credential_host.ui";
-pub const FILE_HOST_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/source/file_host.ui";
-pub const EXCLUDED_FOLDERS_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/source/excluded_folders.ui";
-pub const LOCAL_SETUP_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/source/local_setup.ui";
 pub const ONBOARDING_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/source/onboarding.ui";
 pub const SERVER_ACTIONS_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/source/server_actions.ui";
 pub const SETUP_SCAFFOLD_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/source/setup_scaffold.ui";
-pub const PLEX_HOST_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/source/plex_host.ui";
-pub const CODE_LOGIN_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/source/code_login.ui";
-pub const JELLYFIN_EMBY_HOST_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/source/jellyfin_emby_host.ui";
-pub const FILE_INTEGRATION_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/source/file_integration.ui";
 pub const BASE_CSS_RESOURCE: &str = "/io/github/screwys/Rufin/ui/style.css";
 
 pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
@@ -81,7 +67,6 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     THEME_TILE_RESOURCE,
     BACKUP_DIALOG_RESOURCE,
     RELEASE_NOTES_RESOURCE,
-    PLAYLIST_FILE_DIALOG_RESOURCE,
     DISCORD_FLATPAK_RESOURCE,
     RELEASE_NOTE_ROW_RESOURCE,
     UPDATE_READY_RESOURCE,
@@ -89,15 +74,8 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     SOURCE_CHOICE_SELECTOR_RESOURCE,
     CONNECTION_PROGRESS_RESOURCE,
     CREDENTIAL_HOST_RESOURCE,
-    FILE_HOST_RESOURCE,
-    EXCLUDED_FOLDERS_RESOURCE,
-    LOCAL_SETUP_RESOURCE,
     ONBOARDING_RESOURCE,
     SERVER_ACTIONS_RESOURCE,
     SETUP_SCAFFOLD_RESOURCE,
-    PLEX_HOST_RESOURCE,
-    CODE_LOGIN_RESOURCE,
-    JELLYFIN_EMBY_HOST_RESOURCE,
-    FILE_INTEGRATION_RESOURCE,
     BASE_CSS_RESOURCE,
 ];

@@ -9,7 +9,7 @@ description.workspace = true
 repository.workspace = true
 readme.workspace = true
 publish.workspace = true
-keywords = ["jellyfin", "emby", "plex", "navidrome", "subsonic"]
+keywords = ["navidrome", "subsonic"]
 categories = ["multimedia::audio", "gui"]
 build = "build.rs"
 
@@ -21,13 +21,12 @@ name = "rufin"
 path = "src/main.rs"
 
 [dependencies]
-rufin-controller.workspace = true
+process-memory.workspace = true
 rufin-core.workspace = true
 app-identity.workspace = true
 desktop-integration.workspace = true
 playback.workspace = true
 playback-gstreamer.workspace = true
-sources.workspace = true
 tracing.workspace = true
 gtk-shell.workspace = true
 

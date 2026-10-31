@@ -2,6 +2,7 @@
 
 use rufin_core::{app, diagnostics, paths};
 use std::env;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::ffi::OsStr;
 use std::io::{self, Write};
 use std::process::{Command, ExitCode};
@@ -16,21 +17,13 @@ use tracing::info;
 const UPDATED_RESTART_VERSION_ENV: &str = "RUFIN_UPDATED_RESTART_VERSION";
 
 fn main() -> ExitCode {
-    rufin_controller::configure_allocator();
-    let headless = env::args_os().nth(1).as_deref() == Some(OsStr::new("--headless"));
-    #[cfg(target_os = "windows")]
-    if headless {
-        desktop_integration::Platform::attach_parent_console();
-    }
+    process_memory::configure_allocator();
     #[cfg(target_os = "macos")]
     if let Some(result) = restart_in_macos_bundle() {
         return result;
     }
     #[cfg(unix)]
     if let Some(result) = playback_gstreamer::restart_with_http1() {
-        return result;
-    }
-    if let Some(result) = rufin_controller::discovery_worker_argument() {
         return result;
     }
     let updated_restart = match updated_restart_argument() {
@@ -42,10 +35,6 @@ fn main() -> ExitCode {
         None => false,
     };
     let settings = app::startup_settings(&paths::roots());
-    if headless {
-        let _desktop_platform = desktop_integration::Platform::initialize();
-        return rufin_controller::run(env::args_os().skip(2));
-    }
     let (diagnostics, _stderr_guard) = diagnostics::Diagnostics::install(paths::state_dir());
     let _desktop_platform = desktop_integration::Platform::initialize();
     info!("starting Rufin native shell");

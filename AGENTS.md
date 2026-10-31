@@ -12,7 +12,7 @@ The project should focus exclusively on being a polished, native Linux music pla
 
 Do not implement or expand:
 
-- **Other server backends** — Navidrome only, no Subsonic/Jellyfin/Plex/etc.
+- **Other server backends** — Navidrome/Subsonic only, no Jellyfin/Plex/etc.
 - **Metadata editing** — Read-only client; editing belongs in the server or dedicated tools
 - **File management** — No local library scanning, file organization, or downloads
 - **Rufin Connect / sync** — No cross-device sync or remote control features

@@ -16,7 +16,7 @@ use gtk_widgets::interactions::{
     radio_context_submenu,
 };
 use gtk_widgets::ratings::context_rating_row;
-use rufin_core::metadata::{MediaDetailsItem, MetadataItemId};
+use rufin_core::metadata::MediaDetailsItem;
 use rufin_core::playlists::SmartPlaylistChange;
 use rufin_core::settings::ContextMenuItem;
 use rufin_core::settings::SidebarPin;
@@ -93,11 +93,8 @@ pub struct MediaMenus {
     pub projected_item_favorite: Rc<dyn Fn(&FavoriteTarget, bool) -> bool>,
     pub half_stars_enabled: Rc<dyn Fn(&str, Option<&str>) -> bool>,
     pub set_favorite: Rc<dyn Fn(FavoriteTarget, bool)>,
-    pub edit_metadata: Rc<dyn Fn(MetadataItemId)>,
-    pub edit_track_metadata: Rc<dyn Fn(library::MemberSelection)>,
     pub set_sidebar_pin: Rc<dyn Fn(SidebarPin, bool)>,
     pub source_download_available: Rc<dyn Fn(&sources::SourceId) -> bool>,
-    pub export_playlist_dialog: Rc<dyn Fn(rufin_core::runtime::source::PlaylistExport, &str)>,
     pub edit_playlist_dialog: Rc<dyn Fn(library::PlaylistKey, String)>,
     pub edit_smart_playlist_dialog: Rc<dyn Fn(SmartPlaylistRow)>,
     pub publish_smart_playlist_change:
@@ -170,16 +167,6 @@ pub fn present_track_menu(
         RADIO_ICON,
     );
     append_context_menu_picker(&surface, menus, track_play_request(track.track_key));
-    if track.access.cue_path.is_none()
-        && (track.source_key.is_some() || track.media_uri.starts_with("file:"))
-    {
-        surface.append_configurable_action(
-            ContextMenuItem::EditMetadata,
-            "Edit metadata",
-            "edit-metadata",
-            EDIT_ICON,
-        );
-    }
     install_track_navigation(&surface, menus, action_group, &track);
     let playback = track_play_request(track.track_key);
     install_download_actions(
@@ -198,15 +185,6 @@ pub fn present_track_menu(
         FavoriteTarget::Track(track.media_uri.clone()),
         favorite,
     );
-    if track.access.cue_path.is_none()
-        && (track.source_key.is_some() || track.media_uri.starts_with("file:"))
-    {
-        let metadata_menus = Rc::clone(menus);
-        let media_uri = track.media_uri.clone();
-        surface.add_action("edit-metadata", move || {
-            (metadata_menus.edit_metadata)(MetadataItemId::Track(media_uri.clone()));
-        });
-    }
     if context_menu_rating_visible(menus) {
         let menus = Rc::clone(menus);
         let media_uri = track.media_uri.clone();
@@ -298,7 +276,6 @@ fn install_track_navigation(
         &track.media_uri,
         track.source_id.as_deref(),
         album_media_uri,
-        false,
     );
     if submenu.n_items() > 0 {
         surface.append_configurable_submenu(
@@ -342,7 +319,6 @@ fn install_source_navigation(
     media_uri: &str,
     source_id: Option<&str>,
     album_uri: Option<&str>,
-    album_artist: bool,
 ) {
     let source_id = source_id
         .map(sources::SourceId::new)
@@ -369,38 +345,18 @@ fn install_source_navigation(
         .and_downcast::<gtk::ApplicationWindow>()
         .map(|window| window.downgrade());
     let menus = Rc::clone(menus);
-    let media_uri = media_uri.to_owned();
     surface.add_action("go-source", move || {
         let Some(window) = window.as_ref().and_then(glib::WeakRef::upgrade) else {
             return;
         };
-        let source = menus.source.clone();
-        let folder = source
-            .selected_library()
-            .filter(|selected| source_id.as_ref() == Some(&selected.source_id))
-            .and_then(|selected| selected.music_folder_key);
-        let media_uri = media_uri.clone();
         let url = link.url.clone();
         let show_error = Rc::clone(&menus.show_error);
         glib::spawn_future_local(async move {
-            let result = async {
-                if let Some(url) = url {
-                    gtk::UriLauncher::new(&url)
-                        .launch_future(Some(&window))
-                        .await
-                        .map_err(|error| error.to_string())
-                } else {
-                    let uri = source
-                        .collection_folder_uri(media_uri, album_artist, folder)
-                        .recv()
-                        .await
-                        .map_err(|error| error.to_string())??;
-                    gtk_widgets::folder_launcher::open_folder_uri(&window, &uri).await
-                }
-            }
-            .await;
-            if let Err(error) = result {
-                show_error(error);
+            if let Err(error) = gtk::UriLauncher::new(&url)
+                .launch_future(Some(&window))
+                .await
+            {
+                show_error(error.to_string());
             }
         });
     });
@@ -448,21 +404,6 @@ pub fn present_playlist_entry_menu(
         true,
         row.track.access.is_downloaded,
     );
-    if row.track.media_uri.starts_with("file:")
-        || library::source_entity_parts(&row.track.media_uri).is_some()
-    {
-        surface.append_configurable_action(
-            ContextMenuItem::EditMetadata,
-            "Edit metadata",
-            "edit-metadata",
-            EDIT_ICON,
-        );
-        let metadata_menus = Rc::clone(menus);
-        let media_uri = row.track.media_uri.clone();
-        surface.add_action("edit-metadata", move || {
-            (metadata_menus.edit_metadata)(MetadataItemId::Track(media_uri.clone()))
-        });
-    }
     append_context_menu_picker_media(&surface, menus, row.track.media_uri.clone());
     add_favorite_action(
         &surface,
@@ -541,36 +482,6 @@ fn collection_selection_surface(
         targets: targets.clone(),
     };
     let surface = ContextMenuSurface::new(target, "collection-selection", position);
-    surface.append_configurable_action(
-        ContextMenuItem::EditMetadata,
-        "Edit metadata",
-        "edit-metadata",
-        EDIT_ICON,
-    );
-    let metadata_targets = targets.clone();
-    let metadata_menus = Rc::clone(menus);
-    surface.add_action("edit-metadata", move || {
-        let targets = metadata_targets.clone();
-        let menus = Rc::clone(&metadata_menus);
-        let database = menus.library.clone();
-        let task = menus.runtime.spawn(async move {
-            targets.resolve(&database).await.map(|targets| {
-                library::MemberSelection::Concat(
-                    targets
-                        .into_iter()
-                        .filter_map(|target| target.selection())
-                        .collect(),
-                )
-            })
-        });
-        glib::spawn_future_local(async move {
-            match task.await {
-                Ok(Ok(selection)) => (menus.edit_track_metadata)(selection),
-                Ok(Err(error)) => (menus.show_error)(error),
-                Err(error) => (menus.show_error)(error.to_string()),
-            }
-        });
-    });
     surface.append_play_actions(&menus.settings.current.borrow().application.context_menu);
     (menus.picker_payload)(&surface, payload.clone());
     for (action, placement, shuffled) in PLAY_ACTIONS {
@@ -819,7 +730,6 @@ fn append_playlist_entry_selection_actions(
     }
     surface.append_play_actions(&menus.settings.current.borrow().application.context_menu);
     append_context_menu_picker_entries(surface, menus, selection.clone());
-    append_metadata_selection_action(surface, menus, selection.input.clone());
     let download_menus = Rc::clone(menus);
     let download_selection = selection.clone();
     surface.append_configurable_action(
@@ -866,7 +776,6 @@ fn append_track_selection_actions(
     }
     surface.append_play_actions(&menus.settings.current.borrow().application.context_menu);
     append_context_menu_picker_selection(&surface, menus, selection.clone());
-    append_metadata_selection_action(surface, menus, selection.input.clone());
     install_track_selection_download_actions(&surface, menus, selection.clone());
     for (action, placement, shuffled) in PLAY_ACTIONS {
         let menus = Rc::clone(menus);
@@ -875,23 +784,6 @@ fn append_track_selection_actions(
             selection.play(&menus.playback, placement, shuffled)
         });
     }
-}
-
-fn append_metadata_selection_action(
-    surface: &ContextMenuSurface,
-    menus: &Rc<MediaMenus>,
-    selection: library::MemberSelection,
-) {
-    surface.append_configurable_action(
-        ContextMenuItem::EditMetadata,
-        "Edit metadata",
-        "edit-metadata",
-        EDIT_ICON,
-    );
-    let menus = Rc::clone(menus);
-    surface.add_action("edit-metadata", move || {
-        (menus.edit_track_metadata)(selection.clone())
-    });
 }
 
 pub fn install_track_selection_download_actions(
@@ -992,12 +884,6 @@ pub fn present_album_context_menu(
         menus,
         gtk_widgets::selection::album_play_request(&album),
     );
-    surface.append_configurable_action(
-        ContextMenuItem::EditMetadata,
-        "Edit metadata",
-        "edit-metadata",
-        EDIT_ICON,
-    );
     install_sidebar_pin_action(
         &surface,
         menus,
@@ -1021,7 +907,6 @@ pub fn present_album_context_menu(
         &album.media_uri,
         None,
         None,
-        false,
     );
     if submenu.n_items() > 0 {
         surface.append_configurable_submenu(
@@ -1050,13 +935,6 @@ pub fn present_album_context_menu(
         FavoriteTarget::Album(album.media_uri.clone()),
         favorite,
     );
-    {
-        let metadata_menus = Rc::clone(menus);
-        let media_uri = album.media_uri.clone();
-        surface.add_action("edit-metadata", move || {
-            (metadata_menus.edit_metadata)(MetadataItemId::Album(media_uri.clone()));
-        });
-    }
     for (index, artist) in album.links.album_artists.iter().enumerate() {
         let action = if album.links.album_artists.len() == 1 {
             "go-artist".to_string()
@@ -1150,12 +1028,6 @@ pub fn present_artist_context_menu(
             gtk_widgets::selection::artist_play_request(&artist, false)
         },
     );
-    surface.append_configurable_action(
-        ContextMenuItem::EditMetadata,
-        "Edit metadata",
-        "edit-metadata",
-        EDIT_ICON,
-    );
     install_sidebar_pin_action(
         &surface,
         menus,
@@ -1177,7 +1049,6 @@ pub fn present_artist_context_menu(
         &artist.media_uri,
         None,
         None,
-        album_artist,
     );
     surface.append_configurable_submenu(
         ContextMenuItem::GoTo,
@@ -1215,13 +1086,6 @@ pub fn present_artist_context_menu(
         FavoriteTarget::Artist(artist.media_uri.clone()),
         favorite,
     );
-    {
-        let metadata_menus = Rc::clone(menus);
-        let media_uri = artist.media_uri.clone();
-        surface.add_action("edit-metadata", move || {
-            (metadata_menus.edit_metadata)(MetadataItemId::Artist(media_uri.clone()));
-        });
-    }
     let menus_artist = Rc::clone(menus);
     let artist_uri = artist.media_uri.clone();
     surface.add_action("go-artist", move || {
@@ -1404,20 +1268,6 @@ fn present_playlist_context_menu_ready(
             playlist_id: playlist.object_id.clone(),
         }),
     );
-    surface.append_fixed_action(
-        "Export playlist",
-        "export",
-        "rufin-document-send-symbolic",
-    );
-    let export_menus = Rc::clone(menus);
-    let export_key = playlist.playlist_key;
-    let export_name = playlist.name.clone();
-    surface.add_action("export", move || {
-        (export_menus.export_playlist_dialog)(
-            rufin_core::runtime::source::PlaylistExport::Playlist(export_key),
-            &export_name,
-        )
-    });
     if playlist.metadata_writable {
         surface.append_fixed_action("Edit", "edit", EDIT_ICON);
     }
@@ -1432,7 +1282,7 @@ fn present_playlist_context_menu_ready(
         }],
         in_folder,
     );
-    if rufin_core::playlists::can_remove_unavailable(&menus.source, &playlist) {
+    if rufin_core::playlists::can_remove_unavailable(&playlist) {
         surface.append_fixed_action(
             "Remove unavailable tracks",
             "remove-unavailable",
@@ -1590,20 +1440,6 @@ fn present_smart_playlist_context_menu_ready(
             playlist_id: playlist.object_id.clone(),
         }),
     );
-    surface.append_fixed_action(
-        "Export playlist",
-        "export",
-        "rufin-document-send-symbolic",
-    );
-    let export_menus = Rc::clone(menus);
-    let export_key = playlist.smart_playlist_key;
-    let export_name = playlist.name.clone();
-    surface.add_action("export", move || {
-        (export_menus.export_playlist_dialog)(
-            rufin_core::runtime::source::PlaylistExport::Smart(export_key),
-            &export_name,
-        )
-    });
     surface.append_fixed_action("Edit", "edit-definition", EDIT_ICON);
     crate::playlist_folders::append_folder_actions(
         &surface,

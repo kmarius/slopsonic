@@ -37,11 +37,6 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
         move || shell.open_activity(None)
     });
     install_source_menu_actions(shell);
-    add_window_action(shell, "import-playlist", &[], {
-        let shell = Rc::clone(shell);
-        move || shell.import_playlist_dialog()
-    });
-
     add_window_action(shell, "new-playlist-folder", &[], {
         let shell = Rc::clone(shell);
         move || shell.new_playlist_folder_dialog()

@@ -8,20 +8,18 @@ uniffi::custom_type!(PathBuf, String, {
 
 use serde::{Deserialize, Serialize};
 
-/// Native paths keep their released JSON representation. Document roots are URI grants.
+/// Native paths keep their released JSON representation.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(untagged)]
 #[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum DownloadDirectory {
     Native(PathBuf),
-    Document { uri: String },
 }
 
 impl DownloadDirectory {
     pub fn native(&self) -> Option<&Path> {
         match self {
             Self::Native(path) => Some(path),
-            Self::Document { .. } => None,
         }
     }
 }
@@ -30,7 +28,6 @@ impl std::fmt::Display for DownloadDirectory {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Native(path) => path.display().fmt(formatter),
-            Self::Document { uri } => uri.fmt(formatter),
         }
     }
 }
@@ -40,11 +37,6 @@ pub(super) enum DownloadAudio {
     Native {
         root: Option<PathBuf>,
         path: PathBuf,
-    },
-    Document {
-        root: String,
-        relative: Vec<String>,
-        file: Option<String>,
     },
 }
 
@@ -57,19 +49,12 @@ impl DownloadAudio {
     pub fn native(&self) -> Option<&Path> {
         match self {
             Self::Native { path, .. } => Some(path),
-            Self::Document { .. } => None,
         }
     }
 
     pub fn location(&self) -> Result<String, String> {
         match self {
             Self::Native { path, .. } => Ok(path.to_string_lossy().into_owned()),
-            Self::Document {
-                file: Some(file), ..
-            } => Ok(file.clone()),
-            Self::Document { file: None, .. } => {
-                Err("The document download has not been published".into())
-            }
         }
     }
 
@@ -78,7 +63,6 @@ impl DownloadAudio {
             Self::Native { path, .. } => reqwest::Url::from_file_path(path)
                 .map(String::from)
                 .map_err(|()| "Download path is not absolute".into()),
-            Self::Document { .. } => self.location(),
         }
     }
 
@@ -99,17 +83,6 @@ impl DownloadAudio {
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
                 Err(error) => Err(error.to_string()),
             },
-            Self::Document {
-                file: Some(file), ..
-            } => match sources::stat_document(file) {
-                Ok(entry) if !entry.directory => Ok(Some(DownloadFileMetadata {
-                    size: entry.size,
-                    mtime_ns: 0,
-                })),
-                Ok(_) | Err(sources::SourceError::NotFound) => Ok(None),
-                Err(error) => Err(error.to_string()),
-            },
-            Self::Document { file: None, .. } => Ok(None),
         }
     }
 
@@ -132,7 +105,6 @@ impl DownloadAudio {
                     relative.to_string_lossy().into_owned(),
                 ))
             }
-            Self::Document { root, relative, .. } => Ok((root.clone(), relative.join("/"))),
         }
     }
 
@@ -144,56 +116,6 @@ impl DownloadAudio {
                     .map_err(|error| format!("Could not save the downloaded track: {error}"))?;
                 Ok(self.clone())
             }
-            Self::Document {
-                root,
-                relative,
-                file,
-            } => {
-                let (root, mut relative, file, partial) = (
-                    root.clone(),
-                    relative.clone(),
-                    file.clone(),
-                    partial.to_owned(),
-                );
-                tokio::task::spawn_blocking(move || {
-                    let parent = sources::create_document_directories(
-                        &root,
-                        &relative[..relative.len() - 1],
-                    )
-                    .map_err(|error| error.to_string())?
-                    .uri;
-                    let name = relative
-                        .last()
-                        .ok_or("The document download has no filename")?;
-                    let existing = if file.is_some() {
-                        None
-                    } else {
-                        sources::find_document_child(&parent, name)
-                            .map_err(|error| error.to_string())?
-                    };
-                    let entry = if let Some(entry) = existing {
-                        sources::save_document(&entry.uri, &partial, entry.revision.as_deref())
-                            .map_err(|error| error.to_string())?;
-                        entry
-                    } else {
-                        sources::create_document(
-                            &parent,
-                            name,
-                            "application/octet-stream",
-                            &partial,
-                        )
-                        .map_err(|error| error.to_string())?
-                    };
-                    *relative.last_mut().expect("generated download filename") = entry.name;
-                    Ok(Self::Document {
-                        root,
-                        relative,
-                        file: Some(entry.uri),
-                    })
-                })
-                .await
-                .map_err(|error| error.to_string())?
-            }
         }
     }
 
@@ -204,22 +126,6 @@ impl DownloadAudio {
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
                 Err(error) => Err(error.to_string()),
             },
-            Self::Document {
-                file: Some(file), ..
-            } => {
-                let file = file.clone();
-                tokio::task::spawn_blocking(move || {
-                    let present = match sources::delete_document(&file) {
-                        Ok(()) => true,
-                        Err(sources::SourceError::NotFound) => false,
-                        Err(error) => return Err(error.to_string()),
-                    };
-                    Ok(present)
-                })
-                .await
-                .map_err(|error| error.to_string())?
-            }
-            Self::Document { file: None, .. } => Ok(false),
         }
     }
 }

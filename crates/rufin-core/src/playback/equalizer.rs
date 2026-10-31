@@ -410,7 +410,7 @@ fn output_id(output: &PlaybackOutput, device: Option<&str>) -> String {
     }
 }
 fn output_available(output: &str) -> bool {
-    !output.starts_with("remote:PlexCompanion:") && !output.starts_with("remote:RufinConnect:")
+    !output.starts_with("remote:RufinConnect:")
 }
 fn backend_key(output: &str) -> String {
     if output.starts_with("local:") {

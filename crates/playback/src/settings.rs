@@ -104,8 +104,6 @@ macro_rules! playback_preference_fields {
                 #[serde(default = "default_true")]
                 skip_unplayable_tracks: bool = true => set_skip_unplayable_tracks;
                 #[serde(default)]
-                write_ebu_r128_tags: bool = false => set_write_ebu_r128_tags;
-                #[serde(default)]
                 stream_quality: StreamQuality = StreamQuality::Original => set_stream_quality;
                 #[serde(default, skip_serializing_if = "Option::is_none")]
                 audio_output: Option<String> = None;
@@ -460,7 +458,6 @@ mod tests {
             loudness_normalization: LoudnessNormalization::EbuR128,
             loudness_normalization_scope: LoudnessNormalizationScope::Track,
             ebu_r128_target_lufs: -21.0,
-            write_ebu_r128_tags: true,
             ..PlaybackSettings::default()
         };
         let restored = serde_json::from_value::<PlaybackSettings>(
@@ -476,7 +473,6 @@ mod tests {
             LoudnessNormalizationScope::Track
         );
         assert_eq!(restored.ebu_r128_target_lufs, -21.0);
-        assert!(restored.write_ebu_r128_tags);
     }
 
     #[test]

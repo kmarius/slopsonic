@@ -1,6 +1,5 @@
 use gtk_widgets::forms::row_action_content;
 use std::cell::RefCell;
-use std::path::Path;
 use std::rc::Rc;
 
 use adw::prelude::*;
@@ -11,7 +10,7 @@ use rufin_core::text::{fill_plural};
 
 use super::{
     PreferencesNavigationControls,
-    source::{configured_source_kind_display_name, half_stars_row},
+    source::configured_source_kind_display_name,
 };
 use crate::Preferences;
 use gtk_widgets::source_labels::{configured_source_display_name, configured_source_icon_name};
@@ -55,21 +54,11 @@ fn library_sources_page(
         activity_export: gtk::Button,
         servers_group: adw::PreferencesGroup,
         empty_remote_row: adw::ActionRow,
-        local_source_row: adw::ActionRow, add_source: gtk::Button,
+        add_source: gtk::Button,
     });
 
     let configured = shell.source.configured.borrow().clone();
-    let local_source = configured
-        .sources
-        .iter()
-        .find(|source| source.kind == "local")
-        .cloned();
-    let remote_sources = configured
-        .sources
-        .iter()
-        .filter(|source| source.kind != "local")
-        .cloned()
-        .collect::<Vec<_>>();
+    let remote_sources = configured.sources.clone();
 
     if configured.sources.is_empty() {
         servers_group.add(&empty_remote_row);
@@ -163,40 +152,6 @@ fn library_sources_page(
             });
             servers_group.add(&row);
         }
-    }
-
-    if local_source.is_some() || !configured.local_folders.is_empty() {
-        let mut subtitle = rufin_core::text::fill(
-            "Configured items: {count}",
-            &[("count", &configured.local_folders.len().to_string())],
-        );
-        if let Some(summary) = local_source.as_ref().and_then(|source| {
-            configured
-                .local_access
-                .iter()
-                .find(|summary| summary.source_id == source.id)
-        }) {
-            subtitle.push('\n');
-            subtitle.push_str(&source_cache_line(summary));
-        }
-        local_source_row.set_subtitle(&subtitle);
-        let local_shell = Rc::downgrade(shell);
-        let local_dialog = dialog.downgrade();
-        let local_navigation = navigation.downgrade();
-        let controls = navigation_controls.clone();
-        local_source_row.connect_activated(move |_| {
-            let (Some(shell), Some(dialog), Some(navigation)) = (
-                local_shell.upgrade(),
-                local_dialog.upgrade(),
-                local_navigation.upgrade(),
-            ) else {
-                return;
-            };
-            let page = local_sources_page(&shell, &dialog);
-            navigation.push(&adw::NavigationPage::new(&page, &page.title()));
-            controls.set_nested_page_visible(true);
-        });
-        servers_group.add(&local_source_row);
     }
 
     let add_shell = Rc::clone(shell);
@@ -457,205 +412,6 @@ fn source_downloads_group(
     downloads_group.add(&download_queue_header);
     add_download_queue(&downloads_group, shell, &server.id, &pause_downloads);
     downloads_group
-}
-
-pub fn local_sources_page(shell: &Rc<Preferences>, dialog: &adw::Dialog) -> adw::PreferencesPage {
-    let resource = crate::ui_resource::LIBRARY_PREFERENCES_RESOURCE;
-    let builder = gtk_widgets::ui_resource::builder(resource);
-    gtk_widgets::objects!(builder, resource, {
-        local_page: adw::PreferencesPage, local_group: adw::PreferencesGroup,
-        empty_local_row: adw::ActionRow, local_actions_row: adw::PreferencesRow,
-        add_local: gtk::Button, resync_local: gtk::Button,
-        forget_local: gtk::Button,
-        forget_local_confirm: adw::AlertDialog,
-    });
-    let configured = shell.source.configured.borrow().clone();
-    let local_source = configured
-        .sources
-        .iter()
-        .find(|source| source.kind == "local")
-        .cloned();
-    if let Some(half_stars) = local_source
-        .as_ref()
-        .and_then(|source| half_stars_row(shell, source))
-    {
-        local_group.add(&half_stars);
-    }
-    if let Some(row) = local_source
-        .as_ref()
-        .and_then(|source| super::source::playlist_auto_save_row(shell, source))
-    {
-        local_group.add(&row);
-    }
-    if configured.local_folders.is_empty() {
-        local_group.add(&empty_local_row);
-    } else {
-        for folder in configured.local_folders.iter() {
-            let row = adw::ActionRow::builder()
-                .title(local_folder_title(&folder.path))
-                .subtitle(desktop_integration::display_path(Path::new(&folder.path)))
-                .build();
-            row.add_prefix(&gtk::Image::from_icon_name("rufin-library-music-symbolic"));
-            let remove = gtk::Button::from_icon_name("rufin-window-close-symbolic");
-            remove.set_tooltip_text(Some(&"Remove".to_string()));
-            remove.add_css_class("flat");
-            remove.add_css_class("destructive-action");
-            remove.set_valign(gtk::Align::Center);
-            row.add_suffix(&remove);
-            row.set_activatable(false);
-            let remove_shell = Rc::clone(shell);
-            let path = folder.path.clone();
-            let row_for_remove = row.downgrade();
-            remove.connect_clicked(move |_| {
-                let Some(row) = row_for_remove.upgrade() else {
-                    return;
-                };
-                confirm_remove_local_folder(&remove_shell, path.clone(), row);
-            });
-            local_group.add(&row);
-        }
-    }
-
-    let add_shell = Rc::clone(shell);
-    let add_dialog = dialog.downgrade();
-    add_local.connect_clicked(move |_| {
-        let Some(dialog) = add_dialog.upgrade() else {
-            return;
-        };
-        let shell = Rc::clone(&add_shell);
-        gtk::glib::spawn_future_local(async move {
-            let chooser = gtk::FileDialog::builder()
-                .title("Select Music Folder".to_string())
-                .build();
-            let Ok(folder) = chooser.select_folder_future(Some(&shell.window)).await else {
-                return;
-            };
-            let Some(path) = folder.path() else {
-                return;
-            };
-            let result = shell.products.source.add_local_paths(vec![path]);
-            dialog.close();
-            if let Ok(Err(error)) = result.recv().await {
-                shell.control_feedback.show_feedback_toast(error);
-            }
-        });
-    });
-    forget_local.set_visible(local_source.is_some());
-    if let Some(local) = &local_source {
-        let source_id = local.id.clone();
-        let source = shell.products.source.clone();
-        let dialog = dialog.downgrade();
-        let window = shell.window.downgrade();
-        forget_local.connect_clicked(move |_| {
-            let Some(window) = window.upgrade() else {
-                return;
-            };
-            let source = source.clone();
-            let source_id = source_id.clone();
-            let dialog = dialog.clone();
-            forget_local_confirm.clone().choose(
-                Some(&window),
-                None::<&gio::Cancellable>,
-                move |response| {
-                    if response == "forget" {
-                        gtk::glib::spawn_future_local(async move {
-                            let _ = source.forget_source(source_id).await;
-                        });
-                        if let Some(dialog) = dialog.upgrade() {
-                            dialog.close();
-                        }
-                    }
-                },
-            );
-        });
-    }
-    let local_source_id = local_source.map(|source| source.id);
-    resync_local.set_sensitive(!configured.local_folders.is_empty() && local_source_id.is_some());
-    let source = shell.products.source.clone();
-    let resync_dialog = dialog.downgrade();
-    let resync_source_id = local_source_id.clone();
-    resync_local.connect_clicked(move |_| {
-        if let Some(source_id) = resync_source_id.clone() {
-            let source = source.clone();
-            gtk::glib::spawn_future_local(async move {
-                let _ = source.refresh_source(source_id, false).await;
-            });
-        }
-        if let Some(dialog) = resync_dialog.upgrade() {
-            dialog.close();
-        }
-    });
-    local_group.add(&local_actions_row);
-    local_page.add(&local_group);
-
-    if let Some(source_id) = local_source_id {
-        let initial = configured
-            .local_excluded_folders
-            .iter()
-            .map(|path| path.to_string_lossy().into_owned())
-            .collect::<Vec<_>>();
-        let paths = Rc::new(RefCell::new(initial.clone()));
-        let draft = Rc::clone(&paths);
-        let (group, save, status) = super::source::excluded_folders::editor(
-            &shell.window,
-            &initial,
-            true,
-            Rc::new(move |value| *draft.borrow_mut() = value),
-        );
-        save.set_visible(true);
-        let source = shell.products.source.clone();
-        let dialog = dialog.downgrade();
-        save.connect_clicked(move |button| {
-            let Some(configuration) = source.configuration(&source_id) else {
-                return;
-            };
-            let Ok(sources::EditableSource::Local { roots, .. }) = configuration.editable() else {
-                return;
-            };
-            let pending = source.update_source(sources::SourceSettingsChange::Local {
-                source_id: source_id.clone(),
-                roots,
-                excluded_folders: Some(
-                    paths
-                        .borrow()
-                        .iter()
-                        .map(std::path::PathBuf::from)
-                        .collect(),
-                ),
-            });
-            button.set_sensitive(false);
-            status.set_visible(false);
-            let button = button.downgrade();
-            let status = status.downgrade();
-            let dialog = dialog.clone();
-            gtk::glib::spawn_future_local(async move {
-                match pending.recv().await {
-                    Ok(Ok(())) => {
-                        if let Some(dialog) = dialog.upgrade() {
-                            dialog.close();
-                        }
-                    }
-                    result => {
-                        let error = match result {
-                            Ok(Err(error)) => error,
-                            Err(error) => error.to_string(),
-                            _ => unreachable!(),
-                        };
-                        if let Some(status) = status.upgrade() {
-                            status.set_text(&error);
-                            status.set_visible(true);
-                        }
-                    }
-                }
-                if let Some(button) = button.upgrade() {
-                    button.set_sensitive(true);
-                }
-            });
-        });
-        local_page.add(&group);
-    }
-
-    local_page
 }
 
 fn add_download_rules(
@@ -1214,49 +970,6 @@ fn confirm_remove_all_downloads(
     });
 }
 
-fn confirm_remove_local_folder(shell: &Rc<Preferences>, path: String, row: adw::ActionRow) {
-    let dialog = adw::AlertDialog::builder()
-        .heading("Remove".to_string())
-        .body(path.clone())
-        .build();
-    let cancel = "Cancel".to_string();
-    let remove = "Remove".to_string();
-    dialog.add_responses(&[("cancel", cancel.as_str()), ("remove", remove.as_str())]);
-    dialog.set_default_response(Some("cancel"));
-    dialog.set_close_response("cancel");
-    dialog.set_response_appearance("remove", adw::ResponseAppearance::Destructive);
-    let source = shell.products.source.clone();
-    dialog.choose(
-        Some(&shell.window),
-        None::<&gio::Cancellable>,
-        move |response| {
-            if response.as_str() == "remove" {
-                source.remove_local_folder(path.clone());
-                row.set_visible(false);
-            }
-        },
-    );
-}
-
-pub fn locate_local_folder(shell: &Rc<Preferences>, current: String) {
-    let shell = Rc::clone(shell);
-    gtk::glib::spawn_future_local(async move {
-        let chooser = gtk::FileDialog::builder()
-            .title("Select Music Folder".to_string())
-            .build();
-        let Ok(folder) = chooser.select_folder_future(Some(&shell.window)).await else {
-            return;
-        };
-        let Some(replacement) = folder.path() else {
-            return;
-        };
-        shell
-            .products
-            .source
-            .replace_local_folder(current, replacement);
-    });
-}
-
 fn source_summary_subtitle(
     server: &SourceSummary,
     summary: Option<&SourceLocalAccessSummary>,
@@ -1329,13 +1042,4 @@ fn local_mapping_status(
         status.total_track_count as u64,
         &[("matched", matched.as_str()), ("total", total.as_str())],
     )
-}
-
-fn local_folder_title(path: &str) -> String {
-    Path::new(path)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .filter(|name| !name.trim().is_empty())
-        .map(ToString::to_string)
-        .unwrap_or_else(|| desktop_integration::display_path(Path::new(path)))
 }

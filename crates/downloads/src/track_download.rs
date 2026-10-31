@@ -46,11 +46,6 @@ pub(super) struct ReleasedDownloadRecord {
 #[cfg_attr(test, derive(Serialize))]
 #[serde(untagged)]
 pub(super) enum RecordedAudio {
-    Document {
-        document_root: String,
-        document_uri: String,
-        document_path: Vec<String>,
-    },
     Native {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         storage_root: Option<PathBuf>,
@@ -137,7 +132,7 @@ impl TransferClients {
         representation: &str,
         paths: &DownloadPaths,
         cancellation: &mut oneshot::Receiver<()>,
-    ) -> SourceResult<Option<String>> {
+    ) -> SourceResult<()> {
         let clients = if stream.trust_invalid_certificate() {
             &self.insecure
         } else {
@@ -156,12 +151,11 @@ impl TransferClients {
             .await?;
         let resume = read_checkpoint(paths, Some(representation)).await?;
         let response = send_request(client, stream.uri(), resume.as_ref(), cancellation).await?;
-        let revision = peer_response_revision(&response)?;
         let status = response.status();
         if status == reqwest::StatusCode::OK {
             return download_full(response, paths, representation, cancellation)
                 .await
-                .map(|()| revision);
+                ;
         }
         if status == reqwest::StatusCode::PARTIAL_CONTENT
             && let Some((checkpoint, offset)) = resume.as_ref()
@@ -169,23 +163,22 @@ impl TransferClients {
         {
             return download_partial(response, paths, checkpoint, *offset, cancellation)
                 .await
-                .map(|()| revision);
+                ;
         }
         if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE
             && let Some((checkpoint, offset)) = resume.as_ref()
             && *offset == checkpoint.length
             && unsatisfied_total(&response) == Some(checkpoint.length)
         {
-            return Ok(revision);
+            return Ok(());
         }
         if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE && resume.is_some() {
             discard_staging(paths).await?;
             let response = send_request(client, stream.uri(), None, cancellation).await?;
-            let revision = peer_response_revision(&response)?;
-            if response.status() == reqwest::StatusCode::OK {
+                if response.status() == reqwest::StatusCode::OK {
                 return download_full(response, paths, representation, cancellation)
                     .await
-                    .map(|()| revision);
+                    ;
             }
             if !response.status().is_success() {
                 return response_error(response.status(), paths).await;
@@ -201,14 +194,6 @@ impl TransferClients {
             "the download server returned an unsupported successful response".to_string(),
         ))
     }
-}
-
-fn peer_response_revision(response: &reqwest::Response) -> SourceResult<Option<String>> {
-    response
-        .headers()
-        .get(sources::PEER_REVISION_HEADER)
-        .map(|value| sources::peer_revision(value.as_bytes()))
-        .transpose()
 }
 
 fn representation_key(
@@ -649,12 +634,12 @@ pub(super) async fn run_transfer(
     paths: &DownloadPaths,
     transfers: &TransferClients,
     cancellation: &mut oneshot::Receiver<()>,
-) -> SourceResult<Option<String>> {
+) -> SourceResult<()> {
     prepare_download_directories(paths).await?;
     let representation = representation_key(source_id, media_uri, quality, stream.redacted_uri());
     if let Some(path) = library::file_media_path(stream.uri()) {
         tokio::select! {
-            result = tokio::fs::copy(path, &paths.audio_part) => result.map(|_| None).map_err(|error| SourceError::Other(error.to_string())),
+            result = tokio::fs::copy(path, &paths.audio_part) => result.map(|_| ()).map_err(|error| SourceError::Other(error.to_string())),
             _ = &mut *cancellation => Err(SourceError::Cancelled),
         }
     } else {
@@ -716,43 +701,25 @@ pub(super) fn completed_download_paths(
 ) -> Result<DownloadPaths, String> {
     let source = file.source_id.as_deref().map(SourceId::new);
     let mut paths = download_paths(root, source.as_ref(), &file.media_uri);
-    paths.audio = if file.path.starts_with("content://") {
-        DownloadAudio::Document {
-            root: if file.storage_root.is_empty() {
-                file.path.clone()
-            } else {
-                file.storage_root.clone()
-            },
-            relative: file.relative_path.split('/').map(str::to_owned).collect(),
-            file: Some(file.path.clone()),
-        }
+    let path = library::file_media_path(&file.path)
+        .ok_or("The completed download has no local path")?;
+    let root = if file.storage_root.is_empty() {
+        path.parent().map(Path::to_owned)
     } else {
-        let path = library::file_media_path(&file.path)
-            .ok_or("The completed download has no local path")?;
-        let root = if file.storage_root.is_empty() {
-            path.parent().map(Path::to_owned)
-        } else {
-            Some(PathBuf::from(&file.storage_root))
-        };
-        DownloadAudio::Native { root, path }
+        Some(PathBuf::from(&file.storage_root))
     };
+    paths.audio = DownloadAudio::Native { root, path };
     Ok(paths)
 }
 
 pub(super) async fn finalize_download(
     paths: &DownloadPaths,
-    previous: Option<&library::ConnectMediaFile>,
 ) -> Result<FinishedDownload, String> {
     let completed_size = tokio::fs::metadata(&paths.audio_part)
         .await
         .map_err(|error| error.to_string())?
         .len();
     let mut paths = paths.clone();
-    if let DownloadAudio::Document { file, .. } = &mut paths.audio {
-        *file = previous
-            .filter(|previous| previous.path.starts_with("content://"))
-            .map(|previous| previous.path.clone());
-    }
     paths.audio = paths.audio.publish(&paths.audio_part).await?;
     let _ = remove_file_if_present(&paths.audio_part).await;
     let _ = remove_file_if_present(&paths.checkpoint).await;
@@ -1307,16 +1274,9 @@ pub(super) fn new_download_paths(
         short_id
     );
     let audio = audio_root.join(&artist).join(&album).join(&file_name);
-    paths.audio = match directory {
-        Some(DownloadDirectory::Document { uri }) => DownloadAudio::Document {
-            root: uri.clone(),
-            relative: vec![artist, album, file_name],
-            file: None,
-        },
-        _ => DownloadAudio::Native {
-            root: Some(audio_root),
-            path: audio,
-        },
+    paths.audio = DownloadAudio::Native {
+        root: Some(audio_root),
+        path: audio,
     };
     paths
 }
@@ -1358,24 +1318,13 @@ pub(super) fn record_download_paths(
                 path: audio,
             }
         }
-        RecordedAudio::Document {
-            document_root,
-            document_uri,
-            document_path,
-        } => DownloadAudio::Document {
-            root: document_root.clone(),
-            relative: document_path.clone(),
-            file: Some(document_uri.clone()),
-        },
     };
     Ok(paths)
 }
 
 pub(super) fn local_access_projection(paths: &DownloadPaths) -> Result<(String, String), String> {
     let (root, relative) = paths.audio.projection(&paths.directory)?;
-    if matches!(paths.audio, DownloadAudio::Native { .. })
-        && !normal_relative_path(Path::new(&relative))
-    {
+    if !normal_relative_path(Path::new(&relative)) {
         return Err("The downloaded track has an invalid relative storage path".into());
     }
     Ok((root, relative))
@@ -1493,7 +1442,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn file_source_download_resumes_after_its_private_endpoint_changes() {
+    async fn download_resumes_after_its_private_endpoint_changes() {
         use wiremock::{
             Mock, MockServer, ResponseTemplate,
             matchers::{header, method, path},
@@ -1506,7 +1455,7 @@ mod tests {
                 channels: library::AudioChannels::Preserve,
             }),
         ] {
-            for kind in ["smb", "webdav", "connect"] {
+            for kind in ["subsonic"] {
                 for unchanged in [true, false] {
                     let server = MockServer::start().await;
                     let body = b"complete audio bytes";
@@ -1523,11 +1472,6 @@ mod tests {
                         ResponseTemplate::new(200)
                             .insert_header("ETag", "\"changed\"")
                             .set_body_bytes(body.to_vec())
-                    };
-                    let response = if kind == "connect" {
-                        response.insert_header(sources::PEER_REVISION_HEADER, "InYyIg")
-                    } else {
-                        response
                     };
                     Mock::given(method("GET"))
                         .and(path("/new-private-endpoint"))
@@ -1597,11 +1541,10 @@ mod tests {
                     )
                     .unwrap();
                     let (_cancel, mut cancellation) = oneshot::channel();
-                    let revision = TransferClients::default()
+                    TransferClients::default()
                         .download_cancellable(&current, &representation, &paths, &mut cancellation)
                         .await
                         .unwrap();
-                    assert_eq!(revision.as_deref(), (kind == "connect").then_some("\"v2\""));
                     assert_eq!(std::fs::read(&paths.audio_part).unwrap(), body);
                 }
             }

@@ -83,11 +83,6 @@
               </object>
             </child>
             <child>
-              <object class="AdwSwitchRow" id="context_menu_metadata">
-                <property name="title" translatable="yes">Edit metadata</property>
-              </object>
-            </child>
-            <child>
               <object class="AdwSwitchRow" id="context_menu_pins">
                 <property name="title" translatable="yes">Pins</property>
               </object>

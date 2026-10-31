@@ -48,37 +48,11 @@ pub(super) fn build(
                 }
             })
         },
-        edit_metadata: {
-            let weak = weak.clone();
-            Rc::new(move |item| {
-                if let Some(shell) = weak.upgrade() {
-                    crate::preferences::dialogs::metadata::present_metadata_dialog(&shell, item);
-                }
-            })
-        },
-        edit_track_metadata: {
-            let weak = weak.clone();
-            Rc::new(move |selection| {
-                if let Some(shell) = weak.upgrade() {
-                    crate::preferences::dialogs::metadata::present_track_metadata_dialog(
-                        &shell, selection,
-                    );
-                }
-            })
-        },
         set_sidebar_pin: {
             let weak = weak.clone();
             Rc::new(move |pin, pinned| {
                 if let Some(shell) = weak.upgrade() {
                     shell.set_sidebar_pin(pin, pinned);
-                }
-            })
-        },
-        export_playlist_dialog: {
-            let weak = weak.clone();
-            Rc::new(move |target, name| {
-                if let Some(shell) = weak.upgrade() {
-                    shell.export_playlist_dialog(target, name);
                 }
             })
         },

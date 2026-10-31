@@ -130,7 +130,7 @@ mod tests {
             let reference = binding.candidates.first().unwrap();
             assert_eq!(
                 reference.source_id().unwrap().as_str(),
-                sources::LOCAL_LIBRARY_SOURCE_ID
+                "local:server:library"
             );
         }
     }

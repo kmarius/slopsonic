@@ -93,14 +93,6 @@ impl MetadataDraft {
             self.artwork.binding = None;
         }
     }
-
-    pub(crate) fn suggest(&mut self, key: &str, value: Option<String>) {
-        if let Some(field) = self.fields.iter_mut().find(|field| field.key == key)
-            && field.value.is_empty()
-        {
-            field.suggestion = value.filter(|value| !value.is_empty());
-        }
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -1,6 +1,4 @@
-//! Destinations in a source's web client or file manager.
-
-use std::path::Path;
+//! Destinations in a source's web client.
 
 use url::Url;
 
@@ -10,48 +8,6 @@ impl SourceConfiguration {
     pub fn detail_web_url(&self, kind: &str, object_id: &str) -> SourceResult<String> {
         let id = entity_id(&self.kind, kind, object_id)?;
         let url = match self.kind.as_str() {
-            "jellyfin" | "emby" => {
-                let config =
-                    crate::jellyfin_emby::JellyfinEmbySourceConfig::from_configuration(self)?;
-                let mut base = web_base(&config.base_url)?;
-                if self.kind == "emby" {
-                    let path = base.path().trim_end_matches('/');
-                    let path = path.strip_suffix("/emby").unwrap_or(path).to_owned();
-                    base.set_path(&format!("{path}/"));
-                }
-                let mut url = base.join("web/index.html").map_err(url_error)?;
-                let mut query = url::form_urlencoded::Serializer::new(String::new());
-                query.append_pair("id", id);
-                if let Some(server) = config.server_id.as_deref() {
-                    query.append_pair("serverId", server);
-                }
-                let route = if self.kind == "emby" {
-                    "item"
-                } else {
-                    "details"
-                };
-                url.set_fragment(Some(&format!("!/{route}?{}", query.finish())));
-                url
-            }
-            "plex" => {
-                let config = crate::plex::PlexSourceConfig::from_configuration(self)?;
-                let mut url = web_base(&config.base_url)?
-                    .join("web/index.html")
-                    .map_err(url_error)?;
-                let (route, key) = if kind == "playlist" {
-                    ("playlist", format!("/playlists/{id}"))
-                } else {
-                    ("details", format!("/library/metadata/{id}"))
-                };
-                let query = url::form_urlencoded::Serializer::new(String::new())
-                    .append_pair("key", &key)
-                    .finish();
-                url.set_fragment(Some(&format!(
-                    "!/server/{}/{route}?{query}",
-                    encode(&config.server_id)
-                )));
-                url
-            }
             "navidrome" | "subsonic" => {
                 let config = crate::subsonic::SubsonicSourceConfig::from_configuration(self)?;
                 subsonic_url(&web_base(&config.base_url)?, &self.kind, kind, id)?
@@ -60,71 +16,6 @@ impl SourceConfiguration {
             _ => return Err(SourceError::InvalidRequest("Source has no web client")),
         };
         Ok(url.into())
-    }
-
-    pub fn detail_folder_uri(&self, first: &str, last: &str) -> SourceResult<Option<String>> {
-        if self.kind == "local" {
-            if first.starts_with("rufin-document:") || last.starts_with("rufin-document:") {
-                if !first.starts_with("rufin-document:") || !last.starts_with("rufin-document:") {
-                    return Ok(None);
-                }
-                let first = Url::parse(first).map_err(url_error)?;
-                let last = Url::parse(last).map_err(url_error)?;
-                if first.host_str() != last.host_str() {
-                    return Ok(None);
-                }
-                let config = crate::file::local::LocalSourceConfig::from_configuration(self)?;
-                let Some(root) = config
-                    .document_roots
-                    .iter()
-                    .find(|root| Some(root.id.as_str()) == first.host_str())
-                else {
-                    return Ok(None);
-                };
-                let first = first
-                    .path()
-                    .rsplit_once('/')
-                    .map_or("", |(parent, _)| parent);
-                let last = last
-                    .path()
-                    .rsplit_once('/')
-                    .map_or("", |(parent, _)| parent);
-                let common = first
-                    .split('/')
-                    .zip(last.split('/'))
-                    .take_while(|(a, b)| a == b)
-                    .map(|(part, _)| part)
-                    .last()
-                    .unwrap_or_default();
-                let common = percent_encoding::percent_decode_str(common)
-                    .decode_utf8()
-                    .map_err(|error| SourceError::Other(error.to_string()))?;
-                let uri = match common.rsplit_once('\u{1f}') {
-                    Some((_, uri)) => percent_encoding::percent_decode_str(uri)
-                        .decode_utf8()
-                        .map_err(|error| SourceError::Other(error.to_string()))?
-                        .into_owned(),
-                    None => root.uri.clone(),
-                };
-                // MediaStore's flat audio collection is not a browsable document folder.
-                let folder = Url::parse(&uri).map_err(url_error)?;
-                return Ok(folder
-                    .path_segments()
-                    .is_some_and(|mut parts| parts.next() == Some("tree"))
-                    .then_some(uri));
-            }
-
-            let first = Path::new(first).parent().ok_or(SourceError::NotFound)?;
-            let last = Path::new(last).parent().ok_or(SourceError::NotFound)?;
-            let common = first
-                .ancestors()
-                .find(|path| last.starts_with(path))
-                .ok_or(SourceError::NotFound)?;
-            return Url::from_directory_path(common)
-                .map(|uri| Some(String::from(uri)))
-                .map_err(|_| SourceError::NotFound);
-        }
-        crate::file::remote::detail_folder_uri(self, first, last).map(Some)
     }
 }
 
@@ -194,42 +85,6 @@ mod tests {
 
     #[test]
     fn server_detail_links_keep_mount_paths_and_encode_item_and_server_ids() {
-        for (kind, base, route) in [
-            ("jellyfin", "https://music.test/proxy/", "details"),
-            ("emby", "https://music.test/proxy/emby/", "item"),
-        ] {
-            let source = configuration(
-                kind,
-                json!({"version":1,"base_url":base,"server_id":"server & two","user_id":"listener","username":"listener","trust_invalid_cert":false}),
-            );
-            for entity in ["track", "artist", "album"] {
-                assert_eq!(
-                    source
-                        .detail_web_url(entity, &format!("{kind}:{entity}:42&other=1"))
-                        .unwrap(),
-                    format!(
-                        "https://music.test/proxy/web/index.html#!/{route}?id=42%26other%3D1&serverId=server+%26+two"
-                    )
-                );
-            }
-        }
-        for base in ["http://localhost:32400", "https://music.test/proxy/"] {
-            let source = configuration(
-                "plex",
-                json!({"version":1,"server_id":"machine","profile_id":"profile","base_url":base,"address_override":null,"local":true,"relay":false,"owned":true,"trust_invalid_cert":false}),
-            );
-            for entity in ["track", "artist", "album"] {
-                assert_eq!(
-                    source
-                        .detail_web_url(entity, &format!("plex:{entity}:42"))
-                        .unwrap(),
-                    format!(
-                        "{}/web/index.html#!/server/machine/details?key=%2Flibrary%2Fmetadata%2F42",
-                        base.trim_end_matches('/')
-                    )
-                );
-            }
-        }
         let source = configuration(
             "navidrome",
             json!({"version":1,"base_url":"https://music.test/navidrome/","username":"listener","trust_invalid_cert":false}),
@@ -319,153 +174,6 @@ mod tests {
                     .detail_web_url(entity, &format!("subsonic:{entity}:{id}"))
                     .unwrap(),
                 expected
-            );
-        }
-    }
-
-    #[test]
-    fn local_detail_folder_uses_native_components_and_the_common_parent() {
-        let directory = tempfile::tempdir().unwrap();
-        let source = configuration("local", json!({}));
-        let first = directory
-            .path()
-            .join("Artist & Friends/Album/Disc 1/a.flac");
-        let last = directory
-            .path()
-            .join("Artist & Friends/Album/Disc 2/z.flac");
-        let uri = source
-            .detail_folder_uri(first.to_str().unwrap(), last.to_str().unwrap())
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            Url::parse(&uri).unwrap().to_file_path().unwrap(),
-            directory.path().join("Artist & Friends/Album")
-        );
-        let sibling = directory.path().join("Artist & Friends/Album Two/z.flac");
-        let uri = source
-            .detail_folder_uri(first.to_str().unwrap(), sibling.to_str().unwrap())
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            Url::parse(&uri).unwrap().to_file_path().unwrap(),
-            directory.path().join("Artist & Friends")
-        );
-        let source = SourceConfiguration::local(crate::SourceId::new("local"), "Local", Vec::new())
-            .unwrap()
-            .with_document_roots(vec![
-                crate::DocumentRoot {
-                    id: "documents".into(),
-                    uri: "content://provider/tree/root".into(),
-                    name: "Files".into(),
-                },
-                crate::DocumentRoot {
-                    id: "music".into(),
-                    uri: "content://media/external/audio/media".into(),
-                    name: "Music".into(),
-                },
-            ])
-            .unwrap();
-        let folder = "content://provider/tree/root/document/album%2Fopaque-id";
-        let parent = encode(&format!("Album & Friends\u{1f}{}", encode(folder)));
-        assert_eq!(
-            source
-                .detail_folder_uri(
-                    &format!("rufin-document://documents/{parent}/one.flac"),
-                    &format!("rufin-document://documents/{parent}/two.flac"),
-                )
-                .unwrap()
-                .as_deref(),
-            Some(folder)
-        );
-        assert_eq!(
-            source
-                .detail_folder_uri(
-                    &format!("rufin-document://documents/{parent}/one.flac"),
-                    "rufin-document://documents/other/two.flac",
-                )
-                .unwrap()
-                .as_deref(),
-            Some("content://provider/tree/root")
-        );
-        assert_eq!(
-            source
-                .detail_folder_uri(
-                    "rufin-document://music/one.flac",
-                    "rufin-document://music/two.flac"
-                )
-                .unwrap(),
-            None
-        );
-        assert_eq!(
-            source
-                .detail_folder_uri(
-                    "rufin-document://music/one.flac",
-                    "rufin-document://documents/two.flac"
-                )
-                .unwrap(),
-            None
-        );
-    }
-
-    #[test]
-    fn network_detail_folder_uses_the_current_address_and_preserves_escaped_paths() {
-        for (kind, namespace, current, expected) in [
-            (
-                "webdav",
-                "https://old.test/dav/",
-                "https://new.test/music/",
-                "https://new.test/music/Artist%20One/Album/",
-            ),
-            (
-                "smb",
-                "smb://old.test/share/",
-                "smb://new.test/music/",
-                "smb://new.test/music/Artist%20One/Album/",
-            ),
-        ] {
-            let source = configuration(
-                kind,
-                json!({"version":1,"namespace_url":namespace,"url":current}),
-            );
-            // Deserialize the complete settings used by real configured sources.
-            let settings = crate::FileSourceSettings {
-                excluded_folders: Vec::new(),
-                url: current.into(),
-                alternate_urls: vec![],
-                folders: vec![],
-                username: String::new(),
-                domain: String::new(),
-                authentication: crate::FileAuthentication::Anonymous,
-                trust_invalid_certificate: false,
-                certificate_pem: None,
-                require_smb_encryption: false,
-            };
-            let mut payload = serde_json::to_value(settings).unwrap();
-            payload["version"] = json!(1);
-            payload["namespace_url"] = json!(namespace);
-            let source = SourceConfiguration {
-                provider_payload: payload.to_string(),
-                ..source
-            };
-            assert_eq!(
-                source
-                    .detail_folder_uri(
-                        &format!("{namespace}Artist%20One/Album/Disc%201/a.flac"),
-                        &format!("{namespace}Artist%20One/Album/Disc%202/z.flac"),
-                    )
-                    .unwrap()
-                    .unwrap(),
-                expected
-            );
-            assert_eq!(
-                source
-                    .detail_folder_uri(
-                        &format!("{namespace}A/a.flac"),
-                        &format!("{namespace}Z/z.flac")
-                    )
-                    .unwrap()
-                    .unwrap(),
-                current,
             );
         }
     }

@@ -11,12 +11,10 @@ use crate::player::{now_playing_notification_can_send, now_playing_notification_
 use crate::preferences::dialogs::release_notes::apply_release_update;
 use crate::shell::playlist_picker::refresh_context_playlist_picker;
 use gtk_player::fullscreen::{FullscreenPlaybackRefresh, fullscreen_playback_refresh};
-use gtk_player::state::{NowPlayingPresentation, current_playback_media_id};
+use gtk_player::state::NowPlayingPresentation;
 use gtk_widgets::route::Route;
 use rufin_core::runtime::source::source_progress_text;
-use rufin_core::runtime::source::{
-    DiscoveryStatus, DiscoveryUpdate, SourceOperation, SourceProgress,
-};
+use rufin_core::runtime::source::{SourceOperation, SourceProgress};
 use rufin_core::runtime::{
     CatalogChange, CatalogPublication, ProductReceivers, SourceEvent, SourceNotice,
     SourceNoticeKind,
@@ -29,7 +27,6 @@ use gtk_widgets::mounted_route::route_current_track;
 pub(crate) fn install_product_event_receivers(shell: &Rc<Shell>, receivers: ProductReceivers) {
     let ProductReceivers {
         source,
-        source_discovery,
         downloads,
         release_updates,
     } = receivers;
@@ -38,13 +35,6 @@ pub(crate) fn install_product_event_receivers(shell: &Rc<Shell>, receivers: Prod
     glib::spawn_future_local(async move {
         while let Ok(event) = source.recv().await {
             apply_source_event(&event_shell, event);
-        }
-    });
-
-    let event_shell = Rc::clone(shell);
-    glib::spawn_future_local(async move {
-        while let Ok(update) = source_discovery.recv().await {
-            apply_source_discovery(&event_shell, update);
         }
     });
 
@@ -500,19 +490,6 @@ fn source_operation_started_blocking(previous: &SourceOperation, next: &SourceOp
     !previous.blocks_library() && next.blocks_library()
 }
 
-fn apply_source_discovery(shell: &Rc<Shell>, update: DiscoveryUpdate) {
-    if update.provider != shell.source.discovery_provider.get() {
-        return;
-    }
-    *shell.source.discovered_servers.borrow_mut() = update.servers.to_vec();
-    *shell.source.discovery_status.borrow_mut() = update.status.clone();
-    shell
-        .source
-        .discovery_running
-        .set(matches!(update.status, DiscoveryStatus::Searching));
-    shell.preferences.update_add_server_discovery();
-}
-
 fn apply_playback_projection(shell: &Rc<Shell>, projection: playback::PlaybackProjection) {
     let previous_player = shell.player_ui.selected_playback().as_deref().cloned();
     let playback::PlaybackProjection { view, notices } = projection;
@@ -603,7 +580,7 @@ fn finish_playback_projection(
                 notification_started_run = Some(run);
             }
             playback::PlaybackNotice::OperationFailed(error) => {
-                show_playback_failure(shell, &next_player, error);
+                show_playback_failure(shell, error);
             }
         }
     }
@@ -644,54 +621,10 @@ fn finish_playback_projection(
     }
 }
 
-fn show_playback_failure(shell: &Rc<Shell>, next: &playback::PlaybackView, error: String) {
-    let current = next
-        .transport
-        .current
-        .as_ref()
-        .filter(|_| next.transport.error.is_some());
-    let Some(current) = current else {
-        shell
-            .control_feedback
-            .show_feedback_toast(playback_error_toast(&error));
-        return;
-    };
-    let media = current.id.clone();
-    let uri = current.row.track.media_uri.clone();
-    let source = shell.products.source.clone();
-    let result = shell
-        .products
-        .runtime
-        .spawn(async move { source.unavailable_local_folder(&uri).await });
-    let shell = Rc::downgrade(shell);
-    glib::spawn_future_local(async move {
-        let folder = result.await.unwrap_or(None);
-        let Some(shell) = shell.upgrade() else { return };
-        if current_playback_media_id(shell.player_ui.selected_playback().as_deref()).as_ref()
-            != Some(&media)
-        {
-            return;
-        }
-        if let Some(folder) = folder {
-            show_local_folder_recovery(&shell, folder);
-        } else {
-            shell
-                .control_feedback
-                .show_feedback_toast(playback_error_toast(&error));
-        }
-    });
-}
-
-fn show_local_folder_recovery(shell: &Rc<Shell>, folder: String) {
-    let toast = adw::Toast::new(&"Local music folder is unavailable".to_string());
-    toast.set_button_label(Some(&"Locate Folder".to_string()));
-    toast.set_timeout(0);
-    let recovery_shell = Rc::clone(shell);
-    toast.connect_button_clicked(move |toast| {
-        toast.dismiss();
-        crate::preferences::locate_local_folder(&recovery_shell.preferences, folder.clone());
-    });
-    shell.chrome.toast_overlay.add_toast(toast);
+fn show_playback_failure(shell: &Rc<Shell>, error: String) {
+    shell
+        .control_feedback
+        .show_feedback_toast(playback_error_toast(&error));
 }
 
 fn queue_panel_refresh_needed(

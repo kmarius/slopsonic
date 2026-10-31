@@ -3,15 +3,14 @@ use std::sync::{
     mpsc::{self, Receiver, RecvTimeoutError, Sender},
 };
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
 
 use super::{
     PlaybackOwner,
     queue::{Sequence, SequenceError},
-    state::{ClockSample, Command, ExternalPlayback, Player},
+    state::{ClockSample, Command, Player},
 };
 use playback::{
-    PlaybackBackend, PlaybackOutput, PlaybackProjection, PlaybackSettings, PreparedStream, RunId,
+    PlaybackBackend, PlaybackOutput, PlaybackProjection, PlaybackSettings, 
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -115,11 +114,7 @@ impl Playback {
             .name("rufin-playback".into())
             .spawn(move || {
                 loop {
-                    let message = if player.external_clock_running() {
-                        receiver.recv_timeout(Duration::from_millis(33))
-                    } else {
-                        receiver.recv().map_err(|_| RecvTimeoutError::Disconnected)
-                    };
+                    let message = receiver.recv().map_err(|_| RecvTimeoutError::Disconnected);
                     let Some(_owner) = owner.upgrade() else {
                         let _ = player.shutdown_backend();
                         break;
@@ -199,38 +194,7 @@ impl Playback {
             Ok((queue, report, player.next_session_identifier()))
         })
     }
-    pub(crate) fn observe_external(
-        &self,
-        output: PlaybackOutput,
-        observation: ExternalPlayback,
-    ) -> PlaybackResult<()> {
-        self.command(Command::ObserveExternal {
-            output,
-            observation,
-        })
-    }
-    pub(crate) fn adopt_local(
-        &self,
-        queue: library::QueueRestore,
-        stream: PreparedStream,
-        playing: bool,
-        backend: Box<dyn PlaybackBackend>,
-    ) -> PlaybackResult<()> {
-        self.request(move |player, _| player.adopt_local(queue, stream, playing, backend))
-    }
-    pub(crate) fn auto_dj_unavailable(
-        &self,
-        seed_run: Option<RunId>,
-        seed_media_uri: String,
-        error: Option<String>,
-    ) -> PlaybackResult<bool> {
-        self.request(move |player, _| {
-            Ok(player.auto_dj_unavailable(seed_run, &seed_media_uri, error))
-        })
-    }
-    pub(crate) fn current_media(&self) -> PlaybackResult<Option<Arc<playback::CurrentMedia>>> {
-        self.request(|player, _| Ok(player.view().transport.current.map(Arc::new)))
-    }
+    #[cfg(test)]
     pub(crate) fn projection(&self) -> PlaybackResult<PlaybackProjection> {
         self.request(|player, _| Ok(player.projection()))
     }

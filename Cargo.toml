@@ -8,7 +8,7 @@ authors = ["screwy <screwygit@proton.me>"]
 edition = "2024"
 license = "GPL-3.0-or-later"
 rust-version = "1.96"
-description = "Native music player for Jellyfin, Navidrome/OpenSubsonic, Plex, and Emby servers;  local folders,  WebDAV including a direct Nextcloud browser login path, Samba and NAS shares."
+description = "Native Linux music player for Navidrome and Subsonic servers."
 repository = "https://github.com/screwys/Rufin"
 readme = "README.md"
 publish = false
@@ -36,7 +36,6 @@ playback-cast = { path = "crates/playback-cast" }
 playback-gstreamer = { path = "crates/playback-gstreamer" }
 process-memory = { path = "crates/process-memory" }
 presence = { path = "crates/presence" }
-rufin-controller = { path = "crates/rufin-controller" }
 rufin-core = { path = "crates/rufin-core" }
 scrobbling = { path = "crates/scrobbling" }
 secrets = { path = "crates/secrets" }
@@ -98,9 +97,6 @@ percent-encoding = "2.3.2"
 proc-macro2 = "1.0.107"
 quick-xml = { version = "0.42", features = ["async-tokio"] }
 pulldown-cmark = { version = "0.13.0", default-features = false }
-smb = { version = "=0.12.1", default-features = false, features = ["multi_threaded", "sign", "encrypt"] }
-smb-fscc = "=0.12.1"
-smb-msg = "=0.12.1"
 tokio-util = { version = "0.7", features = ["io"] }
 reqwest = { version = "0.13.3", default-features = false, features = ["http2", "rustls", "system-proxy"] }
 roxmltree = "0.21.0"

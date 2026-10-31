@@ -117,7 +117,6 @@ where
 
     let (source_events, source_receiver) = unbounded();
     let (download_events, download_receiver) = unbounded();
-    let (discovery_events, discovery_receiver) = unbounded();
     let (release_update_events, release_update_receiver) = unbounded();
     let artwork = match artwork::Artwork::new(paths.artwork_dir(), runtime.clone()) {
         Ok(artwork) => artwork,
@@ -152,7 +151,6 @@ where
         runtime.clone(),
         SourceOutputs {
             events: source_events.clone(),
-            discovery: discovery_events,
         },
     );
     if let Err(error) = artwork.install_database(Arc::clone(&library)).await {
@@ -338,7 +336,6 @@ where
         settings: settings_handle,
         receivers: ProductReceivers {
             source: source_receiver,
-            source_discovery: discovery_receiver,
             downloads: download_receiver,
             release_updates: release_update_receiver,
         },

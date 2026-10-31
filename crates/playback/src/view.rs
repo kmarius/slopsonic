@@ -115,7 +115,6 @@ pub struct ControlsView {
 pub enum RemoteOutputProtocol {
     Upnp,
     GoogleCast,
-    PlexCompanion,
     RufinConnect,
 }
 

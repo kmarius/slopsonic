@@ -594,7 +594,6 @@ fn request_artist_releases(
 
 #[derive(Clone)]
 struct ArtistDetailHeaderProjection {
-    album_artist: bool,
     root: gtk::Widget,
     current: Rc<RefCell<ArtistView>>,
     showcase: DetailShowcaseView,
@@ -626,7 +625,6 @@ impl ArtistDetailHeaderProjection {
             .replace_external_links(super::detail_showcase::artist_external_links(
                 shell,
                 &artist,
-                self.album_artist,
             ));
         shell.update_visible_favorite_buttons(
             &library::FavoriteTarget::Artist(artist.media_uri.clone()),
@@ -752,7 +750,6 @@ fn artist_detail_header_restored(
     showcase.replace_external_links(super::detail_showcase::artist_external_links(
         shell,
         artist,
-        album_artist,
     ));
     let root = detail_showcase_frame(media_showcase(MediaShowcase {
         view: showcase.clone(),
@@ -763,7 +760,6 @@ fn artist_detail_header_restored(
         actions_min_cover_size: None,
     }));
     ArtistDetailHeaderProjection {
-        album_artist,
         root,
         current,
         showcase,

@@ -88,11 +88,6 @@ where
     let bootstrap = Rc::new(RefCell::new(Some(bootstrap)));
     let presented = Rc::new(RefCell::new(presented));
     let quitting = Rc::new(Cell::new(false));
-    let (open_sender, open_receiver) = async_channel::unbounded();
-    app.connect_open(move |app, files, _| {
-        let _ = open_sender.try_send(files.to_vec());
-        app.activate();
-    });
     app.connect_activate(move |app| {
         if quitting.get() {
             return;
@@ -114,7 +109,6 @@ where
         let storage_reset = Rc::clone(&storage_reset);
         let presented = presented.borrow_mut().take();
         let window_bar_preview = options.borrow().window_bar_preview;
-        let open_receiver = open_receiver.clone();
         gtk::glib::spawn_future_local(async move {
             let _hold = hold;
             if let Err(error) = crate::shell::build::build(
@@ -126,7 +120,6 @@ where
                 force_initial_presentation,
                 presented,
                 window_bar_preview,
-                open_receiver,
             )
             .await
             {
@@ -151,7 +144,6 @@ pub fn run_startup_error_application(error: String) -> ApplicationExit {
     let storage_reset = StorageResetResult::default();
     let reset_result = Rc::clone(&storage_reset);
     connect_startup_configuration(&app, Rc::clone(&options));
-    app.connect_open(|app, _, _| app.activate());
     app.connect_activate(move |app| {
         if let Some(window) = app.active_window() {
             present_window(&window);
@@ -177,9 +169,7 @@ pub fn run_startup_error_application(error: String) -> ApplicationExit {
 fn application() -> (adw::Application, Rc<RefCell<ApplicationOptions>>) {
     let app = adw::Application::builder()
         .application_id(APP_ID)
-        .flags(gio::ApplicationFlags::HANDLES_OPEN)
         .build();
-    app.set_option_context_parameter_string(Some("[FILE_OR_URI ...]"));
     app.set_option_context_summary(Some(
         "Open audio files or M3U, PLS and XSPF playlists. Use --headless --help for playback without a window.",
     ));

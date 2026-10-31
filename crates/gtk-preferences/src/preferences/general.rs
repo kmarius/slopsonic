@@ -46,7 +46,6 @@ pub fn scrobbling_page(
     let builder = gtk_widgets::ui_resource::builder(resource);
     let page: adw::PreferencesPage =
         gtk_widgets::ui_resource::object(&builder, resource, "integrations_page");
-    super::source::login::bind_integrations(shell, &page, &builder);
     let settings = shell.products.scrobbling.preferences();
     gtk_widgets::objects!(builder, resource, {
         external_links_row: adw::SwitchRow,
@@ -510,17 +509,6 @@ pub fn inline_link_markup(before: &str, url: &str, label: &str, after: &str) -> 
     format!("{before} <a href=\"{url}\">{label}</a>{after}")
 }
 
-fn selected_source_is_local(shell: &Preferences) -> bool {
-    let configured = shell.source.configured.borrow();
-    let Some(selected) = configured.selected_source_id.as_ref() else {
-        return false;
-    };
-    configured
-        .sources
-        .iter()
-        .find(|source| &source.id == selected)
-        .is_some_and(|source| source.kind == sources::LOCAL_SOURCE_ID)
-}
 async fn connect_scrobbling(
     shell: &Rc<Preferences>,
     request: ScrobblingConnection,
@@ -576,7 +564,6 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
         audio_group: adw::PreferencesGroup,
         ebu_target_row: adw::ActionRow,
         ebu_target: gtk::Scale,
-        write_ebu_tags_row: adw::SwitchRow,
         output_row: adw::ActionRow,
     });
 
@@ -673,16 +660,6 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
     });
     ebu_target_row.set_activatable_widget(Some(&ebu_target));
 
-    write_ebu_tags_row.set_active(settings.write_ebu_r128_tags);
-    let write_tags_shell = Rc::clone(shell);
-    write_ebu_tags_row.connect_active_notify(move |row| {
-        write_tags_shell
-            .player_ui
-            .update_playback_settings(|settings| {
-                settings.write_ebu_r128_tags = row.is_active();
-            });
-    });
-
     let mode_titles = ["Off".to_string(), "ReplayGain".to_string(), "EBU R128".to_string()];
     let (loudness_normalization_row, mode_buttons) = controlled_selection_row(
         &String::from(NORMALIZATION_TITLE),
@@ -700,7 +677,6 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
         let guard = Rc::clone(&mode_guard);
         let scope = loudness_scope_row.clone();
         let target = ebu_target_row.clone();
-        let write = write_ebu_tags_row.clone();
         button.connect_toggled(move |button| {
             if !button.is_active() || guard.get() {
                 return;
@@ -719,7 +695,6 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
                 scope.set_visible(mode != LoudnessNormalization::Off);
                 let ebu = mode == LoudnessNormalization::EbuR128;
                 target.set_visible(ebu);
-                write.set_visible(ebu && selected_source_is_local(&shell));
             };
             if next != LoudnessNormalization::EbuR128
                 || previous == LoudnessNormalization::EbuR128
@@ -747,7 +722,6 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
             let guard = Rc::clone(&guard);
             let scope = scope.clone();
             let target = target.clone();
-            let write = write.clone();
             let window = shell.window.clone();
             confirm.choose(
                 Some(&window),
@@ -761,7 +735,6 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
                     });
                     scope.set_visible(true);
                     target.set_visible(true);
-                    write.set_visible(selected_source_is_local(&shell));
                     guard.set(true);
                     if let Some(button) = buttons
                         [loudness_normalization_index(LoudnessNormalization::EbuR128) as usize]
@@ -778,11 +751,9 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
     let ebu_enabled = settings.loudness_normalization == LoudnessNormalization::EbuR128;
     loudness_scope_row.set_visible(mode_enabled);
     ebu_target_row.set_visible(ebu_enabled);
-    write_ebu_tags_row.set_visible(ebu_enabled && selected_source_is_local(shell));
     audio_group.add(&loudness_normalization_row);
     audio_group.add(&loudness_scope_row);
     audio_group.add(&ebu_target_row);
-    audio_group.add(&write_ebu_tags_row);
 
     let volume_scale_shell = Rc::clone(shell);
     let volume_scale_row = selection_row(

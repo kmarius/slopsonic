@@ -1,6 +1,5 @@
 mod chromecast;
 mod discovery;
-pub mod plex;
 mod relay;
 mod upnp;
 mod upnp_transport;

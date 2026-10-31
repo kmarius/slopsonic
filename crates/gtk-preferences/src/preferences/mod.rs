@@ -37,7 +37,6 @@ use layout::{
     ReorderRowPresentation, left_sidebar_mode_from_index, left_sidebar_row, reorder_row,
     right_sidebar_mode_from_index, right_sidebar_row, visibility_position_subtitle,
 };
-pub use library::locate_local_folder;
 
 fn show_discord_flatpak_help(row: &adw::SwitchRow) {
     if !row.is_active() || std::env::var_os("FLATPAK_ID").is_none() {

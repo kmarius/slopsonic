@@ -12,62 +12,19 @@ extern crate self as sources;
 
 mod download;
 pub use download::{DownloadQuality, ResolvedDownload, downloaded_codec};
-mod peer;
-pub use peer::{PEER_REVISION_HEADER, PeerAccess, PeerAudio, PeerMedia, peer_revision};
 mod config;
 mod detail_links;
-pub mod discovery;
 mod operations;
-mod plex;
 mod policy;
 mod source;
 
-mod file;
-mod jellyfin_emby;
-pub use jellyfin_emby::ServerKind;
 mod remote_http;
 mod remote_json;
 mod subsonic;
 
-#[cfg(test)]
-mod local_change_integration_tests {
-    include!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/local_changes.rs"
-    ));
-}
-
 pub use config::{
-    CredentialInput, CredentialPreset, EditableSource, PlexSettingsInput, PlexSetupInput,
+    CredentialInput, CredentialPreset, EditableSource,
     SourceConfiguration, SourceSettingsChange, SourceSetup,
-};
-pub use file::discovery::DiscoveryWorker;
-pub use file::discovery::run_worker as run_discovery_worker;
-#[cfg(target_os = "android")]
-pub use file::discovery::{DiscoveryHost, DiscoverySession, install_discovery_host};
-pub use file::documents::{
-    DocumentEntry, DocumentHost, DocumentPage, DocumentReader, DocumentRoot, copy_document,
-    create_document, create_document_directories, create_document_directory, delete_document,
-    document_identity, document_root, find_document, find_document_child, install_document_host,
-    list_documents, open_document_input, rename_document, resolve_document_relative,
-    resolve_document_stream, save_document, stat_document,
-};
-pub use file::documents::{
-    read_document_image, read_document_prefix, read_document_track_reference,
-};
-pub use file::local::media::{local_media_identity_path, read_local_track_reference};
-pub use file::playlist::{
-    import_local_playlist_file, playlist_file_is_non_audio, playlist_file_revision,
-};
-pub use file::remote::smb::list_smb_shares;
-pub use file::remote::webdav::nextcloud::authorize_nextcloud;
-pub use file::remote::{
-    FileAuthentication, FileCredentials, FileCredentialsEdit, FileHeader, FileSource,
-    FileSourceSettings,
-};
-pub use jellyfin_emby::{
-    EmbyConnectLogin, EmbyConnectPin, EmbyConnectServer, JellyfinQuickConnect,
-    JellyfinQuickConnectLogin,
 };
 pub use library::SourceId;
 pub use operations::{
@@ -77,13 +34,6 @@ pub use operations::{
 };
 pub use source::*;
 
-pub use discovery::{DiscoveredServer, DiscoveryProvider, discover_servers};
-pub use file::local::{LOCAL_LIBRARY_SOURCE_ID, LOCAL_SOURCE_ID, read_local_image};
-pub use plex::{
-    PLEX_QUEUE_WINDOW, PlexCompanionContext, PlexCompanionPlayer, PlexQueueItem, PlexQueueMutation,
-    PlexQueuePlacement, PlexQueueWindow, plex_queue_write_batches,
-};
-pub use plex::{PlexBrowserLogin, PlexConnection, PlexLogin, PlexProfile, PlexServer};
 pub use subsonic::{SubsonicAuthentication, SubsonicFlavor};
 
 use thiserror::Error;

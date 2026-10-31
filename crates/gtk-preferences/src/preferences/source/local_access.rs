@@ -99,9 +99,6 @@ fn manage_server_content(
         Err(error) => content.append(&source_settings_error(&error.to_string())),
     }
 
-    if let Some(row) = super::playlist_auto_save_row(shell, &server) {
-        content.append(&row);
-    }
     if let Some(half_stars) = super::half_stars_row(shell, &server) {
         let library = adw::PreferencesGroup::builder()
             .title("Library".to_string())

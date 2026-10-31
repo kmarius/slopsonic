@@ -194,45 +194,6 @@ impl BackupOwner {
         let output = self.export_now(passphrase, true, None).await?;
         let completed = now();
         let name = backup::backup_filename(Some(&settings.schedule.schedule_id), completed);
-        if let Some(uri) = settings
-            .destination_uri
-            .as_deref()
-            .filter(|uri| uri.starts_with("content://"))
-        {
-            let receipts_path = self.settings.config_dir().join("document-backups.json");
-            let mut receipts = document_backup_receipts(&receipts_path)?;
-            let bytes = fs::metadata(&output)
-                .map_err(|error| error.to_string())?
-                .len();
-            let document =
-                sources::create_document(uri, &name, "application/octet-stream", &output)
-                    .map_err(|error| error.to_string())?;
-            receipts.push(DocumentBackupReceipt {
-                schedule_id: settings.schedule.schedule_id.clone(),
-                destination_uri: uri.to_string(),
-                document_uri: document.uri,
-                bytes,
-            });
-            save_document_backup_receipts(&receipts_path, &receipts)?;
-            self.settings.update(|stored| {
-                if stored.ui.application.backup.schedule.schedule_id
-                    == settings.schedule.schedule_id
-                {
-                    stored.ui.application.backup.schedule.last_successful_at = Some(completed);
-                }
-                Ok(())
-            })?;
-            return prune_document_backups(
-                &receipts_path,
-                receipts,
-                uri,
-                &settings.schedule.schedule_id,
-                settings.retention_count,
-            )
-            .map_err(|error| {
-                format!("Backup saved, but older backups could not be removed: {error}")
-            });
-        }
         let directory = match settings.destination_uri.as_deref() {
             Some(uri) => gio::File::for_uri(uri),
             None => {
@@ -447,48 +408,6 @@ impl BackupOwner {
 
 #[cfg_attr(feature = "bindings", uniffi::export)]
 impl BackupOwner {
-    pub async fn stage_document(
-        &self,
-        uri: String,
-        passphrase: Option<String>,
-        contents: backup::BackupContents,
-    ) -> Result<Arc<BackupPreview>, backup::BackupError> {
-        self.stage_input(
-            move || {
-                sources::open_document_input(&uri)
-                    .map(|input| (input, move || passphrase))
-                    .map_err(|error| error.to_string())
-            },
-            contents,
-        )
-        .recv()
-        .await
-        .map_err(|error| backup::BackupError::Operation(error.to_string()))?
-        .map(Arc::new)
-        .map_err(backup::BackupError::Operation)
-    }
-
-    pub async fn export_document(
-        &self,
-        uri: String,
-        passphrase: Option<String>,
-        contents: backup::BackupContents,
-    ) -> Result<(), backup::BackupError> {
-        let owner = self.clone();
-        let runtime = self.runtime.clone();
-        self.runtime
-            .spawn_blocking(move || {
-                runtime.block_on(async {
-                    let _lane = owner.lane.lock().await;
-                    let output = owner.export_now(passphrase, false, Some(contents)).await?;
-                    sources::save_document(&uri, &output, None).map_err(|error| error.to_string())
-                })
-            })
-            .await
-            .map_err(|error| backup::BackupError::Operation(error.to_string()))?
-            .map_err(backup::BackupError::Operation)
-    }
-
     pub async fn restore(
         &self,
         preview: Arc<BackupPreview>,
@@ -602,7 +521,6 @@ fn preserve_destination_settings(
 ) -> Result<(), String> {
     incoming.secret_scope_id = previous.secret_scope_id.clone();
     incoming.ui.application.secret_storage_mode = previous.ui.application.secret_storage_mode;
-    incoming.jellyfin_device_id = previous.jellyfin_device_id.clone();
     incoming.ui.downloads = previous.ui.downloads.clone();
     incoming.ui.sidebar.pins = previous.ui.sidebar.pins.clone();
     incoming.ui.sidebar.playlist_pin_imported_sources =
@@ -626,98 +544,6 @@ fn preserve_destination_settings(
     copy_scrobbling_logins(previous, incoming);
     Ok(())
 }
-#[derive(Serialize, Deserialize)]
-struct DocumentBackupReceipt {
-    schedule_id: String,
-    destination_uri: String,
-    document_uri: String,
-    bytes: u64,
-}
-
-fn document_backup_receipts(path: &std::path::Path) -> Result<Vec<DocumentBackupReceipt>, String> {
-    match fs::File::open(path) {
-        Ok(file) => serde_json::from_reader(file).map_err(|error| error.to_string()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
-        Err(error) => Err(error.to_string()),
-    }
-}
-
-fn save_document_backup_receipts(
-    path: &std::path::Path,
-    receipts: &[DocumentBackupReceipt],
-) -> Result<(), String> {
-    let mut file = tempfile::NamedTempFile::new_in(path.parent().unwrap())
-        .map_err(|error| error.to_string())?;
-    serde_json::to_writer(&mut file, receipts).map_err(|error| error.to_string())?;
-    file.as_file()
-        .sync_all()
-        .map_err(|error| error.to_string())?;
-    file.persist(path).map_err(|error| error.to_string())?;
-    Ok(())
-}
-
-fn document_backup_files(
-    receipts: &[DocumentBackupReceipt],
-    directory: &str,
-    schedule_id: &str,
-) -> Result<(Vec<(i64, String)>, std::collections::BTreeSet<String>), String> {
-    let mut offset = 0;
-    let mut owned = Vec::new();
-    let mut present = std::collections::BTreeSet::new();
-    let completed = receipts
-        .iter()
-        .filter(|receipt| {
-            receipt.schedule_id == schedule_id && receipt.destination_uri == directory
-        })
-        .map(|receipt| (receipt.document_uri.as_str(), receipt.bytes))
-        .collect::<std::collections::HashMap<_, _>>();
-    loop {
-        let page = sources::list_documents(directory, offset).map_err(|error| error.to_string())?;
-        for entry in page.entries {
-            let Some(&bytes) = completed.get(entry.uri.as_str()) else {
-                continue;
-            };
-            present.insert(entry.uri.clone());
-            if entry.directory {
-                continue;
-            }
-            // A failed creation has no receipt. A known short document cannot replace a completed backup.
-            if entry.size.is_some_and(|size| size != bytes) {
-                continue;
-            }
-            if let Some(timestamp) = backup::scheduled_backup_timestamp(&entry.name, schedule_id) {
-                owned.push((timestamp, entry.uri));
-            }
-        }
-        let Some(next) = page.next else {
-            break;
-        };
-        offset = next;
-    }
-    owned.sort_by(|a, b| b.0.cmp(&a.0));
-    Ok((owned, present))
-}
-
-fn prune_document_backups(
-    receipts_path: &std::path::Path,
-    mut receipts: Vec<DocumentBackupReceipt>,
-    directory: &str,
-    schedule_id: &str,
-    retention_count: u32,
-) -> Result<(), String> {
-    let (owned, mut present) = document_backup_files(&receipts, directory, schedule_id)?;
-    for (_, uri) in owned.into_iter().skip(retention_count.max(1) as usize) {
-        sources::delete_document(&uri).map_err(|error| error.to_string())?;
-        present.remove(&uri);
-    }
-    receipts.retain(|receipt| {
-        receipt.schedule_id != schedule_id
-            || receipt.destination_uri != directory
-            || present.contains(&receipt.document_uri)
-    });
-    save_document_backup_receipts(receipts_path, &receipts)
-}
-
 fn scheduled_backup_files(
     directory: &gio::File,
     schedule_id: &str,
@@ -1086,8 +912,8 @@ mod tests {
             .unwrap();
         assert_eq!(password.as_deref(), Some("scheduled-password"));
         let mut settings = StoredSettings::default();
-        settings.sources.configured = vec![source("source", "reference")];
-        settings.sources.integrations = vec![source("files", "file-reference")];
+        settings.sources.configured =
+            vec![source("source", "reference"), source("files", "file-reference")];
         settings.scrobbling_secrets_present = true;
         credentials
             .save_secret(
@@ -1124,8 +950,10 @@ mod tests {
     fn saved_logins_restore_exact_source_association_without_matching_another_account() {
         let credentials = MemorySecretStore::new();
         let mut incoming = StoredSettings::default();
-        incoming.sources.configured = vec![source("exact", "destination-reference")];
-        incoming.sources.integrations = vec![source("files", "file-reference")];
+        incoming.sources.configured = vec![
+            source("exact", "destination-reference"),
+            source("files", "file-reference"),
+        ];
         let mut logins = SavedLogins::default();
         logins
             .sources
@@ -1153,7 +981,7 @@ mod tests {
         assert_eq!(
             load_provider_secret(
                 &credentials,
-                incoming.sources.integrations[0]
+                incoming.sources.configured[1]
                     .credential
                     .as_ref()
                     .unwrap(),

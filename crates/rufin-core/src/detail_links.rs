@@ -5,7 +5,7 @@ use crate::settings::ExternalSiteLinkSettings;
 pub struct DetailLink {
     pub title: &'static str,
     pub icon_name: &'static str,
-    pub url: Option<String>,
+    pub url: String,
 }
 
 pub fn navigation_source_link(
@@ -13,17 +13,6 @@ pub fn navigation_source_link(
     media_uri: &str,
     album_uri: Option<&str>,
 ) -> Option<DetailLink> {
-    let folder = source.map_or_else(
-        || media_uri.starts_with("file:"),
-        |source| matches!(source.kind.as_str(), "local" | "webdav" | "smb"),
-    );
-    if folder {
-        return Some(DetailLink {
-            title: "Folder",
-            icon_name: "rufin-document-open-symbolic",
-            url: None,
-        });
-    }
     let source = source?;
     // Navidrome's player links tracks to their album page.
     let uri = if source.kind == "navidrome"
@@ -40,28 +29,15 @@ pub fn navigation_source_link(
 
 pub fn source_link(source: &sources::SourceConfiguration, media_uri: &str) -> Option<DetailLink> {
     let (_, kind, object_id) = library::source_entity_parts(media_uri)?;
-    let folder = matches!(source.kind.as_str(), "local" | "webdav" | "smb");
     let title = match source.kind.as_str() {
-        "local" | "webdav" | "smb" => "Open Folder",
-        "jellyfin" => "Open on Jellyfin",
-        "emby" => "Open on Emby",
-        "plex" => "Open on Plex",
         "navidrome" => "Open on Navidrome",
         "subsonic" => "Open on server",
         _ => return None,
     };
     Some(DetailLink {
         title,
-        icon_name: if folder {
-            "rufin-document-open-symbolic"
-        } else {
-            crate::runtime::source::source_kind_icon_name(&source.kind)?
-        },
-        url: if folder {
-            None
-        } else {
-            Some(source.detail_web_url(&kind, &object_id).ok()?)
-        },
+        icon_name: crate::runtime::source::source_kind_icon_name(&source.kind)?,
+        url: source.detail_web_url(&kind, &object_id).ok()?,
     })
 }
 
@@ -80,7 +56,7 @@ pub fn album_external_links(
         links.push(DetailLink {
             title: "Open on Last.fm",
             icon_name: "io.github.screwys.Rufin.external.lastfm",
-            url: Some(url),
+            url,
         });
     }
     if settings.musicbrainz
@@ -89,7 +65,7 @@ pub fn album_external_links(
         links.push(DetailLink {
             title: "Open on MusicBrainz",
             icon_name: "io.github.screwys.Rufin.external.musicbrainz",
-            url: Some(url),
+            url,
         });
     }
     if settings.server
@@ -116,7 +92,7 @@ pub fn artist_external_links(
         links.push(DetailLink {
             title: "Open on Last.fm",
             icon_name: "io.github.screwys.Rufin.external.lastfm",
-            url: Some(url),
+            url,
         });
     }
     if settings.musicbrainz
@@ -125,7 +101,7 @@ pub fn artist_external_links(
         links.push(DetailLink {
             title: "Open on MusicBrainz",
             icon_name: "io.github.screwys.Rufin.external.musicbrainz",
-            url: Some(url),
+            url,
         });
     }
     if settings.server

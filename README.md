@@ -10,7 +10,6 @@ Rufin is a powerful, fast and easy to use native music player for Navidrome.
 - Auto DJ that keeps the queue filled; server recommendations when available with a smart local fallback
 - Random play with filters for track count, year range, genre and played/unplayed status
 - Fullscreen player
-- CUE sheet support with separate playable tracks
 - Broad codec support [^codecs]
 - Audio output device selection
 - Configurable playback speed and pitch
@@ -18,17 +17,12 @@ Rufin is a powerful, fast and easy to use native music player for Navidrome.
 ## 📚 Library
 
 - Drag songs from your queue or lists to playlists, or select multiple of them with your keyboard batch operations
-- Combine all your music from different sources in a single listening session with global playlists
-- Import/export your playlists as .m3u/.m3u8/PLS/XSPF; as long as `media_uri` is accessible Rufin can play them
+- Combine music from several servers in a single listening session with global playlists
 - Download tracks manually or through automatic rules, then keep using the same remote library while offline
-- Can be set as default audio player to open any audio file, or via CLI with `rufin track.mp4`
-- Drag folders, audio files or playlists to Rufin window to import them 
 - Path matching between music servers and local folders, allowing local playback while keeping server activity and history
-- Metadata and artwork editing, including bulk editing and Musicbrainz metadata autofill 
 - Automatic metadata and artwork caching; and in-app artwork search functionality
 - Rating support, with an option to enable visual-only partial stars for OpenSubsonic
 - Virtualized, smooth to scroll pages
-- Can write EBU R128 tags to tracks
 - Granular import/export backup options including credentials, automatic backups with password protection are available
 - Listening activity can be exported as Last.fm/ListenBrainz compatible `.csv` files
 
@@ -37,7 +31,7 @@ Rufin is a powerful, fast and easy to use native music player for Navidrome.
 - Server-provided artist, track, album, playlist and genre radios, including recommendations from server plugins
 - App owned smart (i.e. dynamic) playlists with custom sorting and limits; can use metadata, play/skip history or pre-defined dynamic lists
 - Dedicated Search, Folders and History pages
-- Moods browsing and mood/BPM-based smart playlists for Plex, Navidrome, Subsonic and local/remote libraries
+- Moods browsing and mood/BPM-based smart playlists for Navidrome and Subsonic libraries
 
 ## 🧩 Integrations
 
@@ -45,7 +39,7 @@ Rufin is a powerful, fast and easy to use native music player for Navidrome.
 - Discord Rich Presence
 - Private mode for temporarily pausing external activity
 - Secure storage for server credentials and API secrets by default
-- Casting support for UPnP and Chromecast, plus Plex Companion queue control and playback handoff in both directions
+- Casting support for UPnP and Chromecast
 
 ## 🖥️ Interface
 

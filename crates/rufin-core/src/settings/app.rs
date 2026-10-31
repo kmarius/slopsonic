@@ -578,7 +578,6 @@ fn sanitize_downloads(downloads: &mut Vec<SourceDownloadSettings>) {
             .as_ref()
             .is_some_and(|directory| match directory {
                 downloads::DownloadDirectory::Native(path) => path.as_os_str().is_empty(),
-                downloads::DownloadDirectory::Document { uri } => uri.is_empty(),
             })
         {
             entry.directory = None;

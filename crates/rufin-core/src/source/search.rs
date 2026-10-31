@@ -10,9 +10,7 @@ pub async fn acquire_search(
     cancellation: ReadCancellation,
 ) -> Result<SearchResults, String> {
     let selected = selected.ok_or_else(|| "No source selected".to_owned())?;
-    if selected.source_id.as_str() != sources::LOCAL_LIBRARY_SOURCE_ID
-        && let Some(source) = owner.cached_client(&selected.source_id)
-    {
+    if let Some(source) = owner.cached_client(&selected.source_id) {
         let live = source.live_search(database, &query, limit);
         let result = tokio::select! {
             result = live => result,

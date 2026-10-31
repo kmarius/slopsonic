@@ -52,7 +52,9 @@ impl ResolvedDownload {
 
 pub fn downloaded_codec(path: &std::path::Path) -> Option<AudioCodec> {
     use lofty::file::FileType;
-    match crate::file::lofty::probe_file_type(path)? {
+    use lofty::probe::Probe;
+    let file = std::io::BufReader::new(std::fs::File::open(path).ok()?);
+    match Probe::new(file).guess_file_type().ok()?.file_type()? {
         FileType::Opus => Some(AudioCodec::Opus),
         FileType::Vorbis => Some(AudioCodec::Vorbis),
         FileType::Mpeg => Some(AudioCodec::Mp3),

@@ -111,6 +111,7 @@ impl Sequence {
         }
         Ok(sequence)
     }
+    #[cfg(test)]
     pub(super) fn next_id(&self) -> u64 {
         self.next_id
     }
@@ -234,9 +235,6 @@ impl Sequence {
     }
     pub(super) fn shuffle_enabled(&self) -> bool {
         self.shuffle_enabled
-    }
-    pub(super) fn observe_shuffle(&mut self, enabled: bool) {
-        self.shuffle_enabled = enabled;
     }
     pub(super) fn persist_membership(&mut self) {
         self.dirty = Some(library::QueueUpdate {
@@ -676,9 +674,6 @@ impl Sequence {
     }
     pub(super) fn refresh_metadata(&mut self) {
         self.metadata_read = Some(MetadataRead::Window);
-    }
-    pub(super) fn refreshing_metadata(&self) -> bool {
-        self.metadata_read == Some(MetadataRead::Window)
     }
 }
 

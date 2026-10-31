@@ -3,6 +3,7 @@ use super::super::{
     state::tests::{IdleBackend, seeded},
 };
 use super::*;
+use std::time::Duration;
 use crate::playback::{Placement, PlayRequest, RadioPlayRequest};
 use playback::{
     BackendEvent, BackendFailure, PlaybackNotice, PlaybackSubscription, Provenance, TrackReference,
@@ -49,41 +50,6 @@ async fn canceled_queue_preparation_publishes_loading_completion() {
         assert!(updates.recv().await.unwrap().unwrap().view.queue_loading);
         cancel.send(()).unwrap();
         assert!(!updates.recv().await.unwrap().unwrap().view.queue_loading);
-    }
-    playback.shutdown().unwrap();
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn repeated_operation_failures_publish_notices_without_a_current_track() {
-    let (_directory, _database, sequence, owner, commands, _mailbox, _inbox) =
-        seeded(Vec::new()).await;
-    let (playback, _) = Playback::start(
-        sequence,
-        "failed-operation",
-        PlaybackSettings::default(),
-        false,
-        1,
-        PlaybackOutput::Local,
-        Box::new(IdleBackend(commands)),
-        Arc::new(|| ClockSample {
-            monotonic_millis: 0,
-            unix_seconds: 0,
-            local_period: "1970-01".into(),
-        }),
-        Arc::downgrade(&owner),
-    )
-    .unwrap();
-    let mut updates = owner.updates.subscribe();
-    for _ in 0..2 {
-        playback
-            .command(Command::OperationFailed("Unavailable".into()))
-            .unwrap();
-        let projection = updates.recv().await.unwrap().unwrap();
-        assert!(projection.view.transport.current.is_none());
-        assert_eq!(
-            projection.notices,
-            [PlaybackNotice::OperationFailed("Unavailable".into())]
-        );
     }
     playback.shutdown().unwrap();
 }

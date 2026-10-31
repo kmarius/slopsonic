@@ -1,8 +1,8 @@
 mod activity;
+mod activity_export;
 pub(crate) mod build;
 pub(crate) mod chrome;
 mod diagnostics;
-mod drop_import;
 pub(crate) mod layout;
 pub(crate) mod navigation;
 mod topbar;
@@ -71,5 +71,4 @@ mod catalog;
 pub(crate) mod catalog_actions;
 
 pub(crate) mod player_menus;
-mod playlist_files;
 pub(crate) mod playlist_picker;

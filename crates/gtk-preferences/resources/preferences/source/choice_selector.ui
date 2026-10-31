@@ -12,14 +12,8 @@
       <property name="child"><object class="GtkBox">
         <property name="orientation">vertical</property><property name="spacing">16</property>
         <child><object class="GtkLabel"><property name="label" translatable="yes">Add Source</property><property name="xalign">0</property><property name="wrap">true</property><style><class name="title-1"/></style></object></child>
-        <child><object class="AdwPreferencesGroup" id="device_sources">
-          <property name="title" translatable="yes">On this device</property>
-        </object></child>
         <child><object class="AdwPreferencesGroup" id="server_sources">
           <property name="title" translatable="yes">Servers</property>
-        </object></child>
-        <child><object class="AdwPreferencesGroup" id="remote_sources">
-          <property name="title" translatable="yes">Remote</property>
         </object></child>
         <child><object class="AdwPreferencesGroup" id="privacy">
           <property name="title" translatable="yes">Privacy and Security</property>

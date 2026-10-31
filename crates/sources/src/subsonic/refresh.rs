@@ -1,4 +1,3 @@
-use std::time::Duration;
 
 use library::Freshness;
 
@@ -10,8 +9,6 @@ use serde_json::Value;
 const ALBUM_REQUEST_SIZE: usize = 500;
 const TRACK_REQUEST_SIZE: usize = 500;
 const FRESHNESS_VERSION: u32 = 3;
-const METADATA_SCAN_POLL_INTERVAL: Duration = Duration::from_secs(1);
-const METADATA_SCAN_MAX_POLLS: usize = 120;
 
 #[derive(Clone, Debug)]
 struct ScanStatus {
@@ -19,7 +16,6 @@ struct ScanStatus {
     count: i64,
     folder_count: Option<i64>,
     last_scan: Option<String>,
-    error: Option<String>,
 }
 
 impl ScanStatus {
@@ -29,7 +25,6 @@ impl ScanStatus {
             count: json::field(value, "count").unwrap_or_default(),
             folder_count: json::field(value, "folderCount"),
             last_scan: json::field(value, "lastScan"),
-            error: json::field(value, "error"),
         })
     }
 }
@@ -509,49 +504,6 @@ impl SubsonicSource {
         Ok(())
     }
 
-    pub(crate) async fn start_metadata_scan_and_wait(
-        &self,
-        cancelled: &(dyn Fn() -> bool + Send + Sync),
-    ) -> SourceResult<()> {
-        let body = self.get_json("getScanStatus", &[]).await?;
-        self.wait_metadata_scan(&body, cancelled).await?;
-        check_cancelled(cancelled)?;
-        let body = self.get_json("startScan", &[]).await?;
-        scan_finished(self.wait_metadata_scan(&body, cancelled).await?)
-    }
-
-    async fn wait_metadata_scan(
-        &self,
-        body: &Value,
-        cancelled: &(dyn Fn() -> bool + Send + Sync),
-    ) -> SourceResult<ScanStatus> {
-        let mut status = ScanStatus::from_json(&body["scanStatus"]);
-        for poll in 0..=METADATA_SCAN_MAX_POLLS {
-            check_cancelled(cancelled)?;
-            if let Some(status) = status.take().filter(|status| !status.scanning) {
-                return Ok(status);
-            }
-            if poll == METADATA_SCAN_MAX_POLLS {
-                break;
-            }
-            tokio::time::sleep(METADATA_SCAN_POLL_INTERVAL).await;
-            let body = self.get_json("getScanStatus", &[]).await?;
-            status = ScanStatus::from_json(&body["scanStatus"]);
-        }
-        Err(SourceError::Other(
-            "The server library scan did not finish within two minutes.".to_string(),
-        ))
-    }
-}
-
-fn scan_finished(status: ScanStatus) -> SourceResult<()> {
-    if let Some(error) = status.error.filter(|error| !error.trim().is_empty()) {
-        Err(SourceError::Other(format!(
-            "The server library scan failed: {error}"
-        )))
-    } else {
-        Ok(())
-    }
 }
 
 fn freshness(status: ScanStatus) -> Vec<u8> {
@@ -608,7 +560,6 @@ mod tests {
             count,
             folder_count: Some(3),
             last_scan: Some(last_scan.to_string()),
-            error: None,
         }
     }
 
@@ -689,9 +640,7 @@ mod tests {
             library::SourceId::new("source"),
             crate::Implementation::OpenSubsonic(source),
         );
-        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation else {
-            unreachable!()
-        };
+        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation;
         let directory = tempfile::tempdir().unwrap();
         let database = library::Database::open(directory.path().join("library.sqlite"))
             .await
@@ -832,9 +781,7 @@ mod tests {
             library::SourceId::new("source"),
             crate::Implementation::OpenSubsonic(source),
         );
-        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation else {
-            unreachable!()
-        };
+        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation;
         let directory = tempfile::tempdir().unwrap();
         let database = library::Database::open(directory.path().join("library.sqlite"))
             .await
@@ -1092,9 +1039,7 @@ mod tests {
                 library::SourceId::new("source"),
                 crate::Implementation::OpenSubsonic(source),
             );
-            let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation else {
-                unreachable!()
-            };
+            let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation;
             let directory = tempfile::tempdir().unwrap();
             let database = library::Database::open(directory.path().join("library.sqlite"))
                 .await

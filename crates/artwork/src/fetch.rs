@@ -113,49 +113,7 @@ impl FetchContext {
                     })
                     .or_else(source_result)
             }
-            library::ArtworkImage::Local {
-                source_id,
-                path,
-                revision,
-                picture_index,
-            } => {
-                let reference = match picture_index {
-                    Some(picture_index) => sources::LocalImageRef::Embedded {
-                        source_id: source_id.clone(),
-                        path: path.clone(),
-                        revision: revision.clone(),
-                        picture_index: *picture_index,
-                    },
-                    None => sources::LocalImageRef::File {
-                        source_id: source_id.clone(),
-                        path: path.clone(),
-                        revision: revision.clone(),
-                    },
-                };
-                let image =
-                    if let (true, Some(index)) = (path.starts_with("content://"), picture_index) {
-                        runtime.block_on(sources::read_document_image(path, *index))
-                    } else if !["http://", "https://", "smb://", "rufin-document://"]
-                        .iter()
-                        .any(|prefix| path.starts_with(prefix))
-                    {
-                        sources::read_local_image(&reference)
-                    } else {
-                        runtime.block_on(
-                            self.source(source_id)?
-                                .image(SourceImageRequest::Local(reference.clone())),
-                        )
-                    };
-                image
-                    .map(|image| {
-                        if image.bytes.is_empty() {
-                            FetchOutcome::Missing
-                        } else {
-                            FetchOutcome::Ready(image.bytes)
-                        }
-                    })
-                    .or_else(source_result)
-            }
+            library::ArtworkImage::Local { .. } => Ok(FetchOutcome::Missing),
             library::ArtworkImage::Album(album) => metadata_lookup::lookup_album_cover(
                 album,
                 match size {

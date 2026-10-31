@@ -10,7 +10,7 @@ use crate::preferences::{
 };
 use crate::shell::{Shell, navigation::popdown_primary_menu};
 use rufin_core::runtime::SelectedLibrary;
-use rufin_core::runtime::source::{ConfiguredSources, LocalFolder, SourceSummary};
+use rufin_core::runtime::source::{ConfiguredSources, SourceSummary};
 
 use gtk_widgets::source_labels::{
     choice_action, configured_source_display_name, configured_source_icon_name, source_menu_item,
@@ -29,7 +29,6 @@ struct SourceMenuContent<'a> {
     icon_name: &'static str,
     selected_source_id: Option<SourceId>,
     sources: &'a [SourceSummary],
-    local_folders: &'a [LocalFolder],
     music_folders: &'a [FolderChoice],
     selected_music_folder_id: Option<String>,
 }
@@ -115,7 +114,7 @@ pub(crate) fn source_submenu(shell: &Rc<Shell>) -> (String, &'static str, gio::M
 
     let menu = gio::Menu::new();
     let sources = gio::Menu::new();
-    if content.sources.is_empty() && content.local_folders.is_empty() {
+    if content.sources.is_empty() {
         sources.append(Some(&"No sources configured".to_string()), None);
     } else {
         for index in source_order(&content.sources, content.selected_source_id.as_ref()) {
@@ -179,7 +178,6 @@ fn source_menu_content<'a>(
             icon_name: "rufin-network-server-symbolic",
             selected_source_id,
             sources: &configured.sources,
-            local_folders: &configured.local_folders,
             music_folders: &[],
             selected_music_folder_id: None,
         };
@@ -201,7 +199,6 @@ fn source_menu_content<'a>(
         icon_name,
         selected_source_id,
         sources: &configured.sources,
-        local_folders: &configured.local_folders,
         music_folders,
         selected_music_folder_id,
     }

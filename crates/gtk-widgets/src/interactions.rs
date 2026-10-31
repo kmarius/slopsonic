@@ -134,9 +134,7 @@ impl ContextMenuSection {
             | ContextMenuItem::PlayLater
             | ContextMenuItem::PlayRadio => Self::Playback,
             ContextMenuItem::AddToPlaylist | ContextMenuItem::Favorites => Self::Collection,
-            ContextMenuItem::EditMetadata | ContextMenuItem::Pins | ContextMenuItem::GoTo => {
-                Self::Details
-            }
+            ContextMenuItem::Pins | ContextMenuItem::GoTo => Self::Details,
             ContextMenuItem::Download => Self::Downloads,
         }
     }

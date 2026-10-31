@@ -1610,9 +1610,7 @@ mod tests {
             library::SourceId::new("search-source"),
             crate::Implementation::OpenSubsonic(source),
         );
-        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation else {
-            unreachable!()
-        };
+        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation;
         let directory = tempfile::tempdir().unwrap();
         let database = library::Database::open(directory.path().join("library.db"))
             .await
@@ -1734,9 +1732,7 @@ mod tests {
             crate::SourceId::new("song-search"),
             crate::Implementation::OpenSubsonic(source),
         );
-        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation else {
-            unreachable!()
-        };
+        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation;
         for cached in [false, true] {
             let root = tempfile::tempdir().unwrap();
             let database = library::Database::open(root.path().join("library.sqlite"))

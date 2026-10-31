@@ -1,6 +1,6 @@
 use super::{
     PlaybackOwner,
-    actor::{PlaybackError, WeakPlayback},
+    actor::WeakPlayback,
     queue::{OccurrenceId, Sequence, SequenceError},
 };
 use crate::playback::{QueueReorderTarget, QueueSelection};
@@ -27,22 +27,6 @@ pub struct ClockSample {
     pub local_period: String,
 }
 
-/// A receiver observation, applied without issuing transport commands or reporting
-/// another player's listen as Rufin activity. Queue metadata remains windowed.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ExternalPlayback {
-    pub queue: Option<library::QueueRestore>,
-    pub queue_total: usize,
-    pub queue_offset: usize,
-    pub status: TransportStatus,
-    pub position_millis: Option<u64>,
-    pub duration_millis: u64,
-    pub volume: f64,
-    pub muted: bool,
-    pub repeat: RepeatMode,
-    pub shuffle: bool,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AutoDjRequest {
     pub seed_run: Option<RunId>,
@@ -54,11 +38,6 @@ pub struct AutoDjRequest {
 pub enum Command {
     Radio(crate::playback::RadioPlayRequest),
     Random(crate::playback::RandomPlayRequest),
-    OperationFailed(String),
-    ObserveExternal {
-        output: PlaybackOutput,
-        observation: ExternalPlayback,
-    },
     ApplyQueue(crate::playback::PlayRequest),
     Activate(usize),
     ActivateOccurrence(u64),
@@ -101,31 +80,6 @@ pub enum Command {
     StreamInputsChanged,
     CatalogChanged,
     RekeyTracks(Arc<[(library::TrackKey, library::TrackKey)]>),
-}
-
-impl Command {
-    pub(super) fn addresses_occurrence(&self) -> bool {
-        matches!(
-            self,
-            Self::ActivateOccurrence(_)
-                | Self::MoveOccurrenceAfterCurrent(_)
-                | Self::RemoveMany(QueueSelection::Occurrences(_))
-                | Self::Reorder {
-                    selection: QueueSelection::Occurrences(_),
-                    ..
-                }
-                | Self::Reorder {
-                    target: QueueReorderTarget::BeforeOccurrence(_)
-                        | QueueReorderTarget::AfterOccurrence(_),
-                    ..
-                }
-                | Self::Insert {
-                    target: QueueReorderTarget::BeforeOccurrence(_)
-                        | QueueReorderTarget::AfterOccurrence(_),
-                    ..
-                }
-        )
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -252,8 +206,6 @@ pub(super) struct Player {
     dirty: bool,
     current_media_changed: bool,
     notices: Vec<PlaybackNotice>,
-    external: Option<ExternalPlayback>,
-    external_clock_millis: u64,
     sequence: Sequence,
     pending_queue: Option<(u64, QueueCompletion, JoinHandle<()>)>,
     pending_hydration: Option<JoinHandle<()>>,
@@ -308,8 +260,6 @@ impl Player {
             dirty: false,
             current_media_changed: false,
             notices: Vec::new(),
-            external: None,
-            external_clock_millis: 0,
             sequence,
             pending_queue: None,
             pending_hydration: None,
@@ -359,29 +309,14 @@ impl Player {
             .page_entries(offset, limit)
             .into_iter()
             .map(|(position, entry)| {
-                let id = self
-                    .external
-                    .is_none()
-                    .then(|| self.sequence.id_at(position).map(|id| id.0))
-                    .flatten();
+                let id = self.sequence.id_at(position).map(|id| id.0);
                 (position, id, entry)
             })
             .collect();
         (rows, self.sequence.total())
     }
 
-    pub(super) fn external_queue_extent(&self) -> Option<(usize, usize)> {
-        self.external
-            .as_ref()
-            .map(|external| (external.queue_total, external.queue_offset))
-    }
-
     pub(super) fn handoff_snapshot(&self) -> (library::QueueRestore, Option<SourceReportFact>) {
-        if self.external.is_some() {
-            let mut queue = self.sequence.snapshot();
-            queue.ids = Arc::from([]);
-            return (queue, None);
-        }
         let restored = self.sequence.selected().map(|entry| {
             let run = RunId::new(self.next_run_number);
             let mut current = RunContext::resolving(run, self.play_id(run), entry);
@@ -401,165 +336,8 @@ impl Player {
         self.play_id(RunId::new(self.next_run_number))
     }
 
-    fn observe_external(
-        &mut self,
-        output: PlaybackOutput,
-        mut observation: ExternalPlayback,
-        sample: &ClockSample,
-    ) -> Result<(), SequenceError> {
-        self.advance_external_clock(sample);
-        let already_external = self.external.is_some();
-        self.external_clock_millis = sample.monotonic_millis;
-        // Hold the same entry's playhead for ignored previews and buffering
-        // reports, including when queue metadata is refreshed at the same time.
-        if already_external
-            && (observation.position_millis.is_none()
-                || observation.status == TransportStatus::Buffering)
-            && observation.queue.as_ref().is_none_or(|queue| {
-                let current_offset = self.external_queue_extent().map_or(0, |(_, offset)| offset);
-                queue
-                    .current_index
-                    .map(|position| position + observation.queue_offset)
-                    == self
-                        .sequence
-                        .selected_index()
-                        .map(|position| position + current_offset)
-                    && queue
-                        .current_index
-                        .and_then(|position| queue.order.get(position))
-                        .and_then(|member| queue.entries.get(*member as usize))
-                        .map(|entry| entry.track_key)
-                        == self
-                            .sequence
-                            .selected_index()
-                            .and_then(|position| self.sequence.entry_at(position))
-                            .map(|entry| entry.track_key)
-            })
-        {
-            observation.position_millis = Some(self.sequence.progress_millis());
-        }
-        // Validate the captured queue before retiring the local run.
-        let sequence = observation
-            .queue
-            .take()
-            .map(|queue| {
-                Sequence::from_window(queue, self.sequence.revision() + 1, self.sequence.next_id())
-            })
-            .transpose()?;
-
-        if self.external.is_none() {
-            if let Some(run) = self.current_run() {
-                self.send_backend(BackendCommand::Stop { run });
-            }
-            self.finish_current(RunEndReason::Stopped, sample);
-            self.cancel_queue_read();
-            self.queue_loading = false;
-            self.deferred_queue.clear();
-            self.cancel_candidate_tasks(false);
-            self.auto_dj_in_flight = None;
-        }
-        let queue_changed = sequence.is_some();
-        if let Some(sequence) = sequence {
-            self.sequence = sequence;
-            self.dirty = true;
-            self.current_media_changed = true;
-        }
-        self.dirty |= queue_changed
-            || self.external.as_ref() != Some(&observation)
-            || self.playback_output != output;
-        if let Some(position) = observation.position_millis {
-            self.sequence.set_progress_millis(position);
-        }
-        self.sequence.set_repeat_mode(observation.repeat);
-        self.sequence.observe_shuffle(observation.shuffle);
-        self.output_volume = observation.volume;
-        self.output_muted = observation.muted;
-        self.playback_output = output;
-        self.external = Some(observation);
-        self.last_error = None;
-        self.failed_run = None;
-        if already_external && queue_changed {
-            self.maybe_request_auto_dj();
-        }
-        Ok(())
-    }
-
-    /// The external playhead is interpolated between receiver reports.
-    pub(super) fn external_clock_running(&self) -> bool {
-        let duration = self.duration_millis();
-        self.external
-            .as_ref()
-            .is_some_and(|external| external.status == TransportStatus::Playing)
-            && self.sequence.selected_index().is_some()
-            && (duration == 0 || self.sequence.progress_millis() < duration)
-    }
-
-    pub(super) fn advance_external_clock(&mut self, sample: &ClockSample) {
-        let Some(external) = self.external.as_ref() else {
-            return;
-        };
-        let elapsed = sample
-            .monotonic_millis
-            .saturating_sub(self.external_clock_millis);
-        self.external_clock_millis = sample.monotonic_millis;
-        if external.status != TransportStatus::Playing || self.sequence.selected_index().is_none() {
-            return;
-        }
-        let previous = self.sequence.progress_millis();
-        let mut position = previous.saturating_add(elapsed);
-        let duration = self.duration_millis();
-        if duration > 0 {
-            position = position.min(duration);
-        }
-        self.sequence.set_progress_millis(position);
-        self.dirty |= position != previous;
-    }
-
-    pub(super) fn adopt_local(
-        &mut self,
-        queue: library::QueueRestore,
-        stream: PreparedStream,
-        playing: bool,
-        backend: Box<dyn PlaybackBackend>,
-    ) -> Result<(), PlaybackError> {
-        let sequence =
-            Sequence::from_window(queue, self.sequence.revision() + 1, self.sequence.next_id())?;
-        if sequence.selected().is_none() {
-            return Err(SequenceError::MissingSelectedEntry.into());
-        }
-        let _ = self.swap_backend(backend);
-        self.adopt_sequence(sequence, stream, playing);
-        Ok(())
-    }
-
-    fn adopt_sequence(&mut self, sequence: Sequence, stream: PreparedStream, playing: bool) {
-        self.external = None;
-        self.sequence = sequence;
-        self.sequence.persist_membership();
-        self.playback_output = PlaybackOutput::Local;
-        self.output_volume = self.settings.volume;
-        self.output_muted = self.settings.muted;
-        self.current_run = None;
-        self.failed_run = None;
-        self.next_plan = None;
-        self.auto_dj_in_flight = None;
-        self.auto_dj_waiting_for_continuation = false;
-        self.dirty = true;
-        if let Some(entry) = self.sequence.selected().cloned() {
-            let run = self.next_run_id();
-            let mut current = RunContext::resolving(run, self.play_id(run), &entry);
-            current.desired_playing = playing;
-            self.current_run = Some(current);
-            self.replan_next_if_changed();
-
-            self.current_stream_resolved(run, stream);
-            self.current_media_changed = true;
-            self.sequence.persist_state();
-        }
-    }
     pub(super) fn take_queue_persistence(&mut self) -> Option<library::QueueUpdate> {
-        let dirty = self.sequence.take_persistence();
-        if self.external.is_some() { None } else { dirty }
+        self.sequence.take_persistence()
     }
     pub(super) fn accepts_queue(&self, id: u64) -> bool {
         self.pending_queue
@@ -580,9 +358,6 @@ impl Player {
     }
 
     pub(super) fn status(&self) -> TransportStatus {
-        if let Some(external) = &self.external {
-            return external.status;
-        }
         self.current_run
             .as_ref()
             .map(|run| {
@@ -604,12 +379,6 @@ impl Player {
     }
 
     pub(super) fn desired_playing(&self) -> bool {
-        if let Some(external) = &self.external {
-            return matches!(
-                external.status,
-                TransportStatus::Playing | TransportStatus::Buffering
-            );
-        }
         self.current_run
             .as_ref()
             .is_some_and(|run| run.desired_playing)
@@ -631,22 +400,13 @@ impl Player {
     }
 
     pub(super) fn position_observed_at_millis(&self) -> u64 {
-        if self.external.is_some() {
-            self.external_clock_millis
-        } else {
-            self.current_run
-                .as_ref()
-                .map(|run| run.position_observed_at_millis)
-                .unwrap_or_default()
-        }
+        self.current_run
+            .as_ref()
+            .map(|run| run.position_observed_at_millis)
+            .unwrap_or_default()
     }
 
     pub(super) fn duration_millis(&self) -> u64 {
-        if let Some(external) = &self.external {
-            if external.duration_millis > 0 {
-                return external.duration_millis;
-            }
-        }
         self.current_run
             .as_ref()
             .map(|run| run.duration_millis)
@@ -671,7 +431,6 @@ impl Player {
     }
 
     pub(super) fn replace_output(&mut self, output: PlaybackOutput) {
-        self.external = None;
         self.playback_output = output;
         self.last_error = None;
         if self.playback_output.is_local() {
@@ -863,9 +622,6 @@ impl Player {
         command: Command,
         sample: &ClockSample,
     ) -> Result<(), SequenceError> {
-        if self.external.is_some() && command.addresses_occurrence() {
-            return Ok(());
-        }
         if self.pending_queue.is_some()
             && matches!(
                 &command,
@@ -878,17 +634,6 @@ impl Player {
         match command {
             Command::Radio(request) => Ok(self.play_radio(request)),
             Command::Random(request) => Ok(self.play_random(request)),
-            Command::OperationFailed(message) => {
-                self.last_error = Some(message.clone());
-                Ok({
-                    self.report_error(message);
-                    self.dirty = true;
-                })
-            }
-            Command::ObserveExternal {
-                output,
-                observation,
-            } => self.observe_external(output, observation, sample),
             Command::ApplyQueue(request) => self.apply_batch(request, sample),
             Command::Activate(position) => Ok(self.activate(&position, sample)),
             Command::ActivateOccurrence(id) => Ok({
@@ -1227,9 +972,6 @@ impl Player {
         load: library::QueueLoad,
         sample: &ClockSample,
     ) -> Result<bool, SequenceError> {
-        if self.external.is_some() {
-            return Ok(false);
-        }
         if !self.auto_dj_in_flight.as_ref().is_some_and(|request| {
             request.seed_run == seed_run && request.seed_media_uri == seed_media_uri
         }) {
@@ -1362,8 +1104,7 @@ impl Player {
     }
 
     pub(super) fn hydrate_queue(&mut self) {
-        if (self.external.is_some() && !self.sequence.refreshing_metadata())
-            || self.pending_queue.is_some()
+        if self.pending_queue.is_some()
             || self.pending_hydration.is_some()
         {
             return;
@@ -1406,9 +1147,6 @@ impl Player {
         match result {
             Ok(rows) => self.dirty |= self.sequence.hydrate(rows),
             Err(error) => self.report_error(error),
-        }
-        if self.external.is_some() {
-            return;
         }
         if matches!(self.pending_queue, Some((_, QueueCompletion::Replace, _))) {
             return;
@@ -2568,15 +2306,7 @@ impl Player {
         {
             return;
         }
-        let remaining = self.external.as_ref().map_or_else(
-            || self.sequence.remaining_after_selected(),
-            |external| {
-                external.queue_total.saturating_sub(
-                    external.queue_offset
-                        + self.sequence.selected_index().map_or(0, |index| index + 1),
-                )
-            },
-        );
+        let remaining = self.sequence.remaining_after_selected();
         if !self.auto_dj_enabled
             || remaining >= self.auto_dj_refill_threshold
             || self.auto_dj_in_flight.is_some()
@@ -2629,7 +2359,7 @@ impl Player {
     pub(super) fn view(&self) -> PlaybackView {
         let sequence = self.sequence();
         let settings = self.settings();
-        let mut summary = playback::QueueSummaryView {
+        let summary = playback::QueueSummaryView {
             revision: sequence.revision(),
             total: sequence.total(),
             current_index: sequence.selected_index(),
@@ -2638,27 +2368,10 @@ impl Player {
                 .filter(|index| *index < sequence.total()),
             can_next: sequence.next_index(false).is_some(),
         };
-        let offset = self.external_queue_extent().map_or(0, |(_, offset)| offset);
-        let projected_row = |row: &Arc<QueueRow>| {
-            let mut row = row.clone();
-            if self.external.is_some() {
-                let row = Arc::make_mut(&mut row);
-                row.position += offset;
-                row.occurrence_id = None;
-            }
-            row
-        };
-        if let Some((total, offset)) = self.external_queue_extent() {
-            summary.total = total;
-            summary.current_index = summary.current_index.map(|index| index + offset);
-            summary.next_index = summary.next_index.map(|index| index + offset);
-            summary.can_next = summary.current_index.is_some_and(|index| index + 1 < total)
-                || sequence.repeat_mode() != RepeatMode::Off;
-        }
         PlaybackView {
             queue_loading: self.queue_loading(),
             queue: summary,
-            queue_window: sequence.entries().iter().map(projected_row).collect(),
+            queue_window: sequence.entries().to_vec(),
             transport: TransportView {
                 current: sequence.selected().map(|entry| CurrentMedia {
                     stream: self.current_run.as_ref().and_then(|run| {
@@ -2675,7 +2388,7 @@ impl Player {
                         run: self.current_run(),
                         media_uri: entry.track.media_uri.clone(),
                     },
-                    row: projected_row(entry),
+                    row: entry.clone(),
                 }),
                 state: self.status(),
                 desired_playing: self.desired_playing(),
@@ -2752,14 +2465,13 @@ impl Player {
 
     pub(super) fn drive(&mut self, clock: &dyn Fn() -> ClockSample) {
         let events = self.backend.drain_events();
-        if events.is_empty() && self.external.is_none() {
+        if events.is_empty() {
             return;
         }
         let sample = clock();
         for event in events {
             self.handle_backend(event, &sample);
         }
-        self.advance_external_clock(&sample);
         self.publish(&sample);
     }
 
@@ -2866,18 +2578,6 @@ impl Player {
     ) -> Box<dyn PlaybackBackend> {
         backend.set_event_waker(event_waker(&self.playback));
         std::mem::replace(&mut self.backend, backend)
-    }
-
-    fn swap_backend(&mut self, backend: Box<dyn PlaybackBackend>) -> Result<(), PlaybackError> {
-        let mut previous = self.install_backend(backend);
-        let stopped = self
-            .current_run()
-            .map_or(Ok(()), |run| previous.send(BackendCommand::Stop { run }));
-        previous.drain_events();
-        let shutdown = previous.shutdown();
-        stopped
-            .and(shutdown)
-            .map_err(|error| PlaybackError::BackendShutdown(error.to_string()))
     }
 
     pub(super) fn shutdown_backend(&mut self) -> Result<(), playback::BackendError> {

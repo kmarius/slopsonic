@@ -6,7 +6,6 @@ use std::sync::{Arc, Mutex, Weak};
 use audio_processing::{LoudnessAnalysis, album_loudness, analyze_loudness_cancellable};
 use library::{Database, LoudnessMeasurement, ReadCancellation, SourceKey};
 use playback::{LoudnessNormalization, LoudnessNormalizationScope, StreamQuality, StreamRequest};
-use sources::SourceConfiguration;
 use tracing::{info, warn};
 
 use crate::playback::prepare_stream;
@@ -19,7 +18,6 @@ struct ActiveAnalysis {
     task: Option<tokio::task::AbortHandle>,
     restart: bool,
     scope: LoudnessNormalizationScope,
-    write_tags: bool,
 }
 
 impl ActiveAnalysis {
@@ -67,8 +65,7 @@ impl LoudnessAnalysisOwner {
         self: &Arc<Self>,
         normalization: LoudnessNormalization,
         scope: LoudnessNormalizationScope,
-        write_tags: bool,
-        source_owner: Option<Arc<SourceOwner>>,
+            source_owner: Option<Arc<SourceOwner>>,
     ) {
         if normalization != LoudnessNormalization::EbuR128 {
             self.cancel();
@@ -83,10 +80,10 @@ impl LoudnessAnalysisOwner {
             return;
         };
         let source_key = selected.source_key;
-        let Some(configuration) = source_owner.configuration(&selected.source_id) else {
+        if source_owner.configuration(&selected.source_id).is_none() {
             self.cancel();
             return;
-        };
+        }
         if self
             .blocked
             .lock()
@@ -101,7 +98,6 @@ impl LoudnessAnalysisOwner {
             if active.as_ref().is_some_and(|current| {
                 current.source_key == source_key
                     && current.scope == scope
-                    && current.write_tags == write_tags
             }) {
                 return;
             }
@@ -115,7 +111,6 @@ impl LoudnessAnalysisOwner {
                 task: None,
                 restart: false,
                 scope,
-                write_tags,
             });
         }
         let owner = Arc::downgrade(self);
@@ -125,14 +120,12 @@ impl LoudnessAnalysisOwner {
             let failed = analyze_selected(
                 source_owner,
                 source_key,
-                configuration,
                 scope,
-                write_tags,
                 Arc::clone(&task_cancelled),
             )
             .await;
             if let Some(owner) = owner.upgrade() {
-                owner.finish(&task_cancelled, normalization, scope, write_tags, failed);
+                owner.finish(&task_cancelled, normalization, scope, failed);
             }
         });
         let abort = task.abort_handle();
@@ -151,8 +144,7 @@ impl LoudnessAnalysisOwner {
         self: &Arc<Self>,
         normalization: LoudnessNormalization,
         scope: LoudnessNormalizationScope,
-        write_tags: bool,
-        source_owner: Option<Arc<SourceOwner>>,
+            source_owner: Option<Arc<SourceOwner>>,
     ) {
         let Some(source_owner) = source_owner else {
             self.cancel();
@@ -175,7 +167,7 @@ impl LoudnessAnalysisOwner {
             return;
         }
         drop(active);
-        self.settings_changed(normalization, scope, write_tags, Some(source_owner));
+        self.settings_changed(normalization, scope, Some(source_owner));
     }
 
     pub(crate) fn cancel(&self) {
@@ -189,8 +181,7 @@ impl LoudnessAnalysisOwner {
         cancelled: &Arc<AtomicBool>,
         normalization: LoudnessNormalization,
         scope: LoudnessNormalizationScope,
-        write_tags: bool,
-        failed: bool,
+            failed: bool,
     ) {
         let mut active = self.active.lock().unwrap_or_else(|p| p.into_inner());
         let completed = active
@@ -212,7 +203,7 @@ impl LoudnessAnalysisOwner {
         }
         drop(active);
         if !failed && let Some(source_owner) = restart {
-            self.settings_changed(normalization, scope, write_tags, Some(source_owner));
+            self.settings_changed(normalization, scope, Some(source_owner));
         }
     }
 }
@@ -220,29 +211,10 @@ impl LoudnessAnalysisOwner {
 async fn analyze_selected(
     source_owner: Arc<SourceOwner>,
     source_key: SourceKey,
-    configuration: SourceConfiguration,
     scope: LoudnessNormalizationScope,
-    write_tags: bool,
     cancelled: Arc<AtomicBool>,
 ) -> bool {
     let database = Arc::clone(&source_owner.shared.database);
-    if write_tags && configuration.is_file_library() {
-        let owner = Arc::clone(&source_owner);
-        let source_id = configuration.source_id.clone();
-        let source = tokio::task::spawn_blocking(move || owner.client(&source_id)).await;
-        if let Ok(Ok(source)) = source {
-            let result = async {
-                source
-                    .backfill_file_r128_tags(&database, source_key)
-                    .await
-                    .map_err(|error| error.to_string())
-            }
-            .await;
-            if let Err(error) = result {
-                warn!(%error, "could not write stored EBU R128 tags");
-            }
-        }
-    }
     let mut album_after = None;
     let mut track_after = None;
     let mut albums_done = scope != LoudnessNormalizationScope::Album;
@@ -257,12 +229,10 @@ async fn analyze_selected(
             {
                 Ok(Some(work)) => {
                     let mut analyses = Vec::with_capacity(work.tracks.len());
-                    let mut track_tags = Vec::with_capacity(work.tracks.len());
                     for track in &work.tracks {
                         match analyze_uri(
                             &source_owner,
                             &database,
-                            &configuration,
                             &track.media_uri,
                             &cancelled,
                         )
@@ -288,7 +258,6 @@ async fn analyze_selected(
                                     warn!(%error, "could not store Track loudness");
                                     return true;
                                 }
-                                track_tags.push((track.track_key, value.integrated_lufs));
                                 analyses.push(analysis);
                             }
                             Err(error) => {
@@ -319,25 +288,6 @@ async fn analyze_selected(
                                     warn!(%error, "could not store Album loudness");
                                     return true;
                                 }
-                                if write_tags {
-                                    let measurements = track_tags
-                                        .iter()
-                                        .map(|(track, track_lufs)| {
-                                            (*track, *track_lufs, value.integrated_lufs)
-                                        })
-                                        .collect::<Vec<_>>();
-                                    if let Err(error) = write_local_tags(
-                                        &source_owner,
-                                        &database,
-                                        source_key,
-                                        &configuration,
-                                        &measurements,
-                                    )
-                                    .await
-                                    {
-                                        warn!(%error, "could not write EBU R128 tags");
-                                    }
-                                }
                             }
                             Err(error) => warn!(%error, "could not combine Album loudness"),
                         }
@@ -359,7 +309,6 @@ async fn analyze_selected(
             Ok(Some(work)) => match analyze_uri(
                 &source_owner,
                 &database,
-                &configuration,
                 &work.media_uri,
                 &cancelled,
             )
@@ -380,20 +329,6 @@ async fn analyze_selected(
                     {
                         warn!(%error, "could not store Track loudness");
                         return true;
-                    }
-                    if write_tags {
-                        let measurements = [(work.track_key, value.integrated_lufs, None)];
-                        if let Err(error) = write_local_tags(
-                            &source_owner,
-                            &database,
-                            source_key,
-                            &configuration,
-                            &measurements,
-                        )
-                        .await
-                        {
-                            warn!(%error, "could not write EBU R128 tags");
-                        }
                     }
                     track_after = Some(work.track_key);
                 }
@@ -420,31 +355,9 @@ async fn analyze_selected(
     }
 }
 
-async fn write_local_tags(
-    source_owner: &Arc<SourceOwner>,
-    database: &Database,
-    source_key: SourceKey,
-    configuration: &SourceConfiguration,
-    measurements: &[(library::TrackKey, Option<f64>, Option<f64>)],
-) -> Result<(), String> {
-    if !configuration.is_file_library() {
-        return Ok(());
-    }
-    let owner = Arc::clone(source_owner);
-    let source_id = configuration.source_id.clone();
-    let source = tokio::task::spawn_blocking(move || owner.client(&source_id))
-        .await
-        .map_err(|error| error.to_string())??;
-    source
-        .write_file_r128_tags(database, source_key, measurements)
-        .await
-        .map_err(|error| error.to_string())
-}
-
 async fn analyze_uri(
     source_owner: &Arc<SourceOwner>,
     database: &Database,
-    configuration: &SourceConfiguration,
     media_uri: &str,
     cancelled: &Arc<AtomicBool>,
 ) -> Result<LoudnessAnalysis, String> {
@@ -453,7 +366,6 @@ async fn analyze_uri(
     let stream = prepare_stream(
         database,
         request,
-        Some(configuration),
         move |source_id| async move {
             tokio::task::spawn_blocking(move || owner.client(&source_id))
                 .await

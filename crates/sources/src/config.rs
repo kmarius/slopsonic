@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -19,24 +17,6 @@ pub struct SourceConfiguration {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize)]
-pub struct PlexSetupInput {
-    pub name: String,
-    pub login: crate::plex::PlexLogin,
-    pub profile_id: String,
-    pub server: crate::plex::PlexServer,
-    pub address_override: Option<String>,
-    pub trust_invalid_cert: bool,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
-pub struct PlexSettingsInput {
-    pub name: String,
-    pub address_override: Option<String>,
-    pub trust_invalid_cert: bool,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize)]
 #[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct CredentialInput {
     pub source_name: Option<String>,
@@ -49,39 +29,10 @@ pub struct CredentialInput {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum SourceSetup {
-    EmbyConnect {
-        server: crate::EmbyConnectServer,
-        source_name: Option<String>,
-        use_instant_mix: bool,
-    },
-    JellyfinQuickConnect {
-        login: crate::JellyfinQuickConnectLogin,
-        source_name: Option<String>,
-        use_instant_mix: bool,
-    },
-    Plex(crate::PlexSetupInput),
-    WebDav {
-        name: String,
-        settings: crate::FileSourceSettings,
-        credentials: crate::FileCredentials,
-    },
-    Smb {
-        name: String,
-        settings: crate::FileSourceSettings,
-        credentials: crate::FileCredentials,
-    },
-    JellyfinEmby {
-        kind: crate::ServerKind,
-        credentials: CredentialInput,
-        use_instant_mix: bool,
-    },
     OpenSubsonic {
         kind: SubsonicFlavor,
         authentication: crate::SubsonicAuthentication,
         credentials: CredentialInput,
-    },
-    Local {
-        roots: Vec<PathBuf>,
     },
 }
 
@@ -98,45 +49,6 @@ pub struct CredentialPreset {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum SourceSettingsChange {
-    #[serde(skip)]
-    LocalDocuments {
-        source_id: SourceId,
-        roots: Vec<crate::DocumentRoot>,
-    },
-    Local {
-        source_id: SourceId,
-        roots: Vec<PathBuf>,
-        #[serde(default)]
-        excluded_folders: Option<Vec<PathBuf>>,
-    },
-    EmbyConnect {
-        source_id: SourceId,
-        server: crate::EmbyConnectServer,
-        source_name: Option<String>,
-        use_instant_mix: bool,
-    },
-    JellyfinQuickConnect {
-        source_id: SourceId,
-        login: crate::JellyfinQuickConnectLogin,
-        source_name: Option<String>,
-        use_instant_mix: bool,
-    },
-    Plex {
-        source_id: SourceId,
-        settings: crate::PlexSettingsInput,
-    },
-    Files {
-        source_id: SourceId,
-        name: String,
-        settings: crate::FileSourceSettings,
-        credentials: crate::FileCredentialsEdit,
-    },
-    JellyfinEmby {
-        connect_manually: bool,
-        source_id: SourceId,
-        credentials: CredentialInput,
-        use_instant_mix: bool,
-    },
     OpenSubsonic {
         source_id: SourceId,
         kind: SubsonicFlavor,
@@ -148,68 +60,27 @@ pub enum SourceSettingsChange {
 impl SourceSettingsChange {
     pub fn source_id(&self) -> &SourceId {
         match self {
-            Self::LocalDocuments { source_id, .. }
-            | Self::Local { source_id, .. }
-            | Self::EmbyConnect { source_id, .. }
-            | Self::JellyfinQuickConnect { source_id, .. }
-            | Self::Plex { source_id, .. }
-            | Self::Files { source_id, .. }
-            | Self::JellyfinEmby { source_id, .. }
-            | Self::OpenSubsonic { source_id, .. } => source_id,
+            Self::OpenSubsonic { source_id, .. } => source_id,
         }
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EditableSource {
-    Plex {
-        source_id: SourceId,
-        name: String,
-        settings: PlexSettingsInput,
-    },
-    Files {
-        source_id: SourceId,
-        kind: String,
-        name: String,
-        settings: crate::FileSourceSettings,
-    },
     Credentials {
         source_id: SourceId,
         kind: String,
         credentials: CredentialPreset,
-        use_instant_mix: Option<bool>,
-        emby_connect: bool,
-    },
-    Local {
-        source_id: SourceId,
-        roots: Vec<PathBuf>,
-        excluded_folders: Vec<PathBuf>,
-        document_roots: Vec<crate::DocumentRoot>,
     },
 }
 
 impl SourceConfiguration {
     pub fn server_address(&self) -> Option<String> {
         let address = match self.kind.as_str() {
-            "jellyfin" | "emby" => {
-                crate::jellyfin_emby::JellyfinEmbySourceConfig::from_configuration(self)
-                    .ok()?
-                    .base_url
-            }
             "navidrome" | "subsonic" => {
                 crate::subsonic::SubsonicSourceConfig::from_configuration(self)
                     .ok()?
                     .base_url
-            }
-            "plex" => {
-                crate::plex::PlexSourceConfig::from_configuration(self)
-                    .ok()?
-                    .base_url
-            }
-            "smb" | "webdav" => {
-                crate::FileSourceSettings::from_configuration(self)
-                    .ok()?
-                    .url
             }
             _ => return None,
         };
@@ -221,115 +92,8 @@ impl SourceConfiguration {
         Some(url.into())
     }
 
-    /// Identify a selected file inside one of the configured local folder grants.
-    pub fn local_file_location(&self, path: &std::path::Path) -> Option<(String, PathBuf)> {
-        if !self.is_local() {
-            return None;
-        }
-        let roots = crate::file::local::LocalSourceConfig::from_configuration(self)
-            .ok()?
-            .roots;
-        crate::file::local::local_file_location(&roots, path)
-    }
-
-    /// Resolve an observed playlist file to this device's source access path.
-    pub fn playlist_file_path(&self, location: &str) -> Option<String> {
-        if self.is_local() {
-            let config = crate::file::local::LocalSourceConfig::from_configuration(self).ok()?;
-            for (index, root) in config.document_roots.into_iter().enumerate() {
-                if let Ok(path) =
-                    crate::file::remote::FileSource::documents(self, root).relative(location)
-                {
-                    return Some(format!("@document:{index}/{path}"));
-                }
-            }
-            return crate::file::local::local_file_location(
-                &config.roots,
-                std::path::Path::new(location),
-            )
-            .map(|(path, _)| path);
-        }
-        crate::file::remote::FileSource::open(self, None)
-            .ok()?
-            .relative(location)
-            .ok()
-    }
-
-    /// Resolve a source playlist access path without opening its files.
-    pub fn playlist_file_location(&self, path: &str) -> Option<String> {
-        if self.is_local() {
-            let config = crate::file::local::LocalSourceConfig::from_configuration(self).ok()?;
-            if let Some((index, relative)) = path
-                .strip_prefix("@document:")
-                .and_then(|path| path.split_once('/'))
-            {
-                let root = config
-                    .document_roots
-                    .get(index.parse::<usize>().ok()?)?
-                    .clone();
-                return crate::file::remote::FileSource::documents(self, root)
-                    .location(relative)
-                    .ok();
-            }
-            let (index, relative) = path
-                .strip_prefix('@')
-                .and_then(|path| path.split_once('/'))
-                .and_then(|(index, relative)| {
-                    index.parse::<usize>().ok().map(|index| (index, relative))
-                })
-                .unwrap_or((0, path));
-            return config
-                .roots
-                .get(index)
-                .map(|root| root.join(relative).to_string_lossy().into_owned());
-        }
-        crate::file::remote::FileSource::open(self, None)
-            .ok()?
-            .location(path)
-            .ok()
-    }
-
-    pub fn is_local(&self) -> bool {
-        self.kind == crate::file::local::LOCAL_SOURCE_ID
-    }
-
-    pub fn is_file_library(&self) -> bool {
-        matches!(self.kind.as_str(), "local" | "smb" | "webdav")
-    }
-
     pub fn supports_playlist_public(&self) -> bool {
-        matches!(
-            self.kind.as_str(),
-            "jellyfin" | "emby" | "navidrome" | "subsonic"
-        )
-    }
-
-    pub fn playlist_tracks_can_repeat(&self) -> bool {
-        playlist_tracks_can_repeat(&self.kind)
-    }
-
-    /// Encode an already configured Local source without touching its folders.
-    ///
-    /// Released-settings migration uses this while a removable or network
-    /// filesystem may be offline. Ordinary Local opening validates access
-    /// later without changing the configured identity.
-    pub fn local(
-        source_id: SourceId,
-        name: impl Into<String>,
-        roots: Vec<PathBuf>,
-    ) -> SourceResult<Self> {
-        let roots = crate::file::local::configured_roots(roots)?;
-        Ok(encode_provider_payload(
-            source_id,
-            crate::file::local::LOCAL_SOURCE_ID,
-            name,
-            crate::file::local::LocalSourceConfig {
-                roots,
-                excluded_folders: Vec::new(),
-                document_roots: Vec::new(),
-            }
-            .into_payload(),
-        ))
+        matches!(self.kind.as_str(), "navidrome" | "subsonic")
     }
 
     /// Identify the source inputs that determine rebuildable canonical facts.
@@ -337,53 +101,19 @@ impl SourceConfiguration {
     /// Credentials and presentation settings do not participate, so Rufin can
     /// validate an existing cache even when live source access is unavailable.
     pub fn input_identity(&self) -> SourceResult<SourceInputIdentity> {
-        self.input_identity_with_reader_versions(None, true)
+        self.input_identity_with_reader_versions(None)
     }
 
     fn input_identity_with_reader_versions(
         &self,
         navidrome_library_version: Option<u32>,
-        jellyfin_artist_reader_v2: bool,
     ) -> SourceResult<SourceInputIdentity> {
         let mut digest = blake3::Hasher::new();
         digest.update(b"rufin-source-input");
-        // Preserve the released digest encoding. Reader freshness belongs to
-        // provider markers and Local parser revisions, not source identity.
         digest.update(&1_u32.to_le_bytes());
         digest_part(&mut digest, self.source_id.as_str().as_bytes());
         digest_part(&mut digest, self.kind.as_bytes());
         match self.kind.as_str() {
-            "plex" => {
-                let config = crate::plex::PlexSourceConfig::from_configuration(self)?;
-                digest_part(&mut digest, config.server_id.as_bytes());
-                digest_part(&mut digest, config.profile_id.as_bytes());
-            }
-            "smb" | "webdav" => {
-                let settings = crate::FileSourceSettings::from_configuration(self)?;
-                digest_part(&mut digest, settings.url.as_bytes());
-                digest_part(&mut digest, settings.username.as_bytes());
-            }
-            crate::file::local::LOCAL_SOURCE_ID => {
-                let config = crate::file::local::LocalSourceConfig::from_configuration(self)?;
-                for root in config.roots {
-                    digest_part(&mut digest, root.to_string_lossy().as_bytes());
-                }
-                for root in config.document_roots {
-                    digest_part(&mut digest, root.id.as_bytes());
-                    digest_part(&mut digest, root.uri.as_bytes());
-                }
-            }
-            "jellyfin" | "emby" => {
-                let config =
-                    crate::jellyfin_emby::JellyfinEmbySourceConfig::from_configuration(self)?;
-                digest_part(&mut digest, config.user_id.as_bytes());
-                if jellyfin_artist_reader_v2 && self.kind == "jellyfin" {
-                    // JellyfinEmby MusicArtist changed from raw dual-access rows to one
-                    // name-aggregate representation. Released caches remain usable
-                    // while a live reader upgrade rebuilds their source facts.
-                    digest_part(&mut digest, b"jellyfin-artist-reader-v2");
-                }
-            }
             "navidrome" | "subsonic" => {
                 let config = crate::subsonic::SubsonicSourceConfig::from_configuration(self)?;
                 digest_part(&mut digest, config.username.as_bytes());
@@ -407,46 +137,8 @@ impl SourceConfiguration {
     }
 
     /// Return the fields Rufin may present when editing this source.
-    ///
-    /// The provider payload remains opaque to Rufin and UI. Sources decodes it
-    /// here and accepts the corresponding edit through `Source::edit`.
     pub fn editable(&self) -> SourceResult<EditableSource> {
         match self.kind.as_str() {
-            "plex" => {
-                let config = crate::plex::PlexSourceConfig::from_configuration(self)?;
-                Ok(EditableSource::Plex {
-                    source_id: self.source_id.clone(),
-                    name: self.name.clone(),
-                    settings: PlexSettingsInput {
-                        name: self.name.clone(),
-                        address_override: config.address_override,
-                        trust_invalid_cert: config.trust_invalid_cert,
-                    },
-                })
-            }
-            "smb" | "webdav" => Ok(EditableSource::Files {
-                source_id: self.source_id.clone(),
-                kind: self.kind.clone(),
-                name: self.name.clone(),
-                settings: crate::FileSourceSettings::from_configuration(self)?,
-            }),
-            "jellyfin" | "emby" => {
-                let config =
-                    crate::jellyfin_emby::JellyfinEmbySourceConfig::from_configuration(self)?;
-                Ok(EditableSource::Credentials {
-                    source_id: self.source_id.clone(),
-                    kind: self.kind.clone(),
-                    credentials: CredentialPreset {
-                        source_name: self.name.clone(),
-                        server_url: config.base_url,
-                        username: config.username,
-                        trust_invalid_cert: config.trust_invalid_cert,
-                        open_subsonic_authentication: None,
-                    },
-                    use_instant_mix: Some(config.use_instant_mix),
-                    emby_connect: config.emby_connect,
-                })
-            }
             "navidrome" | "subsonic" => {
                 let config = crate::subsonic::SubsonicSourceConfig::from_configuration(self)?;
                 Ok(EditableSource::Credentials {
@@ -459,17 +151,6 @@ impl SourceConfiguration {
                         trust_invalid_cert: config.trust_invalid_cert,
                         open_subsonic_authentication: Some(config.authentication),
                     },
-                    use_instant_mix: None,
-                    emby_connect: false,
-                })
-            }
-            crate::file::local::LOCAL_SOURCE_ID => {
-                let config = crate::file::local::LocalSourceConfig::from_configuration(self)?;
-                Ok(EditableSource::Local {
-                    source_id: self.source_id.clone(),
-                    roots: config.roots,
-                    excluded_folders: config.excluded_folders,
-                    document_roots: config.document_roots,
                 })
             }
             kind => Err(SourceError::InvalidConfig(format!(
@@ -477,10 +158,6 @@ impl SourceConfiguration {
             ))),
         }
     }
-}
-
-pub(crate) fn playlist_tracks_can_repeat(kind: &str) -> bool {
-    !matches!(kind, "jellyfin" | "plex")
 }
 
 fn digest_part(digest: &mut blake3::Hasher, value: &[u8]) {
@@ -523,32 +200,7 @@ mod tests {
     use crate::SourceId;
 
     use super::*;
-    use crate::file::local::LocalSourceConfig;
-    use crate::jellyfin_emby::JellyfinEmbySourceConfig;
     use crate::subsonic::SubsonicSourceConfig;
-
-    #[test]
-    fn plex_identity_depends_on_server_profile_not_connection_or_presentation() {
-        let mut source = migrated_source(
-            "plex",
-            serde_json::json!({"version":1,"server_id":"machine","profile_id":"profile","base_url":"https://old.test","address_override":null,"local":true,"relay":false,"owned":true,"trust_invalid_cert":false}),
-        );
-        let initial = source.input_identity().unwrap();
-        let mut payload: serde_json::Value =
-            serde_json::from_str(&source.provider_payload).unwrap();
-        payload["base_url"] = serde_json::json!("https://new.test");
-        payload["relay"] = serde_json::json!(true);
-        source.name = "Renamed".into();
-        source.provider_payload = payload.to_string();
-        assert_eq!(source.input_identity().unwrap(), initial);
-        payload["profile_id"] = serde_json::json!("another-profile");
-        source.provider_payload = payload.to_string();
-        assert_ne!(source.input_identity().unwrap(), initial);
-        payload["profile_id"] = serde_json::json!("profile");
-        payload["server_id"] = serde_json::json!("another-machine");
-        source.provider_payload = payload.to_string();
-        assert_ne!(source.input_identity().unwrap(), initial);
-    }
 
     fn migrated_source(kind: &str, payload: serde_json::Value) -> SourceConfiguration {
         SourceConfiguration {
@@ -561,35 +213,6 @@ mod tests {
 
     #[test]
     fn provider_payloads_decode_the_credential_free_saved_shape() {
-        let jellyfin_stored = migrated_source(
-            "jellyfin",
-            serde_json::json!({
-                "version": 1,
-                "base_url": "https://jellyfin.example",
-                "user_id": "account-id",
-                "username": "listener",
-                "trust_invalid_cert": true,
-                "use_jellyfin_instant_mix": true,
-            }),
-        );
-        let jellyfin = JellyfinEmbySourceConfig::from_configuration(&jellyfin_stored)
-            .expect("JellyfinEmby payload");
-        assert_eq!(jellyfin.base_url, "https://jellyfin.example");
-        assert_eq!(jellyfin.user_id, "account-id");
-        assert_eq!(jellyfin.username, "listener");
-        assert!(jellyfin.trust_invalid_cert);
-        assert!(jellyfin.use_instant_mix);
-        assert_eq!(
-            decode_provider_payload::<serde_json::Value>(&encode_provider_payload(
-                jellyfin_stored.source_id,
-                "jellyfin",
-                "Test Source",
-                jellyfin.clone().into_payload(),
-            ))
-            .expect("round-trip JellyfinEmby payload"),
-            jellyfin.into_payload(),
-        );
-
         let subsonic_stored = migrated_source(
             "subsonic",
             serde_json::json!({
@@ -620,88 +243,27 @@ mod tests {
             .expect("round-trip OpenSubsonic payload"),
             subsonic_payload,
         );
-
-        let local_stored = migrated_source(
-            "local",
-            serde_json::json!({
-                "version": 1,
-                "roots": ["/music", "/archive"],
-            }),
-        );
-        let local = LocalSourceConfig::from_configuration(&local_stored).expect("Local payload");
-        assert_eq!(
-            local.roots,
-            vec![PathBuf::from("/music"), PathBuf::from("/archive")]
-        );
-        assert_eq!(
-            decode_provider_payload::<serde_json::Value>(&encode_provider_payload(
-                local_stored.source_id,
-                "local",
-                "Local",
-                local.clone().into_payload(),
-            ))
-            .expect("round-trip Local payload"),
-            local.into_payload(),
-        );
-    }
-
-    #[test]
-    fn legacy_single_local_root_decodes_without_creating_another_identity() {
-        let stored = migrated_source(
-            "local",
-            serde_json::json!({
-                "version": 1,
-                "base_url": "/music",
-            }),
-        );
-        assert_eq!(
-            LocalSourceConfig::from_configuration(&stored)
-                .expect("legacy Local payload")
-                .roots,
-            vec![PathBuf::from("/music")]
-        );
     }
 
     #[test]
     fn unsupported_provider_payload_version_is_rejected() {
         let stored = migrated_source(
-            "jellyfin",
+            "subsonic",
             serde_json::json!({
                 "version": 2,
                 "base_url": "https://music.example",
-                "user_id": "account-id",
                 "username": "listener",
                 "trust_invalid_cert": false,
-                "use_jellyfin_instant_mix": false,
             }),
         );
 
-        let error = JellyfinEmbySourceConfig::from_configuration(&stored)
+        let error = SubsonicSourceConfig::from_configuration(&stored)
             .expect_err("unsupported payload version");
         assert!(matches!(error, SourceError::InvalidConfig(_)));
-    }
-
-    #[test]
-    fn jellyfin_playlist_adds_do_not_offer_repeated_tracks() {
-        assert!(!migrated_source("jellyfin", serde_json::Value::Null).playlist_tracks_can_repeat());
-        assert!(!migrated_source("plex", serde_json::Value::Null).playlist_tracks_can_repeat());
-        assert!(migrated_source("subsonic", serde_json::Value::Null).playlist_tracks_can_repeat());
-        assert!(migrated_source("local", serde_json::Value::Null).playlist_tracks_can_repeat());
     }
 }
 
 impl SourceConfiguration {
-    pub fn with_document_roots(&self, roots: Vec<crate::DocumentRoot>) -> SourceResult<Self> {
-        let mut config = crate::file::local::LocalSourceConfig::from_configuration(self)?;
-        config.document_roots = roots;
-        Ok(encode_provider_payload(
-            self.source_id.clone(),
-            self.kind.clone(),
-            self.name.clone(),
-            config.into_payload(),
-        ))
-    }
-
     pub fn recognize_media_locator(&self, locator: &str) -> Option<String> {
         let uri = url::Url::parse(locator).ok()?;
         let payload: serde_json::Value = serde_json::from_str(&self.provider_payload).ok()?;
@@ -712,26 +274,7 @@ impl SourceConfiguration {
             return None;
         }
         let path = uri.path().strip_prefix(base.path().trim_end_matches('/'))?;
-        let object = if matches!(self.kind.as_str(), "jellyfin" | "emby") {
-            let path = path.trim_start_matches('/');
-            let path = if self.kind == "emby" {
-                path.strip_prefix("emby/").unwrap_or(path)
-            } else {
-                path
-            };
-            let mut parts = path.split('/');
-            if !parts.next()?.eq_ignore_ascii_case("Audio") {
-                return None;
-            }
-            let id = parts.next()?;
-            let route = parts.next()?;
-            if !route.starts_with("stream")
-                && !(self.kind == "emby" && route.eq_ignore_ascii_case("universal"))
-            {
-                return None;
-            }
-            format!("{}:track:{id}", self.kind)
-        } else if matches!(self.kind.as_str(), "subsonic" | "navidrome") {
+        let object = if matches!(self.kind.as_str(), "subsonic" | "navidrome") {
             if !matches!(
                 path,
                 "/rest/stream" | "/rest/stream.view" | "/rest/download" | "/rest/download.view"

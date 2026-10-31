@@ -12,7 +12,6 @@ pub fn configure_context_menus(shell: &Rc<Preferences>, builder: &gtk::Builder) 
         (ContextMenuItem::PlayRadio, "context_menu_play_radio"),
         (ContextMenuItem::AddToPlaylist, "context_menu_playlist"),
         (ContextMenuItem::Favorites, "context_menu_favorites"),
-        (ContextMenuItem::EditMetadata, "context_menu_metadata"),
         (ContextMenuItem::Pins, "context_menu_pins"),
         (ContextMenuItem::GoTo, "context_menu_go_to"),
         (ContextMenuItem::Download, "context_menu_download"),

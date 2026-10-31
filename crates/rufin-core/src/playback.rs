@@ -6,7 +6,6 @@ pub use equalizer::{
     EqCastFormat, EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView,
     EqualizerPreferences,
 };
-mod plex;
 mod queue;
 pub(crate) mod state;
 pub use commands::*;
@@ -69,8 +68,6 @@ pub struct PlaybackOwner {
     >,
     cast: playback_cast::CastManager,
     output: Mutex<OutputSelection>,
-    plex_targets: Mutex<std::collections::HashMap<String, playback_cast::plex::PlexPlayer>>,
-    plex: Mutex<Option<Arc<plex::PlexPlayback>>>,
 }
 
 enum PlaybackStoreWork {
@@ -190,8 +187,6 @@ impl PlaybackOwner {
                 selected: playback::PlaybackOutput::Local,
                 prepared: None,
             }),
-            plex_targets: Mutex::new(std::collections::HashMap::new()),
-            plex: Mutex::new(None),
         });
         let weak = Arc::downgrade(&owner);
         owner.runtime.spawn(async move {
@@ -377,9 +372,6 @@ impl PlaybackOwner {
     }
 
     fn request_auto_dj(&self, playback: WeakPlayback, request: AutoDjRequest) {
-        if self.request_plex_auto_dj(&request) {
-            return;
-        }
         let database = self.database.clone();
         let source = self.source_owner();
         let selected = source.as_ref().and_then(|owner| owner.selected_library());
@@ -439,14 +431,12 @@ impl PlaybackOwner {
     ) -> tokio::task::JoinHandle<()> {
         let database = Arc::clone(&self.database);
         let source_owner = self.source_owner();
-        let local = self.settings.local_configuration();
         self.runtime.spawn(async move {
             let loudness =
                 cached_loudness(&database, &occurrence.track.media_uri, normalization).await;
             let result = prepare_stream(
                 &database,
                 request,
-                local.as_ref(),
                 move |source_id| async move {
                     tokio::task::spawn_blocking(move || {
                         source_owner
@@ -501,7 +491,6 @@ impl PlaybackOwner {
         self.loudness.settings_changed(
             settings.loudness_normalization,
             settings.loudness_normalization_scope,
-            settings.write_ebu_r128_tags,
             self.source_owner(),
         );
         self.send(Command::UpdateSettings(settings));
@@ -539,7 +528,6 @@ impl PlaybackOwner {
             self.loudness.library_changed(
                 playback.loudness_normalization,
                 playback.loudness_normalization_scope,
-                playback.write_ebu_r128_tags,
                 self.source_owner(),
             );
         }
@@ -571,14 +559,6 @@ impl PlaybackOwner {
         })
     }
     fn send(&self, command: Command) {
-        let command = if command.addresses_occurrence() {
-            command
-        } else {
-            let Some(command) = self.send_plex(command) else {
-                return;
-            };
-            command
-        };
         if let Some(active) = self.active() {
             active.downgrade().post(move |player, sample| {
                 if let Err(error) = player.handle_command(command, sample) {
@@ -618,11 +598,7 @@ impl PlaybackOwner {
                 .map(|backend| Box::new(backend) as Box<dyn PlaybackBackend>),
         }
     }
-    fn select_output(
-        &self,
-        selected: playback::PlaybackOutput,
-        cancelled: Arc<std::sync::atomic::AtomicBool>,
-    ) -> Result<(), String> {
+    fn select_output(&self, selected: playback::PlaybackOutput) -> Result<(), String> {
         if self
             .output
             .lock()
@@ -631,26 +607,6 @@ impl PlaybackOwner {
             == selected
         {
             return Ok(());
-        }
-        if matches!(&selected, playback::PlaybackOutput::Remote(output) if output.protocol == playback::RemoteOutputProtocol::PlexCompanion)
-        {
-            self.select_plex(selected, cancelled)?;
-            self.equalizer_output_changed(self.settings.load().ui.playback.audio_output.as_deref());
-            return Ok(());
-        }
-        if self
-            .plex
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .is_some()
-        {
-            self.leave_plex(cancelled)?;
-            if selected.is_local() {
-                self.equalizer_output_changed(
-                    self.settings.load().ui.playback.audio_output.as_deref(),
-                );
-                return Ok(());
-            }
         }
         let backend = self.start_output_backend(&selected)?;
         if let Some(active) = self.active() {
@@ -695,9 +651,6 @@ impl PlaybackOwner {
     }
 
     pub fn play_selection(&self, request: PlayRequest) {
-        if self.play_plex(&request) {
-            return;
-        }
         let Some(active) = self.active() else {
             return;
         };
@@ -769,15 +722,9 @@ impl PlaybackOwner {
     }
 
     pub fn play_random(&self, request: RandomPlayRequest) {
-        if self.random_plex(&request) {
-            return;
-        }
         self.send(Command::Random(request));
     }
     pub fn play_radio(&self, request: RadioPlayRequest) {
-        if self.radio_plex(&request) {
-            return;
-        }
         self.send(Command::Radio(request));
     }
 }
@@ -944,30 +891,15 @@ impl PlaybackOwner {
             .clone()
     }
     pub fn discover_remote_outputs(&self) -> Result<Vec<playback::RemoteOutput>, String> {
-        let mut outputs = self.cast.discover().unwrap_or_else(|error| {
+        Ok(self.cast.discover().unwrap_or_else(|error| {
             debug!(%error, "generic receiver discovery unavailable");
             Vec::new()
-        });
-        match self.discover_plex() {
-            Ok(plex) => outputs.extend(plex),
-            Err(error) if !outputs.is_empty() => {
-                debug!(%error, "Plex receiver discovery unavailable")
-            }
-            Err(error) => return Err(error),
-        }
-        Ok(outputs)
+        }))
     }
-    pub fn select_playback_output(
-        &self,
-        output: playback::PlaybackOutput,
-        cancelled: Arc<std::sync::atomic::AtomicBool>,
-    ) -> Result<(), String> {
-        self.select_output(output, cancelled)
+    pub fn select_playback_output(&self, output: playback::PlaybackOutput) -> Result<(), String> {
+        self.select_output(output)
     }
     pub fn shutdown(&self) {
-        if let Some(plex) = self.plex.lock().unwrap_or_else(|p| p.into_inner()).take() {
-            plex.cancel();
-        }
         if let Some(mut backend) = self
             .output
             .lock()
@@ -995,7 +927,6 @@ impl PlaybackOwner {
 pub(crate) async fn prepare_stream<F>(
     database: &Database,
     request: StreamRequest,
-    local: Option<&sources::SourceConfiguration>,
     source: impl FnOnce(sources::SourceId) -> F + Send,
 ) -> Result<audio_processing::ResolvedStream, String>
 where
@@ -1010,24 +941,6 @@ where
     let file_uri = cue
         .as_ref()
         .map_or(request.media_uri.as_str(), |(_, uri, _, _)| uri);
-    if access.is_none() && cue.is_some() && library::document_media_id(file_uri).is_some() {
-        access = database
-            .playback_access(file_uri)
-            .await
-            .map_err(string_error)?;
-    }
-    let granted_uri = |uri: &str| {
-        let path = library::file_media_path(uri)?;
-        let (_, access) = local?.local_file_location(&path)?;
-        url::Url::from_file_path(access).ok().map(String::from)
-    };
-    if let Some((uri, _)) = access.as_mut()
-        && let Some(granted) = granted_uri(uri)
-    {
-        *uri = granted;
-    }
-    let granted_file = granted_uri(file_uri);
-    let file_uri = granted_file.as_deref().unwrap_or(file_uri);
     if let Some((uri, library::LocalAccessOrigin::Download)) = access.as_ref()
         && !local_access_available(uri).await?
     {
@@ -1036,19 +949,7 @@ where
     // Downloads names its owned file using the actual transcoded extension.
     // Mapped and original files still use their parsed source format.
     let content_type = if let Some((uri, library::LocalAccessOrigin::Download)) = &access {
-        let path = if uri.starts_with("content:") {
-            let uri = uri.clone();
-            Some(
-                tokio::task::spawn_blocking(move || sources::stat_document(&uri))
-                    .await
-                    .map_err(string_error)?
-                    .map_err(string_error)?
-                    .name
-                    .into(),
-            )
-        } else {
-            library::file_media_path(uri)
-        };
+        let path = library::file_media_path(uri);
         path.and_then(|path: std::path::PathBuf| {
             path.extension()
                 .and_then(|extension| extension.to_str())
@@ -1064,14 +965,15 @@ where
         .map_err(string_error)?;
     if let Some((start, end)) = window.filter(|_| access_uri.is_some() || cue.is_some()) {
         return Ok(
-            direct_stream(access_uri.unwrap_or_else(|| file_uri.to_owned()))
-                .await?
-                .with_content_type(content_type)
+            audio_processing::ResolvedStream::new(
+                access_uri.unwrap_or_else(|| file_uri.to_owned()),
+            )
+            .with_content_type(content_type)
                 .with_window(start, end),
         );
     }
     if let Some(uri) = access_uri.or_else(|| library::normalize_direct_media_uri(file_uri)) {
-        return Ok(direct_stream(uri).await?.with_content_type(content_type));
+        return Ok(audio_processing::ResolvedStream::new(uri).with_content_type(content_type));
     }
     let (source_id, kind, _) = library::source_entity_parts(&request.media_uri)
         .ok_or_else(crate::source::source_access_unavailable)?;
@@ -1085,35 +987,21 @@ where
 // Catches a removed local file before it reaches playback, where a failed
 // gapless preload would cut the current song short.
 async fn local_stream_available(uri: &str) -> bool {
-    let local = url::Url::parse(uri).is_ok_and(|uri| matches!(uri.scheme(), "file" | "content"));
+    let local = url::Url::parse(uri).is_ok_and(|uri| uri.scheme() == "file");
     !local || local_access_available(uri).await.unwrap_or(true)
 }
 
 async fn local_access_available(uri: &str) -> Result<bool, String> {
-    let location = if url::Url::parse(uri).is_ok_and(|uri| uri.scheme() == "content") {
-        library::LocalMediaLocation::Document(uri.to_owned())
-    } else if let Some(path) = library::file_media_path(uri) {
-        library::LocalMediaLocation::File(path)
-    } else {
+    let Some(path) = library::file_media_path(uri) else {
         return Ok(false);
     };
-    sources::local_files_available(vec![vec![location]])
-        .await
-        .map(|available| available.first() == Some(&true))
-        .map_err(string_error)
-}
-
-async fn direct_stream(uri: String) -> Result<audio_processing::ResolvedStream, String> {
-    if library::document_media_id(&uri).is_some() {
-        return Err(sources::SourceError::NotFound.to_string());
-    }
-    if url::Url::parse(&uri).is_ok_and(|uri| uri.scheme() == "content") {
-        sources::resolve_document_stream(&uri)
-            .await
-            .map_err(string_error)
-    } else {
-        Ok(audio_processing::ResolvedStream::new(uri))
-    }
+    tokio::task::spawn_blocking(move || match std::fs::metadata(path) {
+        Ok(metadata) => Ok(metadata.is_file()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.to_string()),
+    })
+    .await
+    .map_err(string_error)?
 }
 
 async fn cached_loudness(
@@ -1354,7 +1242,6 @@ mod tests {
                 occurrence.track.media_uri.clone(),
                 playback::StreamQuality::Original,
             ),
-            None,
             |_| async { panic!("a completed download must resolve without contacting its source") },
         )
         .await
@@ -1457,11 +1344,8 @@ impl PlaybackOwner {
         let runtime = self.runtime.clone();
         runtime
             .spawn_blocking(move || {
-                self.select_playback_output(
-                    output,
-                    Arc::new(std::sync::atomic::AtomicBool::new(false)),
-                )
-                .map_err(PlaybackError::Message)
+                self.select_playback_output(output)
+                    .map_err(PlaybackError::Message)
             })
             .await
             .map_err(|error| PlaybackError::Message(error.to_string()))?

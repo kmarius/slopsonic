@@ -64,7 +64,6 @@ pub struct MediaDetails {
     pub title: String,
     pub subtitle: String,
     pub artwork_binding: Option<Vec<u8>>,
-    pub can_edit: bool,
     pub audio_summary: Vec<MediaDetailField>,
     pub sections: Vec<MediaDetailSection>,
 }
@@ -74,8 +73,7 @@ pub async fn media_details(
     playback: Arc<PlaybackOwner>,
     item: MediaDetailsItem,
 ) -> LibraryResult<MediaDetails> {
-    let runtime = source.shared.runtime.clone();
-    super::on_runtime(runtime, async {
+    async {
         let db = &source.shared.database;
         let cancel = ReadCancellation::new();
         let unavailable = || LibraryError::InvalidRequest("Item is no longer available".to_string());
@@ -96,8 +94,6 @@ pub async fn media_details(
                     .collect::<Vec<_>>()
                     .join(" · "),
                     artwork_binding: track.artwork_binding.clone(),
-                    can_edit: track.access.cue_path.is_none()
-                        && (track.source_key.is_some() || uri.starts_with("file:")),
                     audio_summary: Vec::new(),
                     sections: Vec::new(),
                 };
@@ -362,7 +358,6 @@ pub async fn media_details(
                     title: album.metadata.title.clone(),
                     subtitle: album.metadata.artist.clone(),
                     artwork_binding: album.artwork_binding,
-                    can_edit: true,
                     audio_summary: Vec::new(),
                     sections: vec![general],
                 };
@@ -404,7 +399,6 @@ pub async fn media_details(
                     title: artist.metadata.name.clone(),
                     subtitle: String::new(),
                     artwork_binding: artist.artwork_binding,
-                    can_edit: true,
                     audio_summary: Vec::new(),
                     sections: vec![general],
                 };
@@ -443,7 +437,7 @@ pub async fn media_details(
             .sections
             .retain(|section| !section.fields.is_empty());
         Ok(details)
-    })
+    }
     .await
 }
 

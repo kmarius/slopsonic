@@ -11,7 +11,6 @@ pub enum ContextMenuItem {
     PlayRadio,
     AddToPlaylist,
     Favorites,
-    EditMetadata,
     Pins,
     #[serde(alias = "GoToArtist", alias = "GoToAlbum")]
     GoTo,
@@ -19,7 +18,7 @@ pub enum ContextMenuItem {
 }
 
 impl ContextMenuItem {
-    pub const fn all() -> [Self; 10] {
+    pub const fn all() -> [Self; 9] {
         [
             Self::Play,
             Self::PlayNext,
@@ -27,7 +26,6 @@ impl ContextMenuItem {
             Self::PlayRadio,
             Self::AddToPlaylist,
             Self::Favorites,
-            Self::EditMetadata,
             Self::Pins,
             Self::GoTo,
             Self::Download,
@@ -46,7 +44,10 @@ pub struct ContextMenuItemSettings {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct ContextMenuSettings {
-    #[serde(default = "default_context_menu_items")]
+    #[serde(
+        default = "default_context_menu_items",
+        deserialize_with = "deserialize_known_items"
+    )]
     pub items: Vec<ContextMenuItemSettings>,
     #[serde(default = "default_true")]
     pub rating_visible: bool,
@@ -79,6 +80,17 @@ impl ContextMenuSettings {
             .find(|entry| entry.item == item)
             .is_none_or(|entry| entry.visible)
     }
+}
+
+fn deserialize_known_items<'de, D>(deserializer: D) -> Result<Vec<ContextMenuItemSettings>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let entries = Vec::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(entries
+        .into_iter()
+        .filter_map(|entry| serde_json::from_value(entry).ok())
+        .collect())
 }
 
 fn default_true() -> bool {

@@ -137,10 +137,6 @@ pub fn verify_icons() -> Result<(), String> {
     crate::register_resources()?;
     for relative_path in [
         "scalable/apps/io.github.screwys.Rufin.svg",
-        "64x64/apps/io.github.screwys.Rufin.source.webdav.png",
-        "64x64/apps/io.github.screwys.Rufin.source.smb.png",
-        "64x64/apps/io.github.screwys.Rufin.source.plex.png",
-        "64x64/apps/io.github.screwys.Rufin.source.emby.png",
         "scalable/actions/rufin-drive-harddisk-symbolic.svg",
         "scalable/actions/rufin-edit-clear-symbolic.svg",
         "scalable/actions/rufin-go-last-symbolic.svg",

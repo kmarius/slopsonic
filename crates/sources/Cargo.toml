@@ -18,44 +18,27 @@ bindings = ["dep:uniffi", "library/bindings"]
 audio-processing.workspace = true
 uniffi = { workspace = true, optional = true }
 async-channel.workspace = true
-base64.workspace = true
 blake3.workspace = true
 bytes.workspace = true
-digest_auth.workspace = true
 http-body-util.workspace = true
-hyper.workspace = true
-hyper-util.workspace = true
 futures-util.workspace = true
 getrandom.workspace = true
-gstreamer-pbutils = { workspace = true, features = ["v1_26"] }
-if-addrs.workspace = true
 image.workspace = true
-jxl-image-rs-integration.workspace = true
 library.workspace = true
 lofty.workspace = true
 md5_digest.workspace = true
-notify.workspace = true
 playback.workspace = true
 percent-encoding.workspace = true
-quick-xml.workspace = true
 reqwest = { workspace = true, features = ["json", "stream", "form", "query", "multipart"] }
-sha2.workspace = true
-smb.workspace = true
-smb-fscc.workspace = true
-smb-msg.workspace = true
-rustix.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-sqlx.workspace = true
 serde_path_to_error.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
-tokio-tungstenite.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
 url = { workspace = true, features = ["serde"] }
-walkdir.workspace = true
 
 [dev-dependencies]
 tokio-rustls.workspace = true
