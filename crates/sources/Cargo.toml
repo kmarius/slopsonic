@@ -41,7 +41,6 @@ tracing.workspace = true
 url = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
-tokio-rustls.workspace = true
 wiremock.workspace = true
 
 [lints]

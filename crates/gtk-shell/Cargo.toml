@@ -36,8 +36,6 @@ tokio.workspace = true
 ashpd.workspace = true
 
 [dev-dependencies]
-tempfile.workspace = true
-proptest = "1.6.0"
 serde_json.workspace = true
 
 [build-dependencies]

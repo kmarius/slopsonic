@@ -1,8 +1,14 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "description": "Renovate owns dependency updates for Cargo crates, GitHub Actions, and Nix inputs.",
-  "extends": ["config:recommended"],
-  "enabledManagers": ["cargo", "github-actions", "nix"],
+  "extends": [
+    "config:recommended"
+  ],
+  "enabledManagers": [
+    "cargo",
+    "github-actions",
+    "nix"
+  ],
   "nix": {
     "enabled": true
   },
@@ -11,16 +17,5 @@
   "lockFileMaintenance": {
     "enabled": true
   },
-  "prHourlyLimit": 0,
-  "packageRules": [
-    {
-      "description": "Regenerate Flatpak cargo sources after Rust dependency updates.",
-      "matchManagers": ["cargo"],
-      "postUpgradeTasks": {
-        "commands": ["cargo run --locked -p xtask -- generate flatpak-sources"],
-        "fileFilters": ["packaging/flatpak/cargo-sources.json"],
-        "executionMode": "branch"
-      }
-    }
-  ]
+  "prHourlyLimit": 0
 }

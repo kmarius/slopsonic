@@ -194,7 +194,6 @@ checksum = "2ccd462b64c3c72f1be8305905a85d85403d768e8690c9b8bd3b9009a5761679"
 name = "artwork"
 version = "0.16.6"
 dependencies = [
- "async-trait",
  "blurhash",
  "fast_image_resize",
  "gif",
@@ -1265,7 +1264,6 @@ dependencies = [
  "presence",
  "rufin-core",
  "serde_json",
- "tempfile",
  "tracing",
  "url",
 ]
@@ -2417,7 +2415,6 @@ dependencies = [
  "library",
  "rufin-core",
  "sources",
- "tokio",
 ]
 
 [[package]]
@@ -2472,17 +2469,14 @@ dependencies = [
  "regex",
  "rufin-core",
  "tokio",
- "tracing",
 ]
 
 [[package]]
 name = "gtk-preferences"
 version = "0.16.6"
 dependencies = [
- "async-channel",
  "backup",
  "desktop-integration",
- "directories",
  "downloads",
  "glib-build-tools",
  "gtk-player",
@@ -2522,12 +2516,10 @@ dependencies = [
  "libadwaita",
  "library",
  "playback",
- "proptest",
  "rufin-core",
  "secrets",
  "serde_json",
  "sources",
- "tempfile",
  "tokio",
  "tracing",
 ]
@@ -2549,7 +2541,6 @@ dependencies = [
  "process-memory",
  "proptest",
  "rufin-core",
- "serde",
  "sources",
  "tempfile",
  "tokio",
@@ -3542,7 +3533,6 @@ dependencies = [
  "loro",
  "md-5 0.10.6",
  "percent-encoding",
- "process-memory",
  "proptest",
  "regex",
  "roxmltree 0.21.1",
@@ -3550,7 +3540,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
- "sqlx-core",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
@@ -4522,7 +4511,6 @@ dependencies = [
  "library",
  "serde",
  "serde_json",
- "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "uniffi",
@@ -5278,20 +5266,16 @@ dependencies = [
  "artwork",
  "async-channel",
  "audio-processing",
- "axum",
  "backup",
  "base64 0.23.1",
- "blake3",
  "directories",
  "downloads",
- "flate2",
  "futures-util",
  "getrandom 0.4.3",
  "gio",
  "glib",
  "image",
  "library",
- "md-5 0.10.6",
  "metadata-lookup",
  "playback",
  "playback-cast",
@@ -5299,7 +5283,6 @@ dependencies = [
  "pulldown-cmark",
  "reqwest",
  "resvg",
- "rust-embed",
  "scrobbling",
  "secrets",
  "serde",
@@ -5973,7 +5956,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
- "tokio-rustls",
  "tokio-util",
  "tracing",
  "uniffi",
@@ -7539,20 +7521,6 @@ name = "xmlwriter"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
-
-[[package]]
-name = "xtask"
-version = "0.16.6"
-dependencies = [
- "app-identity",
- "directories",
- "proc-macro2",
- "resvg",
- "roxmltree 0.21.1",
- "serde_json",
- "syn 3.0.6",
- "tempfile",
-]
 
 [[package]]
 name = "xxhash-rust"
