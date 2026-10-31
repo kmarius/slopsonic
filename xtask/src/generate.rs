@@ -16,8 +16,6 @@ pub(crate) fn run(mut args: Vec<String>) -> Result<()> {
     match args.remove(0).as_str() {
         "flatpak-sources" => flatpak_sources_command(args),
         "i18n-template" => i18n_template_command(args),
-        "windows-installer-languages" => crate::windows_i18n::command(args),
-        "windows-installer-files" => crate::windows_installer::files(args),
         "media-verification-files" => crate::media::verification_files_command(args),
         "rpm-srpm" => crate::rpm::srpm_command(args),
         command => Err(format!("unknown generate command: {command}").into()),
@@ -90,25 +88,7 @@ pub(crate) fn linux_workspace(root: &Path) -> Result<(String, String)> {
     fs::write(temporary.path().join("Cargo.toml"), &manifest)?;
     fs::copy(root.join("Cargo.lock"), temporary.path().join("Cargo.lock"))?;
     // Only manifests and the lockfile are staged. Sources stay in the checkout.
-    #[cfg(unix)]
     std::os::unix::fs::symlink(root.join("crates"), temporary.path().join("crates"))?;
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-
-        // Directory junctions do not require Windows symlink privileges.
-        let linked = Command::new("cmd")
-            .args(["/d", "/v:off", "/c"])
-            .raw_arg("mklink /J \"%RUFIN_CRATE_LINK%\" \"%RUFIN_CRATE_SOURCE%\"")
-            .env("RUFIN_CRATE_LINK", temporary.path().join("crates"))
-            .env("RUFIN_CRATE_SOURCE", root.join("crates"))
-            .stdout(Stdio::null())
-            .stderr(Stdio::inherit())
-            .status()?;
-        if !linked.success() {
-            return Err("could not link crate sources for Linux source generation".into());
-        }
-    }
     // Cargo prunes workspace entries while keeping external package versions.
     let resolved = Command::new("cargo")
         .current_dir(temporary.path())

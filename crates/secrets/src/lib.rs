@@ -9,7 +9,7 @@ use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(target_os = "macos")]
 use app_identity::APP_ID;
 #[cfg(all(unix, not(target_vendor = "apple")))]
 use app_identity::PROJECT_NAME;
@@ -39,7 +39,6 @@ impl Default for SecretStorageMode {
 
 #[cfg(any(
     target_os = "macos",
-    target_os = "windows",
     all(unix, not(target_vendor = "apple"))
 ))]
 fn default_secret_storage_mode() -> SecretStorageMode {
@@ -48,7 +47,6 @@ fn default_secret_storage_mode() -> SecretStorageMode {
 
 #[cfg(not(any(
     target_os = "macos",
-    target_os = "windows",
     all(unix, not(target_vendor = "apple"))
 )))]
 fn default_secret_storage_mode() -> SecretStorageMode {
@@ -645,7 +643,7 @@ impl SecretStore for SystemKeyringBackend {
     }
 }
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(target_os = "macos")]
 #[derive(Clone, Debug)]
 struct SystemKeyringBackend {
     scope_id: String,
@@ -653,7 +651,7 @@ struct SystemKeyringBackend {
     operation_lock: Arc<Mutex<()>>,
 }
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(target_os = "macos")]
 impl SystemKeyringBackend {
     fn new(scope_id: String) -> SecretResult<Self> {
         Ok(Self {
@@ -671,7 +669,7 @@ impl SystemKeyringBackend {
     }
 }
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(target_os = "macos")]
 impl SecretStore for SystemKeyringBackend {
     fn save_secret(&self, key: &SecretKey, secret: &str) -> SecretResult<()> {
         let _guard = self
@@ -707,24 +705,18 @@ impl SecretStore for SystemKeyringBackend {
     }
 }
 
-#[cfg(target_os = "windows")]
-fn native_credential_store() -> keyring_core::Result<Arc<keyring_core::CredentialStore>> {
-    Ok(windows_native_keyring_store::Store::new()?)
-}
-
 #[cfg(target_os = "macos")]
 fn native_credential_store() -> keyring_core::Result<Arc<keyring_core::CredentialStore>> {
     Ok(apple_native_keyring_store::keychain::Store::new()?)
 }
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(target_os = "macos")]
 fn native_credential_error(error: keyring_core::Error) -> SecretError {
     SecretError::Backend(error.to_string())
 }
 
 #[cfg(not(any(
     target_os = "macos",
-    target_os = "windows",
     all(unix, not(target_vendor = "apple"))
 )))]
 #[derive(Clone, Debug)]
@@ -732,7 +724,6 @@ struct SystemKeyringBackend;
 
 #[cfg(not(any(
     target_os = "macos",
-    target_os = "windows",
     all(unix, not(target_vendor = "apple"))
 )))]
 impl SystemKeyringBackend {
@@ -745,7 +736,6 @@ impl SystemKeyringBackend {
 
 #[cfg(not(any(
     target_os = "macos",
-    target_os = "windows",
     all(unix, not(target_vendor = "apple"))
 )))]
 impl SecretStore for SystemKeyringBackend {
@@ -816,7 +806,6 @@ mod tests {
         );
         #[cfg(any(
             target_os = "macos",
-            target_os = "windows",
             all(unix, not(target_vendor = "apple"))
         ))]
         assert_eq!(
@@ -825,7 +814,6 @@ mod tests {
         );
         #[cfg(not(any(
             target_os = "macos",
-            target_os = "windows",
             all(unix, not(target_vendor = "apple"))
         )))]
         assert_eq!(SecretStorageMode::default(), SecretStorageMode::ConfigFile);
