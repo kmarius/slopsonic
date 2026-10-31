@@ -4,7 +4,6 @@ mod preferences;
 pub use app::{AppearancePreferences, ApplicationPreferences, PlayerDisplayPreferences};
 pub use player::{PlayerPreferenceOptions, PlayerPreferences, SettingsError};
 pub mod app;
-mod connect;
 pub mod context_menu;
 pub mod layout;
 mod library_lists;
@@ -182,8 +181,6 @@ pub struct StoredSettings {
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub(crate) scrobbling_credentials: std::collections::BTreeMap<String, Credential>,
     #[serde(default)]
-    pub(crate) shared_settings: connect::SharedSettings,
-    #[serde(default)]
     pub(crate) sources: SourceSettings,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub(crate) secret_scope_id: String,
@@ -205,7 +202,6 @@ impl Default for StoredSettings {
             scrobbling: ScrobblingSettings::default(),
             scrobbling_secrets_present: false,
             scrobbling_credentials: Default::default(),
-            shared_settings: Default::default(),
             sources: SourceSettings::default(),
             secret_scope_id: String::new(),
             jellyfin_device_id: String::new(),
@@ -309,7 +305,6 @@ fn default_home_sections() -> Vec<HomeSectionKind> {
 
 #[derive(Clone)]
 pub struct SettingsFile {
-    shared: tokio::sync::watch::Sender<u64>,
     sidebar: tokio::sync::watch::Sender<SidebarSettings>,
     appearance: tokio::sync::watch::Sender<AppearancePreferences>,
     web_controller: tokio::sync::watch::Sender<crate::settings::ControllerSettings>,
@@ -361,7 +356,6 @@ impl SettingsFile {
             }
         }
         Ok(Self {
-            shared: tokio::sync::watch::channel(value.shared_settings.revision()).0,
             sidebar: tokio::sync::watch::channel(value.ui.sidebar.clone()).0,
             appearance: tokio::sync::watch::channel(value.ui.appearance.clone()).0,
             web_controller: tokio::sync::watch::channel(value.ui.web_controller.clone()).0,
@@ -389,7 +383,6 @@ impl SettingsFile {
         value.jellyfin_device_id = random_identity("rufin-").unwrap_or_default();
         Self {
             path: None,
-            shared: tokio::sync::watch::channel(value.shared_settings.revision()).0,
             sidebar: tokio::sync::watch::channel(value.ui.sidebar.clone()).0,
             appearance: tokio::sync::watch::channel(value.ui.appearance.clone()).0,
             web_controller: tokio::sync::watch::channel(value.ui.web_controller.clone()).0,
@@ -519,7 +512,6 @@ impl SettingsFile {
         let mut next = previous.clone();
         let output = operation(&mut next)?;
         next.prepare()?;
-        connect::stamp_changes(&saved, &mut next)?;
         if next != *saved {
             self.persist(&next)?;
         }
@@ -541,14 +533,10 @@ impl SettingsFile {
     pub(crate) fn flush(&self) -> Result<(), String> {
         let mut saved = self.persistence.lock().unwrap_or_else(|p| p.into_inner());
         let result = (|| {
-            let mut next = self.load();
-            connect::stamp_changes(&saved, &mut next)?;
+            let next = self.load();
             if next != *saved {
                 self.persist(&next)?;
-                let mut current = self.value.lock().unwrap_or_else(|p| p.into_inner());
-                current.shared_settings = next.shared_settings.clone();
                 *saved = next;
-                self.publish_changes(&current);
             }
             Ok(())
         })();
@@ -637,14 +625,6 @@ impl SettingsOwner {
 
 impl SettingsFile {
     fn publish_changes(&self, stored: &StoredSettings) {
-        self.shared.send_if_modified(|revision| {
-            let next = stored.shared_settings.revision();
-            if *revision == next {
-                return false;
-            }
-            *revision = next;
-            true
-        });
         self.appearance.send_if_modified(|current| {
             if *current == stored.ui.appearance {
                 return false;
@@ -1328,7 +1308,6 @@ fn persistent_settings(value: &StoredSettings) -> StoredSettings {
     persistent
         .scrobbling_credentials
         .retain(|_, credential| !credential.session());
-    persistent.shared_settings.remove_session_credentials();
     persistent
 }
 

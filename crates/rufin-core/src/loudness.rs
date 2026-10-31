@@ -454,7 +454,6 @@ async fn analyze_uri(
         database,
         request,
         Some(configuration),
-        None,
         move |source_id| async move {
             tokio::task::spawn_blocking(move || owner.client(&source_id))
                 .await

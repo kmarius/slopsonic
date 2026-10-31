@@ -6,13 +6,10 @@ pub use equalizer::{
     EqCastFormat, EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView,
     EqualizerPreferences,
 };
-mod connect;
-mod continuation;
 mod plex;
 mod queue;
 pub(crate) mod state;
 pub use commands::*;
-pub(crate) use continuation::PreparedContinuation;
 #[cfg(test)]
 mod queue_tests;
 
@@ -65,7 +62,6 @@ pub struct PlaybackOwner {
     audio_outputs: fn() -> Vec<playback::AudioOutput>,
     scrobbler: Arc<Scrobbler>,
     source: Mutex<std::sync::Weak<SourceOwner>>,
-    connect: Mutex<std::sync::Weak<crate::connect::ConnectOwner>>,
     active: Mutex<Option<Playback>>,
     pending_queue: Mutex<Option<QueueUpdate>>,
     equalizer: Mutex<equalizer::EqualizerState>,
@@ -83,14 +79,9 @@ pub struct PlaybackOwner {
     output: Mutex<OutputSelection>,
     plex_targets: Mutex<std::collections::HashMap<String, playback_cast::plex::PlexPlayer>>,
     plex: Mutex<Option<Arc<plex::PlexPlayback>>>,
-    rufin: Mutex<Option<Arc<connect::RufinPlayback>>>,
 }
 
 enum PlaybackStoreWork {
-    Continue {
-        prepared: Box<PreparedContinuation>,
-        reply: tokio::sync::oneshot::Sender<Result<(), String>>,
-    },
     Activity(library::TrackKey, Box<ListenWrite>),
     Flush(std::sync::mpsc::SyncSender<()>),
     Output {
@@ -199,7 +190,6 @@ impl PlaybackOwner {
             audio_outputs,
             scrobbler,
             source: Mutex::new(std::sync::Weak::new()),
-            connect: Mutex::new(std::sync::Weak::new()),
             active: Mutex::new(None),
             pending_queue: Mutex::new(None),
             equalizer: Mutex::new(eq),
@@ -218,7 +208,6 @@ impl PlaybackOwner {
             }),
             plex_targets: Mutex::new(std::collections::HashMap::new()),
             plex: Mutex::new(None),
-            rufin: Mutex::new(None),
         });
         let weak = Arc::downgrade(&owner);
         owner.runtime.spawn(async move {
@@ -252,10 +241,6 @@ impl PlaybackOwner {
             .source
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = Arc::downgrade(source);
-    }
-
-    pub(crate) fn install_connect(&self, connect: &Arc<crate::connect::ConnectOwner>) {
-        *self.connect.lock().unwrap_or_else(|p| p.into_inner()) = Arc::downgrade(connect);
     }
 
     pub(crate) async fn start(self: &Arc<Self>) -> Result<PlaybackProjection, String> {
@@ -410,9 +395,6 @@ impl PlaybackOwner {
                 self.equalizer_write_finished(&result);
                 let _ = reply.send(result);
             }
-            PlaybackStoreWork::Continue { prepared, reply } => {
-                let _ = reply.send(self.commit_continuation(*prepared, failed_queue_save).await);
-            }
             PlaybackStoreWork::Activity(key, activity) => self.store_activity(key, *activity).await,
             PlaybackStoreWork::Flush(reply) => {
                 if let Err(error) =
@@ -523,11 +505,6 @@ impl PlaybackOwner {
         let database = Arc::clone(&self.database);
         let source_owner = self.source_owner();
         let local = self.settings.local_configuration();
-        let connect = self
-            .connect
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .upgrade();
         self.runtime.spawn(async move {
             let loudness =
                 cached_loudness(&database, &occurrence.track.media_uri, normalization).await;
@@ -535,9 +512,6 @@ impl PlaybackOwner {
                 &database,
                 request,
                 local.as_ref(),
-                connect
-                    .as_deref()
-                    .map(|connect| (connect, occurrence.as_ref())),
                 move |source_id| async move {
                     tokio::task::spawn_blocking(move || {
                         source_owner
@@ -706,9 +680,6 @@ impl PlaybackOwner {
         let command = if command.addresses_occurrence() {
             command
         } else {
-            let Some(command) = self.send_rufin(command) else {
-                return;
-            };
             let Some(command) = self.send_plex(command) else {
                 return;
             };
@@ -767,26 +738,6 @@ impl PlaybackOwner {
         {
             return Ok(());
         }
-        if matches!(&selected, playback::PlaybackOutput::Remote(output) if output.protocol == playback::RemoteOutputProtocol::RufinConnect)
-        {
-            self.select_rufin(selected, cancelled)?;
-            self.equalizer_output_changed(self.settings.load().ui.playback.audio_output.as_deref());
-            return Ok(());
-        }
-        if self
-            .rufin
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .is_some()
-        {
-            self.leave_rufin(cancelled.clone())?;
-            if selected.is_local() {
-                self.equalizer_output_changed(
-                    self.settings.load().ui.playback.audio_output.as_deref(),
-                );
-                return Ok(());
-            }
-        }
         if matches!(&selected, playback::PlaybackOutput::Remote(output) if output.protocol == playback::RemoteOutputProtocol::PlexCompanion)
         {
             self.select_plex(selected, cancelled)?;
@@ -840,13 +791,6 @@ impl PlaybackOwner {
 
 impl PlaybackOwner {
     pub fn snapshot(&self) -> Result<library::QueueRestore, String> {
-        let receiver = self.rufin.lock().unwrap_or_else(|p| p.into_inner()).clone();
-        if let Some(receiver) = receiver {
-            return self
-                .runtime
-                .block_on(receiver.snapshot())
-                .map(|snapshot| snapshot.map(|snapshot| snapshot.queue).unwrap_or_default());
-        }
         let Some(active) = self.active() else {
             return Ok(library::QueueRestore::default());
         };
@@ -857,9 +801,6 @@ impl PlaybackOwner {
     }
 
     pub fn play_selection(&self, request: PlayRequest) {
-        if self.play_rufin(&request) {
-            return;
-        }
         if self.play_plex(&request) {
             return;
         }
@@ -934,18 +875,12 @@ impl PlaybackOwner {
     }
 
     pub fn play_random(&self, request: RandomPlayRequest) {
-        if self.random_rufin(&request) {
-            return;
-        }
         if self.random_plex(&request) {
             return;
         }
         self.send(Command::Random(request));
     }
     pub fn play_radio(&self, request: RadioPlayRequest) {
-        if self.radio_rufin(&request) {
-            return;
-        }
         if self.radio_plex(&request) {
             return;
         }
@@ -1001,16 +936,6 @@ impl PlaybackOwner {
         })
     }
     pub fn cycle_repeat(&self) {
-        if self
-            .rufin
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .is_some()
-            && let Some(projection) = self.current_projection()
-        {
-            self.set_repeat(next_repeat(projection.view.controls.repeat_mode));
-            return;
-        }
         match self.settings.edit(|stored| {
             stored.ui.repeat_mode = next_repeat(stored.ui.repeat_mode);
             Ok(stored.ui.repeat_mode)
@@ -1032,16 +957,6 @@ impl PlaybackOwner {
         self.send(Command::SetRepeat(repeat))
     }
     pub fn toggle_auto_dj(&self) {
-        if self
-            .rufin
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .is_some()
-            && let Some(projection) = self.current_projection()
-        {
-            self.send_cast_auto_dj(!projection.view.controls.auto_dj_enabled);
-            return;
-        }
         let (value, threshold) = self
             .settings
             .edit(|stored| {
@@ -1070,6 +985,64 @@ impl PlaybackOwner {
 }
 
 impl PlaybackOwner {
+    pub(crate) async fn receiver_queue_page(
+        &self,
+        offset: u64,
+        limit: u32,
+        filter: String,
+    ) -> Result<QueuePage, String> {
+        let limit = limit.min(library::QUEUE_CONTEXT_LIMIT as u32);
+        let Some(active) = self.active() else {
+            return Ok(QueuePage {
+                rows: Vec::new(),
+                total: 0,
+                window_offset: 0,
+            });
+        };
+        let (requested, total) = if filter.trim().is_empty() {
+            let (entries, total) = active
+                .page_entries(offset as usize, limit as usize)
+                .map_err(string_error)?;
+            (entries, total as u64)
+        } else {
+            let queue = active.handoff_snapshot().map_err(string_error)?.0;
+            let (positions, total) = self
+                .database
+                .queue_search_page(&queue, &filter, offset, limit)
+                .await
+                .map_err(string_error)?;
+            let entries = positions
+                .into_iter()
+                .map(|position| {
+                    let index = queue.order[position] as usize;
+                    (
+                        position,
+                        queue.ids.get(index).copied(),
+                        queue.entries[index].clone(),
+                    )
+                })
+                .collect();
+            (entries, total)
+        };
+        let entries = requested
+            .iter()
+            .map(|(position, _, entry)| (*position, entry.clone()))
+            .collect::<Vec<_>>();
+        let mut rows = self
+            .database
+            .queue_rows_for_entries(&entries, &ReadCancellation::new())
+            .await
+            .map_err(string_error)?;
+        for (row, (_, id, _)) in rows.iter_mut().zip(requested) {
+            Arc::make_mut(row).occurrence_id = id;
+        }
+        Ok(QueuePage {
+            rows,
+            total,
+            window_offset: offset.min(total),
+        })
+    }
+
     pub fn available_audio_outputs(&self) -> Vec<playback::AudioOutput> {
         (self.audio_outputs)()
     }
@@ -1088,7 +1061,6 @@ impl PlaybackOwner {
             debug!(%error, "generic receiver discovery unavailable");
             Vec::new()
         });
-        outputs.extend(self.discover_rufin());
         match self.discover_plex() {
             Ok(plex) => outputs.extend(plex),
             Err(error) if !outputs.is_empty() => {
@@ -1106,9 +1078,6 @@ impl PlaybackOwner {
         self.select_output(output, cancelled)
     }
     pub fn shutdown(&self) {
-        if let Some(receiver) = self.rufin.lock().unwrap_or_else(|p| p.into_inner()).take() {
-            receiver.cancel();
-        }
         if let Some(plex) = self.plex.lock().unwrap_or_else(|p| p.into_inner()).take() {
             plex.cancel();
         }
@@ -1140,7 +1109,6 @@ pub(crate) async fn prepare_stream<F>(
     database: &Database,
     request: StreamRequest,
     local: Option<&sources::SourceConfiguration>,
-    file_transfer: Option<(&crate::connect::ConnectOwner, &playback::QueueRow)>,
     source: impl FnOnce(sources::SourceId) -> F + Send,
 ) -> Result<audio_processing::ResolvedStream, String>
 where
@@ -1173,57 +1141,6 @@ where
     }
     let granted_file = granted_uri(file_uri);
     let file_uri = granted_file.as_deref().unwrap_or(file_uri);
-    let mut fetched_uri = None;
-    if let Some((connect, occurrence)) = file_transfer
-        && connect.is_local_media(&request.media_uri).await?
-    {
-        if occurrence.received_from_connect && file_uri.starts_with("content://") {
-            return Err("The source device did not provide a portable document identity".into());
-        }
-        let received_document = url::Url::parse(file_uri)
-            .is_ok_and(|uri| uri.scheme() == "content")
-            && occurrence.received_from_connect;
-        if received_document && !matches!(access, Some((_, library::LocalAccessOrigin::Download))) {
-            access = None;
-        }
-        let remote = received_document
-            || database
-                .file_media_is_remote(&request.media_uri, occurrence.received_from_connect)
-                .await
-                .map_err(string_error)?;
-        let local_access = match access.as_ref() {
-            Some((uri, _)) => local_access_available(uri).await.unwrap_or(false),
-            None => false,
-        };
-        // A content URI received from another device is not a grant to this device's provider.
-        let available =
-            local_access || (!remote && local_access_available(file_uri).await.unwrap_or(false));
-        if !available {
-            let peer = connect.peer_access();
-            if let Some(location) = peer
-                .mapped_file(database, &request.media_uri)
-                .await
-                .map_err(string_error)?
-            {
-                fetched_uri = Some(match location {
-                    library::LocalMediaLocation::File(path) => url::Url::from_file_path(path)
-                        .map(String::from)
-                        .map_err(|_| "Media path must be absolute".to_owned())?,
-                    library::LocalMediaLocation::Document(uri) => uri,
-                });
-            } else {
-                let mut stream = peer.stream(request.clone()).await.map_err(string_error)?;
-                if let Some((start, end)) = database
-                    .playback_window(&request.media_uri)
-                    .await
-                    .map_err(string_error)?
-                {
-                    stream = stream.with_window(start, end);
-                }
-                return Ok(stream);
-            }
-        }
-    }
     if let Some((uri, library::LocalAccessOrigin::Download)) = access.as_ref()
         && !local_access_available(uri).await?
     {
@@ -1253,7 +1170,7 @@ where
     } else {
         None
     };
-    let access_uri = access.map(|(uri, _)| uri).or(fetched_uri);
+    let access_uri = access.map(|(uri, _)| uri);
     let window = database
         .playback_window(&request.media_uri)
         .await
@@ -1550,7 +1467,6 @@ mod tests {
                 occurrence.track.media_uri.clone(),
                 playback::StreamQuality::Original,
             ),
-            None,
             None,
             |_| async { panic!("a completed download must resolve without contacting its source") },
         )

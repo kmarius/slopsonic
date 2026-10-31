@@ -187,25 +187,6 @@ impl Playback {
         self.request(move |player, _| Ok(player.page_entries(offset, limit)))
     }
 
-    pub(crate) fn continuation(&self) -> PlaybackResult<Option<playback::Continuation>> {
-        self.request(|player, sample| Ok(player.continuation(sample)))
-    }
-    pub(crate) fn stop_continuation(
-        &self,
-        expected: playback::ContinuationHeader,
-    ) -> PlaybackResult<Option<playback::ContinuationHeader>> {
-        self.request(move |player, sample| Ok(player.stop_continuation(&expected, sample)))
-    }
-    pub(crate) fn adopt_continuation(
-        &self,
-        continuation: playback::Continuation,
-        stream: PreparedStream,
-        backend: Box<dyn PlaybackBackend>,
-    ) -> PlaybackResult<()> {
-        self.request(move |player, sample| {
-            player.adopt_continuation(continuation, stream, backend, sample)
-        })
-    }
     pub(crate) fn handoff_snapshot(
         &self,
     ) -> PlaybackResult<(

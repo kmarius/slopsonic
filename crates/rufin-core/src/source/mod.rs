@@ -129,7 +129,6 @@ pub(crate) struct Shared {
     asset_download_requested: Arc<tokio::sync::Notify>,
     pub(crate) lane: tokio::sync::Mutex<()>,
     playback: Mutex<Weak<PlaybackOwner>>,
-    connect: Mutex<Weak<crate::connect::ConnectOwner>>,
     maintenance: Arc<tokio::sync::Notify>,
     started: AtomicBool,
 }
@@ -472,7 +471,6 @@ impl SourceOwner {
             asset_download_requested: Arc::new(tokio::sync::Notify::new()),
             lane: tokio::sync::Mutex::new(()),
             playback: Mutex::new(Weak::new()),
-            connect: Mutex::new(Weak::new()),
             maintenance: Arc::new(tokio::sync::Notify::new()),
             started: AtomicBool::new(false),
         });
@@ -627,72 +625,6 @@ impl SourceOwner {
             self.request_asset_downloads();
         }
         result
-    }
-
-    /// Called only for an applied Connect page. Empty synchronization passes do not
-    /// publish catalog events or rebuild the selected source.
-    pub(crate) async fn connect_changed(&self, sources_changed: bool) -> Result<(), String> {
-        let _lane = self.shared.lane.lock().await;
-        let current = self.shared.settings.load();
-        if sources_changed {
-            self.shared.retire_changed_clients(false).await?;
-        }
-        self.shared.load_source_counts().await?;
-        let reconnect = self
-            .shared
-            .selected()
-            .is_none_or(|selected| self.cached_client(&selected.source_id).is_none());
-        if reconnect {
-            self.release_selected().await;
-            if let Some(source) = current
-                .sources
-                .selected_source_id
-                .filter(|id| {
-                    current
-                        .sources
-                        .configured
-                        .iter()
-                        .any(|source| source.configuration.source_id == *id)
-                })
-                .or_else(|| {
-                    let counts = self
-                        .shared
-                        .catalog_counts
-                        .lock()
-                        .unwrap_or_else(|poisoned| poisoned.into_inner());
-                    current
-                        .sources
-                        .configured
-                        .iter()
-                        .find(|source| {
-                            counts
-                                .get(&source.configuration.source_id)
-                                .is_some_and(|(_, tracks)| *tracks > 0)
-                        })
-                        .map(|source| source.configuration.source_id.clone())
-                })
-            {
-                let owner = self.clone();
-                self.shared.runtime.spawn(async move {
-                    let _ = owner.select_source(source).await;
-                });
-            }
-        }
-        self.shared
-            .send(SourceEvent::Configured(
-                self.shared
-                    .configured_sources(self.shared.selected().as_ref()),
-            ))
-            .await;
-        self.shared
-            .send(SourceEvent::CatalogPublished(CatalogPublication {
-                source_key: None,
-                favorite: None,
-                change: CatalogChange::Broad,
-            }))
-            .await;
-        self.request_asset_downloads();
-        Ok(())
     }
 
     async fn remove_source_resources(
@@ -2174,15 +2106,6 @@ impl SourceOwner {
                 if !changing {
                     return Ok(());
                 }
-                let connect = owner
-                    .shared
-                    .connect
-                    .lock()
-                    .unwrap_or_else(|p| p.into_inner())
-                    .upgrade();
-                if let Some(connect) = connect {
-                    connect.reset_secret_storage().await?;
-                }
                 let settings = owner.shared.settings.clone();
                 let secrets = Arc::clone(&owner.shared.secrets);
                 tokio::task::spawn_blocking(move || {
@@ -2755,21 +2678,6 @@ impl SourceOwner {
 }
 
 impl SourceOwner {
-    pub(crate) fn install_connect(&self, connect: &Arc<crate::connect::ConnectOwner>) {
-        *self
-            .shared
-            .connect
-            .lock()
-            .unwrap_or_else(|p| p.into_inner()) = Arc::downgrade(connect);
-    }
-
-    pub(crate) fn peer_access(&self) -> sources::PeerAccess {
-        self.shared.downloads.peer_access()
-    }
-
-    pub(crate) fn connect_media_changed(&self) {
-        self.shared.downloads.connect_changed();
-    }
 
     pub fn download_media(&self, subject: downloads::DownloadSubject, media_uris: Vec<String>) {
         let owner = self.clone();
@@ -4546,7 +4454,6 @@ mod source_tests {
                 crate::playback::prepare_stream(
                     &database,
                     playback::StreamRequest::new(&local_uri, playback::StreamQuality::Original),
-                    None,
                     None,
                     |source_id| owner.open_client(source_id),
                 ),

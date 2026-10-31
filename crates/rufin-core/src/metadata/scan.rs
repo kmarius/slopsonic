@@ -107,7 +107,6 @@ impl MetadataEditor {
                 database,
                 StreamRequest::new(uri, StreamQuality::Original),
                 local.as_ref(),
-                None,
                 move |id| async move { owner.open_client(id).await },
             )
             .await

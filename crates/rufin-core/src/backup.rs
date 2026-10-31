@@ -601,7 +601,6 @@ fn preserve_destination_settings(
     incoming: &mut StoredSettings,
 ) -> Result<(), String> {
     incoming.secret_scope_id = previous.secret_scope_id.clone();
-    incoming.shared_settings = previous.shared_settings.clone();
     incoming.ui.application.secret_storage_mode = previous.ui.application.secret_storage_mode;
     incoming.jellyfin_device_id = previous.jellyfin_device_id.clone();
     incoming.ui.downloads = previous.ui.downloads.clone();

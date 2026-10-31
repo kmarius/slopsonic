@@ -566,7 +566,6 @@ pub async fn build(
     apply_sidebar_media_visibility(Rc::clone(&shell.player_ui));
     shell.player_ui.request_initial_lyrics_if_needed();
     install_product_event_receivers(&shell, receivers);
-    crate::preferences::connect::install(&shell.preferences);
     let weak_shell = Rc::downgrade(&shell);
     #[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
     {

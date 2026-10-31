@@ -10,9 +10,6 @@ pub const PLAYBACK_PREFERENCES_RESOURCE: &str =
 pub const PREFERENCES_REORDER_ROW_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/reorder_row.ui";
 pub const LIBRARY_PREFERENCES_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/library.ui";
-pub const CONNECT_COMPONENTS_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/connect-components.ui";
-pub const CONNECT_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/connect.ui";
 pub const INTEGRATIONS_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/integrations.ui";
 pub const ACTIVITY_PREFERENCES_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/activity.ui";
@@ -72,8 +69,6 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     PLAYBACK_PREFERENCES_RESOURCE,
     PREFERENCES_REORDER_ROW_RESOURCE,
     LIBRARY_PREFERENCES_RESOURCE,
-    CONNECT_COMPONENTS_RESOURCE,
-    CONNECT_RESOURCE,
     INTEGRATIONS_RESOURCE,
     ACTIVITY_PREFERENCES_RESOURCE,
     PREFERENCES_DIALOG_RESOURCE,

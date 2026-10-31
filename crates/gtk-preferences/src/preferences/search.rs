@@ -28,7 +28,6 @@ pub(super) fn items(shell: &Preferences) -> Vec<PreferencesSearchItem> {
         (Page::Equalizer, gtk_player::ui_resource::EQUALIZER_RESOURCE),
         (Page::Library, LIBRARY_PREFERENCES_RESOURCE),
         (Page::Downloads, DOWNLOAD_QUALITY_RESOURCE),
-        (Page::Connect, CONNECT_RESOURCE),
         (Page::Storage, STORAGE_PREFERENCES_RESOURCE),
         (Page::Storage, BACKUP_PREFERENCES_RESOURCE),
         (Page::Privacy, PRIVACY_PREFERENCES_RESOURCE),

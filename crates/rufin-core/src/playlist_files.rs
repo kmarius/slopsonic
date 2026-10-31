@@ -898,64 +898,6 @@ pub(crate) async fn refresh_links(owner: &SourceOwner, source: Option<&SourceId>
     }
 }
 
-pub(crate) async fn backfill_file_playlists(owner: &SourceOwner) -> Result<(), String> {
-    let configurations = owner.shared.settings.load().sources.configured.clone();
-    for configured in configurations {
-        let configuration = configured.configuration;
-        if !configuration.is_file_library() {
-            continue;
-        }
-        let source_id = &configuration.source_id;
-        let Some(source) = owner
-            .shared
-            .database
-            .cached_source(source_id.as_str(), &ReadCancellation::new())
-            .await
-            .map_err(string_error)?
-        else {
-            continue;
-        };
-        let mut after = None;
-        loop {
-            let page = owner
-                .shared
-                .database
-                .observed_playlist_file_page(source.source, after)
-                .await
-                .map_err(string_error)?;
-            let Some(last) = page.last() else { break };
-            after = Some(last.local_file_key);
-            let mut associations = Vec::new();
-            for file in page {
-                if file.playlist_identity.is_some() {
-                    continue;
-                }
-                let Some(path) = configuration.playlist_file_path(&file.path) else {
-                    continue;
-                };
-                if let Some(link) = owner
-                    .shared
-                    .database
-                    .find_playlist_file_link(Some(source_id), &path)
-                    .await
-                    .map_err(string_error)?
-                {
-                    associations.push((file.path, link.playlist));
-                }
-            }
-            if !associations.is_empty() {
-                owner
-                    .shared
-                    .database
-                    .associate_playlist_files(source_id, &associations)
-                    .await
-                    .map_err(string_error)?;
-            }
-            tokio::task::yield_now().await;
-        }
-    }
-    Ok(())
-}
 
 pub(crate) async fn discover(
     owner: &SourceOwner,

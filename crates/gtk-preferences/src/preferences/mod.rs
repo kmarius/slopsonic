@@ -18,7 +18,6 @@ use std::{
     rc::Rc,
 };
 
-pub mod connect;
 mod context_menu;
 pub mod dialogs;
 mod general;
@@ -155,12 +154,11 @@ enum PreferencesPageKind {
     Downloads,
     Storage,
     Integrations,
-    Connect,
     Privacy,
 }
 
 impl PreferencesPageKind {
-    const ALL: [Self; 11] = [
+    const ALL: [Self; 10] = [
         Self::General,
         Self::Customization,
         Self::Theme,
@@ -169,7 +167,6 @@ impl PreferencesPageKind {
         Self::Equalizer,
         Self::Library,
         Self::Downloads,
-        Self::Connect,
         Self::Storage,
         Self::Privacy,
     ];
@@ -185,7 +182,6 @@ impl PreferencesPageKind {
             Self::Downloads => "downloads",
             Self::Storage => "storage",
             Self::Integrations => "integrations",
-            Self::Connect => "connect",
             Self::Privacy => "privacy",
         }
     }
@@ -201,7 +197,6 @@ impl PreferencesPageKind {
             Self::Downloads => tr("Downloads"),
             Self::Storage => tr("Storage"),
             Self::Integrations => tr("Integrations"),
-            Self::Connect => tr("Connect"),
             Self::Privacy => tr("Privacy & Security"),
         }
     }
@@ -217,7 +212,6 @@ impl PreferencesPageKind {
             Self::Downloads => "rufin-download-symbolic",
             Self::Storage => "rufin-drive-harddisk-symbolic",
             Self::Integrations => "rufin-network-workgroup-symbolic",
-            Self::Connect => "rufin-network-hotspot-symbolic",
             Self::Privacy => "rufin-system-lock-screen-symbolic",
         }
     }
@@ -832,7 +826,6 @@ fn build_preferences_page(
         PreferencesPageKind::Equalizer => equalizer_page(shell).upcast(),
         PreferencesPageKind::Downloads => library::downloads_page(shell, dialog).upcast(),
         PreferencesPageKind::Storage => storage::page(shell, navigation_controls),
-        PreferencesPageKind::Connect => connect::page(shell, dialog),
         PreferencesPageKind::Integrations => scrobbling_page(shell, credential_drafts).upcast(),
         PreferencesPageKind::Playback => playback_page(shell).upcast(),
         PreferencesPageKind::Library => library::library_page(shell, dialog, navigation_controls),

@@ -69,12 +69,10 @@ impl ProductHandles {
         &self,
         reset: crate::settings::StorageReset,
     ) -> Result<crate::settings::StorageResetRequest, String> {
-        self.settings
-            .prepare_storage_reset(reset, self.connect.status().settings)
+        self.settings.prepare_storage_reset(reset)
     }
 
     pub async fn close_storage(&self) -> Result<(), String> {
-        self.connect.close_storage().await?;
         self.source.close_storage().await;
         self.downloads.shutdown().await?;
         let settings = self.settings.clone();

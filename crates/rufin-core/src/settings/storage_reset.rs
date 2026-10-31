@@ -18,7 +18,6 @@ pub enum StorageResetRequest {
     Storage {
         reset: StorageReset,
         stored: Box<StoredSettings>,
-        connect: Box<crate::connect::ConnectSettings>,
         secrets: Arc<dyn secrets::SecretStore>,
     },
 }
@@ -27,7 +26,6 @@ impl SettingsOwner {
     pub(crate) fn prepare_storage_reset(
         &self,
         reset: StorageReset,
-        connect: crate::connect::ConnectSettings,
     ) -> Result<StorageResetRequest, String> {
         let stored = self.file.load();
         let secrets = if reset == StorageReset::AllData
@@ -42,7 +40,6 @@ impl SettingsOwner {
         Ok(StorageResetRequest::Storage {
             reset,
             stored: Box::new(stored),
-            connect: Box::new(connect),
             secrets,
         })
     }
@@ -54,7 +51,6 @@ impl StorageResetRequest {
         let Self::Storage {
             reset,
             stored,
-            mut connect,
             secrets,
         } = self
         else {
@@ -122,7 +118,6 @@ impl StorageResetRequest {
                     .copied()
                     .map(super::scrobbling_secret_key),
             );
-            keys.extend(crate::connect::secret_keys(&connect));
             for key in keys {
                 secrets.delete_secret(&key).map_err(error)?;
             }
@@ -131,10 +126,6 @@ impl StorageResetRequest {
         ::lyrics::release_japanese_reader();
         for root in roots {
             clear_directory(&root, &keep)?;
-        }
-        if reset == StorageReset::KeepCredentials {
-            connect.pending_import = None;
-            crate::connect::write_device_config(&paths.connect_dir(), &connect)?;
         }
         fs::create_dir_all(paths.config_dir()).map_err(error)?;
         // Replace the whole document, including settings unknown to this version.

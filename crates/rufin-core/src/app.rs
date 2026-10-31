@@ -351,17 +351,6 @@ where
             warn!(%error, source_id=%configured.configuration.source_id, "could not reconcile configured source mapping");
         }
     }
-    let connect = crate::connect::ConnectOwner::new(
-        paths.connect_dir(),
-        Arc::clone(&library),
-        settings_handle.as_ref().clone(),
-        Arc::clone(&secrets),
-        Arc::clone(&source),
-        Arc::clone(&playback),
-        runtime.clone(),
-    );
-    connect.start();
-
     source.start()?;
     let source_handle: crate::runtime::SourceHandle = source.clone();
 
@@ -377,7 +366,6 @@ where
             ))
             .0,
             backup,
-            connect,
             library,
             runtime,
             source: source_handle,

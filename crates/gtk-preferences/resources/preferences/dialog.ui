@@ -357,38 +357,6 @@
                           </object>
                         </child>
                         <child>
-                          <object class="GtkListBoxRow" id="category_connect">
-                            <property name="activatable">true</property>
-                            <property name="child">
-                              <object class="GtkBox">
-                                <property name="spacing">10</property>
-                                <property name="valign">center</property>
-                                <style>
-                                  <class name="preferences-category-content" />
-                                </style>
-                                <child>
-                                  <object class="GtkImage">
-                                    <property name="icon-name">rufin-network-hotspot-symbolic</property>
-                                    <property name="pixel-size">20</property>
-                                    <property name="valign">center</property>
-                                  </object>
-                                </child>
-                                <child>
-                                  <object class="GtkLabel">
-                                    <property name="label" translatable="yes">Connect</property>
-                                    <property name="xalign">0</property>
-                                    <property name="hexpand">true</property>
-                                    <property name="ellipsize">end</property>
-                                    <style>
-                                      <class name="preferences-category-label" />
-                                    </style>
-                                  </object>
-                                </child>
-                              </object>
-                            </property>
-                          </object>
-                        </child>
-                        <child>
                           <object class="GtkListBoxRow" id="category_controller">
                             <property name="activatable">true</property>
                             <property name="child">
