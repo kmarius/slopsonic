@@ -465,7 +465,7 @@ impl MetadataBatch {
                 return Err(Error::Conflict);
             }
             session
-                .save(&self.source, edit, record.state.lyrics.clone())
+                .save(&self.source, edit)
                 .await
         }
         .await;
@@ -480,7 +480,6 @@ impl MetadataBatch {
                 Err(_) if saved => {
                     record.state.touched.clear();
                     record.state.artwork = None;
-                    record.state.lyrics = None;
                 }
                 Err(_) => {}
             }
@@ -555,8 +554,7 @@ impl MetadataBatch {
                     if outcome.is_ok() {
                         let artwork_changed =
                             record.state.artwork.is_some() || record.scope_artwork;
-                        let lyrics = record.state.lyrics.take();
-                        if artwork_changed || lyrics.is_some() {
+                        if artwork_changed {
                             pending
                                 .lock()
                                 .unwrap_or_else(|e| e.into_inner())
@@ -577,7 +575,6 @@ impl MetadataBatch {
                         record.state.apply_values(&mut record.draft);
                         record.state = Editing::new(&record.draft);
                         record.scope_artwork = false;
-                        record.state.lyrics = lyrics;
                     }
                     if outcome.is_ok() || revision.is_some() {
                         record.draft.revision = revision;
@@ -604,11 +601,10 @@ impl MetadataBatch {
             )
             .await?;
         }
-        let mut failures = Vec::new();
         for (index, artwork_changed) in followups.into_inner().unwrap_or_else(|e| e.into_inner()) {
             let mut record = self.read(index).await?;
             match self.session(index).await {
-                Ok((session, draft)) => {
+                Ok((_, draft)) => {
                     if artwork_changed {
                         super::EditSession::invalidate_artwork(
                             &self.source,
@@ -620,22 +616,6 @@ impl MetadataBatch {
                         record.draft.artwork = draft.artwork;
                         record.state.storage = record.draft.artwork.storage;
                     }
-                    if let Some(lyrics) = &record.state.lyrics {
-                        match session.save_lyrics(&self.source, lyrics).await {
-                            Ok(revision) => {
-                                record.state.lyrics = None;
-                                record.draft.revision = revision;
-                            }
-                            Err(error) => {
-                                record.failure = Some(error.to_string());
-                                failures.push(error);
-                            }
-                        }
-                    }
-                }
-                Err(error) if record.state.lyrics.is_some() => {
-                    record.failure = Some(error.to_string());
-                    failures.push(error);
                 }
                 Err(_) => {}
             }
@@ -652,7 +632,7 @@ impl MetadataBatch {
             Ok(())
         })
         .await?;
-        result.and(Error::combine(failures))
+        result
     }
 
     async fn selected_editor(
@@ -669,11 +649,10 @@ impl MetadataBatch {
         let _cancel = cancelled.clone().drop_guard();
         let selected = indices.clone();
         let selected_len = selected.len();
-        let (draft, current, identified, artwork, has_artwork, lyrics, recordings) = self
+        let (draft, current, identified, artwork, has_artwork, recordings) = self
             .work(move |records| {
                 let mut identified = HashSet::new();
                 let mut has_artwork = false;
-                let mut lyrics = None;
                 let mut recordings = Vec::new();
                 let mut artwork: Option<Option<ArtworkChange>> = None;
                 let mut combined: Option<MetadataDraft> = None;
@@ -684,7 +663,6 @@ impl MetadataBatch {
                     }
                     let record = records.read(index)?;
                     if selected_len == 1 {
-                        lyrics = record.state.lyrics.clone();
                         recordings = record.state.recordings.clone();
                     }
                     has_artwork |= match &record.state.artwork {
@@ -726,7 +704,6 @@ impl MetadataBatch {
                     identified,
                     artwork.flatten(),
                     has_artwork,
-                    lyrics,
                     recordings,
                 ))
             })
@@ -735,7 +712,6 @@ impl MetadataBatch {
         draft.track_count = indices.len();
         let mut state = Editing::new(&current);
         state.artwork = artwork.clone();
-        state.lyrics = lyrics;
         state.recordings = recordings;
         let storage = state.storage;
         for key in identified {
@@ -1152,9 +1128,7 @@ impl MetadataBatch {
         }) {
             edit.artwork = None;
         }
-        let lyrics = editor.state().lyrics.clone();
-        if edit.changes.is_empty() && edit.artwork.is_none() && lyrics.is_none() && !artwork_changed
-        {
+        if edit.changes.is_empty() && edit.artwork.is_none() && !artwork_changed {
             return Ok(());
         }
         self.ensure_loaded(&scope.indices).await?;
@@ -1181,7 +1155,7 @@ impl MetadataBatch {
                     return Err(Error::Unavailable);
                 }
                 let mut record = records.read(index)?;
-                let mut changed = lyrics.is_some() || artwork_changed;
+                let mut changed = artwork_changed;
                 if artwork_changed {
                     record.scope_artwork = editor_artwork_pending;
                 }
@@ -1223,9 +1197,6 @@ impl MetadataBatch {
                         record.state.storage = storage;
                         changed = true;
                     }
-                }
-                if lyrics.is_some() {
-                    record.state.lyrics = lyrics.clone();
                 }
                 if changed {
                     records.write(index, &record)?;

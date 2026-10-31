@@ -39,9 +39,6 @@ mod home;
 mod keys;
 mod local;
 mod loudness;
-mod lyrics;
-mod lyrics_search;
-mod lyrics_tokenizer;
 mod migration;
 mod playlist_folders;
 mod playlist_format;
@@ -110,7 +107,6 @@ pub use local::{
     LocalLocatorWrite, LocalMediaLocation, MappingTrackRow, ObservedMediaFile,
 };
 pub use loudness::{AlbumLoudnessWork, LoudnessMeasurement, R128TagWrite, TrackLoudnessWork};
-pub use lyrics::LyricsCacheRow;
 pub use playlist_format::{
     PlaylistFile, PlaylistFileEntry, PlaylistFormat, PlaylistImportReport, PlaylistPathMode,
     playlist_host_path, playlist_locator,
@@ -126,7 +122,7 @@ pub use queue::{
     QueueTransferPage, QueueTransferRow, QueueUpdate, shuffle_order,
 };
 pub use radio::{PlayedFilter, RadioSeed, RandomCriteria};
-pub use search::{LyricsSnippet, LyricsSnippetPart, SearchMode, SearchRequest, SearchResults};
+pub use search::{SearchRequest, SearchResults};
 pub use smart_playlists::{
     SmartPlaylistActivityPeriod, SmartPlaylistDefinition, SmartPlaylistRow, SmartPlaylistRule,
     SmartPlaylistRuleField, SmartPlaylistRuleOperator, SmartPlaylistRuleValue,

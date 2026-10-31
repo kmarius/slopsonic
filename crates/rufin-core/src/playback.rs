@@ -37,7 +37,6 @@ use state::{AutoDjRequest, ClockSample, Command};
 use tracing::{debug, warn};
 
 use crate::loudness::LoudnessAnalysisOwner;
-use crate::lyrics::{LyricsContext, LyricsService};
 use crate::settings::SettingsFile;
 use crate::source::SourceOwner;
 use crate::waveform::{WaveformMedia, WaveformOwner};
@@ -57,7 +56,6 @@ pub struct PlaybackOwner {
     visualizer_drain: Receiver<VisualizerPublication>,
     waveform: Arc<WaveformOwner>,
     loudness: Arc<LoudnessAnalysisOwner>,
-    pub(crate) lyrics: Arc<LyricsService>,
     observe_playback: Arc<dyn Fn(Option<&PlaybackProjection>) + Send + Sync>,
     audio_outputs: fn() -> Vec<playback::AudioOutput>,
     scrobbler: Arc<Scrobbler>,
@@ -145,7 +143,6 @@ impl PlaybackOwner {
         visualizer_drain: Receiver<VisualizerPublication>,
         artwork: artwork::Artwork,
         waveform: Arc<WaveformOwner>,
-        lyrics: Arc<LyricsService>,
         observe_playback: Arc<dyn Fn(Option<&PlaybackProjection>) + Send + Sync>,
         audio_outputs: fn() -> Vec<playback::AudioOutput>,
         scrobbler: Arc<Scrobbler>,
@@ -185,7 +182,6 @@ impl PlaybackOwner {
             visualizer_drain,
             waveform,
             loudness: LoudnessAnalysisOwner::new(runtime),
-            lyrics,
             observe_playback,
             audio_outputs,
             scrobbler,
@@ -640,19 +636,6 @@ impl PlaybackOwner {
             .as_ref()
             .map(|media| self.waveform_media(Arc::clone(media)));
         self.waveform.current_changed(waveform);
-        let Some(media) = media else {
-            self.lyrics.set_current(None);
-            return;
-        };
-        let source_owner = self.source_owner();
-        let input_digest = library::source_entity_parts(&media.row.track.media_uri)
-            .and_then(|(source_id, _, _)| source_owner.as_ref()?.configuration(&source_id))
-            .and_then(|configuration| configuration.input_identity().ok())
-            .map_or([0; 32], |input| input.digest);
-        self.lyrics.set_current(Some(LyricsContext {
-            media,
-            input_digest,
-        }));
     }
 
     fn waveform_media(&self, media: Arc<playback::CurrentMedia>) -> WaveformMedia {

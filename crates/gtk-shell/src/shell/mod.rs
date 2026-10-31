@@ -41,7 +41,6 @@ pub(crate) struct Shell {
     pub(crate) quitting: Rc<Cell<bool>>,
     pub(crate) storage_reset: crate::application::StorageResetResult,
     pub(crate) diagnostics: DiagnosticsHandle,
-    pub(crate) appearance: Rc<gtk_preferences::appearance::ApplicationAppearance>,
     pub(crate) settings: Rc<SettingsState>,
     pub(crate) navigation: NavigationState,
     pub(crate) source: Rc<SourceState>,

@@ -1,11 +1,9 @@
-//! Persistent playback, queue and lyrics presentation.
+//! Persistent playback and queue presentation.
 use playback::PlaybackSettings;
-pub mod lyrics;
 pub mod queue;
 pub mod state;
 pub mod ui_resource;
 use gtk::prelude::*;
-use lyrics::state::{LyricsState, SelectedLyricsState};
 use playback::PlaybackView;
 use queue::QueueState;
 use rufin_core::runtime::WaveformProjection;
@@ -31,29 +29,23 @@ pub struct PlayerUi {
     content_stack: gtk::glib::WeakRef<gtk::Stack>,
     pub settings: Rc<gtk_widgets::settings::SettingsState>,
     pub playback_owner: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
-    pub lyrics_service: rufin_core::lyrics::LyricsHandle,
     pub right_panel: right_panel::RightPanelWidgets,
     window: gtk::glib::WeakRef<gtk::ApplicationWindow>,
-    toast_overlay: gtk::glib::WeakRef<adw::ToastOverlay>,
+    visualizer_settings_dialog: RefCell<gtk::glib::WeakRef<adw::PreferencesDialog>>,
     panel_slot: gtk::glib::WeakRef<gtk::ScrolledWindow>,
     pub views: PlayerDesktopWidgets,
     pub controls: PlaybackState,
-    pub lyrics: LyricsState,
     playback: RefCell<Option<SelectedPlaybackState>>,
     queue: RefCell<QueueState>,
-    pub lyric_content: RefCell<SelectedLyricsState>,
 }
 impl PlayerUi {
     pub fn new(
         controls: PlaybackState,
-        lyrics: LyricsState,
         views: PlayerDesktopWidgets,
         right_panel: right_panel::RightPanelWidgets,
         settings: Rc<gtk_widgets::settings::SettingsState>,
         playback_owner: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
-        lyrics_service: rufin_core::lyrics::LyricsHandle,
         window: &gtk::ApplicationWindow,
-        toast_overlay: &adw::ToastOverlay,
         panel_slot: &gtk::ScrolledWindow,
         artwork: Rc<gtk_widgets::artwork::ArtworkState>,
         control_feedback: Rc<gtk_widgets::feedback::ControlFeedbackState>,
@@ -81,17 +73,14 @@ impl PlayerUi {
             content_stack: content_stack.downgrade(),
             settings,
             playback_owner,
-            lyrics_service,
             right_panel,
             window: window.downgrade(),
-            toast_overlay: toast_overlay.downgrade(),
+            visualizer_settings_dialog: RefCell::new(gtk::glib::WeakRef::new()),
             panel_slot: panel_slot.downgrade(),
             views,
             controls,
-            lyrics,
             playback: RefCell::new(None),
             queue: RefCell::new(QueueState::new()),
-            lyric_content: RefCell::new(SelectedLyricsState::new()),
         }
     }
     pub fn replace_player(&self, player: PlaybackView) {
@@ -156,9 +145,6 @@ impl PlayerUi {
     }
     pub fn selected_queue(&self) -> Option<Ref<'_, QueueState>> {
         Some(self.queue.borrow())
-    }
-    pub fn selected_lyrics(&self) -> Option<Ref<'_, SelectedLyricsState>> {
-        Some(self.lyric_content.borrow())
     }
 }
 pub fn register_resources() -> Result<(), String> {

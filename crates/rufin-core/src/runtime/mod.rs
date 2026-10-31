@@ -41,7 +41,6 @@ pub struct ProductHandles {
     pub downloads: downloads::Downloads,
     pub playback: std::sync::Arc<crate::playback::PlaybackOwner>,
     pub artwork: artwork::Artwork,
-    pub lyrics: crate::lyrics::LyricsHandle,
     pub release_updates: ReleaseUpdateHandle,
     pub scrobbling: ScrobblingHandle,
 }

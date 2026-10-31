@@ -108,68 +108,6 @@ impl JellyfinEmbySource {
         .await
     }
 
-    pub(super) async fn emby_lyrics(&self, track: &str) -> SourceResult<Option<LyricsBundle>> {
-        let raw = raw_item_id(track);
-        let mut url = self.item_url(raw)?;
-        url.query_pairs_mut()
-            .append_pair("Fields", "MediaSources,MediaStreams");
-        let item: Value = match self.get_json(url).await {
-            Ok(item) => item,
-            Err(SourceError::NotFound) => return Ok(None),
-            Err(error) => return Err(error),
-        };
-        let selected = items(&item["MediaSources"]).iter().find_map(|source| {
-            let source_id = id(&source["Id"])?;
-            let subtitles = || {
-                items(&source["MediaStreams"])
-                    .iter()
-                    .filter(|stream| stream["Type"].as_str() == Some("Subtitle"))
-                    .filter_map(|stream| Some((field::<u32>(stream, "Index")?, stream)))
-            };
-            let default = field::<u32>(source, "DefaultSubtitleStreamIndex");
-            let (index, subtitle) = subtitles()
-                .find(|(index, _)| Some(*index) == default)
-                .or_else(|| subtitles().next())?;
-            Some((source_id, index, subtitle))
-        });
-        let Some((source_id, index, subtitle)) = selected else {
-            return Ok(None);
-        };
-        let url = endpoint(
-            &self.base_url,
-            &format!("Items/{raw}/{source_id}/Subtitles/{index}/Stream.js"),
-        )?;
-        let dto: Value = match self.get_json(url).await {
-            Ok(dto) => dto,
-            Err(SourceError::NotFound) => return Ok(None),
-            Err(error) => return Err(error),
-        };
-        let lines = items(&dto["TrackEvents"])
-            .iter()
-            .filter_map(|event| {
-                let text: String = field(event, "Text")?;
-                (!text.trim().is_empty()).then(|| LyricsLine {
-                    text,
-                    start_millis: ticks_to_millis(field(event, "StartPositionTicks")),
-                    end_millis: ticks_to_millis(field(event, "EndPositionTicks")),
-                    cue_lines: Vec::new(),
-                })
-            })
-            .collect::<Vec<_>>();
-        if lines.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(LyricsBundle::from_documents(
-            LyricsOrigin::Native,
-            vec![LyricsDocument {
-                role: LyricsRole::Original,
-                language: field(subtitle, "Language"),
-                offset_millis: 0,
-                lines,
-                agents: Vec::new(),
-            }],
-        )))
-    }
 }
 
 struct TranscodeResource {
@@ -465,7 +403,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn native_lyrics_and_playlist_rename_use_user_scoped_complete_items() {
+    async fn playlist_rename_uses_user_scoped_complete_items() {
         let server = MockServer::start().await;
         let source = source(format!("{}/emby", server.uri()));
         let playlist = json!({"Id":"playlist","Name":"Old","Type":"Playlist","GenreItems":[{"Id":"genre","Name":"Rock"}],"ProviderIds":{"Custom":"kept"}});
@@ -486,15 +424,6 @@ mod tests {
             .update_playlist("emby:playlist:playlist", Some("New"), None)
             .await
             .unwrap();
-        Mock::given(path("/emby/Users/listener/Items/11")).respond_with(ResponseTemplate::new(200).set_body_json(json!({"Id":"11","MediaSources":[null,{"Id":"without-lyrics"},{"Id":"media-source","DefaultSubtitleStreamIndex":"2","MediaStreams":[{"Type":"Audio","Index":0},{"Type":"Subtitle","Index":{}},{"Type":"Subtitle","Index":1},{"Type":"Subtitle","Index":2,"Language":"eng"}]}]}))).mount(&server).await;
-        Mock::given(path("/emby/Items/11/media-source/Subtitles/2/Stream.js")).respond_with(ResponseTemplate::new(200).set_body_json(json!({"TrackEvents":[{"Text":"Timed","StartPositionTicks":1250000,"EndPositionTicks":2250000},{"Text":"Untimed"},{"Text":" "}]}))).mount(&server).await;
-        let lyrics = source.lyrics("emby:track:11").await.unwrap().unwrap();
-        let document = &lyrics.documents()[0];
-        assert_eq!(document.language.as_deref(), Some("eng"));
-        assert_eq!(document.lines.len(), 2);
-        assert_eq!(document.lines[0].start_millis, Some(125));
-        assert_eq!(document.lines[0].end_millis, Some(225));
-        assert_eq!(document.lines[1].start_millis, None);
         server.verify().await;
     }
 }

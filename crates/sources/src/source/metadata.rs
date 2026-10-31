@@ -212,72 +212,6 @@ impl NativeFile {
         Ok(draft)
     }
 
-    fn lyrics_storage(&self) -> Vec<crate::LyricsStorage> {
-        if self.cue {
-            return Vec::new();
-        }
-        let sidecar = match &self.location {
-            FileLocation::Native(path) => path.parent().is_some_and(Path::is_dir),
-            _ => self.folder_identity(None).is_ok(),
-        };
-        let embedded = (|| match &self.location {
-            FileLocation::Native(path) => tags::embedded_lyrics_writable(path),
-            FileLocation::Document { uri, .. } => {
-                crate::stat_document(uri).is_ok_and(|entry| entry.writable)
-                    && self
-                        .format
-                        .as_deref()
-                        .is_some_and(tags::embedded_lyrics_format_writable)
-            }
-            FileLocation::Remote { source, path } => {
-                let Some(files) = source.file_source(Some(path)) else {
-                    return false;
-                };
-                if let Some(access) = files.document_access() {
-                    let Ok(relative) = files.relative(path) else {
-                        return false;
-                    };
-                    if !access.resolve(&relative).is_ok_and(|entry| entry.writable) {
-                        return false;
-                    }
-                }
-                self.format
-                    .as_deref()
-                    .is_some_and(tags::embedded_lyrics_format_writable)
-            }
-        })();
-        let mut options = Vec::new();
-        if embedded {
-            options.push(crate::LyricsStorage::Embedded);
-        }
-        if sidecar {
-            options.push(crate::LyricsStorage::Sidecar);
-        }
-        options
-    }
-
-    async fn save_lyrics(
-        &self,
-        text: &str,
-        sidecar: bool,
-        cancelled: impl Fn() -> bool + Send + Sync,
-    ) -> Result<Option<PreparedFile>, Error> {
-        if sidecar {
-            if cancelled() {
-                return Err(crate::SourceError::Cancelled.into());
-            }
-            self.write_sidecar(text).await?;
-            Ok(None)
-        } else {
-            let (prepared, _) = self
-                .prepare(None)
-                .await?
-                .mutate(TagUpdate::Lyrics(text.into()), None)
-                .await?;
-            Ok(Some(prepared.commit(&cancelled).await?))
-        }
-    }
-
     fn analysis_key(&self, revision: Option<&str>) -> [u8; 32] {
         let mut hash = blake3::Hasher::new();
         hash.update(self.media_uri.as_bytes());
@@ -444,7 +378,6 @@ impl PreparedFile {
                     let input = files.input().await.map_err(failure)?;
                     let (observation, facts) = files
                         .read_saved_file(
-                            catalog.database,
                             &self.target.media_uri,
                             &files.relative(path).map_err(failure)?,
                             &input,
@@ -604,39 +537,6 @@ impl FileEditSession {
             .revision()
             .await?
             .map(|revision| file.analysis_key(Some(&revision))))
-    }
-
-    pub fn lyrics_storage(&self) -> Vec<crate::LyricsStorage> {
-        self.single
-            .as_ref()
-            .map(NativeFile::lyrics_storage)
-            .unwrap_or_default()
-    }
-
-    pub async fn save_lyrics(
-        &self,
-        database: &Database,
-        text: &str,
-        sidecar: bool,
-    ) -> Result<Option<String>, Error> {
-        if let Some(source) = &self.source {
-            source
-                .write_lyrics(database, &self.media_uri, text, sidecar)
-                .await?;
-            source.refresh_written_lyrics(database);
-            return self
-                .single
-                .as_ref()
-                .ok_or(Error::Unavailable)?
-                .revision()
-                .await;
-        }
-        let file = self.single.as_ref().ok_or(Error::Unavailable)?;
-        if let Some(saved) = file.save_lyrics(text, sidecar, || false).await? {
-            saved.preserve_fingerprint(database).await?;
-        }
-        file.publish_direct(database).await?;
-        file.revision().await
     }
 
     pub fn media_uri(&self) -> &str {
@@ -1238,10 +1138,6 @@ impl Source {
         });
     }
 
-    pub fn refresh_written_lyrics(self: &Arc<Self>, database: &Database) {
-        self.refresh_metadata_after_write(database, None);
-    }
-
     pub async fn write_file_track_rating(
         self: &Arc<Self>,
         database: &Database,
@@ -1270,138 +1166,6 @@ impl Source {
                 .await?
                 .write_catalog(self, catalog)
                 .await
-        })
-        .await
-    }
-
-    pub async fn lyrics_storage(
-        self: &Arc<Self>,
-        database: &Database,
-        uri: &str,
-    ) -> Vec<crate::LyricsStorage> {
-        let Ok(Some(row)) = database.track(&(uri), &ReadCancellation::new()).await else {
-            return Vec::new();
-        };
-        if row.access.cue_path.is_some() {
-            return Vec::new();
-        }
-        if let Implementation::JellyfinEmby(provider) = &self.implementation
-            && provider.kind == crate::ServerKind::Jellyfin
-        {
-            return if row.object_id.is_some() {
-                vec![crate::LyricsStorage::Server]
-            } else {
-                Vec::new()
-            };
-        }
-        let Ok(original) = database.original_file(uri).await else {
-            return Vec::new();
-        };
-        let Ok(file) = NativeFile::resolve(
-            self,
-            &row.media_uri,
-            row.access.source_path.as_deref(),
-            row.metadata.source_format.as_deref(),
-            row.access.cue_path.is_some(),
-            original,
-        ) else {
-            return Vec::new();
-        };
-        file.lyrics_storage()
-    }
-
-    pub async fn lyrics_writable(
-        self: &Arc<Self>,
-        database: &Database,
-        uri: &str,
-        sidecar: bool,
-    ) -> bool {
-        self.lyrics_storage(database, uri)
-            .await
-            .into_iter()
-            .any(|storage| {
-                storage == crate::LyricsStorage::Server
-                    || storage
-                        == if sidecar {
-                            crate::LyricsStorage::Sidecar
-                        } else {
-                            crate::LyricsStorage::Embedded
-                        }
-            })
-    }
-
-    pub async fn write_lyrics(
-        self: &Arc<Self>,
-        database: &Database,
-        uri: &str,
-        lyrics: &str,
-        sidecar: bool,
-    ) -> Result<(), Error> {
-        self.catalog_operation(database, async |catalog| {
-            let row = database
-                .track(&(uri), &ReadCancellation::new())
-                .await
-                .map_err(failure)?
-                .ok_or(Error::Unavailable)?;
-            if row.access.cue_path.is_some() {
-                return Err(Error::Unavailable);
-            }
-            if let Implementation::JellyfinEmby(provider) = &self.implementation
-                && provider.kind == crate::ServerKind::Jellyfin
-            {
-                if self.is_retired() {
-                    return Err(crate::SourceError::Cancelled.into());
-                }
-                provider
-                    .write_lyrics(row.object_id.as_deref().ok_or(Error::Unavailable)?, lyrics)
-                    .await
-                    .map_err(failure)?;
-            } else {
-                let file = NativeFile::resolve(
-                    self,
-                    &row.media_uri,
-                    row.access.source_path.as_deref(),
-                    row.metadata.source_format.as_deref(),
-                    row.access.cue_path.is_some(),
-                    database.original_file(uri).await.map_err(failure)?,
-                )?;
-                if let Some(committed) = file
-                    .save_lyrics(lyrics, sidecar, || self.is_retired())
-                    .await?
-                {
-                    committed.preserve_fingerprint(database).await?;
-                    if matches!(
-                        self.implementation,
-                        Implementation::Local(_) | Implementation::Files(_)
-                    ) {
-                        committed.write_catalog(self, catalog).await?;
-                        return Ok(());
-                    }
-                }
-            }
-            if self.is_retired() {
-                return Err(Error::SavedRefreshFailed(
-                    crate::SourceError::Cancelled.to_string(),
-                ));
-            }
-            if matches!(
-                self.implementation,
-                Implementation::Local(_) | Implementation::Files(_)
-            ) {
-                let input = self
-                    .file_source(row.access.source_path.as_deref())
-                    .map_or([0; 32], |source| source.lyrics_input());
-                let mut bundle = self.read_lyrics(database, uri).await.map_err(failure)?;
-                super::cache_native_lyrics(database, uri, input, &mut bundle)
-                    .await
-                    .map_err(failure)?;
-            } else {
-                database
-                    .remove_track_lyrics_by_authority(uri, "source")
-                    .await
-                    .map_err(|error| Error::SavedRefreshFailed(error.to_string()))?;
-            }
-            Ok(())
         })
         .await
     }
@@ -1614,9 +1378,6 @@ impl NativeFile {
                 .write_direct_track_metadata(&self.media_uri, &track.track.metadata)
                 .await
                 .map_err(failure)?;
-            super::cache_native_lyrics(database, &self.media_uri, [0; 32], &mut track.lyrics)
-                .await
-                .map_err(failure)?;
         }
         Ok(())
     }
@@ -1647,84 +1408,6 @@ impl NativeFile {
                     .map_err(failure)?
             }
         })
-    }
-
-    pub(crate) async fn write_sidecar(&self, text: &str) -> Result<(), Error> {
-        match &self.location {
-            FileLocation::Native(audio) => {
-                let audio = audio.clone();
-                let text = text.to_owned();
-                tokio::task::spawn_blocking(move || {
-                    write_native_bytes(&audio.with_extension("lrc"), text.as_bytes(), &audio)
-                })
-                .await
-                .map_err(failure)?
-            }
-            FileLocation::Document { root, relative, .. } => {
-                let root = root.clone();
-                let relative = relative.clone();
-                let text = text.to_owned();
-                tokio::task::spawn_blocking(move || {
-                    let parent = relative.rsplit_once('/').map_or("", |(parent, _)| parent);
-                    let directory = crate::file::documents::find_document(
-                        &root,
-                        &parent
-                            .split('/')
-                            .filter(|part| !part.is_empty())
-                            .map(str::to_owned)
-                            .collect::<Vec<_>>(),
-                    )
-                    .map_err(failure)?
-                    .ok_or(Error::Unavailable)?;
-                    let name = crate::file::remote::metadata::sidecar_path(
-                        relative.rsplit('/').next().unwrap_or(&relative),
-                    );
-                    let current =
-                        crate::file::documents::find_document_child(&directory.uri, &name)
-                            .map_err(failure)?;
-                    let file = tempfile::NamedTempFile::new().map_err(failure)?;
-                    std::fs::write(file.path(), text).map_err(failure)?;
-                    if let Some(current) = current {
-                        crate::save_document(&current.uri, file.path(), current.revision.as_deref())
-                            .map_err(failure)
-                    } else {
-                        crate::file::documents::create_document(
-                            &directory.uri,
-                            &name,
-                            "text/plain",
-                            file.path(),
-                        )
-                        .map(|_| ())
-                        .map_err(failure)
-                    }
-                })
-                .await
-                .map_err(failure)?
-            }
-            FileLocation::Remote { source, path } => {
-                let files = source.file_source(Some(path)).ok_or(Error::Unavailable)?;
-                let relative = files.relative(path).map_err(failure)?;
-                let relative = crate::file::remote::metadata::sidecar_path(
-                    crate::file::documents::relative_parts(&relative).0,
-                );
-                let input = files.input().await.map_err(failure)?;
-                let previous = match files.stat(&input, &relative).await {
-                    Ok(file) => Some(file.revision),
-                    Err(crate::SourceError::NotFound) => None,
-                    Err(error) => return Err(failure(error)),
-                };
-                let file = tempfile::NamedTempFile::new().map_err(failure)?;
-                tokio::fs::write(file.path(), text).await.map_err(failure)?;
-                files
-                    .commit_file(
-                        &relative,
-                        file.path(),
-                        previous.as_ref().and_then(|value| value.as_deref()),
-                        previous.is_some(),
-                    )
-                    .await
-            }
-        }
     }
 
     async fn write_folder_artwork(

@@ -9,6 +9,5 @@ pub struct ProductReceivers {
     pub downloads: Receiver<downloads::DownloadEvent>,
     pub visualizer: Receiver<VisualizerPublication>,
     pub waveform: Receiver<WaveformProjection>,
-    pub lyrics: Receiver<crate::lyrics::LyricsEvent>,
     pub release_updates: Receiver<ReleaseUpdate>,
 }

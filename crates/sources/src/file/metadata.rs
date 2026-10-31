@@ -48,7 +48,6 @@ pub(crate) type MetadataImageCache = Option<(
 pub(crate) enum TagUpdate {
     Metadata(Vec<(crate::MetadataEdit, String)>),
     Rating(Option<u8>),
-    Lyrics(String),
     R128 {
         track: Option<f64>,
         album: Option<f64>,
@@ -65,20 +64,7 @@ pub(crate) fn edit_copy(
         .and_then(MetadataWriter::for_source_format)
         .or_else(|| MetadataWriter::for_path(path))
         .ok_or(SourceMetadataError::Unavailable)?;
-    let tag_type = if matches!(update, TagUpdate::Lyrics(_)) {
-        if !lyrics_writer_supported(Some(writer)) {
-            return Err(SourceMetadataError::Unavailable);
-        }
-        Some(
-            writer
-                .lyrics_target()
-                .ok_or(SourceMetadataError::Unavailable)?
-                .0,
-        )
-    } else {
-        None
-    };
-    edit_tag(path, writer, tag_type, |tag, writer| {
+    edit_tag(path, writer, |tag, writer| {
         match update {
             TagUpdate::Metadata(edits) => {
                 for (edit, artist) in edits {
@@ -100,12 +86,6 @@ pub(crate) fn edit_copy(
                         Popularimeter::musicbee(stars, 0).to_string(),
                     );
                 }
-            }
-            TagUpdate::Lyrics(lyrics) => {
-                let (_, key) = writer
-                    .lyrics_target()
-                    .ok_or(SourceMetadataError::Unavailable)?;
-                set_embedded_lyrics(tag, key, lyrics);
             }
             TagUpdate::R128 { track, album } => {
                 for (value, key) in [
@@ -261,40 +241,6 @@ fn apply_artist_edit(tag: &mut Tag, previous_name: &str, changes: &crate::Metada
             );
         }
     }
-}
-
-pub fn read_embedded_lyrics(path: &Path) -> Result<Option<String>, SourceMetadataError> {
-    read_embedded_lyrics_input(fs::File::open(path).map_err(write_error)?)
-}
-
-pub(crate) fn read_embedded_lyrics_input(
-    file: impl std::io::Read + std::io::Seek,
-) -> Result<Option<String>, SourceMetadataError> {
-    let tagged = super::lofty::read_lofty_file(
-        file,
-        ::lofty::config::ParseOptions::new()
-            .read_cover_art(false)
-            .read_properties(false),
-    )
-    .map_err(write_error)?
-    .ok_or(SourceMetadataError::Unavailable)?;
-    Ok(embedded_lyrics(&tagged))
-}
-
-pub(crate) fn embedded_lyrics(tagged: &::lofty::file::TaggedFile) -> Option<String> {
-    tagged.tags().iter().find_map(|tag| {
-        [ItemKey::UnsyncLyrics, ItemKey::Lyrics]
-            .into_iter()
-            .find_map(|key| tag.get_string(key))
-            .map(ToString::to_string)
-            .filter(|lyrics| !lyrics.trim().is_empty())
-    })
-}
-
-fn set_embedded_lyrics(tag: &mut Tag, key: ItemKey, lyrics: &str) {
-    tag.remove_key(ItemKey::UnsyncLyrics);
-    tag.remove_key(ItemKey::Lyrics);
-    tag.insert_text(key, lyrics.to_string());
 }
 
 fn r128_gain_text(integrated_lufs: f64) -> String {
@@ -500,22 +446,12 @@ pub(crate) fn folder_artwork_filename(
 fn edit_tag(
     path: &Path,
     writer: MetadataWriter,
-    tag_type: Option<::lofty::tag::TagType>,
     mutate: impl FnOnce(&mut Tag, MetadataWriter) -> Result<(), SourceMetadataError>,
 ) -> Result<(), SourceMetadataError> {
     let tagged = read_lofty_for_edit(path, writer.file_type())
         .map_err(write_error)?
         .ok_or(SourceMetadataError::Unavailable)?;
-    let mut tag = tag_type
-        .map(|tag_type| {
-            tagged
-                .tags()
-                .iter()
-                .find(|tag| tag.tag_type() == tag_type)
-                .cloned()
-                .unwrap_or_else(|| Tag::new(tag_type))
-        })
-        .unwrap_or_else(|| writable_tag(&tagged));
+    let mut tag = writable_tag(&tagged);
     mutate(&mut tag, writer)?;
     if tag.tag_type() == ::lofty::tag::TagType::Id3v2
         && matches!(
@@ -1064,186 +1000,6 @@ mod tests {
         assert!(
             crate::source::metadata::NativeFile::direct("https://example.com/song.wav").is_err()
         );
-    }
-
-    #[test]
-    fn embedded_lyrics_replace_id3_values_and_refuse_unsafe_wav_writes() {
-        let directory = tempfile::tempdir().expect("metadata directory");
-        let path = directory.path().join("track.wav");
-        fs::write(&path, silent_wav()).expect("write WAV");
-        edit_copy(
-            &path,
-            Some("wav"),
-            &TagUpdate::Metadata(vec![(
-                (track_edit(&[("title", "Track title")])).clone(),
-                String::new(),
-            )]),
-            &mut None,
-        )
-        .expect("seed metadata");
-
-        assert_eq!(
-            edit_copy(
-                &path,
-                Some("wav"),
-                &TagUpdate::Lyrics("[00:01.000]A line".into()),
-                &mut None
-            ),
-            Err(SourceMetadataError::Unavailable)
-        );
-        assert!(!super::embedded_lyrics_writable(&path));
-        assert_eq!(
-            super::read_track_metadata(&path, Some("wav"))
-                .expect("read metadata")
-                .fields
-                .into_iter()
-                .find(|field| field.key == "title")
-                .unwrap()
-                .value,
-            "Track title"
-        );
-
-        let mut id3 = Tag::new(::lofty::tag::TagType::Id3v2);
-        set_embedded_lyrics(&mut id3, ItemKey::UnsyncLyrics, "first");
-        set_embedded_lyrics(&mut id3, ItemKey::UnsyncLyrics, "updated");
-        assert_eq!(id3.get_string(ItemKey::UnsyncLyrics), Some("updated"));
-        let mut tag = Vec::new();
-        id3.dump_to(&mut tag, WriteOptions::default()).unwrap();
-        let mut audio = silent_wav();
-        audio.extend_from_slice(b"id3 ");
-        audio.extend_from_slice(&(tag.len() as u32).to_le_bytes());
-        audio.extend_from_slice(&tag);
-        if tag.len() % 2 != 0 {
-            audio.push(0);
-        }
-        let size = (audio.len() - 8) as u32;
-        audio[4..8].copy_from_slice(&size.to_le_bytes());
-        fs::write(&path, audio).unwrap();
-        let crate::file::media::MediaRead::Accepted(scanned) =
-            crate::file::local::media::read_media(
-                &mut crate::file::media::Worker::default(),
-                path,
-                None,
-            )
-        else {
-            panic!("tagged WAV was not read");
-        };
-        let bundle = lyrics::LyricsBundle::from_cache_payload(
-            scanned
-                .into_observation(0)
-                .source_lyrics
-                .as_deref()
-                .unwrap(),
-        )
-        .unwrap();
-        assert_eq!(
-            lyrics::lyrics_to_lrc_text(&bundle.documents()[0], 0),
-            "updated"
-        );
-    }
-
-    #[tokio::test]
-    async fn sidecar_lyrics_replace_the_neighbor_without_changing_audio() {
-        use std::sync::{Arc, atomic::AtomicBool};
-        let directory = tempfile::tempdir().unwrap();
-        let root = directory.path().canonicalize().unwrap();
-        let path = root.join("track.wav");
-        let audio = silent_wav();
-        fs::write(&path, &audio).unwrap();
-        let uri = url::Url::from_file_path(&path).unwrap();
-        let file = crate::source::metadata::NativeFile::direct(uri.as_str()).unwrap();
-        file.write_sidecar("[00:01.000]First").await.unwrap();
-        file.write_sidecar("[00:02.000]Updated").await.unwrap();
-        assert_eq!(
-            fs::read_to_string(path.with_extension("lrc")).unwrap(),
-            "[00:02.000]Updated"
-        );
-        assert_eq!(fs::read(&path).unwrap(), audio);
-        let database = library::Database::open(root.join("lyrics.sqlite"))
-            .await
-            .unwrap();
-        let (configuration, source, _) = crate::Source::connect(
-            crate::SourceId::new("lyrics-scan"),
-            crate::SourceSetup::Local {
-                roots: vec![root.clone()],
-            },
-            "",
-        )
-        .await
-        .unwrap()
-        .into_parts();
-        let source = Arc::new(source);
-        database
-            .reconcile_source(
-                &configuration.source_id,
-                &configuration.kind,
-                &configuration.name,
-            )
-            .await
-            .unwrap();
-        source
-            .acquire_catalog(&database, &|_| {}, Arc::new(AtomicBool::new(false)), true)
-            .await
-            .unwrap();
-        let cancellation = library::ReadCancellation::new();
-        let result = database
-            .search_tracks_by_lyrics(&library::SearchRequest::new("updated"), &cancellation)
-            .await
-            .unwrap();
-        assert_eq!(
-            result.tracks.len(),
-            1,
-            "sidecars are searchable after scanning"
-        );
-        source
-            .write_lyrics(&database, uri.as_str(), "[00:02.000]Replacement", true)
-            .await
-            .unwrap();
-        assert_eq!(
-            database
-                .search_tracks_by_lyrics(&library::SearchRequest::new("replacement"), &cancellation)
-                .await
-                .unwrap()
-                .tracks
-                .len(),
-            1
-        );
-        assert!(
-            database
-                .search_tracks_by_lyrics(&library::SearchRequest::new("updated"), &cancellation)
-                .await
-                .unwrap()
-                .tracks
-                .is_empty()
-        );
-        fs::remove_file(path.with_extension("lrc")).unwrap();
-        source
-            .acquire_catalog(&database, &|_| {}, Arc::new(AtomicBool::new(false)), true)
-            .await
-            .unwrap();
-        assert!(
-            database
-                .search_tracks_by_lyrics(&library::SearchRequest::new("replacement"), &cancellation)
-                .await
-                .unwrap()
-                .tracks
-                .is_empty()
-        );
-        fs::write(path.with_extension("lrc"), "[00:03.000]Returned").unwrap();
-        source
-            .acquire_catalog(&database, &|_| {}, Arc::new(AtomicBool::new(false)), true)
-            .await
-            .unwrap();
-        assert_eq!(
-            database
-                .search_tracks_by_lyrics(&library::SearchRequest::new("returned"), &cancellation)
-                .await
-                .unwrap()
-                .tracks
-                .len(),
-            1
-        );
-        assert_eq!(fs::read(&path).unwrap(), audio);
     }
 
     #[tokio::test]
@@ -2199,23 +1955,6 @@ mod tests {
         bytes.resize(44 + data_len as usize, 0);
         bytes
     }
-}
-
-pub(crate) fn embedded_lyrics_writable(path: &Path) -> bool {
-    lyrics_writer_supported(super::lofty::MetadataWriter::for_path(path))
-}
-
-pub(crate) fn embedded_lyrics_format_writable(format: &str) -> bool {
-    lyrics_writer_supported(super::lofty::MetadataWriter::for_source_format(format))
-}
-
-fn lyrics_writer_supported(writer: Option<super::lofty::MetadataWriter>) -> bool {
-    writer.is_some_and(|writer| {
-        !matches!(
-            writer.file_type(),
-            ::lofty::file::FileType::Wav | ::lofty::file::FileType::Aiff
-        ) && writer.lyrics_target().is_some()
-    })
 }
 
 #[cfg(test)]

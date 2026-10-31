@@ -278,7 +278,7 @@ pub(crate) async fn recover_columns(input: &Path, destination: &Path) -> Library
             sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP TRIGGER \"{trigger}\"")))
                 .execute(&mut *transaction).await?;
         }
-        let tables: Vec<String> = sqlx::query_scalar("SELECT name FROM main.sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT GLOB 'lyrics_fts*' AND name NOT IN ('folder_children','collection_album_index','collection_totals','playlist_genres','lyrics_documents')")
+        let tables: Vec<String> = sqlx::query_scalar("SELECT name FROM main.sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('folder_children','collection_album_index','collection_totals','playlist_genres')")
             .fetch_all(&mut *transaction).await?;
         let mut copied = 0;
         for table in tables {
@@ -294,7 +294,6 @@ pub(crate) async fn recover_columns(input: &Path, destination: &Path) -> Library
             return Err(LibraryError::Migration("no compatible Store tables were found".into()));
         }
         sqlx::raw_sql(crate::schema::STORE_SCHEMA).execute(&mut *transaction).await?;
-        crate::lyrics_search::initialize(&mut transaction, true).await?;
         crate::connect::initialize(&mut transaction).await?;
         crate::catalog::index::initialize(&mut transaction).await?;
         if sqlx::query("PRAGMA foreign_key_check").fetch_optional(&mut *transaction).await?.is_some() {
@@ -444,8 +443,6 @@ pub(super) async fn copy_catalog(
         }
     }
     if released {
-        sqlx::query(sqlx::AssertSqlSafe(format!("INSERT INTO lyrics_cache(media_uri,authority,role,language,script,cache_input_digest,lyrics,updated_at) SELECT track.media_uri,lyrics.authority,lyrics.role,lyrics.language,lyrics.script,lyrics.cache_input_digest,lyrics.lyrics,lyrics.updated_at FROM {schema}.lyrics_cache lyrics JOIN tracks track USING(track_key)")))
-            .execute(&mut *connection).await?;
         copy_table(
             connection,
             schema,
@@ -455,7 +452,6 @@ pub(super) async fn copy_catalog(
         )
         .await?;
     } else {
-        copy_table(connection, schema, "lyrics_cache", "lyrics_cache", &[]).await?;
         copy_table(
             connection,
             schema,

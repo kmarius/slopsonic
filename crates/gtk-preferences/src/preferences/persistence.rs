@@ -1,5 +1,4 @@
 use crate::Preferences;
-use adw::prelude::*;
 use rufin_core::runtime::ScrobblingPreferences;
 use rufin_core::settings::HomeBlockKind;
 use secrets::SecretStorageMode;
@@ -28,17 +27,6 @@ impl Preferences {
         (self.effects)(crate::Effect::PrivateModeChanged);
         (self.effects)(crate::Effect::CatalogChanged);
         (self.effects)(crate::Effect::MediaControlsChanged);
-        let search_dialog = self.player_ui.selected_lyrics().and_then(|lyrics| {
-            lyrics
-                .search_dialog
-                .borrow()
-                .as_ref()
-                .map(|dialog| dialog.dialog.clone())
-        });
-        if let Some(dialog) = search_dialog {
-            dialog.close();
-        }
-        self.player_ui.render_lyrics_panel();
     }
 
     pub(super) async fn set_secret_storage_mode(self: &Rc<Self>, mode: SecretStorageMode) -> bool {

@@ -432,18 +432,13 @@
   <object class="GtkToggleButton" id="focus_button">
     <property name="focus-on-click">false</property>
     <property name="icon-name">rufin-view-fullscreen-corners-symbolic</property>
-    <property name="tooltip-text" translatable="yes">Expand lyrics and visualizer</property>
+    <property name="tooltip-text" translatable="yes">Expand visualizer</property>
     <style>
       <class name="icon-button" />
       <class name="flat" />
       <class name="circular" />
       <class name="fullscreen-focus-button" />
     </style>
-  </object>
-  <object class="GtkBox" id="lyrics_host">
-    <property name="orientation">vertical</property>
-    <property name="hexpand">true</property>
-    <property name="vexpand">true</property>
   </object>
   <object class="GtkBox" id="visualizer_panel">
     <property name="orientation">vertical</property>
@@ -467,6 +462,6 @@
       <class name="fullscreen-player-equalizer-scroller" />
     </style>
   </object>
-  <object class="GtkLabel" id="focus_expand_label"><property name="label" translatable="yes">Expand lyrics and visualizer</property></object>
+  <object class="GtkLabel" id="focus_expand_label"><property name="label" translatable="yes">Expand visualizer</property></object>
   <object class="GtkLabel" id="focus_restore_label"><property name="label" translatable="yes">Restore player layout</property></object>
 </interface>

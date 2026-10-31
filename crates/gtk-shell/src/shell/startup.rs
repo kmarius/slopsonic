@@ -47,7 +47,6 @@ impl Shell {
             return;
         }
         self.render_current_route();
-        self.player_ui.render_lyrics_panel();
         self.player_ui.update_bottom_player();
     }
 }

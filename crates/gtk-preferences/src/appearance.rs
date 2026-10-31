@@ -197,47 +197,7 @@ fn appearance_override_css(settings: &Settings, themes: &[Theme]) -> String {
     {
         append_accent(&mut css, color, "#ffffff");
     }
-    let lyrics = &settings.lyrics;
-    if let Some(color) = lyrics.preferences.lyrics_highlight_color.as_deref() {
-        css.push_str("  --lyrics-highlight-color: ");
-        css.push_str(color);
-        css.push_str(";\n");
-    }
     css.push_str("}\n");
-    for (scope, family, size) in [
-        (
-            ".lyrics-sidebar",
-            &lyrics.preferences.lyrics_font_family,
-            lyrics.preferences.lyrics_font_size,
-        ),
-        (
-            ".lyrics-fullscreen",
-            &lyrics.preferences.fullscreen_lyrics_font_family,
-            lyrics.preferences.fullscreen_lyrics_font_size,
-        ),
-    ] {
-        let selectors = [
-            ".lyrics-line",
-            ".lyrics-instrumental",
-            ".lyrics-furigana",
-            ".lyrics-romanization",
-            ".lyrics-reading-surface",
-            ".lyrics-cue",
-        ]
-        .map(|class| format!("{scope} {class}"))
-        .join(", ");
-        if let Some(family) = family.as_deref() {
-            css.push_str(&selectors);
-            css.push_str(" { font-family: '");
-            css.push_str(&family.replace('\\', "\\\\").replace('\'', "\\'"));
-            css.push_str("', sans-serif; }\n");
-        }
-        if let Some(size) = size {
-            css.push_str(&format!(
-                "{scope} .lyrics-line, {scope} .lyrics-instrumental {{ font-size: {size}px; }}\n"
-            ));
-        }
-    }
     css
 }
 
@@ -274,9 +234,8 @@ mod tests {
     }
 
     #[test]
-    fn system_appearance_only_overrides_lyrics_tokens() {
+    fn system_appearance_overrides_no_tokens() {
         let css = css(ThemePreference::System, AccentPreference::System);
-        assert!(!css.contains("--lyrics-highlight-color"));
         assert!(!css.contains("--window-bg-color"));
         assert!(!css.contains("--accent-bg-color"));
     }

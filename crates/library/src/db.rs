@@ -384,7 +384,6 @@ impl Database {
                 .await?;
             }
             for query in [
-                "DELETE FROM lyrics_cache WHERE substr(media_uri,1,length(?1))=?1 OR media_uri IN (SELECT media_uri FROM tracks WHERE source_key=?2)",
                 "DELETE FROM native_media_state WHERE substr(media_uri,1,length(?1))=?1 OR media_uri IN (SELECT media_uri FROM tracks WHERE source_key=?2)",
                 "DELETE FROM favorite_outbox WHERE substr(media_uri,1,length(?1))=?1 OR media_uri IN (SELECT media_uri FROM tracks WHERE source_key=?2)",
             ] {
@@ -584,9 +583,6 @@ async fn open_readers(
         .test_before_acquire(true)
         .after_connect(move |connection, _| {
             Box::pin(async move {
-                crate::lyrics_tokenizer::register(connection)
-                    .await
-                    .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
                 sqlx::query("PRAGMA query_only=ON")
                     .execute(connection)
                     .await?;

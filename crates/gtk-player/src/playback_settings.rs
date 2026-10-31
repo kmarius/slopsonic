@@ -21,20 +21,20 @@ const PLAYBACK_SETTINGS_SCALE_WIDTH: i32 = 180;
 pub fn configure_playback_settings_popover(
     button: &gtk::MenuButton,
     shell: &Rc<PlayerUi>,
-    set_media_visibility: Rc<dyn Fn(bool, bool)>,
+    set_visualizer_visible: Rc<dyn Fn(bool)>,
 ) {
     let shell = Rc::clone(shell);
     button.set_create_popup_func(move |button| {
         button.set_popover(Some(&playback_settings_popover(
             &shell,
-            Rc::clone(&set_media_visibility),
+            Rc::clone(&set_visualizer_visible),
         )));
     });
 }
 
 fn playback_settings_popover(
     shell: &Rc<PlayerUi>,
-    set_media_visibility: Rc<dyn Fn(bool, bool)>,
+    set_visualizer_visible: Rc<dyn Fn(bool)>,
 ) -> gtk::Popover {
     let settings = shell.settings.current.borrow().clone();
     let playback = settings.playback;
@@ -46,9 +46,7 @@ fn playback_settings_popover(
         popover: gtk::Popover,
         settings_group: adw::PreferencesGroup,
         queue: adw::SwitchRow,
-        lyrics: adw::SwitchRow,
         visualizer: adw::SwitchRow,
-        combine: adw::SwitchRow,
         audio_output: adw::ActionRow,
         waveform_row: adw::SwitchRow,
     });
@@ -105,31 +103,10 @@ fn playback_settings_popover(
     });
     settings_group.add(&queue);
 
-    lyrics.set_active(settings.lyrics_panel_visible);
-    let lyrics_shell = Rc::clone(shell);
-    let lyrics_visibility = Rc::clone(&set_media_visibility);
-    lyrics.connect_active_notify(move |row| {
-        lyrics_visibility(
-            row.is_active(),
-            lyrics_shell.right_panel.visualizer_visible.get(),
-        );
-    });
-    settings_group.add(&lyrics);
     visualizer.set_active(settings.visualizer_panel_visible);
     visualizer.set_sensitive(local_output);
-    let visualizer_shell = Rc::clone(shell);
-    visualizer.connect_active_notify(move |row| {
-        set_media_visibility(visualizer_shell.lyrics.panel_visible.get(), row.is_active());
-    });
+    visualizer.connect_active_notify(move |row| set_visualizer_visible(row.is_active()));
     settings_group.add(&visualizer);
-    combine.set_active(settings.right_panel.combined);
-    let weak = Rc::downgrade(shell);
-    combine.connect_active_notify(move |row| {
-        if let Some(shell) = weak.upgrade() {
-            shell.set_right_panel_combined(row.is_active());
-        }
-    });
-    settings_group.add(&combine);
     popover
 }
 

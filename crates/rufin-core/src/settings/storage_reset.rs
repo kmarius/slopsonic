@@ -123,7 +123,6 @@ impl StorageResetRequest {
             }
             StoredSettings::default()
         };
-        ::lyrics::release_japanese_reader();
         for root in roots {
             clear_directory(&root, &keep)?;
         }

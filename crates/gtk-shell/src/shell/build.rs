@@ -1,6 +1,6 @@
 use gtk_player::outputs::{default_audio_output_options, warm_audio_output_cache};
 use gtk_player::right_panel::build_right_panel;
-use gtk_player::right_panel::{apply_sidebar_media_visibility, connect_sidebar_controls};
+use gtk_player::right_panel::{apply_sidebar_visualizer_visibility, connect_sidebar_controls};
 use gtk_player::{
     PlayerDesktopWidgets,
     bottom::{BOTTOM_PLAYER_HEIGHT, build_bottom_player},
@@ -26,7 +26,6 @@ use crate::preferences::dialogs::release_notes::{
     check_for_release_update, schedule_periodic_release_checks,
 };
 use crate::preferences::source::SourceState;
-use gtk_player::lyrics::state::LyricsState;
 use gtk_player::state::PlaybackState;
 use gtk_preferences::preferences::PreferencesState;
 use gtk_widgets::settings::SettingsState;
@@ -187,10 +186,6 @@ pub async fn build(
         audio_output_refreshed_at: Cell::new(None),
         remote_output_options: RefCell::new(Vec::new()),
     };
-    let lyrics_state = LyricsState {
-        panel_visible: Cell::new(settings.lyrics_panel_visible),
-        dictionary_toast: RefCell::new(None),
-    };
     let preferences = PreferencesState {
         source_choice: RefCell::new(None),
         connect_dialog: gtk::glib::WeakRef::new(),
@@ -344,14 +339,11 @@ pub async fn build(
 
         let player_ui = Rc::new(gtk_player::PlayerUi::new(
             playback_state,
-            lyrics_state,
             player_view,
             player_right_panel,
             Rc::clone(&settings_state),
             products.playback.clone(),
-            products.lyrics.clone(),
             &chrome.window,
-            &chrome.toast_overlay,
             &right_panel.right_panel_slot,
             Rc::clone(&artwork),
             Rc::clone(&control_feedback),
@@ -466,7 +458,6 @@ pub async fn build(
             quitting,
             storage_reset,
             diagnostics,
-            appearance,
             settings: Rc::clone(&settings_state),
             navigation,
             source,
@@ -552,7 +543,6 @@ pub async fn build(
     connect_transient_entry_focus_dismissal(&shell);
     connect_fullscreen_player_controls(&shell.player_ui);
     connect_player_controls(&shell);
-    shell.attach_selected_ui_roots();
     warm_audio_output_cache(&shell.player_ui);
     shell.update_layout();
     if defer_initial_route {
@@ -560,11 +550,9 @@ pub async fn build(
     } else {
         shell.render_current_route();
     }
-    shell.player_ui.render_lyrics_panel();
     shell.player_ui.update_bottom_player();
     shell.player_ui.update_right_panel_button();
-    apply_sidebar_media_visibility(Rc::clone(&shell.player_ui));
-    shell.player_ui.request_initial_lyrics_if_needed();
+    apply_sidebar_visualizer_visibility(Rc::clone(&shell.player_ui));
     install_product_event_receivers(&shell, receivers);
     let weak_shell = Rc::downgrade(&shell);
     #[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
@@ -687,14 +675,6 @@ pub(crate) fn connect_transient_entry_focus_dismissal(shell: &Shell) {
         &shell.chrome.window,
         vec![
             shell.player_ui.right_panel.queue_search.clone().upcast(),
-            shell.player_ui.right_panel.lyrics_host.clone().upcast(),
-            shell
-                .player_ui
-                .views
-                .fullscreen_player
-                .lyrics_host
-                .clone()
-                .upcast(),
         ],
     );
 }

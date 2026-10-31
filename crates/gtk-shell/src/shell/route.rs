@@ -171,7 +171,6 @@ impl RouteStack {
 impl Shell {
     pub(super) fn route_uses_selected_source(&self, route: &Route) -> bool {
         route.uses_selected_source()
-            && (route != &Route::Search || self.search_session.mode() == library::SearchMode::Title)
     }
 
     fn route_seed_window(&self, route: &Route) -> library::RouteSeedWindow {

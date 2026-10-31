@@ -95,8 +95,6 @@ macro_rules! visualizer_preference_fields {
             shadow_fit: bool = true => set_visualizer_shadow_fit;
             spacing: f64 = 1.0 => set_visualizer_spacing;
             opacity: f64 = 1.0 => set_visualizer_opacity;
-            sidebar_lyrics_opacity: f64 = 0.48 => set_visualizer_sidebar_lyrics_opacity;
-            fullscreen_lyrics_opacity: f64 = 0.25 => set_visualizer_fullscreen_lyrics_opacity;
             rise: f64 = 0.72 => set_visualizer_rise;
             fall: f64 = 0.16 => set_visualizer_fall;
             peaks: bool = false => set_visualizer_peaks;
@@ -251,8 +249,6 @@ impl VisualizerPreset {
             && [
                 appearance.opacity,
                 appearance.shadow_opacity,
-                appearance.sidebar_lyrics_opacity,
-                appearance.fullscreen_lyrics_opacity,
             ]
             .into_iter()
             .all(|value| (0.0..=1.0).contains(&value))
@@ -345,8 +341,6 @@ fn default_preset(slot: usize) -> VisualizerAppearance {
             style: VisualizerStyle::Filled,
             bar_count: 96,
             opacity: 0.8,
-            sidebar_lyrics_opacity: 0.3,
-            fullscreen_lyrics_opacity: 0.18,
             rise: 0.4,
             fall: 0.08,
             ..Default::default()

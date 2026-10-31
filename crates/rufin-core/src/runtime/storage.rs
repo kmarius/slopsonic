@@ -9,8 +9,6 @@ pub enum CacheKind {
     Fingerprints,
     MetadataLookups,
     Artwork,
-    Lyrics,
-    JapaneseDictionary,
 }
 
 #[cfg_attr(feature = "bindings", derive(uniffi::Record))]
@@ -46,8 +44,6 @@ impl ProductHandles {
             CacheKind::Fingerprints,
             CacheKind::MetadataLookups,
             CacheKind::Artwork,
-            CacheKind::Lyrics,
-            CacheKind::JapaneseDictionary,
         ] {
             let usage = match self.cache_usage(kind).await {
                 Ok(usage) => {
@@ -100,16 +96,10 @@ impl ProductHandles {
                 .fingerprint_cache_usage()
                 .await
                 .map_err(|error| error.to_string()),
-            CacheKind::JapaneseDictionary => self.lyrics.dictionary_cache_usage().await,
             CacheKind::Waveforms => self.playback.waveform_cache_usage().await,
             CacheKind::Loudness => self
                 .library
                 .loudness_cache_usage()
-                .await
-                .map_err(|error| error.to_string()),
-            CacheKind::Lyrics => self
-                .library
-                .lyrics_cache_usage()
                 .await
                 .map_err(|error| error.to_string()),
             CacheKind::Artwork => self
@@ -132,7 +122,6 @@ impl ProductHandles {
                 .clear_fingerprint_cache()
                 .await
                 .map_err(|error| error.to_string()),
-            CacheKind::JapaneseDictionary => self.lyrics.clear_dictionary_cache().await,
             CacheKind::Waveforms => self.playback.clear_waveform_cache().await,
             CacheKind::Loudness => self
                 .library
@@ -142,11 +131,6 @@ impl ProductHandles {
             CacheKind::Artwork => self
                 .downloads
                 .clear_artwork_cache()
-                .await
-                .map_err(|error| error.to_string()),
-            CacheKind::Lyrics => self
-                .downloads
-                .clear_lyrics_cache()
                 .await
                 .map_err(|error| error.to_string()),
         }

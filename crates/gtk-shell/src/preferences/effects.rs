@@ -22,7 +22,6 @@ impl Shell {
             Effect::KeepRunningAfterClose(enabled) => self.set_keep_running_after_close(enabled),
             #[cfg(not(target_os = "macos"))]
             Effect::StartMinimized(enabled) => self.set_start_minimized_enabled(enabled),
-            Effect::LyricsPanelVisible(enabled) => self.set_lyrics_panel_visible(enabled),
             Effect::VisualizerPanelVisible(enabled) => self.set_visualizer_panel_visible(enabled),
             Effect::Quit(reason) => self.request_quit(reason),
             Effect::ResetStorage(request) => {

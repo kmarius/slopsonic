@@ -1388,7 +1388,6 @@ async fn schema_40_store_migrates_into_current_schema() {
         "artists",
         "genres",
         "home_entries",
-        "lyrics_cache",
         "loudness_measurements",
     ] {
         assert_eq!(

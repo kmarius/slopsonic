@@ -43,13 +43,6 @@ fn same_location(left: &LocalMediaLocation, right: &LocalMediaLocation) -> bool 
 }
 
 pub trait PeerMedia: Send + Sync {
-    fn assets<'a>(
-        &'a self,
-        _uri: &'a str,
-    ) -> Pin<Box<dyn Future<Output = SourceResult<Option<library::LyricsCacheRow>>> + Send + 'a>>
-    {
-        Box::pin(async { Ok(None) })
-    }
     fn open<'a>(
         &'a self,
         uri: &'a str,
@@ -66,38 +59,6 @@ pub struct PeerAccess {
 }
 
 impl PeerAccess {
-    pub async fn cache_assets(
-        &self,
-        database: &Database,
-        uri: &str,
-        input: [u8; 32],
-    ) -> SourceResult<()> {
-        let Some(row) = self.peer()?.assets(uri).await? else {
-            return Ok(());
-        };
-        if row.media_uri != uri || row.authority != "source" {
-            return Err(SourceError::InvalidRequest(
-                "Transferred lyrics do not match this track",
-            ));
-        }
-        let bundle = lyrics::LyricsBundle::from_cache_payload(&row.lyrics)
-            .ok_or(SourceError::InvalidRequest("Invalid transferred lyrics"))?;
-        if !matches!(
-            bundle.origin,
-            lyrics::LyricsOrigin::Native | lyrics::LyricsOrigin::Local
-        ) {
-            return Err(SourceError::InvalidRequest(
-                "Transferred lyrics are not from the source",
-            ));
-        }
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |time| time.as_secs().min(i64::MAX as u64) as i64);
-        database
-            .write_lyrics_cache(uri, "source", "original", "", "", input, &row.lyrics, now)
-            .await?;
-        Ok(())
-    }
     pub fn install(&self, peer: Option<Arc<dyn PeerMedia>>) {
         *self.peer.lock().unwrap_or_else(|p| p.into_inner()) = peer;
     }

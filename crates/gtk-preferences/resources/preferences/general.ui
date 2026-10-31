@@ -81,11 +81,6 @@
             <property name="title" translatable="yes">External metadata lookup</property>
           </object>
         </child>
-        <child>
-          <object class="AdwSwitchRow" id="external_lyrics_row">
-            <property name="title" translatable="yes">External lyrics lookup</property>
-          </object>
-        </child>
       </object>
     </child>
     <child>

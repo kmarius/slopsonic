@@ -4,8 +4,6 @@ pub mod edge_fade;
 pub mod field_layout;
 pub mod layout;
 pub mod localization;
-pub mod lyrics_editor;
-pub mod lyrics_snippet;
 pub mod route;
 pub mod settings;
 pub mod sparse_model;

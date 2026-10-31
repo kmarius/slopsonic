@@ -205,7 +205,6 @@ pub fn library_list_key(route: &Route, category: CollectionCategory) -> LibraryL
 pub struct OpenOptions {
     pub category: CollectionCategory,
     pub filter: String,
-    pub search_mode: library::SearchMode,
     pub sort: Option<LibraryField>,
     pub descending: Option<bool>,
     pub favorites_only: bool,
@@ -219,7 +218,6 @@ impl Default for OpenOptions {
         Self {
             category: CollectionCategory::Tracks,
             filter: String::new(),
-            search_mode: library::SearchMode::Title,
             sort: None,
             descending: None,
             favorites_only: false,
@@ -859,7 +857,6 @@ impl crate::source::SourceOwner {
                     self,
                     database,
                     selected,
-                    options.search_mode,
                     options.filter.clone(),
                     60,
                     cancel.clone(),

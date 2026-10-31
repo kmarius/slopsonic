@@ -440,7 +440,7 @@ async fn restart_catch_up_detects_an_in_place_file_edit() {
             .into_iter()
             .find(|file| file.kind == library::LocalFileKind::Media)
             .unwrap();
-        assert_eq!(observation.parse_version, Some(19));
+        assert_eq!(observation.parse_version, Some(20));
         assert_eq!(observation.state, library::LocalFileState::Accepted);
         database.close().await.unwrap();
     }

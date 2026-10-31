@@ -840,7 +840,6 @@ fn general_page(
         page: adw::PreferencesPage,
         prefer_distinct_track_covers_row: adw::SwitchRow,
         external_metadata_row: adw::SwitchRow,
-        external_lyrics_row: adw::SwitchRow,
         starting_page_row: adw::ComboRow,
         window_group: adw::PreferencesGroup,
         activity_overview_row: adw::ActionRow,
@@ -882,14 +881,6 @@ fn general_page(
     let metadata_shell = Rc::clone(shell);
     external_metadata_row.connect_active_notify(move |row| {
         metadata_shell.set_external_metadata_enabled(row.is_active());
-    });
-
-    external_lyrics_row.set_active(settings.lyrics.preferences.external_lyrics_enabled);
-    let weak = Rc::downgrade(shell);
-    external_lyrics_row.connect_active_notify(move |row| {
-        if let Some(shell) = weak.upgrade() {
-            shell.player_ui.set_external_lyrics_enabled(row.is_active());
-        }
     });
 
     let starting_pages = SidebarRouteItem::all();
@@ -1065,9 +1056,7 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
     let resource = crate::ui_resource::APPEARANCE_PREFERENCES_RESOURCE;
     gtk_widgets::objects!(builder, resource, {
         layout_group: adw::PreferencesGroup,
-        lyrics_panel_row: adw::SwitchRow,
         visualizer_panel_row: adw::SwitchRow,
-        combine_panels_row: adw::SwitchRow,
         bottom_bar_rating_row: adw::SwitchRow,
         narrow_row: adw::SwitchRow,
         threshold_row: adw::SpinRow,
@@ -1116,28 +1105,12 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
     );
     group.add(&default_right_row);
 
-    lyrics_panel_row.set_active(settings.lyrics_panel_visible);
-    let lyrics_panel_shell = Rc::clone(shell);
-    lyrics_panel_row.connect_active_notify(move |row| {
-        (lyrics_panel_shell.effects)(crate::Effect::LyricsPanelVisible(row.is_active()));
-    });
-    group.add(&lyrics_panel_row);
-
     visualizer_panel_row.set_active(settings.visualizer_panel_visible);
     let visualizer_panel_shell = Rc::clone(shell);
     visualizer_panel_row.connect_active_notify(move |row| {
         (visualizer_panel_shell.effects)(crate::Effect::VisualizerPanelVisible(row.is_active()));
     });
     group.add(&visualizer_panel_row);
-
-    combine_panels_row.set_active(settings.right_panel.combined);
-    let player = Rc::downgrade(&shell.player_ui);
-    combine_panels_row.connect_active_notify(move |row| {
-        if let Some(player) = player.upgrade() {
-            player.set_right_panel_combined(row.is_active());
-        }
-    });
-    group.add(&combine_panels_row);
 
     bottom_bar_rating_row.set_active(settings.show_bottom_bar_rating);
     let bottom_bar_rating_shell = Rc::clone(shell);

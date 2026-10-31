@@ -25,7 +25,6 @@ pub mod themes;
 mod waveform;
 pub use settings::SettingsHandle;
 
-pub mod lyrics;
 
 pub mod metadata;
 pub mod open;

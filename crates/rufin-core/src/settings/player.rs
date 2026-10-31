@@ -25,7 +25,6 @@ impl From<String> for SettingsError {
 pub struct PlayerPreferences {
     pub application: super::ApplicationPreferences,
     pub playback: PlaybackSettings,
-    pub lyrics: lyrics::UserPreferences,
     pub visualizer: visualizer::VisualizerSettings,
     pub visualizer_save_target: Option<PreferenceIndex>,
     pub display: super::PlayerDisplayPreferences,
@@ -34,7 +33,6 @@ pub struct PlayerPreferences {
 
 #[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct PlayerPreferenceOptions {
-    pub lyrics_scroll_pause_millis: u64,
     pub visualizer_stale_micros: u64,
     pub min_crossfade_seconds: u8,
     pub max_crossfade_seconds: u8,
@@ -61,7 +59,6 @@ impl SettingsOwner {
         PlayerPreferences {
             application: ui.application.clone(),
             playback,
-            lyrics: ui.lyrics.preferences.clone(),
             visualizer,
             visualizer_save_target: ui.visualizer.save_target(),
             display: ui.player_display.clone(),
@@ -83,7 +80,6 @@ impl SettingsOwner {
 
     pub fn player_preference_options(&self) -> PlayerPreferenceOptions {
         PlayerPreferenceOptions {
-            lyrics_scroll_pause_millis: lyrics::LYRICS_USER_SCROLL_PAUSE_MS,
             visualizer_stale_micros: visualizer::VISUALIZER_STALE_MICROS as u64,
             min_crossfade_seconds: playback::MIN_CROSSFADE_SECONDS,
             max_crossfade_seconds: playback::MAX_CROSSFADE_SECONDS,
@@ -99,14 +95,6 @@ impl SettingsOwner {
     pub fn set_volume_scale(&self, value: VolumeScale) -> Result<(), SettingsError> {
         self.update_preferences(move |ui| {
             ui.playback.set_volume_scale_preserving_gain(value);
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-
-    pub fn set_right_panel_combined(&self, value: bool) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            ui.right_panel.combined = value;
             Ok(())
         })
         .map_err(Into::into)
@@ -218,12 +206,10 @@ macro_rules! native_preference_setters {
     };
 }
 
-use lyrics::ExternalLyricsProvider;
 use visualizer::{
     VisualizerColors, VisualizerFrequencyScale, VisualizerStyle, VisualizerWeighting,
 };
 playback::playback_preference_fields!(native_preference_setters, ui, (playback), {});
-lyrics::lyrics_preference_fields!(native_preference_setters, ui, (lyrics.preferences), {});
 visualizer::visualizer_preference_fields!(
     native_preference_setters,
     ui,

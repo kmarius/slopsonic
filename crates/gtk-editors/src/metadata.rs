@@ -18,7 +18,6 @@ use rufin_core::metadata::{MetadataEditor, mixed_field_label};
 mod artwork;
 mod batch;
 mod lookup;
-mod lyrics;
 mod navigation;
 pub use batch::build_batch_dialog;
 
@@ -44,10 +43,8 @@ struct Editor {
     updating: Cell<bool>,
     scope_controls: Option<gtk::Widget>,
     artwork: artwork::ArtworkEditor,
-    lyrics: lyrics::LyricsPane,
     pages: gtk::Stack,
     artwork_page: gtk::StackPage,
-    lyrics_page: gtk::StackPage,
     scope_label: gtk::Label,
     scope_spacer: gtk::Box,
     lock_group: adw::PreferencesGroup,
@@ -98,7 +95,6 @@ fn build_editor_view(
         editor_pages: gtk::Stack,
         fields: gtk::Box,
         artwork_host: gtk::Box,
-        lyrics_host: gtk::Box,
         scope_label: gtk::Label,
         scope_spacer: gtk::Box,
         lookup: gtk::Button,
@@ -136,19 +132,16 @@ fn build_editor_view(
     let lock_group = compact_field_row_group(locked.as_ref().unwrap());
     fields.append(&lock_group);
     let artwork_page = editor_pages.page(&artwork_host);
-    let lyrics_page = editor_pages.page(&lyrics_host);
     editor_pages.set_transition_type(gtk::StackTransitionType::Crossfade);
     editor_pages.set_transition_duration(160);
     let artwork = artwork::ArtworkEditor::new(&artwork_host, external_lookup_allowed);
 
-    let lyrics = lyrics::LyricsPane::new(&lyrics_host);
     let editor = Rc::new(Editor {
         entries,
         locked,
         model: RefCell::new(model),
         pages: editor_pages,
         artwork_page,
-        lyrics_page,
         scope_label,
         scope_spacer,
         lock_group,
@@ -162,7 +155,6 @@ fn build_editor_view(
         updating: Cell::new(false),
         scope_controls: scope_controls.cloned(),
         artwork,
-        lyrics,
     });
     connect_editor_changes(&editor);
     refresh_editor_fields(&editor);
@@ -179,7 +171,6 @@ fn build_editor_view(
     editor.lookup.connect_clicked(move |_| {
         let Some(editor) = weak.upgrade() else { return };
         artwork::cancel(&editor);
-        editor.lyrics.cancel();
         let model = editor.model();
         let parent = parent.clone();
         let weak = Rc::downgrade(&editor);
@@ -211,7 +202,6 @@ fn build_editor_view(
         });
     });
     artwork::connect(&editor);
-    lyrics::connect(&editor);
     refresh_pages(&editor);
     connect_save(outer.unwrap_or(&editor_dialog), &editor);
     (editor_dialog, MetadataView { content, editor })
@@ -436,9 +426,6 @@ fn refresh_pages(editor: &Rc<Editor>) {
         editor.pages.set_visible_child_name("tags");
     }
     editor.artwork_page.set_visible(single);
-    editor
-        .lyrics_page
-        .set_visible(single && model.draft.kind == sources::SourceEntityKind::Track);
 }
 
 fn refresh_identified_field(editor: &Editor, field: &str, identified: bool) {
@@ -487,8 +474,6 @@ fn connect_save(dialog: &adw::Dialog, editor: &Rc<Editor>) {
         let Some(editor) = editor.upgrade() else {
             return;
         };
-        lyrics::commit(&editor);
-        editor.lyrics.cancel();
         editor.set_busy(true, &"Saving...".to_string());
         let model = editor.model().clone();
         let editor = Rc::downgrade(&editor);
@@ -567,17 +552,12 @@ impl Editor {
 
     fn rebind(self: &Rc<Self>, model: Arc<MetadataEditor>) {
         artwork::cancel(self);
-        self.lyrics.cancel();
         self.model.replace(model);
         self.status.set_visible(false);
         refresh_editor_fields(self);
         refresh_save_state(self);
         refresh_pages(self);
         artwork::refresh(self);
-        self.lyrics.reset();
-        if self.pages.visible_child_name().as_deref() == Some("lyrics") {
-            lyrics::activate(self);
-        }
     }
 
     fn changed(&self) {
@@ -592,7 +572,6 @@ impl Editor {
             controls.set_sensitive(!busy);
         }
         self.artwork.set_busy(busy);
-        self.lyrics.set_busy(busy);
         refresh_save_state(self);
         self.cancel.set_sensitive(!busy);
         for row in self.entries.iter() {

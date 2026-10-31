@@ -444,7 +444,6 @@ pub fn import_dialog(shell: &Rc<Preferences>) {
                     (shell.effects)(crate::Effect::LayoutChanged);
                     (shell.effects)(crate::Effect::PrivateModeChanged);
                     (shell.effects)(crate::Effect::MediaControlsChanged);
-                    shell.player_ui.render_lyrics_panel();
                 }
                 if affected.settings || affected.playlists {
                     (shell.effects)(crate::Effect::SidebarChanged);

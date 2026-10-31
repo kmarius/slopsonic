@@ -593,29 +593,10 @@ use playback::TransportStatus;
 impl crate::PlayerUi {
     pub fn apply_visualizer_appearance(&self) {
         let appearance = self.settings.current.borrow().visualizer.appearance.clone();
-        let sidebar_opacity = appearance.opacity
-            * if self.lyrics.panel_visible.get()
-                && self.settings.current.borrow().right_panel.combined
-            {
-                appearance.sidebar_lyrics_opacity
-            } else {
-                1.0
-            };
-        let fullscreen_opacity = appearance.opacity
-            * if self.views.fullscreen_player.lyrics_enabled.get() {
-                appearance.fullscreen_lyrics_opacity
-            } else {
-                1.0
-            };
+        let opacity = appearance.opacity;
         *self.views.visualizer.appearance.borrow_mut() = appearance;
-        self.views
-            .visualizer
-            .sidebar_area
-            .set_opacity(sidebar_opacity);
-        self.views
-            .visualizer
-            .fullscreen_area
-            .set_opacity(fullscreen_opacity);
+        self.views.visualizer.sidebar_area.set_opacity(opacity);
+        self.views.visualizer.fullscreen_area.set_opacity(opacity);
         self.views.visualizer.sidebar_area.queue_draw();
         self.views.visualizer.fullscreen_area.queue_draw();
     }
@@ -639,14 +620,6 @@ impl crate::PlayerUi {
 
     pub fn sync_visualizer_state(self: &Rc<Self>) {
         self.apply_visualizer_appearance();
-        if let Some(lyrics) = self.selected_lyrics() {
-            lyrics
-                .right_pane
-                .set_lyrics_visible(self.lyrics.panel_visible.get());
-            lyrics
-                .fullscreen_pane
-                .set_lyrics_visible(self.views.fullscreen_player.lyrics_enabled.get());
-        }
         let fullscreen_visible = self.fullscreen_player_visible()
             && self.views.fullscreen_player.experience_visible()
             && self.views.fullscreen_player.visualizer_enabled.get();

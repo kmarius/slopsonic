@@ -30,10 +30,6 @@ impl Database {
         self.cached_table_usage("loudness_measurements").await
     }
 
-    pub async fn lyrics_cache_usage(&self) -> LibraryResult<CacheUsage> {
-        self.cached_table_usage("lyrics_cache").await
-    }
-
     async fn cached_table_usage(&self, table: &str) -> LibraryResult<CacheUsage> {
         let mut reader = self.acquire_reader().await?;
         let (entries, bytes): (i64, i64) = sqlx::query_as(sqlx::AssertSqlSafe(format!(

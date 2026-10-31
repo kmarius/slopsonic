@@ -1,4 +1,3 @@
-pub const LYRICS_EDITOR_RESOURCE: &str = "/io/github/screwys/Rufin/ui/lyrics_editor.ui";
 pub const SOURCE_PICKER_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/source/picker.ui";
 use gtk::glib;
 use gtk::prelude::*;
@@ -93,8 +92,6 @@ pub const RECYCLED_TEXT_CELL_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/routes/recycled_text_cell.ui";
 
 pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
-    LYRICS_EDITOR_RESOURCE,
-    LYRICS_SNIPPET_RESOURCE,
     SOURCE_PICKER_RESOURCE,
     TEXT_SLIDE_RESOURCE,
     DISPLAY_SETTINGS_RESOURCE,
@@ -194,4 +191,3 @@ mod resource_tests {
     }
 }
 
-pub const LYRICS_SNIPPET_RESOURCE: &str = "/io/github/screwys/Rufin/ui/routes/lyrics_snippet.ui";

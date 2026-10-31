@@ -780,12 +780,6 @@ impl JellyfinEmbySource {
 }
 
 impl JellyfinEmbySource {
-    pub(crate) async fn lyrics(&self, track_id: &str) -> SourceResult<Option<LyricsBundle>> {
-        match self.kind {
-            ServerKind::Jellyfin => self.jellyfin_lyrics(track_id).await,
-            ServerKind::Emby => self.emby_lyrics(track_id).await,
-        }
-    }
 }
 
 impl JellyfinEmbySource {
@@ -976,10 +970,6 @@ pub(super) fn raw_track_ids(track_ids: &[String]) -> Vec<String> {
         .map(|id| raw_item_id(id.as_str()).to_string())
         .collect()
 }
-pub(super) fn ticks_to_millis(ticks: Option<i64>) -> Option<u64> {
-    ticks.map(|value| (value.max(0) / 10_000) as u64)
-}
-
 impl JellyfinEmbySource {
     pub(super) async fn item_page(
         &self,
@@ -1160,7 +1150,7 @@ mod tests {
     use crate::jellyfin_emby::item::{album_from_item, track_from_item};
     use crate::jellyfin_emby::{JellyfinEmbySource, JellyfinEmbySourceConfig};
     use serde_json::Value;
-    use wiremock::matchers::{body_string, method, path, query_param};
+    use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
@@ -1492,41 +1482,6 @@ mod tests {
         assert!(stream.uri().contains("secret-token"));
         assert!(!stream.redacted_uri().contains("secret-token"));
         assert!(stream.redacted_uri().contains("ApiKey=%3Credacted%3E"));
-    }
-
-    #[tokio::test]
-    async fn jellyfin_lyrics_write_uses_the_managed_upload_endpoint() {
-        let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(path("/Audio/track-one/Lyrics"))
-            .and(query_param("fileName", "lyrics.lrc"))
-            .and(body_string("[00:01.000]Line"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "Lyrics": []
-            })))
-            .expect(1)
-            .mount(&server)
-            .await;
-        let source = JellyfinEmbySource::open(
-            JellyfinEmbySourceConfig {
-                emby_connect: false,
-                kind: crate::ServerKind::Jellyfin,
-                base_url: server.uri(),
-                server_id: Some("server-one".to_string()),
-                user_id: "user-one".to_string(),
-                username: "listener".to_string(),
-                trust_invalid_cert: false,
-                use_instant_mix: false,
-            },
-            "secret-token".to_string(),
-            "device-one".to_string(),
-        )
-        .expect("Jellyfin source");
-
-        source
-            .write_lyrics("jellyfin:track:track-one", "[00:01.000]Line")
-            .await
-            .expect("upload lyrics");
     }
 
     #[tokio::test]

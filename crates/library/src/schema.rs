@@ -591,23 +591,6 @@ CREATE TABLE IF NOT EXISTS loudness_measurements (
     PRIMARY KEY(source_key,entity_kind,entity_key)
 ) STRICT;
 
-CREATE TABLE IF NOT EXISTS lyrics_cache (
-    media_uri TEXT NOT NULL CHECK (media_uri <> ''),
-    authority TEXT NOT NULL CHECK (authority <> ''),
-    role TEXT NOT NULL CHECK (role <> ''),
-    language TEXT NOT NULL DEFAULT '',
-    script TEXT NOT NULL DEFAULT '',
-    cache_input_digest BLOB NOT NULL CHECK (length(cache_input_digest) = 32),
-    lyrics TEXT NOT NULL,
-    updated_at INTEGER NOT NULL CHECK (updated_at >= 0),
-    PRIMARY KEY (media_uri, authority, role, language, script)
-) STRICT;
-
-DROP TRIGGER IF EXISTS lyrics_cache_insert;
-DROP TRIGGER IF EXISTS lyrics_cache_update;
-DROP TRIGGER IF EXISTS lyrics_cache_delete;
-DROP INDEX IF EXISTS lyrics_cache_changes;
-DROP TABLE IF EXISTS lyrics_cache_revision;
 CREATE TABLE IF NOT EXISTS artwork_previews(family TEXT PRIMARY KEY,hash TEXT NOT NULL) WITHOUT ROWID;
 
 CREATE TABLE IF NOT EXISTS local_files (
@@ -732,7 +715,6 @@ CREATE TABLE IF NOT EXISTS native_playlist_pending (
 "#;
 
 pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> LibraryResult<()> {
-    crate::lyrics_tokenizer::register(connection).await?;
     let version = pragma(connection, "user_version").await?;
     if !matches!(
         version,
@@ -798,7 +780,7 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
     sqlx::raw_sql(STORE_SCHEMA)
         .execute(&mut *transaction)
         .await?;
-    crate::lyrics_search::initialize(&mut transaction, version < 58).await?;
+    remove_legacy_search_index(&mut transaction).await?;
     for table in ["local_files", "local_file_access_roots"] {
         if !sqlx::query_scalar::<_, bool>(
             "SELECT EXISTS(SELECT 1 FROM pragma_table_info(?1) WHERE name='root_id')",
@@ -897,5 +879,41 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
         crate::catalog::index::initialize(&mut transaction).await?;
     }
     transaction.commit().await?;
+    Ok(())
+}
+
+/// Removes the full-text index and cache tables of a removed feature from older databases.
+async fn remove_legacy_search_index(connection: &mut SqliteConnection) -> LibraryResult<()> {
+    let indexed: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE name='lyrics_fts')",
+    )
+    .fetch_one(&mut *connection)
+    .await?;
+    if indexed {
+        // The index uses a tokenizer that no longer exists, so SQLite cannot open it to drop it.
+        sqlx::raw_sql(
+            "PRAGMA writable_schema=ON;
+            DELETE FROM sqlite_schema WHERE type='table' AND name='lyrics_fts';
+            PRAGMA writable_schema=OFF;
+            DROP TABLE IF EXISTS lyrics_fts_data;
+            DROP TABLE IF EXISTS lyrics_fts_idx;
+            DROP TABLE IF EXISTS lyrics_fts_docsize;
+            DROP TABLE IF EXISTS lyrics_fts_config;",
+        )
+        .execute(&mut *connection)
+        .await?;
+    }
+    sqlx::raw_sql(
+        "DROP TRIGGER IF EXISTS lyrics_search_insert;
+        DROP TRIGGER IF EXISTS lyrics_search_update;
+        DROP TRIGGER IF EXISTS lyrics_documents_insert;
+        DROP TRIGGER IF EXISTS lyrics_documents_delete;
+        DROP TRIGGER IF EXISTS lyrics_documents_update;
+        DROP VIEW IF EXISTS lyrics_search_input;
+        DROP TABLE IF EXISTS lyrics_documents;
+        DROP TABLE IF EXISTS lyrics_cache;",
+    )
+    .execute(&mut *connection)
+    .await?;
     Ok(())
 }

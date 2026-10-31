@@ -5,10 +5,6 @@ use crate::{
     SourceError, SourceResult,
 };
 use audio_processing::ResolvedStream;
-use lyrics::{
-    LyricsAgent, LyricsAgentRole, LyricsBundle, LyricsCue, LyricsCueLine, LyricsDocument,
-    LyricsLine, LyricsOrigin, LyricsRole,
-};
 use playback::{SourceReportFact, SourceReportPhase, StreamQuality};
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};

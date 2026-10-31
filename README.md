@@ -26,12 +26,10 @@ Rufin is a powerful, fast and easy to use native music player for Navidrome.
 - Drag folders, audio files or playlists to Rufin window to import them 
 - Path matching between music servers and local folders, allowing local playback while keeping server activity and history
 - Metadata and artwork editing, including bulk editing and Musicbrainz metadata autofill 
-- Automatic metadata, artwork and lyrics caching; and in-app lyrics/artwork search functionality
+- Automatic metadata and artwork caching; and in-app artwork search functionality
 - Rating support, with an option to enable visual-only partial stars for OpenSubsonic
 - Virtualized, smooth to scroll pages
 - Can write EBU R128 tags to tracks
-- Furigana and Romaji lyrics overlays, translation preference and karaoke mode support
-- Extensive lyrics organization settings; you can automatically save fetched lyrics to your source as embeds or separate .lrc files
 - Granular import/export backup options including credentials, automatic backups with password protection are available
 - Listening activity can be exported as Last.fm/ListenBrainz compatible `.csv` files
 
@@ -41,7 +39,6 @@ Rufin is a powerful, fast and easy to use native music player for Navidrome.
 - App owned smart (i.e. dynamic) playlists with custom sorting and limits; can use metadata, play/skip history or pre-defined dynamic lists
 - Dedicated Search, Folders and History pages
 - Moods browsing and mood/BPM-based smart playlists for Plex, Navidrome, Subsonic and local/remote libraries
-- Synchronized lyrics (including word-by-word) with built-in search and adjustable offset
 
 ## 🧩 Integrations
 

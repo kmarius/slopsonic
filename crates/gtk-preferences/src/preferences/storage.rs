@@ -37,7 +37,6 @@ pub(super) fn page(
         clear_all_cache: gtk::Button,
         clear_all_data: gtk::Button,
         artwork_download: adw::ComboRow,
-        lyrics_download: adw::ComboRow,
         total_size: gtk::Label,
         spinner: gtk::Spinner,
         error: gtk::Label,
@@ -47,8 +46,6 @@ pub(super) fn page(
         lookups_count: gtk::Label, lookups_size: gtk::Label, clear_lookups: gtk::Button,
         fingerprints_count: gtk::Label, fingerprints_size: gtk::Label, clear_fingerprints: gtk::Button,
         artwork_count: gtk::Label, artwork_size: gtk::Label, clear_artwork: gtk::Button,
-        lyrics_count: gtk::Label, lyrics_size: gtk::Label, clear_lyrics: gtk::Button,
-        dictionary_size: gtk::Label, clear_dictionary: gtk::Button,
     });
     navigation_controls.set_navigation(&navigation);
     navigation_controls.set_nested_page_visible(false);
@@ -59,23 +56,12 @@ pub(super) fn page(
     artwork_download.set_selected(u32::from(
         settings.application.download_artwork_automatically,
     ));
-    lyrics_download.set_selected(u32::from(
-        settings.application.download_lyrics_automatically,
-    ));
     let settings = Rc::clone(&shell.settings);
     artwork_download.connect_selected_notify(move |row| {
         settings.set_app_setting(
             "automatic artwork download",
             row.selected() == 1,
             |settings| &mut settings.application.download_artwork_automatically,
-        );
-    });
-    let settings = Rc::clone(&shell.settings);
-    lyrics_download.connect_selected_notify(move |row| {
-        settings.set_app_setting(
-            "automatic lyrics download",
-            row.selected() == 1,
-            |settings| &mut settings.application.download_lyrics_automatically,
         );
     });
 
@@ -109,18 +95,6 @@ pub(super) fn page(
             Some(artwork_count),
             artwork_size,
             clear_artwork,
-        ),
-        (
-            CacheKind::Lyrics,
-            Some(lyrics_count),
-            lyrics_size,
-            clear_lyrics,
-        ),
-        (
-            CacheKind::JapaneseDictionary,
-            None,
-            dictionary_size,
-            clear_dictionary,
         ),
     ];
     let view = Rc::new(StorageView {
@@ -297,7 +271,6 @@ impl StorageView {
         };
         let kind = match progress.stage {
             SourceProgressStage::Artwork => CacheKind::Artwork,
-            SourceProgressStage::Lyrics => CacheKind::Lyrics,
             _ => return true,
         };
         if let Some(count) = self

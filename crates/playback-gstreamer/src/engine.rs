@@ -1422,7 +1422,7 @@ impl GstEngine {
             return Err(error);
         }
         let target = self.active_pipeline().physical_seek_target(millis);
-        // Repeating the running target, as repeated lyric taps do, needs no new seek.
+        // Repeating the running target, as repeated seek requests do, needs no new seek.
         if self.seek.in_flight == Some(target) {
             self.seek.queued = None;
             return Ok(());
@@ -3853,7 +3853,7 @@ mod tests {
         engine.start_seek(2_000).unwrap();
         engine.start_seek(3_000).unwrap();
         assert_eq!(engine.seek.queued, Some(3_000));
-        // Repeating the running target, as repeated lyric taps do, drops the queued one.
+        // Repeating the running target, as repeated seek requests do, drops the queued one.
         engine.start_seek(1_000).unwrap();
         assert_eq!(engine.seek.queued, None);
         assert_eq!(engine.seek.in_flight, Some(1_000));

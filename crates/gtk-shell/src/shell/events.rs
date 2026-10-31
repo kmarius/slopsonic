@@ -33,7 +33,6 @@ pub(crate) fn install_product_event_receivers(shell: &Rc<Shell>, receivers: Prod
         downloads,
         visualizer,
         waveform,
-        lyrics,
         release_updates,
     } = receivers;
 
@@ -72,8 +71,6 @@ pub(crate) fn install_product_event_receivers(shell: &Rc<Shell>, receivers: Prod
                     .player_ui
                     .update_fullscreen_player_with(&NowPlayingPresentation::new(None));
                 event_shell.player_ui.sync_visualizer_state();
-                event_shell.player_ui.cancel_scheduled_lyrics_highlight();
-                event_shell.player_ui.render_lyrics_panel();
                 event_shell.refresh_current_route_now_playing_selections();
                 update_sidebar_pin_playback(&event_shell);
                 event_shell.withdraw_now_playing_notification();
@@ -101,13 +98,6 @@ pub(crate) fn install_product_event_receivers(shell: &Rc<Shell>, receivers: Prod
     glib::spawn_future_local(async move {
         while let Ok(waveform) = waveform.recv().await {
             apply_waveform(&event_shell, waveform);
-        }
-    });
-
-    let event_shell = Rc::clone(shell);
-    glib::spawn_future_local(async move {
-        while let Ok(event) = lyrics.recv().await {
-            apply_lyrics_event(&event_shell, event);
         }
     });
 
@@ -173,8 +163,6 @@ fn apply_configured_sources(
     configured: rufin_core::runtime::source::ConfiguredSources,
 ) {
     *shell.source.configured.borrow_mut() = configured;
-    shell.products.lyrics.refresh_write_access();
-    shell.chrome.topbar.refresh_lyrics_cache_prompt();
     refresh_context_playlist_picker(shell);
     shell.player_ui.update_bottom_player();
 }
@@ -376,12 +364,6 @@ fn apply_source_operation(shell: &Rc<Shell>, operation: SourceOperation) {
         operation,
         SourceOperation::Idle | SourceOperation::Failed { .. }
     ) {
-        shell.chrome.topbar.refresh_lyrics_cache_prompt();
-        if shell.search_session.mode() == library::SearchMode::Lyrics
-            && matches!(&previous_operation, SourceOperation::Downloading { .. })
-        {
-            shell.search_session.refresh();
-        }
     }
     if operation.blocks_library() {
         shell.chrome.source_refresh_feedback.set_visible(false);
@@ -593,15 +575,6 @@ fn finish_playback_projection(
         &shell.settings.current.borrow(),
         Some(&next_player),
     );
-    let lyrics_timing_changed = media_changed
-        || previous_player
-            .as_ref()
-            .map(|player| player.transport.state)
-            != Some(next_player.transport.state)
-        || previous_player
-            .as_ref()
-            .map(|player| player.transport.position_millis)
-            != Some(next_player.transport.position_millis);
     let fullscreen_refresh = fullscreen_playback_refresh(previous_player.as_ref(), &next_player);
     let static_playback_changed = matches!(fullscreen_refresh, FullscreenPlaybackRefresh::Static);
     let now_playing =
@@ -666,15 +639,6 @@ fn finish_playback_projection(
     ) {
         shell.withdraw_now_playing_notification();
     }
-    if media_changed {
-        if let Some(lyrics) = shell.player_ui.selected_lyrics() {
-            lyrics.offset_millis.set(0);
-            lyrics.right_pane.clear_follow_scroll_pause();
-            lyrics.fullscreen_pane.clear_follow_scroll_pause();
-        }
-        shell.player_ui.cancel_scheduled_lyrics_highlight();
-        shell.player_ui.render_lyrics_panel();
-    }
     if notification_started_run.is_some_and(|run| {
         next_player
             .transport
@@ -690,9 +654,6 @@ fn finish_playback_projection(
     }
     if fullscreen_refresh != FullscreenPlaybackRefresh::None {
         shell.player_ui.sync_visualizer_state();
-    }
-    if lyrics_timing_changed {
-        shell.player_ui.update_lyrics_highlight();
     }
     if media_controls_static_changed {
         shell.update_media_controls_after(media_controls_discontinuity);
@@ -805,55 +766,6 @@ fn media_controls_static_state_changed(
 fn apply_waveform(shell: &Rc<Shell>, waveform: WaveformProjection) {
     shell.player_ui.set_waveform(waveform);
     shell.player_ui.update_bottom_player_transport();
-}
-
-fn apply_lyrics_event(shell: &Rc<Shell>, event: rufin_core::lyrics::LyricsEvent) {
-    match event {
-        rufin_core::lyrics::LyricsEvent::JapaneseDictionaryChanged(status) => {
-            shell.player_ui.apply_japanese_dictionary_status(status)
-        }
-        rufin_core::lyrics::LyricsEvent::Current(projection) => {
-            shell.player_ui.apply_current_lyrics(projection)
-        }
-        rufin_core::lyrics::LyricsEvent::SearchFinished {
-            media_id,
-            query,
-            result,
-        } => match result {
-            Ok(results) => shell.player_ui.apply_lyrics_search_results(
-                media_id,
-                query.artist_name,
-                query.track_name,
-                results,
-            ),
-            Err(error) => shell.player_ui.apply_lyrics_search_failed(
-                media_id,
-                query.artist_name,
-                query.track_name,
-                error,
-            ),
-        },
-        rufin_core::lyrics::LyricsEvent::Saved { media_id, path } => {
-            if current_playback_media_id(shell.player_ui.selected_playback().as_deref()).as_ref()
-                == Some(&media_id)
-            {
-                shell.player_ui.apply_lyrics_saved(media_id, path);
-            }
-        }
-        rufin_core::lyrics::LyricsEvent::SourceSaveFailed { media_id, error } => {
-            if current_playback_media_id(shell.player_ui.selected_playback().as_deref()).as_ref()
-                == Some(&media_id)
-            {
-                shell.control_feedback.show_feedback_toast(match error {
-                    sources::SourceMetadataError::Unavailable
-                    | sources::SourceMetadataError::LocalAccessRequired { .. } => {
-                        "Metadata editing is no longer available".to_string()
-                    }
-                    error => error.to_string(),
-                });
-            }
-        }
-    }
 }
 
 fn playback_error_toast(error: &str) -> String {

@@ -7,7 +7,28 @@ use rufin_core::settings::visualizer::{
 use std::cell::Cell;
 use std::rc::Rc;
 
-pub(super) fn build_visualizer_settings(shell: &Rc<PlayerUi>) -> adw::PreferencesPage {
+pub fn present_visualizer_settings_dialog(shell: &Rc<PlayerUi>) {
+    let Some(window) = shell.window.upgrade() else {
+        return;
+    };
+    if let Some(dialog) = shell.visualizer_settings_dialog.borrow().upgrade() {
+        dialog.present(Some(&window));
+        return;
+    }
+    let dialog = adw::PreferencesDialog::new();
+    dialog.set_content_width(gtk_widgets::layout::large_popup_content_width(760));
+    dialog.set_content_height(gtk_widgets::layout::large_popup_content_height(
+        window.height(),
+        720,
+    ));
+    dialog.add(&build_visualizer_settings(shell));
+    shell
+        .visualizer_settings_dialog
+        .replace(dialog.downgrade());
+    gtk_widgets::popup::present_light_dismiss_dialog(&dialog, &window);
+}
+
+fn build_visualizer_settings(shell: &Rc<PlayerUi>) -> adw::PreferencesPage {
     let resource = crate::ui_resource::VISUALIZER_SETTINGS_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
@@ -39,8 +60,6 @@ pub(super) fn build_visualizer_settings(shell: &Rc<PlayerUi>) -> adw::Preference
         end_color_row: gtk::Box,
         spacing: gtk::Scale,
         opacity: gtk::Scale,
-        sidebar_opacity: gtk::Scale,
-        fullscreen_opacity: gtk::Scale,
         rise: gtk::Scale,
         fall: gtk::Scale,
         peaks: adw::ExpanderRow,
@@ -70,8 +89,6 @@ pub(super) fn build_visualizer_settings(shell: &Rc<PlayerUi>) -> adw::Preference
         &shadow_brightness,
         &spacing,
         &opacity,
-        &sidebar_opacity,
-        &fullscreen_opacity,
         &rise,
         &fall,
         &peak_hold,
@@ -191,8 +208,6 @@ pub(super) fn build_visualizer_settings(shell: &Rc<PlayerUi>) -> adw::Preference
             &shadow_brightness,
             &spacing,
             &opacity,
-            &sidebar_opacity,
-            &fullscreen_opacity,
             &rise,
             &fall,
             &peak_hold,
@@ -267,8 +282,6 @@ pub(super) fn build_visualizer_settings(shell: &Rc<PlayerUi>) -> adw::Preference
                 appearance.shadow_brightness * 100.0,
                 appearance.spacing,
                 appearance.opacity * 100.0,
-                appearance.sidebar_lyrics_opacity * 100.0,
-                appearance.fullscreen_lyrics_opacity * 100.0,
                 appearance.rise * 100.0,
                 appearance.fall * 100.0,
                 appearance.peak_hold,
@@ -401,8 +414,6 @@ pub(super) fn build_visualizer_settings(shell: &Rc<PlayerUi>) -> adw::Preference
     slider!(shadow_brightness, shadow_brightness, 100.0);
     slider!(spacing, spacing, 1.0);
     slider!(opacity, opacity, 100.0);
-    slider!(sidebar_opacity, sidebar_lyrics_opacity, 100.0);
-    slider!(fullscreen_opacity, fullscreen_lyrics_opacity, 100.0);
     slider!(rise, rise, 100.0);
     slider!(fall, fall, 100.0);
     slider!(peak_hold, peak_hold, 1.0);

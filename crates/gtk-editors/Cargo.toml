@@ -19,7 +19,6 @@ rufin-core.workspace = true
 adw = { workspace = true, features = ["v1_9", "gtk_v4_20"] }
 gtk = { workspace = true, features = ["v4_20"] }
 library.workspace = true
-lyrics.workspace = true
 sources.workspace = true
 
 [build-dependencies]

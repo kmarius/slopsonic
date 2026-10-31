@@ -4,7 +4,6 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 
-use gtk_player::lyrics::search::connect_lyrics_search_controls;
 use gtk_widgets::favorites::FavoriteSessionState;
 use gtk_widgets::popup::present_light_dismiss_dialog;
 use rufin_core::runtime::SelectedLibrary;
@@ -100,19 +99,5 @@ impl Shell {
 
         self.chrome.topbar.close_search_popup();
         present_light_dismiss_dialog(&dialog, &self.chrome.window);
-    }
-
-    pub(crate) fn attach_selected_ui_roots(self: &Rc<Self>) {
-        let lyrics = self.player_ui.lyric_content.borrow();
-        self.player_ui
-            .right_panel
-            .attach_lyrics_pane(&lyrics.right_pane);
-        self.player_ui
-            .views
-            .fullscreen_player
-            .attach_lyrics_pane(&lyrics.fullscreen_pane);
-        drop(lyrics);
-        connect_lyrics_search_controls(&self.player_ui);
-        crate::player::lyrics::settings::connect_lyrics_settings_controls(self);
     }
 }

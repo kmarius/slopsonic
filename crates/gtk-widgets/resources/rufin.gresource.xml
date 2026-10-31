@@ -26,7 +26,6 @@
     <file>hicolor/scalable/actions/rufin-heart-outline-symbolic.svg</file>
     <file>hicolor/scalable/actions/rufin-list-drag-handle-symbolic.svg</file>
     <file>hicolor/scalable/actions/rufin-reorder-symbolic.svg</file>
-    <file>hicolor/scalable/actions/rufin-lyrics-search-symbolic.svg</file>
     <file>hicolor/scalable/actions/rufin-more-symbolic.svg</file>
     <file>hicolor/scalable/actions/rufin-player-more-symbolic.svg</file>
     <file>hicolor/scalable/actions/rufin-album-artists-symbolic.svg</file>
@@ -140,7 +139,6 @@
     <file>hicolor/scalable/actions/rufin-pane-right-focus-symbolic.svg</file>
   </gresource>
   <gresource prefix="/io/github/screwys/Rufin/ui">
-    <file compressed="true">lyrics_editor.ui</file>
     <file compressed="true">preferences/display.ui</file>
     <file compressed="true">routes/text_slide.ui</file>
     <file compressed="true">routes/play_menu.ui</file>
@@ -151,7 +149,6 @@
     <file compressed="true">routes/recycled_folder_cell.ui</file>
     <file compressed="true">routes/recycled_merged_cell.ui</file>
     <file compressed="true">routes/recycled_text_cell.ui</file>
-    <file compressed="true">routes/lyrics_snippet.ui</file>
     <file compressed="true">routes/track_row_index.ui</file>
     <file compressed="true">routes/row_actions.ui</file>
     <file compressed="true">routes/column_view_header.ui</file>

@@ -7,7 +7,6 @@ pub use auth::{PlexBrowserLogin, PlexConnection, PlexLogin, PlexProfile, PlexSer
 mod catalog;
 mod events;
 mod item;
-mod lyrics;
 mod metadata;
 mod operations;
 mod stream;
@@ -147,7 +146,6 @@ impl PlexSource {
             .get(
                 &format!("{prefix}/{}", crate::policy::raw_item_id(object_id)),
                 &[
-                    ("includeLyrics", "1".into()),
                     ("includeStations", "1".into()),
                     ("includeStreams", "1".into()),
                 ],

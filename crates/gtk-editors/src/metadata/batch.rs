@@ -268,9 +268,7 @@ impl BatchView {
         let scope_selected = self.scope_selected.get();
         self.host.set_sensitive(false);
         let previous = self.current().map(|editor| {
-            super::lyrics::commit(&editor);
             super::artwork::cancel(&editor);
-            editor.lyrics.cancel();
             editor.model()
         });
         let batch = self.batch.clone();
@@ -349,9 +347,7 @@ impl BatchView {
         self.host.set_sensitive(false);
         self.lookup.set_sensitive(false);
         let previous = self.current().map(|editor| {
-            super::lyrics::commit(&editor);
             super::artwork::cancel(&editor);
-            editor.lyrics.cancel();
             editor.model()
         });
         let batch = self.batch.clone();

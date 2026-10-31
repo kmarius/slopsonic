@@ -1,6 +1,5 @@
 mod bottom;
 pub(crate) mod desktop;
-pub(crate) mod lyrics;
 pub(crate) mod queue;
 mod random_play;
 pub(crate) mod right_panel;

@@ -48,31 +48,10 @@ impl Shell {
         self.chrome.window.queue_resize();
     }
 
-    pub(crate) fn toggle_lyrics_panel(self: &Rc<Self>) {
-        let visible = !self.right_sidebar_visible() || !self.player_ui.lyrics.panel_visible.get();
-        self.set_lyrics_panel_visible(visible);
-    }
-
-    pub(crate) fn set_lyrics_panel_visible(self: &Rc<Self>, visible: bool) {
-        self.set_right_panel_media_visibility(
-            visible,
-            self.player_ui.right_panel.visualizer_visible.get(),
-        );
-    }
-
     pub(crate) fn set_visualizer_panel_visible(self: &Rc<Self>, visible: bool) {
-        self.set_right_panel_media_visibility(self.player_ui.lyrics.panel_visible.get(), visible);
-    }
-
-    pub(crate) fn set_right_panel_media_visibility(
-        self: &Rc<Self>,
-        lyrics_visible: bool,
-        visualizer_visible: bool,
-    ) {
-        if (lyrics_visible || visualizer_visible) && !self.right_sidebar_visible() {
+        if visible && !self.right_sidebar_visible() {
             self.set_right_sidebar_visible(true);
         }
-        self.player_ui
-            .set_right_panel_media_visibility(lyrics_visible, visualizer_visible);
+        self.player_ui.set_sidebar_visualizer_visible(visible);
     }
 }

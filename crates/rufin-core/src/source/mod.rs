@@ -781,7 +781,6 @@ impl SourceOwner {
                     selected.source_key,
                     source.as_ref().ok().cloned(),
                     selected.music_folder_key,
-                    owner.source_input_digest(&source_id),
                 )
                 .await
             {
@@ -915,7 +914,6 @@ impl SourceOwner {
                         selected.source_key,
                         Some(source),
                         selected.music_folder_key,
-                        owner.source_input_digest(&selected.source_id),
                     )
                     .await
                 {
@@ -2716,7 +2714,6 @@ impl SourceOwner {
                         source_key,
                         Some(source),
                         None,
-                        owner.source_input_digest(&source_id),
                     )
                     .await
                 {
@@ -2914,7 +2911,6 @@ impl SourceOwner {
                             source_key,
                             downloads_owner.cached_client(&source_id),
                             key,
-                            downloads_owner.source_input_digest(&source_id),
                         )
                         .await
                     {

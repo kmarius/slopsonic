@@ -416,12 +416,9 @@ impl SettingsFile {
             .cloned()
     }
 
-    pub(crate) fn cache_downloads(&self) -> (bool, bool) {
+    pub(crate) fn download_artwork_automatically(&self) -> bool {
         let stored = self.value.lock().unwrap_or_else(|p| p.into_inner());
-        (
-            stored.ui.application.download_artwork_automatically,
-            stored.ui.application.download_lyrics_automatically,
-        )
+        stored.ui.application.download_artwork_automatically
     }
 
     pub(crate) fn source_name(&self, source_id: &sources::SourceId) -> String {
@@ -1681,17 +1678,6 @@ mod tests {
 impl SettingsOwner {
     pub fn download_settings(&self, source_id: SourceId) -> downloads::SourceDownloadSettings {
         self.load().download_settings(&source_id)
-    }
-}
-
-#[cfg_attr(feature = "bindings", uniffi::export)]
-impl SettingsOwner {
-    pub fn suppress_fetched_lyrics(&self, media_uri: String) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            ui.lyrics.suppress_auto_lyrics(&media_uri);
-            Ok(())
-        })
-        .map_err(Into::into)
     }
 }
 

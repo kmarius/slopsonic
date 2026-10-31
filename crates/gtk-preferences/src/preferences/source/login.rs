@@ -813,7 +813,7 @@ fn source_choice_selector(shell: &Rc<Preferences>, context: &SetupViewContext) -
         server_sources: adw::PreferencesGroup, import_backup: gtk::Button,
         remote_sources: adw::PreferencesGroup,
         privacy: adw::PreferencesGroup, external_metadata: adw::SwitchRow,
-        external_lyrics: adw::SwitchRow, discord_presence: adw::SwitchRow,
+        discord_presence: adw::SwitchRow,
     });
     for &presentation in source_presentations() {
         let resource = crate::ui_resource::SOURCE_CHOICE_RESOURCE;
@@ -850,19 +850,12 @@ fn source_choice_selector(shell: &Rc<Preferences>, context: &SetupViewContext) -
     {
         let settings = shell.settings.current.borrow();
         external_metadata.set_active(settings.application.external_metadata_enabled);
-        external_lyrics.set_active(settings.lyrics.preferences.external_lyrics_enabled);
         discord_presence.set_active(settings.rich_presence.enabled);
     }
     let weak = Rc::downgrade(shell);
     external_metadata.connect_active_notify(move |row| {
         if let Some(shell) = weak.upgrade() {
             shell.set_external_metadata_enabled(row.is_active());
-        }
-    });
-    let weak = Rc::downgrade(shell);
-    external_lyrics.connect_active_notify(move |row| {
-        if let Some(shell) = weak.upgrade() {
-            shell.player_ui.set_external_lyrics_enabled(row.is_active());
         }
     });
     let weak = Rc::downgrade(shell);

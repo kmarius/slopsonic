@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use downloads::{DownloadRules, SourceDownloadSettings};
 use library::PlayedFilter;
-use lyrics::Settings as LyricsSettings;
 use playback::{
     DEFAULT_AUTO_DJ_REFILL_THRESHOLD, MAX_AUTO_DJ_REFILL_THRESHOLD, MIN_AUTO_DJ_REFILL_THRESHOLD,
     PlaybackSettings, RepeatMode,
@@ -208,10 +207,6 @@ preference_group!(#[cfg_attr(feature = "bindings", derive(uniffi::Record))] Appl
     prefer_distinct_track_covers: bool = false => set_prefer_distinct_track_covers;
     #[serde(default)]
     download_artwork_automatically: bool = false => set_download_artwork_automatically;
-    #[serde(default)]
-    download_lyrics_automatically: bool = false => set_download_lyrics_automatically;
-    #[serde(default)]
-    lyrics_cache_prompt_dismissed: bool = false => set_lyrics_cache_prompt_dismissed;
     notifications_enabled: bool = false => set_notifications_enabled;
     #[serde(default = "default_true")]
     control_notifications_enabled: bool = true => set_control_notifications_enabled;
@@ -246,13 +241,9 @@ preference_group!(#[cfg_attr(feature = "bindings", derive(uniffi::Record))] Play
     clear_queue_includes_current: bool = false => set_clear_queue_includes_current;
     #[serde(default = "default_true")]
     fullscreen_dynamic_background: bool = true => set_fullscreen_dynamic_background;
-    #[serde(default = "default_lyrics_panel_visible")]
+    #[serde(default = "default_true")]
     fullscreen_background_image: bool = true => set_fullscreen_background_image;
-    #[serde(default = "default_lyrics_panel_visible")]
-    fullscreen_lyrics_visible: bool = true => set_fullscreen_lyrics_visible;
-    #[serde(default = "default_lyrics_panel_visible")]
-    fullscreen_current_lyrics_line_visible: bool = true => set_fullscreen_current_lyrics_line_visible;
-    #[serde(default = "default_lyrics_panel_visible")]
+    #[serde(default = "default_true")]
     fullscreen_visualizer_visible: bool = true => set_fullscreen_visualizer_visible;
     #[serde(default)]
     seekbar_waveform_enabled: bool = false => set_seekbar_waveform_enabled;
@@ -288,8 +279,6 @@ pub struct Settings {
     pub release_notification_seen_version: Option<String>,
     #[serde(default)]
     pub automatic_updates_enabled: bool,
-    #[serde(flatten)]
-    pub lyrics: LyricsSettings,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub downloads: Vec<SourceDownloadSettings>,
     #[serde(default)]
@@ -320,14 +309,10 @@ pub struct Settings {
     pub window_width: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window_height: Option<i32>,
-    #[serde(default = "default_lyrics_panel_visible")]
-    pub lyrics_panel_visible: bool,
     #[serde(default)]
     pub visualizer_panel_visible: bool,
     #[serde(default)]
     pub visualizer: super::visualizer::VisualizerSettings,
-    #[serde(default)]
-    pub queue_lyrics_height: Option<i32>,
     #[serde(default)]
     pub right_panel: super::right_panel::RightPanelSettings,
     #[serde(default)]
@@ -347,7 +332,6 @@ impl Default for Settings {
             cast_network_interface: None,
             release_notification_seen_version: None,
             automatic_updates_enabled: false,
-            lyrics: LyricsSettings::default(),
             downloads: Vec::new(),
             show_bottom_bar_rating: false,
             tray_enabled: false,
@@ -363,10 +347,8 @@ impl Default for Settings {
             random_play: RandomPlaySettings::default(),
             window_width: None,
             window_height: None,
-            lyrics_panel_visible: true,
             visualizer_panel_visible: false,
             visualizer: super::visualizer::VisualizerSettings::default(),
-            queue_lyrics_height: None,
             right_panel: super::right_panel::RightPanelSettings::default(),
             library_lists: default_library_list_settings(),
         }
@@ -406,7 +388,6 @@ impl Settings {
         self.rich_presence.sanitize();
         self.playback.sanitize();
         self.random_play.sanitize();
-        self.lyrics.sanitize();
         self.application.auto_dj_refill_threshold = self
             .application
             .auto_dj_refill_threshold
@@ -558,10 +539,6 @@ fn default_true() -> bool {
     true
 }
 
-fn default_lyrics_panel_visible() -> bool {
-    true
-}
-
 fn default_auto_dj_refill_threshold() -> u8 {
     DEFAULT_AUTO_DJ_REFILL_THRESHOLD
 }
@@ -703,7 +680,6 @@ mod tests {
     fn fullscreen_display_defaults_and_choices_survive_settings_reload() {
         let mut old = serde_json::to_value(Settings::default()).unwrap();
         for key in [
-            "fullscreen_lyrics_visible",
             "fullscreen_visualizer_visible",
             "fullscreen_dynamic_background",
             "fullscreen_background_image",
@@ -711,16 +687,14 @@ mod tests {
             old.as_object_mut().unwrap().remove(key);
         }
         let restored: Settings = serde_json::from_value(old).unwrap();
-        assert!(restored.player_display.fullscreen_lyrics_visible);
         assert!(restored.player_display.fullscreen_visualizer_visible);
         assert!(restored.player_display.fullscreen_dynamic_background);
-        for choice in 0..16 {
+        for choice in 0..8 {
             let settings = Settings {
                 player_display: PlayerDisplayPreferences {
-                    fullscreen_lyrics_visible: choice & 1 != 0,
-                    fullscreen_visualizer_visible: choice & 2 != 0,
-                    fullscreen_dynamic_background: choice & 4 != 0,
-                    fullscreen_background_image: choice & 8 != 0,
+                    fullscreen_visualizer_visible: choice & 1 != 0,
+                    fullscreen_dynamic_background: choice & 2 != 0,
+                    fullscreen_background_image: choice & 4 != 0,
                     ..Default::default()
                 },
                 ..Settings::default()
@@ -729,13 +703,11 @@ mod tests {
                 serde_json::from_slice(&serde_json::to_vec(&settings).unwrap()).unwrap();
             assert_eq!(
                 (
-                    restored.player_display.fullscreen_lyrics_visible,
                     restored.player_display.fullscreen_visualizer_visible,
                     restored.player_display.fullscreen_dynamic_background,
                     restored.player_display.fullscreen_background_image
                 ),
                 (
-                    settings.player_display.fullscreen_lyrics_visible,
                     settings.player_display.fullscreen_visualizer_visible,
                     settings.player_display.fullscreen_dynamic_background,
                     settings.player_display.fullscreen_background_image

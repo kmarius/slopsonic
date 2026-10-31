@@ -222,7 +222,6 @@ impl MetadataEditor {
                         state.set_text(key, value.clone());
                     }
                 }
-                state.lyrics = pending.lyrics;
                 state.artwork = pending.artwork;
                 state.storage = pending.storage;
             } else {
@@ -289,15 +288,14 @@ impl MetadataEditor {
                 .state()
                 .edit(&self.draft)
                 .map_err(SourceMetadataError::InvalidInput)?;
-            let lyrics = self.state().lyrics.clone();
-            if edit.changes.is_empty() && edit.artwork.is_none() && lyrics.is_none() {
+            if edit.changes.is_empty() && edit.artwork.is_none() {
                 return Ok(self.clone());
             }
             let result = self
                 .session
                 .as_ref()
                 .unwrap()
-                .save(&self.source, edit, lyrics)
+                .save(&self.source, edit)
                 .await;
             self.state().committed = match &result {
                 Ok(()) | Err(SourceMetadataError::SavedRefreshFailed(_)) => Some(true),
@@ -435,7 +433,6 @@ pub(super) struct Editing {
     pub(super) mixed: HashSet<String>,
     pub(super) values: MetadataChanges,
     pub(super) touched: HashSet<String>,
-    pub(super) lyrics: Option<super::lyrics::LyricsEdit>,
     pub(super) recordings: Vec<String>,
     pub(super) scan_error: Option<String>,
     pub(super) lookup_candidates: Option<Vec<super::MetadataCandidate>>,
@@ -461,7 +458,6 @@ impl Editing {
                 .collect(),
             values: MetadataChanges::new(),
             touched: HashSet::new(),
-            lyrics: None,
             recordings: Vec::new(),
             scan_error: None,
             lookup_candidates: None,
@@ -588,7 +584,7 @@ impl Editing {
     }
 
     pub(super) fn has_changes(&self, draft: &MetadataDraft) -> bool {
-        draft.fields.iter().any(|field| self.field_changed(field)) || self.lyrics.is_some()
+        draft.fields.iter().any(|field| self.field_changed(field))
     }
 
     pub(super) fn values(&self) -> MetadataChanges {

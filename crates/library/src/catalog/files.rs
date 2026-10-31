@@ -1123,11 +1123,6 @@ async fn merge_local_file_uris_on(
             sqlx::query("UPDATE local_locators SET access_uri=?2,path=?3 WHERE media_uri=?1 AND access_uri=?1 AND origin='local'")
                 .bind(previous).bind(current).bind(crate::file_media_path(current).map(|path|path.to_string_lossy().into_owned())).execute(&mut *connection).await?;
         }
-        sqlx::query("INSERT INTO lyrics_cache(media_uri,authority,role,language,script,cache_input_digest,lyrics,updated_at) SELECT ?2,authority,role,language,script,cache_input_digest,lyrics,updated_at FROM lyrics_cache WHERE media_uri=?1 ON CONFLICT DO NOTHING").bind(previous).bind(current).execute(&mut *connection).await?;
-        sqlx::query("DELETE FROM lyrics_cache WHERE media_uri=?1")
-            .bind(previous)
-            .execute(&mut *connection)
-            .await?;
         sqlx::query("INSERT INTO favorite_outbox(media_uri,favorite,previous_favorite,attempts,next_attempt_at) SELECT ?2,favorite,previous_favorite,attempts,next_attempt_at FROM favorite_outbox WHERE media_uri=?1 ON CONFLICT DO NOTHING").bind(previous).bind(current).execute(&mut *connection).await?;
         sqlx::query("DELETE FROM favorite_outbox WHERE media_uri=?1")
             .bind(previous)

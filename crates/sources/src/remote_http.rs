@@ -278,19 +278,6 @@ async fn checked_response(
     checked_response_with_media(request, policy, None).await
 }
 
-pub(crate) async fn media_response(
-    request: reqwest::RequestBuilder,
-    anonymous: &Client,
-    timeout: Duration,
-    policy: RemoteHttpPolicy,
-) -> SourceResult<reqwest::Response> {
-    Ok(
-        checked_response_with_media(request, policy, Some((anonymous, timeout)))
-            .await?
-            .response,
-    )
-}
-
 async fn checked_response_with_media(
     request: reqwest::RequestBuilder,
     policy: RemoteHttpPolicy,

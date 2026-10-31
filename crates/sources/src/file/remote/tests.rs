@@ -62,7 +62,7 @@ async fn dav_scan_attempts_remaining_files_after_an_unreadable_file() {
                 }
                 let mut entries = String::new();
                 if request.headers.get("depth").unwrap() == "1" {
-                    for name in ["a.wav", "b.wav", "c.wav", "c.lrc"].into_iter().chain((response_cue.load(Ordering::Relaxed) == 1).then_some("album.cue")) {
+                    for name in ["a.wav", "b.wav", "c.wav"].into_iter().chain((response_cue.load(Ordering::Relaxed) == 1).then_some("album.cue")) {
                         entries.push_str(&format!("<d:response><d:href>/{name}</d:href><d:propstat><d:prop><d:resourcetype/><d:getcontentlength>{}</d:getcontentlength></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>", audio.len()));
                     }
                 }
@@ -70,7 +70,6 @@ async fn dav_scan_attempts_remaining_files_after_an_unreadable_file() {
             }
             "GET" if request.url.path() == "/album.cue" => ResponseTemplate::new(200).set_body_string("FILE \"a.wav\" WAVE\nTRACK 01 AUDIO\nINDEX 01 00:00:00\nFILE \"b.wav\" WAVE\nTRACK 02 AUDIO\nINDEX 01 00:00:00\n"),
             "GET" if request.url.path() == "/a.wav" => ResponseTemplate::new(403),
-            "GET" if request.url.path() == "/c.lrc" => ResponseTemplate::new(200).set_body_string("[00:00.00]A lyric line\n"),
             "GET" => ResponseTemplate::new(200).set_body_bytes(audio.clone()),
             _ => ResponseTemplate::new(404),
         })
@@ -138,18 +137,6 @@ async fn dav_scan_attempts_remaining_files_after_an_unreadable_file() {
             .await
             .unwrap();
         assert_eq!(rows.len(), 2);
-        let lyrics = database
-            .search_tracks_by_lyrics(
-                &library::SearchRequest::new("lyric line"),
-                &ReadCancellation::new(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(
-            lyrics.tracks.len(),
-            1,
-            "WebDAV scans index sidecars without opening lyrics"
-        );
         let requests = server.received_requests().await.unwrap();
         for name in ["/a.wav", "/b.wav", "/c.wav"] {
             assert!(

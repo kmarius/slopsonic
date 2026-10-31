@@ -17,7 +17,6 @@ tracing.workspace = true
 gtk-widgets.workspace = true
 rufin-core.workspace = true
 library.workspace = true
-lyrics.workspace = true
 playback.workspace = true
 artwork.workspace = true
 gtk = { workspace = true, features = ["v4_20"] }

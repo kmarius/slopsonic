@@ -2,7 +2,6 @@
 mod batch;
 mod details;
 mod editor;
-mod lyrics;
 mod review;
 mod scan;
 use crate::runtime::CatalogChange;
@@ -18,7 +17,6 @@ pub use editor::{
     mixed_field_label,
 };
 use library::Database;
-pub use lyrics::MetadataLyricsSettings;
 pub use metadata_lookup::{ArtworkQuery, ArtworkResult};
 pub use metadata_lookup::{MetadataCandidate, MetadataMatchKind};
 pub use review::{
@@ -231,12 +229,10 @@ impl EditSession {
         &self,
         owner: &SourceOwner,
         edit: sources::MetadataEdit,
-        lyrics: Option<lyrics::LyricsEdit>,
     ) -> Result<(), SourceMetadataError> {
-        if edit.changes.is_empty() && edit.artwork.is_none() && lyrics.is_none() {
+        if edit.changes.is_empty() && edit.artwork.is_none() {
             return Ok(());
         }
-        let metadata_changed = !edit.changes.is_empty() || edit.artwork.is_some();
         let artwork_changed = edit.artwork.is_some();
         let result = async {
             match &self.destination {
@@ -305,12 +301,7 @@ impl EditSession {
                 .publish_current_catalog(None, CatalogChange::Broad)
                 .await;
         }
-        result?;
-        if let Some(lyrics) = lyrics {
-            let saved = self.save_lyrics(owner, &lyrics).await;
-            sources::finish_metadata_save(saved.map(|_| ()), Ok(()), metadata_changed)?;
-        }
-        Ok(())
+        result
     }
 }
 

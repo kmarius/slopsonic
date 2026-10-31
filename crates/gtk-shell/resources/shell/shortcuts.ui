@@ -281,18 +281,6 @@
           </object>
         </child>
         <child>
-          <object class="AdwShortcutsItem" id="shortcut_lyrics_panel">
-            <property name="title" translatable="yes">Show lyrics in the right panel</property>
-            <property name="action-name">win.show-lyrics-panel</property>
-          </object>
-        </child>
-        <child>
-          <object class="AdwShortcutsItem" id="shortcut_visualizer_lyrics_panel">
-            <property name="title" translatable="yes">Show visualizer and lyrics in the right panel</property>
-            <property name="action-name">win.show-visualizer-lyrics-panel</property>
-          </object>
-        </child>
-        <child>
           <object class="AdwShortcutsItem" id="shortcut_toggle_fullscreen">
             <property name="title" translatable="yes">Toggle Fullscreen</property>
             <property name="action-name">win.toggle-fullscreen</property>

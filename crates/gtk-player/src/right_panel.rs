@@ -39,15 +39,12 @@ pub struct RightPanelWidgets {
     pub queue_playlist_button: gtk::Button,
     pub queue_customize_button: gtk::Button,
     pub(crate) queue_width_fit: RefCell<Option<gtk_widgets::table_sizing::ColumnViewWidthFit>>,
-    pub lyrics_host: gtk::Box,
     pub visualizer_settings: gtk::Button,
     pub visualizer_visible: Cell<bool>,
-    visualizer_controls: gtk::Box,
-    modules: [gtk::Overlay; 3],
-    controls: [(SidebarPanel, PanelControls); 2],
+    modules: [gtk::Overlay; 2],
+    controls: [(SidebarPanel, PanelControls); 1],
     splits: RefCell<Vec<gtk::Paned>>,
     visible_panels: RefCell<Vec<SidebarPanel>>,
-    combined: Cell<bool>,
 }
 
 pub fn build_right_panel(
@@ -65,19 +62,15 @@ pub fn build_right_panel(
         queue_clear_button: gtk::Button,
         queue_playlist_button: gtk::Button,
         queue_customize_button: gtk::Button,
-        media_overlay: gtk::Overlay,
-        lyrics_host: gtk::Box,
         visualizer_module: gtk::Overlay,
         visualizer_controls: gtk::Box,
         visualizer_settings: gtk::Button,
     });
     // Each module clips its own content. Only the split owns the divider region.
-    media_overlay.add_overlay(visualizer_area);
-    media_overlay.add_overlay(&lyrics_host);
+    visualizer_module.add_overlay(visualizer_area);
     visualizer_module.add_overlay(&visualizer_controls);
-    let controls =
-        [SidebarPanel::Lyrics, SidebarPanel::Visualizer].map(|panel| (panel, PanelControls::new()));
-    visualizer_controls.prepend(&controls[1].1.root);
+    let controls = [SidebarPanel::Visualizer].map(|panel| (panel, PanelControls::new()));
+    visualizer_controls.prepend(&controls[0].1.root);
     gtk_widgets::controls::configure_search_entry(&queue_search);
     queue_search.connect_text_notify(|entry| {
         if entry.text().is_empty() {
@@ -102,34 +95,19 @@ pub fn build_right_panel(
         queue_playlist_button,
         queue_customize_button,
         queue_width_fit: RefCell::new(None),
-        lyrics_host,
         visualizer_settings,
         visualizer_visible: Cell::new(settings.visualizer_panel_visible),
-        visualizer_controls,
-        modules: [queue_region, media_overlay, visualizer_module],
+        modules: [queue_region, visualizer_module],
         controls,
         splits: RefCell::new(Vec::new()),
         visible_panels: RefCell::new(Vec::new()),
-        combined: Cell::new(true),
     }
 }
 
 impl RightPanelWidgets {
-    pub fn attach_lyrics_pane(&self, pane: &crate::lyrics::LyricsPane) {
-        self.lyrics_host.append(pane.widget());
-        pane.settings_controls.prepend(&self.controls[0].1.root);
-    }
-
-    fn rebuild(
-        &self,
-        settings: &RightPanelSettings,
-        combined_height: Option<i32>,
-        lyrics_visible: bool,
-        visualizer: &crate::visualizer::Visualizer,
-    ) {
-        let order = settings.visible_panels(lyrics_visible, self.visualizer_visible.get());
-        let combined = settings.combined;
-        if *self.visible_panels.borrow() == order && self.combined.get() == combined {
+    fn rebuild(&self, settings: &RightPanelSettings) {
+        let order = settings.visible_panels(self.visualizer_visible.get());
+        if *self.visible_panels.borrow() == order {
             return;
         }
         // Retain the modules and their content while replacing only the split structure.
@@ -139,28 +117,6 @@ impl RightPanelWidgets {
         }
         while let Some(child) = self.root.first_child() {
             self.root.remove(&child);
-        }
-        if self.combined.replace(combined) != combined {
-            let from = if combined {
-                SidebarPanel::Visualizer
-            } else {
-                SidebarPanel::Lyrics
-            };
-            let to = if combined {
-                SidebarPanel::Lyrics
-            } else {
-                SidebarPanel::Visualizer
-            };
-            self.modules[from.index()].remove_overlay(visualizer);
-            self.modules[to.index()].add_overlay(visualizer);
-            if combined {
-                // Lyrics and their controls stay above the visualizer.
-                self.modules[to.index()].remove_overlay(&self.lyrics_host);
-                self.modules[to.index()].add_overlay(&self.lyrics_host);
-            } else {
-                self.modules[to.index()].remove_overlay(&self.visualizer_controls);
-                self.modules[to.index()].add_overlay(&self.visualizer_controls);
-            }
         }
         for (panel, controls) in &self.controls {
             let position = order.iter().position(|candidate| candidate == panel);
@@ -173,13 +129,6 @@ impl RightPanelWidgets {
         }
         let heights = [
             0,
-            if combined {
-                combined_height
-            } else {
-                settings.lyrics_height
-            }
-            .filter(|height| *height > 0)
-            .unwrap_or(300),
             settings
                 .visualizer_height
                 .filter(|height| *height > 0)
@@ -258,39 +207,17 @@ impl crate::PlayerUi {
         if !panel.root.is_mapped() || visible.len() < 2 {
             return;
         }
-        let lyrics = visible
-            .contains(&SidebarPanel::Lyrics)
-            .then(|| panel.modules[SidebarPanel::Lyrics.index()].height())
-            .filter(|height| *height > 0);
         let visualizer = visible
             .contains(&SidebarPanel::Visualizer)
             .then(|| panel.modules[SidebarPanel::Visualizer.index()].height())
             .filter(|height| *height > 0);
-        let combined = panel.combined.get();
+        if visualizer
+            .is_none_or(|height| self.settings.current.borrow().right_panel.visualizer_height == Some(height))
         {
-            let settings = self.settings.current.borrow();
-            let saved_lyrics = if combined {
-                settings.queue_lyrics_height
-            } else {
-                settings.right_panel.lyrics_height
-            };
-            if lyrics.is_none_or(|height| saved_lyrics == Some(height))
-                && visualizer
-                    .is_none_or(|height| settings.right_panel.visualizer_height == Some(height))
-            {
-                return;
-            }
+            return;
         }
         self.settings
             .update_app_settings("sidebar panel sizes", |settings| {
-                let lyrics_height = if combined {
-                    &mut settings.queue_lyrics_height
-                } else {
-                    &mut settings.right_panel.lyrics_height
-                };
-                if lyrics.is_some() {
-                    *lyrics_height = lyrics;
-                }
                 if visualizer.is_some() {
                     settings.right_panel.visualizer_height = visualizer;
                 }
@@ -316,16 +243,6 @@ impl crate::PlayerUi {
             .update_property(&[gtk::accessible::Property::Label(&label)]);
     }
 
-    pub fn set_right_panel_combined(self: &Rc<Self>, combined: bool) {
-        self.save_sidebar_panel_sizes();
-        self.settings
-            .set_app_setting("combine sidebar panels", combined, |settings| {
-                &mut settings.right_panel.combined
-            });
-        self.arrange_sidebar_panels();
-        self.sync_visualizer_state();
-    }
-
     pub fn set_sidebar_queue_visible(&self, visible: bool) {
         self.save_sidebar_panel_sizes();
         self.settings
@@ -349,12 +266,9 @@ impl crate::PlayerUi {
         let changed = self
             .settings
             .update_app_settings("sidebar panel order", |settings| {
-                settings.right_panel.move_panel(
-                    panel,
-                    direction,
-                    settings.lyrics_panel_visible,
-                    settings.visualizer_panel_visible,
-                )
+                settings
+                    .right_panel
+                    .move_panel(panel, direction, settings.visualizer_panel_visible)
             })
             .is_some();
         if !changed {
@@ -377,42 +291,24 @@ impl crate::PlayerUi {
     }
 
     fn arrange_sidebar_panels(&self) {
-        let (settings, combined_height) = {
-            let settings = self.settings.current.borrow();
-            (settings.right_panel.clone(), settings.queue_lyrics_height)
-        };
-        self.right_panel.rebuild(
-            &settings,
-            combined_height,
-            self.lyrics.panel_visible.get(),
-            &self.views.visualizer.sidebar_area,
-        );
+        let settings = self.settings.current.borrow().right_panel.clone();
+        self.right_panel.rebuild(&settings);
     }
 
-    pub fn set_right_panel_media_visibility(
-        self: &Rc<Self>,
-        lyrics_visible: bool,
-        visualizer_visible: bool,
-    ) {
-        if self.lyrics.panel_visible.get() != lyrics_visible
-            || self.right_panel.visualizer_visible.get() != visualizer_visible
-        {
+    pub fn set_sidebar_visualizer_visible(self: &Rc<Self>, visualizer_visible: bool) {
+        if self.right_panel.visualizer_visible.get() != visualizer_visible {
             self.save_sidebar_panel_sizes();
         }
-        self.lyrics.panel_visible.set(lyrics_visible);
         self.right_panel.visualizer_visible.set(visualizer_visible);
         self.settings
-            .update_app_settings("right panel media visibility", |settings| {
-                if settings.lyrics_panel_visible == lyrics_visible
-                    && settings.visualizer_panel_visible == visualizer_visible
-                {
+            .update_app_settings("sidebar visualizer visibility", |settings| {
+                if settings.visualizer_panel_visible == visualizer_visible {
                     return false;
                 }
-                settings.lyrics_panel_visible = lyrics_visible;
                 settings.visualizer_panel_visible = visualizer_visible;
                 true
             });
-        apply_sidebar_media_visibility(Rc::clone(self));
+        apply_sidebar_visualizer_visibility(Rc::clone(self));
     }
 }
 
@@ -434,6 +330,22 @@ pub fn connect_sidebar_controls(shell: &Rc<crate::PlayerUi>) {
         gtk::glib::Propagation::Proceed
     });
     shell.right_panel.root.add_controller(events);
+    let weak = Rc::downgrade(shell);
+    shell.right_panel.visualizer_settings.connect_clicked(move |_| {
+        if let Some(shell) = weak.upgrade() {
+            crate::visualizer_settings::present_visualizer_settings_dialog(&shell);
+        }
+    });
+    let weak = Rc::downgrade(shell);
+    shell
+        .views
+        .fullscreen_player
+        .visualizer_settings
+        .connect_clicked(move |_| {
+            if let Some(shell) = weak.upgrade() {
+                crate::visualizer_settings::present_visualizer_settings_dialog(&shell);
+            }
+        });
     for (panel, controls) in &shell.right_panel.controls {
         let panel = *panel;
         for (button, direction) in [(&controls.up, -1), (&controls.down, 1)] {
@@ -465,17 +377,12 @@ pub fn connect_sidebar_controls(shell: &Rc<crate::PlayerUi>) {
     }
 }
 
-pub fn apply_sidebar_media_visibility(shell: Rc<crate::PlayerUi>) {
+pub fn apply_sidebar_visualizer_visibility(shell: Rc<crate::PlayerUi>) {
     shell.arrange_sidebar_panels();
     shell
         .views
         .visualizer
         .sidebar_area
         .set_visible(shell.right_panel.visualizer_visible.get());
-    if shell.lyrics.panel_visible.get() {
-        shell.sync_visible_lyrics_surfaces();
-    } else {
-        shell.update_lyrics_highlight();
-    }
     shell.sync_visualizer_state();
 }

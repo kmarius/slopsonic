@@ -7,7 +7,7 @@ use std::path::Path;
 use lofty::config::{GlobalOptions, ParseOptions, apply_global_options};
 use lofty::file::{FileType, TaggedFile};
 use lofty::probe::Probe;
-use lofty::tag::{ItemKey, TagType};
+use lofty::tag::ItemKey;
 
 const LOFTY_ALLOCATION_MAX_BYTES: usize = 32 * 1024 * 1024;
 
@@ -40,22 +40,6 @@ impl MetadataWriter {
         metadata_key_is_writable(self.file_type.primary_tag_type(), key)
     }
 
-    pub(crate) fn lyrics_target(self) -> Option<(TagType, ItemKey)> {
-        let primary = self.file_type.primary_tag_type();
-        for key in [ItemKey::UnsyncLyrics, ItemKey::Lyrics] {
-            if metadata_key_is_writable(primary, key) {
-                return Some((primary, key));
-            }
-        }
-        if self.file_type.tag_support(TagType::Id3v2).is_writable() {
-            for key in [ItemKey::UnsyncLyrics, ItemKey::Lyrics] {
-                if metadata_key_is_writable(TagType::Id3v2, key) {
-                    return Some((TagType::Id3v2, key));
-                }
-            }
-        }
-        None
-    }
 }
 
 fn metadata_key_is_writable(tag_type: lofty::tag::TagType, key: ItemKey) -> bool {

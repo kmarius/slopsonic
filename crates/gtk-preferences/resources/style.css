@@ -103,7 +103,6 @@ listview.artist-release-list row:selected .artist-album-table-row {
   box-shadow: none;
 }
 
-
 toastoverlay toast {
   background: color-mix(in srgb, var(--window-bg-color) 88%, var(--card-bg-color) 12%);
   color: var(--window-fg-color);
@@ -518,7 +517,6 @@ listview.artist-release-list row:not(:selected) .display-no-hover.display-stripe
   background-color: color-mix(in srgb, currentColor 4%, transparent);
 }
 
-
 .album-track-table > listview > header {
   padding: 6px 0;
   min-height: 0;
@@ -703,38 +701,6 @@ headerbar.shared-topbar .topbar-search > entry.search {
   padding: 6px 0;
   border-radius: 12px;
 }
-
-.search-modes {
-  border: 1px solid var(--accent-color);
-  border-radius: 999px;
-  padding: 2px;
-  color: var(--accent-color);
-}
-.search-popover .search-modes { margin: 0 8px 4px; }
-.lyrics-cache-prompt {
-  margin: 4px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--card-bg-color);
-}
-.search-modes > button {
-  min-width: 0;
-  min-height: 24px;
-  padding: 2px 10px;
-  border: 0;
-  border-radius: 999px;
-  box-shadow: none;
-  background: transparent;
-  color: inherit;
-  font-size: 0.9em;
-}
-.search-modes > button:hover { background: color-mix(in srgb, var(--accent-color) 12%, transparent); }
-.search-modes > button:checked {
-  background: var(--accent-bg-color);
-  color: var(--accent-fg-color);
-}
-.lyrics-snippet { color: var(--accent-color); }
-.lyrics-snippet > label { color: var(--window-fg-color); }
 
 list.search-results { background: transparent; color: inherit; }
 list.search-results .heading { font-size: 0.9em; font-weight: 600; }
@@ -1394,12 +1360,6 @@ headerbar.preferences-header:backdrop,
   margin-bottom: 4px;
 }
 
-.lyrics-offset-controls > button {
-  min-width: 24px;
-  min-height: 24px;
-  padding: 4px 6px;
-}
-
 .preferences-category-content {
   padding: 6px 8px;
 }
@@ -1429,8 +1389,6 @@ dialog.alert.playlist-delete-dialog .message-area {
   background: transparent;
   box-shadow: none;
 }
-
-
 
 .cover-frame {
   border-radius: 12px;
@@ -1864,7 +1822,6 @@ scale.volume-slider:dir(rtl) {
   margin-bottom: 0;
 }
 
-
 .player-play-button {
   border-radius: 0;
   background: radial-gradient(circle closest-side,
@@ -1908,11 +1865,6 @@ scale.volume-slider:dir(rtl) {
   color: color-mix(in srgb, var(--window-fg-color) 90%, var(--window-bg-color));
 }
 
-.lyrics-search-helper {
-  color: color-mix(in srgb, var(--window-fg-color) 68%, var(--window-bg-color));
-  font-size: 12px;
-}
-
 .error-text {
   color: var(--error-color);
 }
@@ -1931,63 +1883,8 @@ scale.volume-slider:dir(rtl) {
 }
 
 .cached-list,
-.queue-list,
-.lyrics-lines {
+.queue-list {
   background: transparent;
-}
-
-.lyrics-lines {
-  padding: 0;
-}
-
-.lyrics-line,
-.lyrics-instrumental {
-  color: var(--window-fg-color);
-  font-size: 19px;
-  font-weight: 650;
-  opacity: 0.34;
-  transform: scale(0.96);
-  transition:
-    color 180ms ease,
-    opacity 360ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.lyrics-instrumental {
-  opacity: 0.8;
-  text-shadow: 0 0 4px var(--window-bg-color);
-}
-
-.lyrics-line,
-.lyrics-line .lyrics-reading-surface,
-.lyrics-line .lyrics-furigana,
-.lyrics-line .lyrics-romanization {
-  text-shadow: 0 0 4px var(--window-bg-color);
-}
-
-.lyrics-row-active .lyrics-line {
-  color: var(--window-fg-color);
-  font-weight: 800;
-  opacity: 1;
-  transform: scale(1.04);
-}
-
-.lyrics-row {
-  border-radius: 8px;
-  padding: 10px 8px;
-  background: transparent;
-}
-
-.lyrics-row:hover {
-  background: color-mix(in srgb, var(--accent-bg-color) 8%, transparent);
-}
-
-.lyrics-row-active {
-  background: transparent;
-}
-
-.lyrics-row-active:hover {
-  background: color-mix(in srgb, var(--accent-bg-color) 8%, transparent);
 }
 
 .table-link {
@@ -2462,10 +2359,6 @@ listview.queue-list row {
   background: color-mix(in srgb, var(--accent-bg-color) 18%, transparent);
 }
 
-.lyrics-panel {
-  min-height: 120px;
-}
-
 .visualizer-accent {
   color: var(--accent-color);
 }
@@ -2491,97 +2384,22 @@ listview.queue-list row {
   box-shadow: 0 0 0 1px var(--border-color);
 }
 
-.lyrics-controls {
+.panel-controls {
   opacity: 0;
   transition: opacity 160ms ease-out;
 }
 
-.lyrics-panel:hover .lyrics-controls,
-.sidebar-media:hover .lyrics-controls,
-.sidebar-media .lyrics-controls:focus-within,
-.lyrics-top-controls:focus-within,
-.lyrics-control-bar:focus-within {
+.sidebar-media:hover .panel-controls,
+.sidebar-media .panel-controls:focus-within,
+.panel-top-controls:focus-within {
   opacity: 1;
 }
 
-.lyrics-controls .icon-button,
+.panel-controls .icon-button,
 .fullscreen-focus-button {
   min-width: 30px;
   min-height: 30px;
   padding: 0;
-}
-
-.lyrics-track-heading {
-  margin-top: 14px;
-  font-size: 0.85em;
-  font-weight: 700;
-  color: var(--dim-label-color);
-}
-
-.lyrics-furigana {
-  font-size: 0.68em;
-  color: var(--dim-label-color);
-}
-
-.lyrics-reading-surface {
-  transform: translateY(-1px);
-}
-
-.lyrics-romanization {
-  margin-top: 2px;
-  font-size: 15px;
-}
-
-.lyrics-highlight-swatch {
-  min-width: 28px;
-  min-height: 28px;
-  border-radius: 6px;
-  color: var(--lyrics-highlight-color, var(--accent-color));
-  background-color: var(--lyrics-highlight-color, var(--accent-color));
-}
-
-.lyrics-theme-accent-probe {
-  color: var(--accent-color);
-}
-
-.lyrics-cue-sung {
-  color: var(--lyrics-highlight-color, var(--accent-color));
-}
-
-.lyrics-cue-base {
-  color: var(--window-fg-color);
-}
-
-.lyrics-cue-base.lyrics-furigana {
-  color: var(--dim-label-color, var(--window-fg-color));
-}
-
-.lyrics-agent-name {
-  font-size: 0.72em;
-  color: var(--dim-label-color);
-}
-
-.lyrics-agent-background,
-.lyrics-agent-group {
-  opacity: 0.82;
-}
-
-.lyrics-provider-order button {
-  min-width: 28px;
-  min-height: 28px;
-  padding: 0;
-}
-
-entry.lyrics-offset-value.flat,
-entry.lyrics-offset-value.flat:focus-within {
-  min-width: 40px;
-  min-height: 34px;
-  padding: 0 3px;
-  border-radius: 4px;
-  background-color: var(--view-bg-color);
-  background-image: none;
-  border: none;
-  box-shadow: none;
 }
 
 .bottom-player {
@@ -2757,10 +2575,6 @@ scale.equalizer-surface-scale > trough > slider {
 }
 .equalizer-plot { color: var(--accent-color); }
 .equalizer-surface .error { color: var(--error-color); }
-
-.fullscreen-player .lyrics-panel {
-  margin: 0;
-}
 
 .fullscreen-player-queue-panel {
   min-height: 0;

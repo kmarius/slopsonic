@@ -107,7 +107,6 @@ pub enum SourceProgressStage {
     Playlists,
     Home,
     Artwork,
-    Lyrics,
     Finalizing,
 }
 
@@ -165,7 +164,6 @@ pub fn source_progress_text(progress: &SourceProgress) -> String {
         SourceProgressStage::Playlists => "Fetching playlists".to_string(),
         SourceProgressStage::Home => "Fetching Home".to_string(),
         SourceProgressStage::Artwork => "Fetching artwork".to_string(),
-        SourceProgressStage::Lyrics => "Fetching lyrics".to_string(),
     };
     let completed = progress.completed.to_string();
     match progress.total {
@@ -189,7 +187,6 @@ pub fn source_download_text(progress: &SourceProgress) -> String {
         SourceProgressStage::Artwork => {
             "Downloading artwork... {count} checked"
         }
-        SourceProgressStage::Lyrics => "Downloading lyrics... {count} checked",
         _ => return source_progress_text(progress),
     };
     crate::text::fill(message, &[("count", &progress.completed.to_string())])

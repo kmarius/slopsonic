@@ -535,14 +535,6 @@ impl Shell {
         if right_visibility_changed {
             self.player_ui.update_right_panel_button();
             self.player_ui.sync_visualizer_state();
-            let lyrics_shell = Rc::clone(self);
-            glib::idle_add_local_once(move || {
-                if lyrics_shell.player_ui.right_lyrics_surface_visible() {
-                    lyrics_shell.player_ui.sync_visible_lyrics_surfaces();
-                } else {
-                    lyrics_shell.player_ui.update_lyrics_highlight();
-                }
-            });
         }
         if previous_left != resolved.left_sidebar || right_visibility_changed {
             debug!(?resolved, "resolved layout changed");
@@ -909,9 +901,6 @@ fn connect_right_sidebar_resize(shell: &Rc<Shell>) {
         );
         drag_exact.set(Some(exact_width));
         let requested_width = exact_width.round() as i32;
-        if let Some(lyrics) = drag_shell.player_ui.selected_lyrics() {
-            lyrics.right_pane.capture_active_row_resize_anchor();
-        }
         drag_shell
             .layout_state
             .right_drag_width
@@ -975,9 +964,6 @@ fn connect_layout_allocation_owner(shell: &Rc<Shell>) {
     owner.set_after_allocate(move |_, _| {
         if let Some(shell) = after_shell.upgrade() {
             shell.chrome.topbar.allocate_search_popup();
-            if let Some(lyrics) = shell.player_ui.selected_lyrics() {
-                lyrics.right_pane.restore_active_row_resize_anchor();
-            }
             shell.sync_left_resize_handle_to_allocation();
         }
     });

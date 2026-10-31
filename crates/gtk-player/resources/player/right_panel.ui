@@ -130,22 +130,6 @@
       </object>
     </child>
   </object>
-  <object class="GtkOverlay" id="media_overlay">
-    <property name="hexpand">true</property>
-    <property name="vexpand">true</property>
-    <property name="overflow">hidden</property>
-    <style>
-      <class name="sidebar-media" />
-    </style>
-    <property name="child">
-      <object class="GtkBox" />
-    </property>
-  </object>
-  <object class="GtkBox" id="lyrics_host">
-    <property name="orientation">vertical</property>
-    <property name="hexpand">true</property>
-    <property name="vexpand">true</property>
-  </object>
   <object class="GtkOverlay" id="visualizer_module">
     <property name="hexpand">true</property>
     <property name="vexpand">true</property>
@@ -163,8 +147,8 @@
     <property name="margin-top">8</property>
     <property name="margin-end">8</property>
     <style>
-      <class name="lyrics-controls" />
-      <class name="lyrics-top-controls" />
+      <class name="panel-controls" />
+      <class name="panel-top-controls" />
     </style>
     <child>
       <object class="GtkButton" id="visualizer_settings">

@@ -345,32 +345,7 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
     let visualizer_panel_accels = &["<Control><Shift>v"][..];
     add_window_action(shell, "show-visualizer-panel", visualizer_panel_accels, {
         let shell = Rc::clone(shell);
-        move || shell.set_right_panel_media_visibility(false, true)
-    });
-    #[cfg(target_os = "macos")]
-    let lyrics_panel_accels = &["<Alt><Meta>l"][..];
-    #[cfg(not(target_os = "macos"))]
-    let lyrics_panel_accels = &["<Control><Shift>l"][..];
-    add_window_action(shell, "show-lyrics-panel", lyrics_panel_accels, {
-        let shell = Rc::clone(shell);
-        move || shell.set_right_panel_media_visibility(true, false)
-    });
-    #[cfg(target_os = "macos")]
-    let visualizer_lyrics_panel_accels = &["<Alt><Meta>b"][..];
-    #[cfg(not(target_os = "macos"))]
-    let visualizer_lyrics_panel_accels = &["<Control><Shift>b"][..];
-    add_window_action(
-        shell,
-        "show-visualizer-lyrics-panel",
-        visualizer_lyrics_panel_accels,
-        {
-            let shell = Rc::clone(shell);
-            move || shell.set_right_panel_media_visibility(true, true)
-        },
-    );
-    add_window_action(shell, "toggle-lyrics", &[], {
-        let shell = Rc::clone(shell);
-        move || shell.toggle_lyrics_panel()
+        move || shell.set_visualizer_panel_visible(true)
     });
     #[cfg(target_os = "macos")]
     let refresh_library_accels = &["<Control><Meta>r"][..];
@@ -558,7 +533,6 @@ fn macos_menu_model() -> gio::Menu {
         &[
             ("Collapse/expand sidebar".to_string(), "win.toggle-left-sidebar"),
             ("Show/hide right sidebar".to_string(), "win.toggle-queue"),
-            ("Show/hide lyrics".to_string(), "win.toggle-lyrics"),
             ("Private mode".to_string(), "win.toggle-private-mode"),
             ("Toggle Fullscreen".to_string(), "win.toggle-fullscreen"),
         ],
@@ -894,7 +868,6 @@ mod tests {
             "win.navigate-sidebar",
             "win.toggle-left-sidebar",
             "win.toggle-queue",
-            "win.toggle-lyrics",
             "win.toggle-private-mode",
             "win.toggle-fullscreen",
             "win.play-pause",

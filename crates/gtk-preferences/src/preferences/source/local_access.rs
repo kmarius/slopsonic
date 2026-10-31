@@ -147,7 +147,7 @@ fn manage_server_content(
     let subtitle = if access.is_some() {
         "Local file access configured".to_string()
     } else {
-        "Use local files for playback, lyrics, and supported metadata editing".to_string()
+        "Use local files for playback and supported metadata editing".to_string()
     };
     mapping_expander.set_subtitle(&subtitle);
     content.append(&mapping_group);

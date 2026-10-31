@@ -157,7 +157,6 @@
                             </property>
                           </object>
                         </child>
-                        <child><object class="GtkStackPage"><property name="name">lyrics</property><property name="title" translatable="yes">Lyrics</property><property name="child"><object class="GtkBox" id="lyrics_host"><property name="orientation">vertical</property><property name="vexpand">true</property></object></property></object></child>
                       </object>
                     </property>
                   </object>

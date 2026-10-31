@@ -428,7 +428,7 @@ pub fn parse_timeline(xml: &str) -> Result<Option<Timeline>, String> {
             Timeline {
                 state: node.attribute("state").unwrap_or("stopped").into(),
                 // Fractional milliseconds come from Plexamp's drag preview.
-                // Ignore that position instead of moving lyrics or resetting to zero.
+                // Ignore that position instead of resetting to zero.
                 time: number("time"),
                 duration: number("duration").unwrap_or_default(),
                 machine_identifier: text("machineIdentifier"),

@@ -121,7 +121,6 @@ where
     let (download_events, download_receiver) = unbounded();
     let (discovery_events, discovery_receiver) = unbounded();
     let (waveform_events, waveform_receiver) = unbounded();
-    let (lyrics_events, lyrics_receiver) = unbounded();
     let (release_update_events, release_update_receiver) = unbounded();
     let artwork = match artwork::Artwork::new(paths.artwork_dir(), runtime.clone()) {
         Ok(artwork) => artwork,
@@ -202,15 +201,6 @@ where
         paths.playback_dir(),
         stored.ui.player_display.seekbar_waveform_enabled,
     );
-    let lyrics = crate::lyrics::LyricsService::new(
-        library.as_ref().clone(),
-        Arc::clone(&source),
-        runtime.clone(),
-        stored.ui.lyrics.clone(),
-        stored.ui.application.private_mode,
-        lyrics_events,
-        paths.data_dir().join("japanese-readings"),
-    );
     let playback = PlaybackOwner::new(
         library.clone(),
         settings.clone(),
@@ -219,7 +209,6 @@ where
         visualizer_receiver.clone(),
         artwork.clone(),
         Arc::clone(&waveform),
-        Arc::clone(&lyrics),
         observe_playback,
         audio_outputs,
         Arc::clone(&scrobbler),
@@ -245,7 +234,6 @@ where
     source.attach_playback(&playback);
 
     let settings_playback = Arc::clone(&playback);
-    let settings_lyrics = Arc::clone(&lyrics);
     let settings_downloads = downloads.clone();
     let settings_source = Arc::clone(&source);
     let settings_scrobbling = Arc::clone(&scrobbling);
@@ -305,18 +293,8 @@ where
             {
                 settings_scrobbling.settings_changed(credentials_changed);
             }
-            if previous.ui.lyrics != current.ui.lyrics
-                || previous.ui.application.private_mode != current.ui.application.private_mode
-            {
-                settings_lyrics.settings_changed(
-                    current.ui.lyrics.clone(),
-                    current.ui.application.private_mode,
-                );
-            }
-            if (!previous.ui.application.download_artwork_automatically
-                && current.ui.application.download_artwork_automatically)
-                || (!previous.ui.application.download_lyrics_automatically
-                    && current.ui.application.download_lyrics_automatically)
+            if !previous.ui.application.download_artwork_automatically
+                && current.ui.application.download_artwork_automatically
             {
                 settings_source.request_asset_downloads();
             }
@@ -372,7 +350,6 @@ where
             downloads,
             playback,
             artwork,
-            lyrics: lyrics.handle(),
             release_updates,
             scrobbling,
         },
@@ -383,7 +360,6 @@ where
             downloads: download_receiver,
             visualizer: visualizer_receiver,
             waveform: waveform_receiver,
-            lyrics: lyrics_receiver,
             release_updates: release_update_receiver,
         },
         configured_sources: source.list_sources(),

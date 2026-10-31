@@ -81,12 +81,6 @@
                     <property name="model">download_options</property>
                   </object>
                 </child>
-                <child>
-                  <object class="AdwComboRow" id="lyrics_download">
-                    <property name="title" translatable="yes">Lyrics</property>
-                    <property name="model">download_options</property>
-                  </object>
-                </child>
               </object>
             </child>
             <child>
@@ -409,92 +403,6 @@
                         </child>
                       </object>
                     </property>
-                  </object>
-                </child>
-                <child>
-                  <object class="AdwPreferencesRow" id="lyrics_row">
-                    <property name="title" translatable="yes">Lyrics</property>
-                    <property name="activatable">false</property>
-                    <property name="focusable">true</property>
-                    <property name="child">
-                      <object class="GtkBox">
-                        <property name="spacing">12</property>
-                        <property name="margin-top">10</property>
-                        <property name="margin-bottom">10</property>
-                        <property name="margin-start">12</property>
-                        <property name="margin-end">12</property>
-                        <child>
-                          <object class="AdwWrapBox">
-                            <property name="child-spacing">8</property>
-                            <property name="line-spacing">2</property>
-                            <property name="hexpand">true</property>
-                            <property name="valign">center</property>
-                            <child>
-                              <object class="GtkLabel">
-                                <property name="label" translatable="yes">Lyrics</property>
-                                <property name="xalign">0</property>
-                              </object>
-                            </child>
-                            <child>
-                              <object class="GtkLabel" id="lyrics_count">
-                                <property name="label">...</property>
-                                <property name="xalign">0</property>
-                                <style>
-                                  <class name="dim-label" />
-                                  <class name="caption" />
-                                </style>
-                              </object>
-                            </child>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkLabel" id="lyrics_size">
-                            <property name="label">...</property>
-                            <property name="valign">center</property>
-                            <style>
-                              <class name="numeric" />
-                              <class name="dim-label" />
-                            </style>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkButton" id="clear_lyrics">
-                            <property name="tooltip-text" translatable="yes">Clear lyrics cache</property>
-                            <property name="valign">center</property>
-                            <property name="sensitive">false</property>
-                            <property name="icon-name">rufin-user-trash-symbolic</property>
-                            <style>
-                              <class name="flat" />
-                            </style>
-                            <accessibility>
-                              <property name="label" translatable="yes">Clear lyrics cache</property>
-                            </accessibility>
-                          </object>
-                        </child>
-                      </object>
-                    </property>
-                  </object>
-                </child>
-                <child>
-                  <object class="AdwActionRow" id="dictionary_row">
-                    <property name="title" translatable="yes">Japanese dictionary</property>
-                    <child type="suffix">
-                      <object class="GtkLabel" id="dictionary_size">
-                        <property name="label">...</property>
-                        <property name="valign">center</property>
-                        <style><class name="numeric"/><class name="dim-label"/></style>
-                      </object>
-                    </child>
-                    <child type="suffix">
-                      <object class="GtkButton" id="clear_dictionary">
-                        <property name="icon-name">rufin-user-trash-symbolic</property>
-                        <property name="tooltip-text" translatable="yes">Clear Japanese dictionary</property>
-                        <property name="valign">center</property>
-                        <property name="sensitive">false</property>
-                        <style><class name="flat"/></style>
-                        <accessibility><property name="label" translatable="yes">Clear Japanese dictionary</property></accessibility>
-                      </object>
-                    </child>
                   </object>
                 </child>
                 <child>

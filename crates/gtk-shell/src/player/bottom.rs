@@ -118,9 +118,9 @@ pub(crate) fn connect_player_controls(shell: &Rc<Shell>) {
         &shell.player_ui,
         {
             let weak = Rc::downgrade(shell);
-            Rc::new(move |lyrics, visualizer| {
+            Rc::new(move |visible| {
                 if let Some(shell) = weak.upgrade() {
-                    shell.set_right_panel_media_visibility(lyrics, visualizer);
+                    shell.set_visualizer_panel_visible(visible);
                 }
             })
         },

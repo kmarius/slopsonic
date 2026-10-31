@@ -2,16 +2,10 @@ use async_channel::Receiver;
 
 use super::SourceOwner;
 use crate::runtime::source::{SourceOperation, SourceProgress, SourceProgressStage};
-use sources::{SourceConfiguration, SourceError, SourceId};
+use sources::SourceConfiguration;
 use std::sync::{Arc, atomic::Ordering};
 
 impl SourceOwner {
-    pub(crate) fn source_input_digest(&self, source_id: &SourceId) -> [u8; 32] {
-        self.configuration(source_id)
-            .and_then(|configuration| configuration.input_identity().ok())
-            .map_or([0; 32], |input| input.digest)
-    }
-
     pub(crate) fn request_asset_downloads(&self) {
         self.shared.asset_download_requested.notify_one();
     }
@@ -37,27 +31,14 @@ impl SourceOwner {
         self.request_asset_downloads();
     }
 
-    fn asset_download_enabled(&self, stage: SourceProgressStage) -> bool {
-        let (artwork, lyrics) = self.shared.settings.cache_downloads();
-        match stage {
-            SourceProgressStage::Artwork => artwork,
-            SourceProgressStage::Lyrics => lyrics,
-            _ => false,
-        }
+    fn asset_download_enabled(&self) -> bool {
+        self.shared.settings.download_artwork_automatically()
     }
 
     async fn download_assets(&self) {
-        for configured in self.shared.settings.load().sources.configured {
-            for stage in [SourceProgressStage::Artwork, SourceProgressStage::Lyrics] {
-                if !self.asset_download_enabled(stage)
-                    || (stage == SourceProgressStage::Lyrics && configured.configuration.is_local())
-                {
-                    continue;
-                }
-                if let Err(error) = self
-                    .download_source_assets(&configured.configuration, stage)
-                    .await
-                {
+        if self.asset_download_enabled() {
+            for configured in self.shared.settings.load().sources.configured {
+                if let Err(error) = self.download_source_assets(&configured.configuration).await {
                     tracing::warn!(source = %configured.configuration.name, %error, "could not download source assets");
                 }
             }
@@ -68,7 +49,6 @@ impl SourceOwner {
     async fn download_source_assets(
         &self,
         configuration: &SourceConfiguration,
-        stage: SourceProgressStage,
     ) -> Result<(), String> {
         let source_id = &configuration.source_id;
         let database = &self.shared.database;
@@ -86,7 +66,7 @@ impl SourceOwner {
                 self.publish_asset_operation(SourceOperation::Downloading {
                     source_id: source_id.clone(),
                     progress: SourceProgress {
-                        stage,
+                        stage: SourceProgressStage::Artwork,
                         completed,
                         total: None,
                     },
@@ -95,79 +75,30 @@ impl SourceOwner {
             }
         };
         let mut completed = 0;
-        if stage == SourceProgressStage::Artwork {
-            let mut after = None;
-            loop {
-                let page = database
-                    .source_artwork_page(source_key, after.as_deref(), 128, &cancel_read)
-                    .await
-                    .map_err(super::string_error)?;
-                if page.is_empty() {
-                    break;
-                }
-                if completed == 0 {
-                    report(0);
-                }
-                after = page.last().cloned();
-                for binding in page {
-                    if !self.asset_download_enabled(stage) {
-                        return Ok(());
-                    }
-                    self.shared
-                        .artwork
-                        .cache_source(&binding)
-                        .await
-                        .map_err(super::string_error)?;
-                    completed += 1;
-                    report(completed);
-                }
+        let mut after = None;
+        loop {
+            let page = database
+                .source_artwork_page(source_key, after.as_deref(), 128, &cancel_read)
+                .await
+                .map_err(super::string_error)?;
+            if page.is_empty() {
+                break;
             }
-        } else {
-            let input = configuration
-                .input_identity()
-                .map_err(super::string_error)?
-                .digest;
-            let mut source = None;
-            let mut after = None;
-            loop {
-                let page = database
-                    .uncached_source_lyrics_page(source_key, input, after, &cancel_read)
+            if completed == 0 {
+                report(0);
+            }
+            after = page.last().cloned();
+            for binding in page {
+                if !self.asset_download_enabled() {
+                    return Ok(());
+                }
+                self.shared
+                    .artwork
+                    .cache_source(&binding)
                     .await
                     .map_err(super::string_error)?;
-                if page.is_empty() {
-                    break;
-                }
-                if completed == 0 {
-                    report(0);
-                }
-                let source = match &source {
-                    Some(source) => source,
-                    None => source.insert(self.open_client(source_id.clone()).await?),
-                };
-                after = page.last().map(|(key, _)| *key);
-                for (_, uri) in page {
-                    if !self.asset_download_enabled(stage) {
-                        return Ok(());
-                    }
-                    let input = if library::source_entity_parts(&uri).is_some() {
-                        input
-                    } else {
-                        [0; 32]
-                    };
-                    match source.cached_lyrics(database, &uri, input).await {
-                        Ok(_) => {}
-                        Err(
-                            error @ (SourceError::Network(_)
-                            | SourceError::Auth(_)
-                            | SourceError::Tls(_)
-                            | SourceError::Cancelled),
-                        ) => return Err(error.to_string()),
-                        // One unreadable track must not stop the rest of the source.
-                        Err(error) => tracing::warn!(%error, uri, "could not download lyrics"),
-                    }
-                    completed += 1;
-                    report(completed);
-                }
+                completed += 1;
+                report(completed);
             }
         }
         Ok(())

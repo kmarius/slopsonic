@@ -175,15 +175,6 @@ async fn external_server_change_uses_the_configured_profile_and_preserves_unavai
         false,
     );
     let stored = settings.load();
-    let lyrics = LyricsService::new(
-        database.as_ref().clone(),
-        source.clone(),
-        runtime.clone(),
-        stored.ui.lyrics.clone(),
-        true,
-        async_channel::unbounded().0,
-        root.path().join("dictionary"),
-    );
     let scrobbler = Arc::new(tokio::task::block_in_place(|| {
         Scrobbler::new(
             database.as_ref().clone(),
@@ -202,7 +193,6 @@ async fn external_server_change_uses_the_configured_profile_and_preserves_unavai
         visualizer_drain,
         artwork,
         waveform,
-        lyrics,
         Arc::new(|_| {}),
         Vec::new,
         scrobbler,

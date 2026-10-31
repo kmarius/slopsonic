@@ -4,9 +4,7 @@ use super::super::{
 };
 use super::*;
 use crate::playback::Placement;
-use crate::{
-    lyrics::LyricsService, settings::SettingsFile, source::SourceOwner, waveform::WaveformOwner,
-};
+use crate::{settings::SettingsFile, source::SourceOwner, waveform::WaveformOwner};
 use playback::{BackendError, PlaybackBackend};
 use playback::{Provenance, TrackReference};
 use std::sync::Mutex;
@@ -97,15 +95,6 @@ pub(in crate::playback) async fn seeded(
         false,
     );
     let stored = settings.load();
-    let lyrics = LyricsService::new(
-        database.clone(),
-        source.clone(),
-        runtime.clone(),
-        stored.ui.lyrics.clone(),
-        true,
-        async_channel::unbounded().0,
-        directory.path().join("dictionary"),
-    );
     let scrobbler = Arc::new(tokio::task::block_in_place(|| {
         scrobbling::Scrobbler::new(
             database.clone(),
@@ -126,7 +115,6 @@ pub(in crate::playback) async fn seeded(
         visualizer_drain,
         artwork,
         waveform,
-        lyrics,
         Arc::new(|_| {}),
         Vec::new,
         scrobbler,

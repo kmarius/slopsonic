@@ -53,27 +53,19 @@ use gtk_widgets::sparse_model::{SparseObjectItem, connect_sparse_bind};
 
 const SEARCH_DEBOUNCE: Duration = Duration::from_millis(300);
 pub mod session;
-use gtk_widgets::lyrics_snippet::LyricsSnippetView;
 
 #[derive(Clone)]
 #[expect(clippy::large_enum_variant, reason = "bounded prepared Search rows")]
 enum SearchItem {
-    Track(library::TrackView, Option<library::LyricsSnippet>),
+    Track(library::TrackView),
     Album(library::AlbumView),
     Artist(library::ArtistView),
 }
 
 impl SearchItem {
-    fn lyrics(&self) -> Option<&library::LyricsSnippet> {
-        match self {
-            Self::Track(_, snippet) => snippet.as_ref(),
-            _ => None,
-        }
-    }
-
     fn recent_result(&self) -> RecentSearchResult {
         let (kind, media_uri, artwork_binding) = match self {
-            Self::Track(row, _) => (
+            Self::Track(row) => (
                 RecentSearchKind::Track,
                 &row.media_uri,
                 &row.artwork_binding,
@@ -102,7 +94,7 @@ impl SearchItem {
     }
     fn play_request(&self) -> rufin_core::playback::PlayRequest {
         match self {
-            Self::Track(row, _) => gtk_widgets::selection::track_play_request(row.track_key),
+            Self::Track(row) => gtk_widgets::selection::track_play_request(row.track_key),
             Self::Album(row) => gtk_widgets::selection::album_play_request(row),
             Self::Artist(row) => gtk_widgets::selection::artist_play_request(row, false),
         }
@@ -110,20 +102,20 @@ impl SearchItem {
 
     fn media_uri(&self) -> Option<&str> {
         match self {
-            Self::Track(row, _) => Some(&row.media_uri),
+            Self::Track(row) => Some(&row.media_uri),
             _ => None,
         }
     }
     fn title(&self) -> &str {
         match self {
-            Self::Track(row, _) => &row.metadata.title,
+            Self::Track(row) => &row.metadata.title,
             Self::Album(row) => &row.metadata.title,
             Self::Artist(row) => &row.metadata.name,
         }
     }
     fn artwork(&self) -> ArtworkBinding {
         let bytes = match self {
-            Self::Track(row, _) => &row.artwork_binding,
+            Self::Track(row) => &row.artwork_binding,
             Self::Album(row) => &row.artwork_binding,
             Self::Artist(row) => &row.artwork_binding,
         };
@@ -134,7 +126,7 @@ impl SearchItem {
     }
     fn field(&self, field: LibraryField) -> String {
         match self {
-            Self::Track(row, _) => track_field(row, field),
+            Self::Track(row) => track_field(row, field),
             Self::Album(row) => album_field(row, field),
             Self::Artist(row) => artist_field(row, field),
         }
@@ -142,7 +134,7 @@ impl SearchItem {
     fn field_links(&self, field: LibraryField) -> DetailLinks {
         let text = self.field(field);
         match self {
-            Self::Track(row, _) => match field {
+            Self::Track(row) => match field {
                 LibraryField::Artist => track_artist_links(row),
                 LibraryField::AlbumArtist => track_album_artist_links(row),
                 LibraryField::Album => DetailLinks::route(
@@ -166,24 +158,24 @@ impl SearchItem {
     }
     fn subtitle_links(&self) -> DetailLinks {
         match self {
-            Self::Track(row, _) => track_artist_links(row),
+            Self::Track(row) => track_artist_links(row),
             Self::Album(row) => album_artist_links(row),
             _ => DetailLinks::text(self.subtitle()),
         }
     }
     fn subtitle(&self) -> &str {
         match self {
-            Self::Track(row, _) => &row.metadata.artist,
+            Self::Track(row) => &row.metadata.artist,
             Self::Album(row) => &row.metadata.artist,
             Self::Artist(_) => "",
         }
     }
     fn is_downloaded(&self) -> bool {
-        matches!(self, Self::Track(row, _) if gtk_widgets::library_fields::TrackPresentation::download_badge(row))
+        matches!(self, Self::Track(row) if gtk_widgets::library_fields::TrackPresentation::download_badge(row))
     }
     fn numeric_field(&self, field: LibraryField) -> Option<i64> {
         match self {
-            Self::Track(row, _) => match field {
+            Self::Track(row) => match field {
                 LibraryField::Year => row.metadata.year,
                 LibraryField::Duration => Some(row.metadata.duration_millis),
                 LibraryField::PlayCount => Some(row.state.play_count),
@@ -212,7 +204,7 @@ impl SearchItem {
     }
     fn date_field(&self, field: LibraryField) -> Option<&str> {
         match self {
-            Self::Track(row, _) => match field {
+            Self::Track(row) => match field {
                 LibraryField::ReleaseDate => row.metadata.release_date.as_deref(),
                 LibraryField::DateAdded => row.metadata.date_added.as_deref(),
                 _ => None,
@@ -227,7 +219,7 @@ impl SearchItem {
     }
     fn favorite(&self) -> Option<(library::FavoriteTarget, bool)> {
         Some(match self {
-            Self::Track(row, _) => (
+            Self::Track(row) => (
                 library::FavoriteTarget::Track(row.media_uri.clone()),
                 row.state.favorite,
             ),
@@ -274,7 +266,7 @@ impl SearchItem {
             return;
         }
         let media_uri = match self {
-            Self::Track(row, _) => {
+            Self::Track(row) => {
                 present_track_context_menu(target, shell, row.media_uri.clone(), position);
                 return;
             }
@@ -309,7 +301,6 @@ impl SearchItem {
 }
 
 struct SearchGridCell {
-    snippet: LyricsSnippetView,
     body: CollectionGridCardCell,
     shell: Rc<CatalogUi>,
     cover: ArtworkTile,
@@ -354,8 +345,6 @@ impl SearchGridCell {
             |shell, item, placement| item.play(shell, placement),
         );
         let body = CollectionGridCardCell::new(&shell, fields, controls.upcast());
-        let snippet = LyricsSnippetView::new();
-        body.card.append(&snippet);
         let drag_current = Rc::clone(&current);
         let drag_shell = Rc::downgrade(&shell);
         let drag_artwork = cover.drag_paintable_source();
@@ -376,7 +365,6 @@ impl SearchGridCell {
             },
         );
         Self {
-            snippet,
             body,
             shell,
             cover,
@@ -414,9 +402,8 @@ impl ReusableCollectionGridCell<SearchItem> for SearchGridCell {
     }
 
     fn bind(&self, _: u32, item: SearchItem) {
-        self.snippet.bind(item.lyrics());
         let target = match &item {
-            SearchItem::Track(row, _) => gtk_widgets::selection::track_play_request(row.track_key),
+            SearchItem::Track(row) => gtk_widgets::selection::track_play_request(row.track_key),
             SearchItem::Album(row) => gtk_widgets::selection::album_play_request(&row),
             SearchItem::Artist(row) => gtk_widgets::selection::artist_play_request(&row, false),
         };
@@ -437,7 +424,6 @@ impl ReusableCollectionGridCell<SearchItem> for SearchGridCell {
 
     fn clear(&self) {
         self.release_artwork();
-        self.snippet.bind(None);
         self.body.clear(&self.shell);
         self.favorite.set_visible(false);
         self.favorite.set_sensitive(false);
@@ -449,9 +435,7 @@ impl ReusableCollectionGridCell<SearchItem> for SearchGridCell {
     }
 
     fn apply_fields(&self, fields: &[LibraryField]) {
-        self.body.card.remove(&self.snippet);
         self.body.replace_fields(&self.shell, fields);
-        self.body.card.append(&self.snippet);
         if let Some(item) = self.current.borrow().as_ref() {
             self.body
                 .bind(item.title(), |field| DetailLinks::text(&item.field(field)));
@@ -470,9 +454,6 @@ struct SearchRouteProjection {
     results: adw::ViewStack,
     result_page: gtk::Stack,
     toolbar_host: gtk::Box,
-    category_host: gtk::Box,
-    search_modes: gtk::Box,
-    modes: [gtk::ToggleButton; 2],
     models: [gio::ListStore; 3],
     playing: super::columns::TrackRowPlayingIndicator,
     active: RefCell<Option<SearchPresentation>>,
@@ -493,9 +474,6 @@ gtk_widgets::composite_box!(
     {
         toolbar_host: gtk::Box,
         category_host: gtk::Box,
-        search_modes: gtk::Box,
-        by_title: gtk::ToggleButton,
-        by_lyrics: gtk::ToggleButton,
         status: gtk::Stack,
         result_page: gtk::Stack,
     }
@@ -515,9 +493,6 @@ impl SearchRouteProjection {
         let toolbar_host = wrapper.imp().toolbar_host.get();
         let status = wrapper.imp().status.get();
         let result_page = wrapper.imp().result_page.get();
-        let category_host = wrapper.imp().category_host.get();
-        let search_modes = wrapper.imp().search_modes.get();
-        let modes = [wrapper.imp().by_title.get(), wrapper.imp().by_lyrics.get()];
 
         let projection = Rc::new(Self {
             root: wrapper.upcast(),
@@ -530,9 +505,6 @@ impl SearchRouteProjection {
             results,
             result_page,
             toolbar_host,
-            category_host,
-            search_modes,
-            modes,
             models,
             playing: super::columns::TrackRowPlayingIndicator::new(),
             active: RefCell::new(None),
@@ -545,20 +517,6 @@ impl SearchRouteProjection {
     }
 
     fn connect(self: &Rc<Self>) {
-        for (button, mode) in self
-            .modes
-            .iter()
-            .zip([library::SearchMode::Title, library::SearchMode::Lyrics])
-        {
-            let session = Rc::downgrade(&self.session);
-            button.connect_toggled(move |button| {
-                if button.is_active()
-                    && let Some(session) = session.upgrade()
-                {
-                    session.set_mode(mode);
-                }
-            });
-        }
         let weak = Rc::downgrade(self);
         self.observer.replace(Some(self.session.observe(move || {
             if let Some(projection) = weak.upgrade() {
@@ -648,11 +606,6 @@ impl SearchRouteProjection {
     }
 
     fn sync(&self) {
-        let lyrics = self.session.mode() == library::SearchMode::Lyrics;
-        self.modes[usize::from(lyrics)].set_active(true);
-        self.search_modes
-            .set_visible(!self.session.query().is_empty());
-        self.category_host.set_visible(!lyrics);
         self.results
             .set_visible_child_name(self.session.category.get().name());
         if self.revision.replace(Some(self.session.revision.get()))
@@ -745,9 +698,6 @@ impl SearchRouteProjection {
     }
 
     fn cycle_category(&self) {
-        if self.session.mode() == library::SearchMode::Lyrics {
-            return;
-        }
         let current = self
             .active
             .borrow()
@@ -921,9 +871,9 @@ impl CatalogUi {
             let (uri, downloaded) = (uri.as_str(), *downloaded);
             if let Some(projection) = download_tracks.upgrade() {
                 projection.update_matching(
-                    |row| matches!(row, SearchItem::Track(row, _) if row.media_uri == uri && row.access.is_downloaded != downloaded),
+                    |row| matches!(row, SearchItem::Track(row) if row.media_uri == uri && row.access.is_downloaded != downloaded),
                     |row| {
-                        if let SearchItem::Track(row, _) = row {
+                        if let SearchItem::Track(row) = row {
                             row.access.is_downloaded = downloaded;
                         }
                     },
@@ -1073,9 +1023,6 @@ fn search_column(
         };
         let cell = RecycledTextCell::new();
         let label = cell.label();
-        if field == LibraryField::Title {
-            cell.lyrics();
-        }
         if field == LibraryField::Title && category == CollectionCategory::Tracks {
             cell.set_spacing(5);
         }
@@ -1115,9 +1062,6 @@ fn search_column(
         };
         if let Some(row) = item_at_from_item::<SearchItem>(item) {
             cell.bind_links(row.field_links(field));
-            if field == LibraryField::Title {
-                cell.lyrics().bind(row.lyrics());
-            }
             if let Some(playing) = bind_playing.as_ref() {
                 if let Some(uri) = row.media_uri() {
                     playing.bind(cell.label().upcast_ref(), item.position(), &uri);
@@ -1164,7 +1108,6 @@ fn search_merged_column(
             48,
             category == CollectionCategory::Tracks,
         );
-        cell.lyrics();
         let title = cell.title();
         if category == CollectionCategory::Tracks {
             title.add_css_class("track-list-title");
@@ -1213,7 +1156,6 @@ fn search_merged_column(
             bind_shell.artwork.clear_artwork_tile(&cover);
             title.set_text("");
             cell.clear_subtitle();
-            cell.lyrics().bind(None);
             if let Some(downloaded) = cell.downloaded() {
                 bind_shell.downloads.clear_download_badge(&downloaded);
             }
@@ -1226,7 +1168,6 @@ fn search_merged_column(
             .artwork
             .bind_artwork_tile(&cover, value.artwork(), 48);
         title.set_text(value.title());
-        cell.lyrics().bind(value.lyrics());
         cell.bind_subtitle(value.subtitle_links());
         cell.subtitle().set_visible(!value.subtitle().is_empty());
         if let Some(downloaded) = cell.downloaded() {
@@ -1250,7 +1191,6 @@ fn search_merged_column(
             clear_shell.artwork.clear_artwork_tile(&cell.cover());
             title.set_text("");
             cell.clear_subtitle();
-            cell.lyrics().bind(None);
             if let Some(downloaded) = cell.downloaded() {
                 clear_shell.downloads.clear_download_badge(&downloaded);
             }
@@ -1336,16 +1276,9 @@ fn search_actions_column(shell: &Rc<CatalogUi>, field: LibraryField) -> gtk::Col
     gtk_widgets::recycled_cells::row_action_column(field, &factory)
 }
 
-fn cached_items(mut results: SearchResults) -> [Vec<SearchItem>; 3] {
+fn cached_items(results: SearchResults) -> [Vec<SearchItem>; 3] {
     [
-        results
-            .tracks
-            .into_iter()
-            .map(|row| {
-                let snippet = results.lyrics.remove(&row.track_key);
-                SearchItem::Track(row, snippet)
-            })
-            .collect(),
+        results.tracks.into_iter().map(SearchItem::Track).collect(),
         results.albums.into_iter().map(SearchItem::Album).collect(),
         results
             .artists

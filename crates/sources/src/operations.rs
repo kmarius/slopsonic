@@ -217,14 +217,6 @@ pub enum ArtworkStorage {
     Server,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
-pub enum LyricsStorage {
-    Server,
-    Embedded,
-    Sidecar,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ArtworkEdit {
     pub change: ArtworkChange,

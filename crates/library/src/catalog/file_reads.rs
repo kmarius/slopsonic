@@ -133,8 +133,7 @@ impl Database {
         paths: &[String],
     ) -> LibraryResult<Vec<String>> {
         let mut connection = self.acquire_reader().await?;
-        // Lyrics sidecars are optional. CUE audio must still exist and be accepted.
-        Ok(sqlx::query_scalar("SELECT file.path FROM observed_local_files file JOIN local_file_access_roots access USING(source_key,root,root_id) JOIN sources source USING(source_key) WHERE source.object_id=?1 AND file.path IN(SELECT value FROM json_each(?2)) AND EXISTS(SELECT 1 FROM observed_file_dependencies dependency LEFT JOIN observed_local_files backing ON backing.source_key=file.source_key AND backing.path=dependency.dependency_path WHERE dependency.local_file_key=file.local_file_key AND CASE WHEN lower(substr(dependency.dependency_path,-4))='.lrc' THEN dependency.accepted_inputs IS NOT CASE WHEN backing.path IS NOT NULL THEN json_array(backing.size_bytes,backing.mtime_ns,backing.revision) END ELSE backing.path IS NULL OR NOT EXISTS(SELECT 1 FROM local_file_access_roots access WHERE access.source_key=backing.source_key AND access.root=backing.root) OR backing.state<>'accepted' OR(backing.revision IS NULL AND backing.mtime_ns=0) OR dependency.accepted_inputs IS NOT json_array(backing.size_bytes,backing.mtime_ns,backing.revision) END)")
+        Ok(sqlx::query_scalar("SELECT file.path FROM observed_local_files file JOIN local_file_access_roots access USING(source_key,root,root_id) JOIN sources source USING(source_key) WHERE source.object_id=?1 AND file.path IN(SELECT value FROM json_each(?2)) AND EXISTS(SELECT 1 FROM observed_file_dependencies dependency LEFT JOIN observed_local_files backing ON backing.source_key=file.source_key AND backing.path=dependency.dependency_path WHERE dependency.local_file_key=file.local_file_key AND (backing.path IS NULL OR NOT EXISTS(SELECT 1 FROM local_file_access_roots access WHERE access.source_key=backing.source_key AND access.root=backing.root) OR backing.state<>'accepted' OR(backing.revision IS NULL AND backing.mtime_ns=0) OR dependency.accepted_inputs IS NOT json_array(backing.size_bytes,backing.mtime_ns,backing.revision)))")
             .bind(source_id).bind(serde_json::to_string(paths)?).fetch_all(&mut *connection).await?)
     }
 
@@ -351,7 +350,6 @@ pub(super) async fn referenced_file_page_on(
             OR EXISTS(SELECT 1 FROM home_entries entry WHERE entry.entity_kind='track' AND entry.entity_key=tracks.track_key)
             OR EXISTS(SELECT 1 FROM user_media_state state WHERE state.media_uri=tracks.media_uri)
             OR EXISTS(SELECT 1 FROM listens WHERE media_uri=tracks.media_uri)
-            OR EXISTS(SELECT 1 FROM lyrics_cache WHERE media_uri=tracks.media_uri)
             OR EXISTS(SELECT 1 FROM favorite_outbox WHERE media_uri=tracks.media_uri)
             OR EXISTS(SELECT 1 FROM native_media_state WHERE media_uri=tracks.media_uri))
         ORDER BY track_key LIMIT 128")

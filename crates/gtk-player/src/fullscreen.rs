@@ -59,9 +59,9 @@ pub struct FullscreenPlayerParts {
     hero_content: gtk::Box,
     details: gtk::Box,
     details_scroll: gtk::ScrolledWindow,
-    pub lyrics_enabled: Rc<Cell<bool>>,
     pub visualizer_enabled: Rc<Cell<bool>>,
     focus_button: gtk::ToggleButton,
+    pub(crate) visualizer_settings: gtk::Button,
     focus_labels: [gtk::Label; 2],
     background: crate::fullscreen_background::FullscreenBackground,
     bar_tint: gtk::CssProvider,
@@ -81,7 +81,6 @@ pub struct FullscreenPlayerParts {
     pub album_links: RefCell<Option<gtk_widgets::detail_links::DetailLinkBinding>>,
     pub meta: gtk::FlowBox,
     pub stack: adw::ViewStack,
-    pub lyrics_host: gtk::Box,
     pub queue_panel: gtk::Box,
     pub(crate) queue_header: gtk_widgets::table_header::ColumnViewHeader,
     pub queue_loading: adw::Spinner,
@@ -118,12 +117,7 @@ impl FullscreenPlayerParts {
     }
 
     pub fn has_experience(&self) -> bool {
-        self.lyrics_enabled.get() || self.visualizer_enabled.get()
-    }
-
-    pub fn attach_lyrics_pane(&self, pane: &crate::lyrics::LyricsPane) {
-        self.lyrics_host.append(pane.widget());
-        pane.settings_controls.prepend(&self.focus_button);
+        self.visualizer_enabled.get()
     }
 
     pub fn experience_visible(&self) -> bool {
@@ -135,7 +129,6 @@ impl FullscreenPlayerParts {
     fn apply_mode(&self) {
         let has_experience = self.has_experience();
         self.experience.set_visible(has_experience);
-        self.lyrics_host.set_visible(has_experience);
         self.visualizer_panel
             .set_visible(self.visualizer_enabled.get());
         self.update_hero_layout();
@@ -216,7 +209,6 @@ pub fn build_fullscreen_player(
         equalizer_tab: gtk::ToggleButton,
         queue_panel: gtk::Box,
         queue_loading: adw::Spinner,
-        lyrics_host: gtk::Box,
         visualizer_panel: gtk::Box,
         equalizer_panel: gtk::ScrolledWindow,
         related_panel: gtk::Overlay,
@@ -237,7 +229,6 @@ pub fn build_fullscreen_player(
     cover.area.add_css_class("fullscreen-player-cover");
     cover.area.set_valign(gtk::Align::Start);
     cover_button.set_child(Some(&cover.area));
-    let lyrics_enabled = Rc::new(Cell::new(true));
     let visualizer_enabled = Rc::new(Cell::new(false));
     hero.append(&hero_content);
     stack.add_titled(&queue_panel, Some("queue"), &"Queue".to_string());
@@ -251,8 +242,23 @@ pub fn build_fullscreen_player(
     experience.set_child(Some(&experience_base));
     experience.add_overlay(&visualizer_panel);
     experience.set_measure_overlay(&visualizer_panel, false);
-    experience.add_overlay(&lyrics_host);
-    experience.set_measure_overlay(&lyrics_host, false);
+    let experience_controls = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    experience_controls.set_halign(gtk::Align::End);
+    experience_controls.set_valign(gtk::Align::Start);
+    experience_controls.set_margin_top(8);
+    experience_controls.set_margin_end(8);
+    experience_controls.add_css_class("panel-controls");
+    experience_controls.add_css_class("panel-top-controls");
+    let visualizer_settings = gtk::Button::from_icon_name("rufin-applications-system-symbolic");
+    visualizer_settings.set_focus_on_click(false);
+    visualizer_settings.set_tooltip_text(Some("Settings"));
+    for class in ["icon-button", "flat", "circular"] {
+        visualizer_settings.add_css_class(class);
+    }
+    experience_controls.append(&visualizer_settings);
+    experience_controls.append(&focus_button);
+    experience.add_overlay(&experience_controls);
+    experience.set_measure_overlay(&experience_controls, false);
     connect_fullscreen_player_switcher(
         &stack,
         [
@@ -277,11 +283,11 @@ pub fn build_fullscreen_player(
         details,
         details_scroll,
         focus_button,
+        visualizer_settings,
         background,
         bar_tint: gtk::CssProvider::new(),
         bar_color: Cell::new(None),
         focus_labels: [focus_expand_label, focus_restore_label],
-        lyrics_enabled,
         visualizer_enabled,
         experience,
         cover_button,
@@ -298,7 +304,6 @@ pub fn build_fullscreen_player(
         album_links: RefCell::new(None),
         meta,
         stack,
-        lyrics_host,
         queue_panel,
         queue_header: gtk_widgets::table_header::ColumnViewHeader::new(),
         queue_loading,
@@ -356,7 +361,6 @@ fn present_fullscreen_settings(shell: &Rc<crate::PlayerUi>) {
         dialog: adw::PreferencesDialog,
         page: adw::PreferencesPage,
         fields_group: adw::PreferencesGroup,
-        lyrics: adw::SwitchRow,
         visualizer: adw::SwitchRow,
         dynamic_background: adw::SwitchRow,
         background_image: adw::SwitchRow,
@@ -382,7 +386,6 @@ fn present_fullscreen_settings(shell: &Rc<crate::PlayerUi>) {
     );
     let settings = shell.settings.current.borrow();
     let active = [
-        settings.player_display.fullscreen_lyrics_visible,
         settings.player_display.fullscreen_visualizer_visible,
         settings.player_display.fullscreen_dynamic_background,
         settings.player_display.fullscreen_background_image,
@@ -404,18 +407,18 @@ fn present_fullscreen_settings(shell: &Rc<crate::PlayerUi>) {
         },
     );
     display.set_layout(Some(rufin_core::settings::LibraryLayout::Row));
-    display.prepend_rows(&[&lyrics, &visualizer, &dynamic_background, &background_image]);
+    display.prepend_rows(&[&visualizer, &dynamic_background, &background_image]);
     page.remove(&fields_group);
     page.add(&display.group);
     page.add(&fields_group);
-    background_image.set_sensitive(active[2]);
+    background_image.set_sensitive(active[1]);
     let image_row = background_image.downgrade();
     dynamic_background.connect_active_notify(move |row| {
         if let Some(image_row) = image_row.upgrade() {
             image_row.set_sensitive(row.is_active());
         }
     });
-    for (index, row) in [lyrics, visualizer, dynamic_background, background_image]
+    for (index, row) in [visualizer, dynamic_background, background_image]
         .into_iter()
         .enumerate()
     {
@@ -429,9 +432,8 @@ fn present_fullscreen_settings(shell: &Rc<crate::PlayerUi>) {
                 .settings
                 .update_app_settings("fullscreen display", |settings| {
                     let value = match index {
-                        0 => &mut settings.player_display.fullscreen_lyrics_visible,
-                        1 => &mut settings.player_display.fullscreen_visualizer_visible,
-                        2 => &mut settings.player_display.fullscreen_dynamic_background,
+                        0 => &mut settings.player_display.fullscreen_visualizer_visible,
+                        1 => &mut settings.player_display.fullscreen_dynamic_background,
                         _ => &mut settings.player_display.fullscreen_background_image,
                     };
                     if *value == row.is_active() {
@@ -732,9 +734,6 @@ impl crate::PlayerUi {
                 .display,
         );
         parts
-            .lyrics_enabled
-            .set(settings.player_display.fullscreen_lyrics_visible);
-        parts
             .visualizer_enabled
             .set(settings.player_display.fullscreen_visualizer_visible);
         drop(settings);
@@ -808,7 +807,6 @@ impl crate::PlayerUi {
         }
         self.animate_fullscreen_player(false);
         self.sync_visualizer_state();
-        self.sync_visible_lyrics_surfaces();
     }
 
     pub fn toggle_fullscreen_player(self: &Rc<Self>) {
@@ -898,8 +896,6 @@ impl crate::PlayerUi {
     }
 
     fn sync_fullscreen_surfaces(self: &Rc<Self>) {
-        self.sync_visible_lyrics_surfaces();
-        self.refocus_fullscreen_lyrics_position();
         self.sync_visualizer_state();
         self.refresh_related_tracks();
     }
@@ -977,19 +973,6 @@ impl crate::PlayerUi {
     pub fn clear_fullscreen_player_cover(self: &Rc<Self>) {
         self.artwork
             .clear_artwork_tile(&self.views.fullscreen_player.cover);
-    }
-
-    fn refocus_fullscreen_lyrics_position(&self) {
-        if !self.fullscreen_lyrics_surface_visible() {
-            return;
-        }
-        let lyrics = self.visible_lyrics();
-        if let Some(selected_lyrics) = self.selected_lyrics() {
-            selected_lyrics.fullscreen_pane.refocus_highlight(
-                lyrics.as_deref(),
-                self.lyrics_position_millis(self.current_position_millis()),
-            );
-        }
     }
 
     fn animate_fullscreen_player(self: &Rc<Self>, opening: bool) {

@@ -49,10 +49,6 @@ impl Shell {
     fn transient_route_input_active(&self) -> bool {
         self.preferences.state.active_dialog().is_some()
             || self.source.add_server.borrow().is_some()
-            || self
-                .player_ui
-                .selected_lyrics()
-                .is_some_and(|lyrics| lyrics.search_dialog.borrow().is_some())
     }
 
     pub(crate) fn connect_route_keyboard(self: &Rc<Self>) {
