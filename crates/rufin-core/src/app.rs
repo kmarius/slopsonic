@@ -190,7 +190,6 @@ where
         library.clone(),
         settings.clone(),
         runtime.clone(),
-        artwork.clone(),
         audio_outputs,
         Arc::clone(&scrobbler),
         start_backend,
@@ -230,16 +229,6 @@ where
             }
             if previous.ui.playback != current.ui.playback {
                 settings_playback.playback_settings_changed(current.ui.playback.clone());
-            }
-            if previous.ui.application.cast_proxy_enabled
-                != current.ui.application.cast_proxy_enabled
-            {
-                settings_playback
-                    .cast_proxy_setting_changed(current.ui.application.cast_proxy_enabled);
-            }
-            if previous.ui.cast_network_interface != current.ui.cast_network_interface {
-                settings_playback
-                    .cast_network_setting_changed(current.ui.cast_network_interface.clone());
             }
             if previous.ui.application.auto_dj_refill_threshold
                 != current.ui.application.auto_dj_refill_threshold

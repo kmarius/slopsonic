@@ -177,7 +177,6 @@ pub async fn build(
         audio_output_options: RefCell::new(default_audio_output_options()),
         audio_output_refresh_running: Default::default(),
         audio_output_refreshed_at: Cell::new(None),
-        remote_output_options: RefCell::new(Vec::new()),
     };
     let preferences = PreferencesState {
         source_choice: RefCell::new(None),
@@ -223,7 +222,6 @@ pub async fn build(
     let right_resize_handle = content_chrome.right_resize_handle;
     let fullscreen_player = build_fullscreen_player();
     let player_controls = build_bottom_player();
-    topbar.casting_host.append(&player_controls.output_button);
 
     content_row.append(&content_chrome.root);
 

@@ -10,7 +10,7 @@ use super::{
     state::{ClockSample, Command, Player},
 };
 use playback::{
-    PlaybackBackend, PlaybackOutput, PlaybackProjection, PlaybackSettings, 
+    PlaybackBackend, PlaybackProjection, PlaybackSettings,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -88,7 +88,6 @@ impl Playback {
         settings: PlaybackSettings,
         auto_dj: bool,
         threshold: usize,
-        output: PlaybackOutput,
         backend: Box<dyn PlaybackBackend>,
         clock: Clock,
         owner: Weak<PlaybackOwner>,
@@ -98,7 +97,6 @@ impl Playback {
             sequence,
             prefix,
             settings,
-            output,
             auto_dj,
             threshold,
             backend,
@@ -197,16 +195,6 @@ impl Playback {
     #[cfg(test)]
     pub(crate) fn projection(&self) -> PlaybackResult<PlaybackProjection> {
         self.request(|player, _| Ok(player.projection()))
-    }
-    pub(crate) fn replace_backend(
-        &self,
-        output: PlaybackOutput,
-        backend: Box<dyn PlaybackBackend>,
-    ) -> PlaybackResult<()> {
-        self.request(move |player, _| {
-            player.replace_backend(output, backend);
-            Ok(())
-        })
     }
     pub(crate) fn shutdown(&self) -> PlaybackResult<()> {
         let result = self.request_inner(

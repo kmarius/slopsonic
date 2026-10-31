@@ -107,37 +107,6 @@ pub struct ControlsView {
     pub volume: f64,
     pub muted: bool,
     pub audio_output: Option<String>,
-    pub playback_output: PlaybackOutput,
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
-pub enum RemoteOutputProtocol {
-    Upnp,
-    GoogleCast,
-    RufinConnect,
-}
-
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
-pub struct RemoteOutput {
-    pub id: String,
-    pub name: String,
-    pub protocol: RemoteOutputProtocol,
-}
-
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
-pub enum PlaybackOutput {
-    #[default]
-    Local,
-    Remote(RemoteOutput),
-}
-
-impl PlaybackOutput {
-    pub const fn is_local(&self) -> bool {
-        matches!(self, Self::Local)
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

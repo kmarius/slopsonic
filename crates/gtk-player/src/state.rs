@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use artwork::ArtworkBinding;
 use gtk::glib;
-use playback::{CurrentMediaId, PlaybackView, RemoteOutput};
+use playback::{CurrentMediaId, PlaybackView};
 
 use gtk_widgets::detail_links::{DetailLinks, track_artist_links};
 use gtk_widgets::route::Route;
@@ -17,7 +17,6 @@ pub struct PlaybackState {
     pub audio_output_options: RefCell<Vec<(Option<String>, String)>>,
     pub audio_output_refresh_running: tokio::sync::watch::Sender<bool>,
     pub audio_output_refreshed_at: Cell<Option<Instant>>,
-    pub remote_output_options: RefCell<Vec<RemoteOutput>>,
 }
 
 pub struct NowPlayingPresentation {

@@ -13,11 +13,7 @@ use gtk_widgets::{
         install_value_bubble_dismissal, point_value_bubble_at_slider,
     },
 };
-use rufin_core::text::{fill};
-use playback::{
-    PlaybackOutput, PlaybackView, RemoteOutput, RemoteOutputProtocol, RepeatMode,
-    TransportStatus,
-};
+use playback::{PlaybackView, RepeatMode, TransportStatus};
 use std::time::Duration;
 use std::{
     cell::{Cell, RefCell},
@@ -55,7 +51,6 @@ pub const BOTTOM_PLAYER_PROGRESS_SPACING: i32 = 6;
 pub const BOTTOM_PLAYER_VOLUME_SPACING: i32 = BOTTOM_PLAYER_ACTION_SPACING;
 pub const BOTTOM_PLAYER_VOLUME_SLOT_WIDTH: i32 = 95;
 pub const BOTTOM_PLAYER_VOLUME_SLOT_LAYOUT_WIDTH: i32 = 90;
-pub const OUTPUT_DISCOVERY_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
 pub const BOTTOM_PLAYER_TINY_TRANSPORT_WIDTH: i32 = BOTTOM_PLAYER_SIDE_BUTTON_SIZE * 2
     + BOTTOM_PLAYER_PLAY_BUTTON_SIZE
     + BOTTOM_PLAYER_BUTTON_GAP * 2;
@@ -130,8 +125,6 @@ pub struct PlayerControls {
     pub mute_icon_state: Rc<Cell<VolumeIcon>>,
     pub volume: gtk::Scale,
     pub settings_button: gtk::MenuButton,
-    pub output_button: gtk::Button,
-    pub output_icon: gtk::Image,
 }
 
 pub struct NowPlayingControls {
@@ -174,8 +167,6 @@ pub struct PlayerActionControls {
     pub mute_icon_state: Rc<Cell<VolumeIcon>>,
     pub volume: gtk::Scale,
     pub settings_button: gtk::MenuButton,
-    pub output_button: gtk::Button,
-    pub output_icon: gtk::Image,
 }
 
 pub fn build_bottom_player() -> PlayerControls {
@@ -231,8 +222,6 @@ pub fn build_bottom_player() -> PlayerControls {
         mute_icon_state,
         volume,
         settings_button,
-        output_button,
-        output_icon,
     } = build_player_action_controls(&builder, resource);
 
     let left_slot = bottom_player_allocated_slot(&now_playing_wall, 1, 1);
@@ -293,8 +282,6 @@ pub fn build_bottom_player() -> PlayerControls {
         mute_icon_state,
         volume,
         settings_button,
-        output_button,
-        output_icon,
     }
 }
 
@@ -506,8 +493,6 @@ pub fn build_player_action_controls(
     gtk_widgets::objects!(builder, resource, {
         actions: gtk::Overlay,
         action_buttons: gtk::Box,
-        output_button: gtk::Button,
-        output_icon: gtk::Image,
         settings_button: gtk::MenuButton,
         volume_group: gtk::Box,
         volume: gtk::Scale,
@@ -529,7 +514,6 @@ pub fn build_player_action_controls(
     root.add_overlay(rating.widget());
     root.set_measure_overlay(rating.widget(), false);
 
-    bind_widget_accessible_label(&output_button, "Choose playback output");
     bind_widget_tooltip(&settings_button, "Settings");
     bind_widget_accessible_label(&settings_button, "Settings");
     volume_group.set_spacing(BOTTOM_PLAYER_VOLUME_SPACING);
@@ -606,8 +590,6 @@ pub fn build_player_action_controls(
         mute_icon_state,
         volume,
         settings_button,
-        output_button,
-        output_icon,
     }
 }
 
@@ -739,10 +721,6 @@ pub fn transport_button_position(width: i32, slot: f64, size: i32) -> (f64, f64)
 
 use crate::{progress::seekbar_target_seconds, state::NowPlayingPresentation};
 use gtk_widgets::{controls::set_active_class, format_duration, route::Route};
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
 impl crate::PlayerUi {
     pub fn update_bottom_player(self: &Rc<Self>) {
         let player = self.selected_playback().as_deref().cloned();
@@ -870,14 +848,6 @@ impl crate::PlayerUi {
             set_volume_icon(&controls.mute_icon, volume_icon);
         }
         controls.volume.set_value(volume);
-        let output = player
-            .map(|player| &player.controls.playback_output)
-            .cloned()
-            .unwrap_or_default();
-        set_output_icon_active(&controls.output_icon, !output.is_local());
-        controls
-            .output_button
-            .set_tooltip_text(Some(&playback_output_label(&output)));
         self.controls.updating_controls.set(false);
     }
 
@@ -1016,373 +986,6 @@ fn repeat_label(repeat_mode: RepeatMode) -> String {
     }
 }
 
-fn playback_output_label(output: &PlaybackOutput) -> String {
-    match output {
-        PlaybackOutput::Local => "This device".to_string(),
-        PlaybackOutput::Remote(output) => output.name.clone(),
-    }
-}
-
-fn set_output_icon_active(icon: &gtk::Image, active: bool) {
-    if active {
-        icon.add_css_class("active-output");
-    } else {
-        icon.remove_css_class("active-output");
-    }
-}
-
-fn same_remote_output(left: &RemoteOutput, right: &RemoteOutput) -> bool {
-    left.protocol == right.protocol && left.id == right.id
-}
-
-fn remember_remote_output(shell: &crate::PlayerUi, remote: &RemoteOutput) {
-    let mut cached = shell.controls.remote_output_options.borrow_mut();
-    if let Some(existing) = cached
-        .iter_mut()
-        .find(|existing| same_remote_output(existing, remote))
-    {
-        *existing = remote.clone();
-    } else {
-        cached.push(remote.clone());
-    }
-}
-
-fn replace_discovered_remote_outputs(
-    cached: &mut Vec<RemoteOutput>,
-    mut discovered: Vec<RemoteOutput>,
-    selected: &PlaybackOutput,
-) -> bool {
-    if let PlaybackOutput::Remote(selected) = selected
-        && !discovered
-            .iter()
-            .any(|output| same_remote_output(output, selected))
-    {
-        discovered.push(selected.clone());
-    }
-    if *cached == discovered {
-        return false;
-    }
-    *cached = discovered;
-    true
-}
-
-#[derive(Clone)]
-struct OutputPopoverStatus {
-    selection_started: Rc<Cell<bool>>,
-    root: gtk::Box,
-    spinner: gtk::Spinner,
-    label: gtk::Label,
-}
-
-impl OutputPopoverStatus {
-    fn finish_search(&self, empty: bool) {
-        if self.selection_started.get() {
-            return;
-        }
-        self.spinner.stop();
-        self.spinner.set_visible(false);
-        self.label.remove_css_class("error");
-        if empty {
-            self.root.set_visible(true);
-            self.label.set_text(&"No network devices found".to_string());
-        } else {
-            self.root.set_visible(false);
-        }
-    }
-}
-
-pub fn present_output_popover(anchor: &gtk::Button, shell: &Rc<crate::PlayerUi>) {
-    let selected = shell.playback_owner.playback_output();
-    let popover = gtk::Popover::new();
-    popover.add_css_class("playback-output-popover");
-    popover.connect_show(gtk_widgets::interactions::align_topbar_popup);
-    popover.set_autohide(true);
-    popover.set_position(gtk::PositionType::Bottom);
-    popover.set_parent(anchor);
-
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    content.set_margin_top(2);
-    content.set_margin_bottom(2);
-    content.set_margin_start(2);
-    content.set_margin_end(2);
-    content.set_width_request(300);
-
-    let outputs = adw::PreferencesGroup::new();
-    outputs.set_title(&"Casting".to_string());
-    let searching = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    searching.set_margin_start(8);
-    let spinner = gtk::Spinner::new();
-    spinner.start();
-    searching.append(&spinner);
-    let searching_label = gtk::Label::new(Some(&"Searching for devices...".to_string()));
-    searching_label.add_css_class("caption");
-    searching_label.add_css_class("dim-label");
-    searching.append(&searching_label);
-    outputs.set_header_suffix(Some(&searching));
-    let status = OutputPopoverStatus {
-        selection_started: Rc::new(Cell::new(false)),
-        root: searching,
-        spinner,
-        label: searching_label,
-    };
-    add_output_row(
-        &outputs,
-        PlaybackOutput::Local,
-        &selected,
-        &popover,
-        &status,
-        shell,
-    );
-    content.append(&outputs);
-
-    let mut shown = shell.controls.remote_output_options.borrow().clone();
-    if let PlaybackOutput::Remote(selected) = &selected
-        && !shown
-            .iter()
-            .any(|output| same_remote_output(output, selected))
-    {
-        shown.push(selected.clone());
-    }
-    let mut remote_rows = Vec::new();
-    for output in &shown {
-        let row = add_output_row(
-            &outputs,
-            PlaybackOutput::Remote(output.clone()),
-            &selected,
-            &popover,
-            &status,
-            shell,
-        );
-        remote_rows.push(row);
-    }
-    let transport = shell.playback_owner.clone();
-    let runtime = shell.runtime.clone();
-    let weak_popover = popover.downgrade();
-    let weak_shell = Rc::downgrade(shell);
-    let discovery = gtk::glib::spawn_future_local(async move {
-        loop {
-            let transport = transport.clone();
-            let Ok(result) = runtime
-                .spawn_blocking(move || transport.discover_remote_outputs())
-                .await
-            else {
-                break;
-            };
-            {
-                let (Some(popover), Some(shell)) = (weak_popover.upgrade(), weak_shell.upgrade())
-                else {
-                    break;
-                };
-                if !popover.is_visible() {
-                    break;
-                }
-                match result {
-                    Ok(discovered) => {
-                        status.finish_search(discovered.is_empty());
-                        if replace_discovered_remote_outputs(&mut shown, discovered, &selected) {
-                            for row in remote_rows.drain(..) {
-                                outputs.remove(&row);
-                            }
-                            for output in &shown {
-                                remote_rows.push(add_output_row(
-                                    &outputs,
-                                    PlaybackOutput::Remote(output.clone()),
-                                    &selected,
-                                    &popover,
-                                    &status,
-                                    &shell,
-                                ));
-                            }
-                            shell.controls.remote_output_options.replace(shown.clone());
-                        }
-                    }
-                    Err(error) => {
-                        if !status.selection_started.get() {
-                            status.spinner.stop();
-                            status.spinner.set_visible(false);
-                            status.root.set_visible(true);
-                            status.label.add_css_class("error");
-                            status.label.set_text(&error);
-                        }
-                    }
-                }
-            }
-            gtk::glib::timeout_future(OUTPUT_DISCOVERY_REFRESH_INTERVAL).await;
-        }
-        status.finish_search(shown.is_empty());
-    });
-
-    popover.set_child(Some(&content));
-    popover.connect_closed(|popover| popover.unparent());
-    let _ = popover.add_weak_ref_notify_local(move || discovery.abort());
-    popover.popup();
-}
-
-fn add_output_row(
-    group: &adw::PreferencesGroup,
-    output: PlaybackOutput,
-    selected: &PlaybackOutput,
-    popover: &gtk::Popover,
-    status: &OutputPopoverStatus,
-    shell: &Rc<crate::PlayerUi>,
-) -> adw::ActionRow {
-    let title = match &output {
-        PlaybackOutput::Local => glib::markup_escape_text(&playback_output_label(&output)),
-        PlaybackOutput::Remote(remote) => {
-            let name = glib::markup_escape_text(&remote.name);
-            let protocol = glib::markup_escape_text(&match remote.protocol {
-                RemoteOutputProtocol::Upnp => "UPnP".to_string(),
-                RemoteOutputProtocol::GoogleCast => "Google Cast".to_string(),
-                RemoteOutputProtocol::RufinConnect => "Rufin Connect".to_string(),
-            });
-            format!("{name}  <span size=\"small\" alpha=\"55%\">{protocol}</span>").into()
-        }
-    };
-    let row = adw::ActionRow::builder()
-        .title(title)
-        .use_markup(true)
-        .activatable(true)
-        .build();
-    row.add_css_class("playback-output-row");
-    if matches!(&output, PlaybackOutput::Remote(remote)
-        if remote.protocol == RemoteOutputProtocol::RufinConnect)
-    {
-        row.add_prefix(&gtk::Image::from_icon_name("rufin-phonelink-symbolic"));
-    }
-    if &output == selected {
-        row.add_css_class("selected-output");
-        row.add_suffix(&gtk::Image::from_icon_name("rufin-object-select-symbolic"));
-    }
-    let row_output = output.clone();
-    let row_group = group.downgrade();
-    let row_popover = popover.downgrade();
-    let row_status = status.clone();
-    let row_shell = Rc::downgrade(shell);
-    row.connect_activated(move |_| {
-        let Some(row_shell) = row_shell.upgrade() else {
-            return;
-        };
-        let Some(row_group) = row_group.upgrade() else {
-            return;
-        };
-        let Some(row_popover) = row_popover.upgrade() else {
-            return;
-        };
-        select_output_async(
-            &row_shell,
-            &row_group,
-            &row_popover,
-            &row_status,
-            row_output.clone(),
-        );
-    });
-    group.add(&row);
-    row
-}
-
-fn select_output_async(
-    shell: &Rc<crate::PlayerUi>,
-    outputs: &adw::PreferencesGroup,
-    popover: &gtk::Popover,
-    status: &OutputPopoverStatus,
-    output: PlaybackOutput,
-) {
-    outputs.set_sensitive(false);
-    status.selection_started.set(true);
-    status.root.set_visible(true);
-    status.spinner.set_visible(true);
-    status.spinner.start();
-    status.label.remove_css_class("error");
-    let device = playback_output_label(&output);
-    status.label.set_text(&fill(
-        "Connecting to {device}...",
-        &[("device", device.as_str())],
-    ));
-    let transport = shell.playback_owner.clone();
-    let selected = output.clone();
-    let cancelled = Arc::new(AtomicBool::new(false));
-    let closing = Arc::clone(&cancelled);
-    popover.connect_closed(move |_| {
-        closing.store(true, Ordering::Release);
-    });
-    let destroying = Arc::clone(&cancelled);
-    let _ = popover.add_weak_ref_notify_local(move || {
-        destroying.store(true, Ordering::Release);
-    });
-    let selection_cancelled = Arc::clone(&cancelled);
-    let selection = shell
-        .runtime
-        .spawn_blocking(move || transport.select_playback_output(selected));
-    let shell = Rc::downgrade(shell);
-    let outputs = outputs.downgrade();
-    let popover = popover.downgrade();
-    let spinner = status.spinner.downgrade();
-    let status_label = status.label.downgrade();
-    let fail_connection = {
-        let spinner = spinner.clone();
-        let status_label = status_label.clone();
-        move || {
-            if let Some(spinner) = spinner.upgrade() {
-                spinner.stop();
-                spinner.set_visible(false);
-            }
-            if let Some(label) = status_label.upgrade() {
-                label.add_css_class("error");
-                label.set_text(&"Connection failed".to_string());
-            }
-        }
-    };
-    gtk::glib::spawn_future_local(async move {
-        let result = selection.await;
-        if selection_cancelled.load(Ordering::Acquire) {
-            return;
-        }
-        if let Some(outputs) = outputs.upgrade() {
-            outputs.set_sensitive(true);
-        }
-        match result {
-            Ok(Ok(())) => {
-                let Some(shell) = shell.upgrade() else {
-                    return;
-                };
-                if let PlaybackOutput::Remote(remote) = &output {
-                    remember_remote_output(&shell, remote);
-                }
-                set_output_icon_active(
-                    &shell.views.player_controls.output_icon,
-                    !output.is_local(),
-                );
-                shell
-                    .views
-                    .player_controls
-                    .output_button
-                    .set_tooltip_text(Some(&playback_output_label(&output)));
-                let message = match &output {
-                    PlaybackOutput::Local => "Playing on this device".to_string(),
-                    PlaybackOutput::Remote(output) => {
-                        fill("Playing on {device}", &[("device", output.name.as_str())])
-                    }
-                };
-                shell.control_feedback.show_feedback_toast(message.clone());
-                if let Some(spinner) = spinner.upgrade() {
-                    spinner.stop();
-                }
-                if let Some(popover) = popover.upgrade() {
-                    popover.popdown();
-                }
-            }
-            result => {
-                fail_connection();
-                if let Ok(Err(error)) = result
-                    && let Some(shell) = shell.upgrade()
-                {
-                    shell.control_feedback.show_feedback_toast(error);
-                }
-            }
-        }
-    });
-}
-
 pub fn preview_player_seek(shell: &Rc<crate::PlayerUi>, seconds: u32) {
     shell.set_seek_preview_seconds(Some(seconds));
     shell
@@ -1412,14 +1015,6 @@ impl crate::PlayerUi {
             1.0
         };
         self.playback_owner.set_volume(volume);
-        let local = self
-            .selected_playback()
-            .as_deref()
-            .map(|player| player.controls.playback_output.is_local())
-            .unwrap_or_else(|| self.playback_owner.playback_output().is_local());
-        if !local {
-            return;
-        }
         self.settings.current.borrow_mut().playback.volume = volume;
         if let Some(source) = self.controls.volume_persist_source.borrow_mut().take() {
             source.remove();
@@ -1434,14 +1029,7 @@ impl crate::PlayerUi {
 
     pub fn apply_user_muted(&self, muted: bool) {
         self.playback_owner.set_muted(muted);
-        let local = self
-            .selected_playback()
-            .as_deref()
-            .map(|player| player.controls.playback_output.is_local())
-            .unwrap_or_else(|| self.playback_owner.playback_output().is_local());
-        if local {
-            self.settings.current.borrow_mut().playback.muted = muted;
-        }
+        self.settings.current.borrow_mut().playback.muted = muted;
     }
 }
 
@@ -1581,32 +1169,6 @@ impl crate::PlayerUi {
 
 #[cfg(test)]
 mod tests {
-    use playback::{PlaybackOutput, RemoteOutput, RemoteOutputProtocol};
-
-    fn remote_output(id: &str) -> RemoteOutput {
-        RemoteOutput {
-            id: id.to_string(),
-            name: id.to_string(),
-            protocol: RemoteOutputProtocol::Upnp,
-        }
-    }
-
-    #[test]
-    fn discovery_replaces_stale_devices_but_keeps_the_selected_output() {
-        let kodi = remote_output("kodi");
-        let mut cached = vec![kodi.clone()];
-
-        super::replace_discovered_remote_outputs(&mut cached, Vec::new(), &PlaybackOutput::Local);
-        assert!(cached.is_empty());
-
-        super::replace_discovered_remote_outputs(
-            &mut cached,
-            Vec::new(),
-            &PlaybackOutput::Remote(kodi.clone()),
-        );
-        assert_eq!(cached, vec![kodi]);
-    }
-
     #[test]
     fn bottom_player_actions_never_outgrow_their_equal_side() {
         for player_width in super::BOTTOM_PLAYER_TINY_WIDTH..=4096 {
@@ -1866,12 +1428,6 @@ pub fn connect_player_controls(shell: &Rc<crate::PlayerUi>) {
             };
             mute_shell.apply_user_muted(muted);
         });
-    let output_shell = Rc::clone(shell);
-    shell
-        .views
-        .player_controls
-        .output_button
-        .connect_clicked(move |button| present_output_popover(button, &output_shell));
     let seek_shell = Rc::downgrade(shell);
     shell
         .views

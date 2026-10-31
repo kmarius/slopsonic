@@ -3,7 +3,7 @@ pub(crate) mod actor;
 mod commands;
 pub mod equalizer;
 pub use equalizer::{
-    EqCastFormat, EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView,
+    EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView,
     EqualizerPreferences,
 };
 mod queue;
@@ -37,11 +37,6 @@ use crate::loudness::LoudnessAnalysisOwner;
 use crate::settings::SettingsFile;
 use crate::source::SourceOwner;
 
-struct OutputSelection {
-    selected: playback::PlaybackOutput,
-    prepared: Option<Box<dyn PlaybackBackend>>,
-}
-
 #[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct PlaybackOwner {
     database: Arc<Database>,
@@ -65,8 +60,6 @@ pub struct PlaybackOwner {
             + Send
             + Sync,
     >,
-    cast: playback_cast::CastManager,
-    output: Mutex<OutputSelection>,
 }
 
 enum PlaybackStoreWork {
@@ -129,7 +122,6 @@ impl PlaybackOwner {
         database: Arc<Database>,
         settings: SettingsFile,
         runtime: tokio::runtime::Handle,
-        artwork: artwork::Artwork,
         audio_outputs: fn() -> Vec<playback::AudioOutput>,
         scrobbler: Arc<Scrobbler>,
         start_backend: StartBackend,
@@ -147,18 +139,8 @@ impl PlaybackOwner {
             stored.equalizer,
             stored.ui.playback.audio_output.as_deref(),
         );
-        let ui = stored.ui;
         let (store_sender, store_receiver) = async_channel::unbounded();
         let (report_sender, report_receiver) = async_channel::unbounded();
-        let artwork_settings = settings.clone();
-        let cast_artwork = artwork.clone();
-        let cast_artwork_path = move |stream: &playback::PreparedStream| {
-            cached_cast_artwork(
-                &cast_artwork,
-                &artwork_settings,
-                stream.row.as_ref()?.track.artwork_binding.as_deref(),
-            )
-        };
         let owner = Arc::new(Self {
             database,
             settings,
@@ -175,15 +157,6 @@ impl PlaybackOwner {
             report_sender,
             monotonic_origin: Instant::now(),
             start_backend: Box::new(start_backend),
-            cast: playback_cast::CastManager::new(
-                ui.application.cast_proxy_enabled,
-                ui.cast_network_interface,
-                cast_artwork_path,
-            ),
-            output: Mutex::new(OutputSelection {
-                selected: playback::PlaybackOutput::Local,
-                prepared: None,
-            }),
         });
         let weak = Arc::downgrade(&owner);
         owner.runtime.spawn(async move {
@@ -237,17 +210,18 @@ impl PlaybackOwner {
         let owner = Arc::downgrade(self);
         let clock_owner = Arc::downgrade(self);
         let backend_owner = Arc::clone(self);
-        let (playback_output, backend) =
-            tokio::task::spawn_blocking(move || backend_owner.take_selected_backend())
-                .await
-                .map_err(string_error)??;
+        let backend = tokio::task::spawn_blocking(move || {
+            let receiver = backend_owner.processing_receiver();
+            (backend_owner.start_backend)(receiver)
+        })
+        .await
+        .map_err(string_error)??;
         let (playback, projection) = Playback::start(
             sequence,
             random_identity(),
             stored.ui.playback,
             stored.ui.auto_dj_enabled,
             usize::from(stored.ui.application.auto_dj_refill_threshold),
-            playback_output,
             backend,
             Arc::new(move || {
                 clock_owner
@@ -493,12 +467,6 @@ impl PlaybackOwner {
     pub(crate) fn cancel_loudness_analysis(&self) {
         self.loudness.cancel();
     }
-    pub(crate) fn cast_proxy_setting_changed(&self, enabled: bool) {
-        self.cast.set_proxy_media(enabled);
-    }
-    pub(crate) fn cast_network_setting_changed(&self, network: Option<String>) {
-        self.cast.set_network_interface(network);
-    }
     pub(crate) fn auto_dj_threshold_changed(&self, enabled: bool, threshold: u8) {
         self.send(Command::SetAutoDj {
             enabled,
@@ -557,62 +525,6 @@ impl PlaybackOwner {
         }
     }
 
-    fn take_selected_backend(
-        &self,
-    ) -> Result<(playback::PlaybackOutput, Box<dyn PlaybackBackend>), String> {
-        let (selected, prepared) = {
-            let mut output = self.output.lock().unwrap_or_else(|p| p.into_inner());
-            (output.selected.clone(), output.prepared.take())
-        };
-        let backend = match prepared {
-            Some(backend) => backend,
-            None => self.start_output_backend(&selected)?,
-        };
-        Ok((selected, backend))
-    }
-    fn start_output_backend(
-        &self,
-        output: &playback::PlaybackOutput,
-    ) -> Result<Box<dyn PlaybackBackend>, String> {
-        match output {
-            playback::PlaybackOutput::Local => {
-                (self.start_backend)(self.processing_receiver(output))
-            }
-            playback::PlaybackOutput::Remote(output) => self
-                .cast
-                .connect(
-                    output,
-                    self.processing_receiver(&playback::PlaybackOutput::Remote(output.clone())),
-                )
-                .map(|backend| Box::new(backend) as Box<dyn PlaybackBackend>),
-        }
-    }
-    fn select_output(&self, selected: playback::PlaybackOutput) -> Result<(), String> {
-        if self
-            .output
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .selected
-            == selected
-        {
-            return Ok(());
-        }
-        let backend = self.start_output_backend(&selected)?;
-        if let Some(active) = self.active() {
-            active
-                .replace_backend(selected.clone(), backend)
-                .map_err(string_error)?;
-            let mut output = self.output.lock().unwrap_or_else(|p| p.into_inner());
-            output.selected = selected;
-            output.prepared = None;
-        } else {
-            let mut output = self.output.lock().unwrap_or_else(|p| p.into_inner());
-            output.selected = selected;
-            output.prepared = Some(backend);
-        }
-        self.equalizer_output_changed(self.settings.load().ui.playback.audio_output.as_deref());
-        Ok(())
-    }
     fn clock_sample(&self) -> ClockSample {
         let now = SystemTime::now();
         let unix_seconds = unix_seconds(now);
@@ -869,35 +781,7 @@ impl PlaybackOwner {
     pub fn available_audio_outputs(&self) -> Vec<playback::AudioOutput> {
         (self.audio_outputs)()
     }
-    pub fn available_cast_networks(&self) -> Vec<playback::CastNetwork> {
-        self.cast.available_networks().unwrap_or_default()
-    }
-    pub fn playback_output(&self) -> playback::PlaybackOutput {
-        self.output
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .selected
-            .clone()
-    }
-    pub fn discover_remote_outputs(&self) -> Result<Vec<playback::RemoteOutput>, String> {
-        Ok(self.cast.discover().unwrap_or_else(|error| {
-            debug!(%error, "generic receiver discovery unavailable");
-            Vec::new()
-        }))
-    }
-    pub fn select_playback_output(&self, output: playback::PlaybackOutput) -> Result<(), String> {
-        self.select_output(output)
-    }
     pub fn shutdown(&self) {
-        if let Some(mut backend) = self
-            .output
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .prepared
-            .take()
-        {
-            let _ = backend.shutdown();
-        }
         if let Some(active) = self.active() {
             let _ = active.shutdown();
         }
@@ -1025,21 +909,6 @@ fn prepare_media_stream(
     PreparedStream::new(stream, loudness).with_row(occurrence, content_type)
 }
 
-fn cached_cast_artwork(
-    artwork: &artwork::Artwork,
-    settings: &SettingsFile,
-    binding: Option<&[u8]>,
-) -> Option<std::path::PathBuf> {
-    let stored = settings.load();
-    let binding = artwork::ArtworkBinding::opaque(binding?);
-    let external = artwork::ExternalPolicy::new(
-        stored.ui.application.external_metadata_enabled,
-        stored.ui.allows_external_metadata_lookup(),
-        stored.ui.lastfm_api_key,
-    );
-    artwork.cache_only_file(&artwork::ArtworkRequest::new(binding, 512).with_external(external))
-}
-
 pub(crate) fn audio_mime(source_format: &str) -> Option<String> {
     let mime = match source_format.trim().to_ascii_lowercase().as_str() {
         "mp3" | "mp2" | "mpeg" => "audio/mpeg",
@@ -1163,7 +1032,7 @@ mod tests {
     }
 
     #[test]
-    fn prepared_original_stream_keeps_cast_format() {
+    fn prepared_original_stream_keeps_format() {
         let prepared = prepare_media_stream(
             audio_processing::ResolvedStream::new("https://provider.example/stream?id=track"),
             Some(playback::TrackLoudness::default()),
@@ -1311,32 +1180,5 @@ impl PlaybackOwner {
         }))
         .await
         .map_err(|error| PlaybackError::Message(error.to_string()))?
-    }
-
-    pub async fn remote_outputs(
-        self: Arc<Self>,
-    ) -> Result<Vec<playback::RemoteOutput>, PlaybackError> {
-        let runtime = self.runtime.clone();
-        runtime
-            .spawn_blocking(move || {
-                self.discover_remote_outputs()
-                    .map_err(PlaybackError::Message)
-            })
-            .await
-            .map_err(|error| PlaybackError::Message(error.to_string()))?
-    }
-
-    pub async fn choose_output(
-        self: Arc<Self>,
-        output: playback::PlaybackOutput,
-    ) -> Result<(), PlaybackError> {
-        let runtime = self.runtime.clone();
-        runtime
-            .spawn_blocking(move || {
-                self.select_playback_output(output)
-                    .map_err(PlaybackError::Message)
-            })
-            .await
-            .map_err(|error| PlaybackError::Message(error.to_string()))?
     }
 }

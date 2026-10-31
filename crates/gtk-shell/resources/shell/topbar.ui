@@ -34,7 +34,6 @@
         <accessibility><property name="label" translatable="yes">Controller</property></accessibility>
         <style><class name="flat"/><class name="topbar-button"/></style>
       </object></child>
-      <child><object class="GtkBox" id="casting_host"/></child>
     </object></child>
     <property name="title-widget"><object class="GtkOverlay" id="search_host">
       <style><class name="topbar-search"/></style>

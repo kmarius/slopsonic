@@ -1,7 +1,6 @@
 use std::{cell::Cell, rc::Rc};
 
 use adw::prelude::*;
-use gtk_player::outputs::casting_network_dropdown;
 use secrets::SecretStorageMode;
 
 use crate::Preferences;
@@ -18,8 +17,6 @@ pub(super) fn page(
         privacy_page: adw::PreferencesPage,
         private_row: adw::SwitchRow,
         secret_storage_row: adw::ComboRow,
-        cast_proxy_row: adw::SwitchRow,
-        cast_network_row: adw::ActionRow,
     });
     navigation_controls.set_navigation(&navigation);
     navigation_controls.set_nested_page_visible(false);
@@ -106,18 +103,6 @@ pub(super) fn page(
             },
         );
     });
-    cast_proxy_row.set_active(settings.application.cast_proxy_enabled);
-    let cast_proxy_shell = Rc::clone(shell);
-    cast_proxy_row.connect_active_notify(move |row| {
-        cast_proxy_shell.settings.set_app_setting(
-            "cast proxy setting",
-            row.is_active(),
-            |settings| &mut settings.application.cast_proxy_enabled,
-        );
-    });
-    let cast_network_dropdown = casting_network_dropdown(&shell.player_ui, 220);
-    cast_network_row.add_suffix(&cast_network_dropdown);
-    cast_network_row.set_activatable_widget(Some(&cast_network_dropdown));
 
     navigation.upcast()
 }

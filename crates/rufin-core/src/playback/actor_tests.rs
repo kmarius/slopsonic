@@ -19,7 +19,6 @@ async fn canceled_queue_preparation_publishes_loading_completion() {
         PlaybackSettings::default(),
         false,
         1,
-        PlaybackOutput::Local,
         Box::new(IdleBackend(commands)),
         Arc::new(|| ClockSample {
             monotonic_millis: 0,
@@ -74,7 +73,6 @@ async fn stream_and_backend_failures_publish_notices_and_keep_diagnostics() {
             PlaybackSettings::default(),
             false,
             1,
-            PlaybackOutput::Local,
             Box::new(IdleBackend(commands)),
             Arc::new(|| ClockSample {
                 monotonic_millis: 0,
@@ -178,7 +176,6 @@ async fn runtime_queue_edits_publish_restorable_bounded_snapshots() {
         PlaybackSettings::default(),
         false,
         1,
-        PlaybackOutput::Local,
         Box::new(IdleBackend(commands)),
         Arc::new(|| ClockSample {
             monotonic_millis: 0,

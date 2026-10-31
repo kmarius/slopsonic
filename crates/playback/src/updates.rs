@@ -118,7 +118,7 @@ impl PlaybackSubscription {
 mod tests {
     use super::*;
     use crate::{
-        ControlsView, PlaybackNotice, PlaybackOutput, QueueSummaryView, RepeatMode, RunId,
+        ControlsView, PlaybackNotice, QueueSummaryView, RepeatMode, RunId,
         TransportStatus, TransportView,
     };
 
@@ -156,7 +156,6 @@ mod tests {
                 volume: 1.0,
                 muted: false,
                 audio_output: None,
-                playback_output: PlaybackOutput::Local,
             },
         };
         let started = PlaybackNotice::RunStarted(RunId::new(1));

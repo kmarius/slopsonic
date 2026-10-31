@@ -29,6 +29,6 @@ pub mod metadata;
 pub mod playlists;
 
 pub use playback::equalizer::{
-    EqCastFormat, EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView,
+    EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView,
     EqualizerPreferences,
 };

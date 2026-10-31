@@ -965,7 +965,7 @@ fn update_fullscreen_meta_row(row: &gtk::FlowBox, parts: &[String]) {
 mod playback_refresh_tests {
     use super::*;
     use playback::{
-        ControlsView, CurrentMedia, CurrentMediaId, PlaybackOutput, Provenance, QueueRow,
+        ControlsView, CurrentMedia, CurrentMediaId, Provenance, QueueRow,
         QueueSummaryView, RepeatMode, RunId, TrackReference, TransportStatus, TransportView,
     };
     use std::sync::Arc;
@@ -1159,7 +1159,6 @@ mod playback_refresh_tests {
                 volume: 1.0,
                 muted: false,
                 audio_output: None,
-                playback_output: PlaybackOutput::Local,
             },
         }
     }

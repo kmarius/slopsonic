@@ -103,7 +103,6 @@ pub(crate) fn test_view(
             volume: 1.0,
             muted: false,
             audio_output: None,
-            playback_output: playback::PlaybackOutput::Local,
         },
     }
 }

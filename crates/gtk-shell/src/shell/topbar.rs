@@ -15,7 +15,6 @@ pub(crate) struct Topbar {
     pub menu: gtk::MenuButton,
     sidebar: gtk::Button,
     source: gtk::MenuButton,
-    pub casting_host: gtk::Box,
 }
 
 impl Topbar {
@@ -64,7 +63,6 @@ impl Topbar {
             menu: gtk::MenuButton,
             sidebar: gtk::Button,
             source: gtk::MenuButton,
-            casting_host: gtk::Box,
         });
         gtk_widgets::controls::configure_search_entry(&search);
         Self {
@@ -78,7 +76,6 @@ impl Topbar {
             menu,
             sidebar,
             source,
-            casting_host,
         }
     }
 

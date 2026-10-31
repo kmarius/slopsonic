@@ -3,7 +3,7 @@ use super::{PlaybackError, PlaybackOwner, PlaybackStoreWork};
 use audio_processing::effects::{
     BandLayout, EqProfile, Filter, FilterKind, FilterWidth, ProcessingConfig,
 };
-use playback::{PlaybackOutput, ProcessingRequest};
+use playback::ProcessingRequest;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::{
@@ -78,25 +78,6 @@ const BUILTINS: &[(&str, &str, [f64; 10])] = &[
     ),
 ];
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
-pub enum EqCastFormat {
-    #[default]
-    Mp3,
-    Flac,
-}
-impl EqCastFormat {
-    fn encoding(self) -> library::AudioEncoding {
-        match self {
-            Self::Mp3 => library::AudioEncoding::mp3(),
-            Self::Flac => library::AudioEncoding {
-                codec: library::AudioCodec::Flac,
-                bitrate_kbps: None,
-                channels: library::AudioChannels::Preserve,
-            },
-        }
-    }
-}
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum EqPresetFormat {
@@ -123,7 +104,6 @@ pub enum EqEdit {
     Crossfeed { value: bool },
     Balance { value: f64 },
     Mono { value: bool },
-    CastFormat { value: EqCastFormat },
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "bindings", derive(uniffi::Record))]
@@ -153,7 +133,6 @@ pub struct OutputEq {
     pub crossfeed: bool,
     pub balance: f64,
     pub mono: bool,
-    pub cast_format: EqCastFormat,
 }
 impl Default for OutputEq {
     fn default() -> Self {
@@ -167,7 +146,6 @@ impl Default for OutputEq {
             crossfeed: false,
             balance: 0.,
             mono: false,
-            cast_format: EqCastFormat::Mp3,
         }
     }
 }
@@ -194,10 +172,6 @@ pub struct EqView {
     pub crossfeed: bool,
     pub balance: f64,
     pub mono: bool,
-    pub cast: bool,
-    pub available: bool,
-    pub pending: bool,
-    pub cast_format: EqCastFormat,
     pub sample_rate: Option<u32>,
     pub preamp_db: f64,
     pub peak_db: Vec<f64>,
@@ -253,7 +227,6 @@ impl EqualizerState {
         }
     }
     fn request(&self, output: &str) -> ProcessingRequest {
-        let settings = self.preferences.output(output);
         let (meter, spectrum) = self
             .observers
             .iter()
@@ -265,7 +238,6 @@ impl EqualizerState {
             config: self.preferences.config(output),
             meter,
             spectrum,
-            cast_encoding: settings.cast_format.encoding(),
         }
     }
     fn submit(&mut self, output: &str, force: bool) {
@@ -289,7 +261,6 @@ impl EqualizerState {
                         && current.local_device == request.local_device
                         && current.meter == request.meter
                         && current.spectrum == request.spectrum
-                        && current.cast_encoding == request.cast_encoding
                     {
                         false
                     } else {
@@ -341,15 +312,6 @@ impl EqualizerState {
         } else {
             saved.as_ref().is_none_or(|p| p.profile != profile)
         };
-        let cast = output.starts_with("remote:");
-        let pending = cast
-            && (facts.is_some_and(|f| f.error.is_some())
-                || self.processing.get(&backend_key(&output)).is_none_or(|tx| {
-                    !tx.borrow()
-                        .config
-                        .same_processing(&self.preferences.config(&output))
-                        || tx.borrow().cast_encoding != entry.cast_format.encoding()
-                }));
         EqView {
             output: output.clone(),
             enabled: entry.enabled,
@@ -366,10 +328,6 @@ impl EqualizerState {
             crossfeed: entry.crossfeed,
             balance: entry.balance,
             mono: entry.mono,
-            cast,
-            available: output_available(&output),
-            pending,
-            cast_format: entry.cast_format,
             sample_rate: facts.and_then(|f| f.sample_rate),
             preamp_db: if profile.automatic_preamp {
                 facts.map_or(0., |f| f.preamp_db)
@@ -402,15 +360,6 @@ impl EqualizerState {
 
 fn local_id(device: Option<&str>) -> String {
     format!("local:{}", device.unwrap_or("default"))
-}
-fn output_id(output: &PlaybackOutput, device: Option<&str>) -> String {
-    match output {
-        PlaybackOutput::Local => local_id(device),
-        PlaybackOutput::Remote(remote) => format!("remote:{:?}:{}", remote.protocol, remote.id),
-    }
-}
-fn output_available(output: &str) -> bool {
-    !output.starts_with("remote:RufinConnect:")
 }
 fn backend_key(output: &str) -> String {
     if output.starts_with("local:") {
@@ -650,17 +599,12 @@ impl Drop for EqSubscription {
 #[cfg_attr(feature = "bindings", uniffi::export)]
 impl PlaybackOwner {
     pub fn observe_local_output(&self, route: Option<String>) {
-        let selection = self.output.lock().unwrap_or_else(|e| e.into_inner());
         let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
         if state.observed_route == route {
             return;
         }
         state.observed_route = route;
-        if !selection.selected.is_local() {
-            return;
-        }
-        let output = output_id(
-            &selection.selected,
+        let output = local_id(
             state
                 .local_device
                 .as_deref()
@@ -733,23 +677,19 @@ impl PlaybackOwner {
     pub fn preview_equalizer(&self, output: String, edit: EqEdit) -> Result<(), PlaybackError> {
         let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
         let output = state.resolve(&output);
-        if !output_available(&output) {
-            return Err(error("Equalizer is controlled by the receiver"));
-        }
         let mut entry = state.preferences.output(&output).clone();
         if let EqEdit::Layout { value } = &edit
             && state.preferences.profile(&entry).layout == *value
         {
             return Ok(());
         }
-        let discrete = matches!(edit, EqEdit::Enabled { .. } | EqEdit::CastFormat { .. });
+        let discrete = matches!(edit, EqEdit::Enabled { .. });
         let is_profile = !matches!(
             edit,
             EqEdit::Enabled { .. }
                 | EqEdit::Crossfeed { .. }
                 | EqEdit::Balance { .. }
                 | EqEdit::Mono { .. }
-                | EqEdit::CastFormat { .. }
         );
         if is_profile && entry.selection.is_some() {
             entry.draft = EqDraft {
@@ -769,7 +709,6 @@ impl PlaybackOwner {
             EqEdit::Crossfeed { value } => entry.crossfeed = value,
             EqEdit::Balance { value } => entry.balance = value,
             EqEdit::Mono { value } => entry.mono = value,
-            EqEdit::CastFormat { value } => entry.cast_format = value,
             EqEdit::BandGain { index, value } => band(profile, index)?.gain_db = value,
             EqEdit::BandFrequency { index, value } => {
                 band(profile, index)?.frequency_hz = value;
@@ -1036,16 +975,6 @@ impl PlaybackOwner {
         };
         await_write(done).await
     }
-    pub fn apply_equalizer(&self, output: String) -> Result<(), PlaybackError> {
-        let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-        let output = state.resolve(&output);
-        if let Some(f) = state.facts.get_mut(&output) {
-            f.error = None;
-        }
-        state.submit(&output, true);
-        state.publish(&self.settings);
-        Ok(())
-    }
     pub async fn import_equalizer(
         &self,
         output: String,
@@ -1121,15 +1050,11 @@ impl PlaybackOwner {
         };
         await_write(done).await
     }
-    pub(super) fn processing_receiver(
-        &self,
-        output: &PlaybackOutput,
-    ) -> watch::Receiver<ProcessingRequest> {
+    pub(super) fn processing_receiver(&self) -> watch::Receiver<ProcessingRequest> {
         let device = self.settings.load().ui.playback.audio_output;
         let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
         state.local_device = device;
-        let id = output_id(
-            output,
+        let id = local_id(
             state
                 .local_device
                 .as_deref()
@@ -1141,14 +1066,9 @@ impl PlaybackOwner {
         rx
     }
     pub(super) fn equalizer_output_changed(&self, local: Option<&str>) {
-        let selection = self.output.lock().unwrap_or_else(|e| e.into_inner());
         let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-        let id = output_id(
-            &selection.selected,
-            local.or(state.observed_route.as_deref()),
-        );
-        let changed = state.current_output != id
-            || (selection.selected.is_local() && state.local_device.as_deref() != local);
+        let id = local_id(local.or(state.observed_route.as_deref()));
+        let changed = state.current_output != id || state.local_device.as_deref() != local;
         state.local_device = local.map(str::to_string);
         state.current_output = id.clone();
         if changed {

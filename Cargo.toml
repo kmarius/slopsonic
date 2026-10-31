@@ -32,7 +32,6 @@ gtk-widgets = { path = "crates/gtk-widgets" }
 library = { path = "crates/library" }
 metadata-lookup = { path = "crates/metadata-lookup" }
 playback = { path = "crates/playback" }
-playback-cast = { path = "crates/playback-cast" }
 playback-gstreamer = { path = "crates/playback-gstreamer" }
 process-memory = { path = "crates/process-memory" }
 rufin-core = { path = "crates/rufin-core" }
@@ -41,7 +40,6 @@ secrets = { path = "crates/secrets" }
 sources = { path = "crates/sources" }
 
 # External dependencies
-axum = "0.8.9"
 age = "0.12.1"
 flate2 = "1.1.10"
 tar = "0.4.46"
@@ -60,7 +58,6 @@ bytes = "1"
 http-body-util = "0.1"
 directories = "6.0.0"
 ebur128 = "0.1.10"
-fcast-sender-sdk = { version = "0.3.0", default-features = false, features = ["chromecast"] }
 futures-util = "0.3.32"
 getrandom = "0.4.0"
 gio = "0.22.6"
@@ -77,8 +74,6 @@ jxl = "0.7.4"
 jxl-image-rs-integration = "0.7.4"
 gif = "0.14.2"
 fast_image_resize = { version = "6.1.0", features = ["image"] }
-if-addrs = "0.15.0"
-mdns-sd = { version = "0.21.0", default-features = false }
 ksni = "0.3.4"
 lofty = "0.25.1"
 md5_digest = { package = "md-5", version = "0.10" }
@@ -91,13 +86,11 @@ reqwest = { version = "0.13.3", default-features = false, features = ["http2", "
 roxmltree = "0.21.0"
 resvg = { version = "0.48.1", default-features = false, features = ["text", "system-fonts", "memmap-fonts", "raster-images"] }
 rust-embed = { version = "8.11.0", features = ["debug-embed"] }
-rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "logging", "tls12"] }
 rustix = { version = "1.1.4", features = ["fs"] }
 rustfft = "6.2.0"
 serde = { version = "1.0.228", features = ["derive", "rc"] }
 serde_json = "1.0.150"
 serde_path_to_error = "0.1.20"
-socket2 = { version = "0.6.5", features = ["all"] }
 sqlx = { version = "=0.9.0", default-features = false, features = ["derive", "runtime-tokio", "sqlite", "regexp"] }
 libsqlite3-sys = "=0.37.0"
 regex = "1.13.1"

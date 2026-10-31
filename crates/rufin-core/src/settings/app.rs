@@ -198,8 +198,6 @@ preference_group!(#[cfg_attr(feature = "bindings", derive(uniffi::Record))] Appl
     #[serde(default = "default_starting_page")]
     starting_page: SidebarRouteItem = default_starting_page() => set_starting_page;
     private_mode: bool = false => set_private_mode;
-    #[serde(default)]
-    cast_proxy_enabled: bool = false => set_cast_proxy_enabled;
     #[serde(default = "default_true")]
     external_metadata_enabled: bool = true => set_external_metadata_enabled;
     #[serde(default)]
@@ -269,8 +267,6 @@ pub struct Settings {
     #[serde(default)]
     pub sidebar: SidebarSettings,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cast_network_interface: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub release_notification_seen_version: Option<String>,
     #[serde(default)]
     pub automatic_updates_enabled: bool,
@@ -318,7 +314,6 @@ impl Default for Settings {
             web_controller: crate::settings::ControllerSettings::default(),
             layout: LayoutSettings::default(),
             sidebar: SidebarSettings::default(),
-            cast_network_interface: None,
             release_notification_seen_version: None,
             automatic_updates_enabled: false,
             downloads: Vec::new(),
@@ -378,12 +373,6 @@ impl Settings {
             .auto_dj_refill_threshold
             .clamp(MIN_AUTO_DJ_REFILL_THRESHOLD, MAX_AUTO_DJ_REFILL_THRESHOLD);
         self.lastfm_api_key = self.lastfm_api_key.trim().to_string();
-        self.cast_network_interface = self
-            .cast_network_interface
-            .as_deref()
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .map(str::to_string);
         self.release_notification_seen_version = self
             .release_notification_seen_version
             .as_deref()

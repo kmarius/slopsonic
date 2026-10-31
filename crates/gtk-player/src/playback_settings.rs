@@ -28,7 +28,6 @@ pub fn configure_playback_settings_popover(button: &gtk::MenuButton, shell: &Rc<
 fn playback_settings_popover(shell: &Rc<PlayerUi>) -> gtk::Popover {
     let settings = shell.settings.current.borrow().clone();
     let playback = settings.playback;
-    let local_output = shell.playback_owner.playback_output().is_local();
 
     let resource = crate::ui_resource::PLAYBACK_SETTINGS_POPOVER_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
@@ -38,26 +37,18 @@ fn playback_settings_popover(shell: &Rc<PlayerUi>) -> gtk::Popover {
         queue: adw::SwitchRow,
         audio_output: adw::ActionRow,
     });
-    if !local_output {
-        settings_group.set_description(Some(&"Audio processing is unavailable while casting".to_string()));
-    }
     let device = crate::outputs::audio_output_dropdown(shell, 180);
     gtk_widgets::interactions::keep_parent_grab_for_dropdown(&device);
     audio_output.add_suffix(&device);
     audio_output.set_activatable_widget(Some(&device));
-    audio_output.set_sensitive(local_output);
     let (transition_row, crossfade_options) =
         transition_rows(shell, &playback, PLAYBACK_SETTINGS_SCALE_WIDTH);
-    transition_row.set_sensitive(local_output);
-    crossfade_options.set_sensitive(local_output);
     settings_group.add(&transition_row);
     settings_group.add(&crossfade_options);
     let playback_rate =
         playback_rate_row(shell, playback.playback_rate, PLAYBACK_SETTINGS_SCALE_WIDTH);
-    playback_rate.set_sensitive(local_output);
     settings_group.add(&playback_rate);
     let preserve_pitch = preserve_pitch_row(shell, playback.preserve_pitch);
-    preserve_pitch.set_sensitive(local_output);
     settings_group.add(&preserve_pitch);
 
     queue.set_active(settings.right_panel.queue_visible);

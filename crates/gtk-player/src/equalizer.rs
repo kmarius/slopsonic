@@ -11,7 +11,7 @@ use audio_processing::effects::{
 use gtk::glib;
 use gtk::subclass::prelude::*;
 use rufin_core::playback::PlaybackOwner;
-use rufin_core::{EqCastFormat, EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView};
+use rufin_core::{EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView};
 
 pub fn equalizer_preset_title(name: &str) -> String {
     match name {
@@ -194,10 +194,6 @@ struct Editor {
     listener: RefCell<Option<glib::JoinHandle<()>>>,
     widgets: RefCell<Vec<BandWidgets>>,
     enabled: gtk::Switch,
-    toolbar: gtk::Box,
-    editor: gtk::Box,
-    effects: adw::ExpanderRow,
-    unavailable: gtk::Label,
     assigned: gtk::CheckButton,
     preset: adw::ComboRow,
     save: gtk::Button,
@@ -208,7 +204,6 @@ struct Editor {
     preset_names: gtk::StringList,
     preset_items: RefCell<Vec<EqPresetSummary>>,
     output_selector: gtk::DropDown,
-    output_name: gtk::Label,
     graphic: gtk::Box,
     parametric: gtk::Box,
     mode: gtk::ToggleButton,
@@ -231,8 +226,6 @@ struct Editor {
     headroom: gtk::Label,
     output_gain: gtk::Label,
     peak: gtk::Label,
-    peak_row: adw::ActionRow,
-    peak_titles: gtk::StringList,
     clip: gtk::Label,
     bass: gtk::Entry,
     bass_scale: gtk::Scale,
@@ -242,9 +235,6 @@ struct Editor {
     balance_scale: gtk::Scale,
     crossfeed: gtk::Switch,
     mono: gtk::Switch,
-    cast: gtk::Box,
-    cast_format: gtk::DropDown,
-    apply: gtk::Button,
     add: gtk::Button,
     error: gtk::Label,
     graphic_range: Cell<(f64, f64)>,
@@ -283,8 +273,6 @@ impl EqualizerSurface {
         let builder = gtk_widgets::ui_resource::builder(resource);
         gtk_widgets::objects!(builder, resource, {
             root: gtk::Box, enabled: gtk::Switch, assigned: gtk::CheckButton,
-            toolbar: gtk::Box, editor: gtk::Box, effects: adw::ExpanderRow,
-            unavailable: gtk::Label,
             preset: adw::ComboRow, save: gtk::Button,
             rename: gtk::Button, delete: gtk::Button, duplicate: gtk::Button,
             import: gtk::Button, export: gtk::Button,
@@ -298,12 +286,10 @@ impl EqualizerSurface {
             preamp: gtk::Entry, preamp_scale: gtk::Scale,
             parametric_preamp: gtk::Entry, automatic: gtk::Switch,
             headroom: gtk::Label, output_gain: gtk::Label, peak: gtk::Label, clip: gtk::Label,
-            peak_row: adw::ActionRow, peak_titles: gtk::StringList,
             bass: gtk::Entry, bass_scale: gtk::Scale,
             treble: gtk::Entry, treble_scale: gtk::Scale,
             balance: gtk::Entry, balance_scale: gtk::Scale,
-            crossfeed: gtk::Switch, mono: gtk::Switch, cast: gtk::Box,
-            cast_format: gtk::DropDown, apply: gtk::Button, add: gtk::Button,
+            crossfeed: gtk::Switch, mono: gtk::Switch, add: gtk::Button,
             reset: gtk::Button,
             error: gtk::Label,
         });
@@ -311,12 +297,7 @@ impl EqualizerSurface {
         output_selector.set_halign(gtk::Align::Fill);
         output_selector.set_hexpand(true);
         output_host.append(&output_selector);
-        let output_name = gtk::Label::new(None);
-        output_name.set_ellipsize(gtk::pango::EllipsizeMode::End);
-        output_name.set_max_width_chars(24);
-        output_host.append(&output_name);
         let view = player.playback_owner.equalizer_view(String::new());
-        let editor_widget = editor;
         let editor = Rc::new(Editor {
             root: root.downgrade(),
             player: Rc::downgrade(player),
@@ -333,10 +314,6 @@ impl EqualizerSurface {
             listener: RefCell::new(None),
             widgets: RefCell::new(Vec::new()),
             enabled,
-            toolbar,
-            editor: editor_widget,
-            effects,
-            unavailable,
             assigned,
             preset,
             save,
@@ -347,7 +324,6 @@ impl EqualizerSurface {
             preset_names,
             preset_items: RefCell::new(Vec::new()),
             output_selector,
-            output_name,
             graphic,
             parametric,
             mode,
@@ -370,8 +346,6 @@ impl EqualizerSurface {
             headroom,
             output_gain,
             peak,
-            peak_row,
-            peak_titles,
             clip,
             bass,
             bass_scale,
@@ -381,9 +355,6 @@ impl EqualizerSurface {
             balance_scale,
             crossfeed,
             mono,
-            cast,
-            cast_format,
-            apply,
             add,
             error,
             graphic_range: Cell::new((-24.0, 12.0)),
@@ -686,25 +657,6 @@ impl Editor {
                 view.profile.bands.get(index).map(|band| band.gain_db)
             },
         );
-        let weak = Rc::downgrade(self);
-        self.cast_format.connect_selected_notify(move |dropdown| {
-            if let Some(editor) = weak.upgrade() {
-                editor.edit(EqEdit::CastFormat {
-                    value: if dropdown.selected() == 0 {
-                        EqCastFormat::Mp3
-                    } else {
-                        EqCastFormat::Flac
-                    },
-                });
-            }
-        });
-        let weak = Rc::downgrade(self);
-        self.apply.connect_clicked(move |_| {
-            let Some(editor) = weak.upgrade() else { return };
-            if let Err(error) = editor.owner.apply_equalizer(editor.output()) {
-                editor.feedback.show_feedback_toast(error.to_string());
-            }
-        });
         let weak = Rc::downgrade(self);
         self.add.connect_clicked(move |_| {
             if let Some(editor) = weak.upgrade() {
@@ -1049,12 +1001,6 @@ impl Editor {
     fn refresh(self: &Rc<Self>, view: EqView) {
         let first = !self.initialized.replace(true);
         let previous = self.view.replace(view.clone());
-        self.peak_row.set_title(
-            &self
-                .peak_titles
-                .string(u32::from(view.cast))
-                .expect("peak title"),
-        );
         self.peak.set_text(
             &view
                 .peak_db
@@ -1080,7 +1026,6 @@ impl Editor {
             ));
         }
         let controls_unchanged = previous.output == view.output
-            && previous.available == view.available
             && previous.profile == view.profile
             && previous.enabled == view.enabled
             && previous.assigned == view.assigned
@@ -1092,9 +1037,6 @@ impl Editor {
             && previous.crossfeed == view.crossfeed
             && previous.balance == view.balance
             && previous.mono == view.mono
-            && previous.cast == view.cast
-            && previous.pending == view.pending
-            && previous.cast_format == view.cast_format
             && previous.sample_rate == view.sample_rate
             && previous.preamp_db == view.preamp_db
             && previous.error == view.error;
@@ -1153,14 +1095,6 @@ impl Editor {
                 .min(view.profile.bands.len().saturating_sub(1)),
         );
         self.enabled.set_active(view.enabled);
-        self.enabled.set_sensitive(view.available);
-        self.assigned.set_sensitive(view.available);
-        self.toolbar.set_sensitive(view.available);
-        self.editor.set_sensitive(view.available);
-        self.effects.set_sensitive(view.available);
-        self.automatic.set_sensitive(view.available);
-        self.cast.set_sensitive(view.available);
-        self.unavailable.set_visible(!view.available);
         self.assigned.set_active(view.assigned);
         if first
             || previous.preset_id != view.preset_id
@@ -1169,8 +1103,6 @@ impl Editor {
         {
             self.refresh_presets();
         }
-        self.preset.set_sensitive(view.available);
-        self.mode.set_sensitive(view.available);
         self.save
             .set_sensitive(view.modified || view.preset_id.is_none());
         let saved = view.preset_id.is_some() && !view.preset_builtin;
@@ -1218,20 +1150,10 @@ impl Editor {
         self.balance_scale.set_value(view.balance);
         self.crossfeed.set_active(view.crossfeed);
         self.mono.set_active(view.mono);
-        self.cast.set_visible(view.cast);
-        self.cast_format
-            .set_selected(if view.cast_format == EqCastFormat::Mp3 {
-                0
-            } else {
-                1
-            });
-        self.apply.set_sensitive(view.pending);
         self.error.set_visible(view.error.is_some());
         self.error
             .set_text(view.error.as_deref().unwrap_or_default());
-        self.output_selector.set_visible(!view.cast);
-        self.output_name.set_visible(view.cast);
-        if !view.cast && (output_changed || first) {
+        if output_changed || first {
             if let Some(player) = self.player.upgrade() {
                 let selected = player
                     .settings
@@ -1248,11 +1170,6 @@ impl Editor {
                     .position(|(id, _)| *id == selected);
                 self.output_selector
                     .set_selected(index.map_or(gtk::INVALID_LIST_POSITION, |index| index as u32));
-            }
-        }
-        if view.cast {
-            if let playback::PlaybackOutput::Remote(output) = self.owner.playback_output() {
-                self.output_name.set_text(&output.name);
             }
         }
         self.add.set_sensitive(view.profile.bands.len() < 64);

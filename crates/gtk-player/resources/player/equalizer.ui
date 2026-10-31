@@ -141,13 +141,6 @@
       </object>
     </child>
     <child>
-      <object class="GtkLabel" id="unavailable">
-        <property name="label" translatable="yes">Equalizer is controlled by the receiver</property>
-        <property name="wrap">true</property>
-        <property name="visible">false</property>
-      </object>
-    </child>
-    <child>
       <object class="GtkBox" id="editor">
         <property name="orientation">vertical</property>
         <property name="spacing">8</property>
@@ -439,7 +432,7 @@
           </object>
         </child>
         <child>
-          <object class="AdwActionRow" id="peak_row">
+          <object class="AdwActionRow">
             <property name="title" translatable="yes">Sample peak</property>
             <child type="suffix">
               <object class="GtkBox">
@@ -661,33 +654,6 @@
       </object>
     </child>
     <child>
-      <object class="GtkBox" id="cast">
-        <property name="orientation">horizontal</property>
-        <property name="spacing">8</property>
-        <property name="visible">false</property>
-        <child>
-          <object class="GtkDropDown" id="cast_format">
-            <property name="model">
-              <object class="GtkStringList">
-                <items>
-                  <item translatable="yes">MP3</item>
-                  <item translatable="yes">FLAC</item>
-                </items>
-              </object>
-            </property>
-            <accessibility>
-              <property name="label" translatable="yes">Cast format</property>
-            </accessibility>
-          </object>
-        </child>
-        <child>
-          <object class="GtkButton" id="apply">
-            <property name="label" translatable="yes">Apply</property>
-          </object>
-        </child>
-      </object>
-    </child>
-    <child>
       <object class="GtkLabel" id="error">
         <property name="label" />
         <property name="wrap">true</property>
@@ -706,12 +672,6 @@
   </object>
   <object class="GtkLabel" id="custom_title">
     <property name="label" translatable="yes">Custom</property>
-  </object>
-  <object class="GtkStringList" id="peak_titles">
-    <items>
-      <item translatable="yes">Sample peak</item>
-      <item translatable="yes">Encoding peak</item>
-    </items>
   </object>
   <object class="GtkStringList" id="mode_titles">
     <items>

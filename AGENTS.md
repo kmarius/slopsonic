@@ -15,7 +15,7 @@ Do not implement or expand:
 - **Other server backends** — Navidrome/Subsonic only, no Jellyfin/Plex/etc.
 - **Metadata editing** — Read-only client; editing belongs in the server or dedicated tools
 - **File management** — No local library scanning, file organization, or downloads
-- **Rufin Connect / sync** — No cross-device sync or remote control features
+- **Rufin Connect / sync / casting** — No cross-device sync, remote control, or UPnP/Chromecast casting
 - **Headless/controller mode** — This is a desktop GUI application
 - **Windows/macOS/Android builds** — Linux only; ignore existing cross-platform code
 

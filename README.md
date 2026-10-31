@@ -38,7 +38,6 @@ Rufin is a powerful, fast and easy to use native music player for Navidrome.
 - Last.fm, Libre.fm and ListenBrainz scrobbling, with offline storage and automatic retries
 - Private mode for temporarily pausing external activity
 - Secure storage for server credentials and API secrets by default
-- Casting support for UPnP and Chromecast
 
 ## 🖥️ Interface
 

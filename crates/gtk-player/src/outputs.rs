@@ -25,9 +25,6 @@ pub fn select_next_audio_output(shell: &Rc<PlayerUi>) {
 }
 
 fn cycle_audio_output(shell: &Rc<PlayerUi>, direction: isize) {
-    if !shell.playback_owner.playback_output().is_local() {
-        return;
-    }
     let selected = shell
         .settings
         .current
@@ -94,53 +91,6 @@ pub fn audio_output_dropdown(shell: &Rc<PlayerUi>, width: i32) -> gtk::DropDown 
 
     request_audio_output_refresh(shell);
     watch_audio_output_dropdown_refresh(shell, &dropdown, options, selected, syncing);
-    dropdown
-}
-
-pub fn casting_network_dropdown(shell: &Rc<PlayerUi>, width: i32) -> gtk::DropDown {
-    let selected = shell
-        .settings
-        .current
-        .borrow()
-        .cast_network_interface
-        .clone();
-    let mut options = vec![(None, "Automatic".to_string())];
-    options.extend(
-        shell
-            .playback_owner
-            .available_cast_networks()
-            .into_iter()
-            .map(|network| {
-                (
-                    Some(network.id),
-                    format!("{} ({})", network.name, network.address),
-                )
-            }),
-    );
-    let selected_index = audio_output_index(&options, selected.as_deref()).unwrap_or_default();
-    let titles = options
-        .iter()
-        .map(|(_, title)| title.as_str())
-        .collect::<Vec<_>>();
-    let dropdown = gtk::DropDown::from_strings(&titles);
-    dropdown.set_selected(selected_index as u32);
-    dropdown.set_tooltip_text(options.get(selected_index).map(|(_, title)| title.as_str()));
-    dropdown.set_valign(gtk::Align::Center);
-    dropdown.set_width_request(width);
-    configure_output_dropdown_factory(&dropdown);
-
-    let network_shell = Rc::clone(shell);
-    dropdown.connect_selected_notify(move |dropdown| {
-        let Some((id, title)) = options.get(dropdown.selected() as usize) else {
-            return;
-        };
-        dropdown.set_tooltip_text(Some(title));
-        network_shell
-            .settings
-            .set_app_setting("casting network setting", id.clone(), |settings| {
-                &mut settings.cast_network_interface
-            });
-    });
     dropdown
 }
 

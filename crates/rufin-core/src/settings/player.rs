@@ -56,18 +56,6 @@ impl SettingsOwner {
         }
     }
 
-    pub fn cast_network_interface(&self) -> Option<String> {
-        self.load().cast_network_interface
-    }
-
-    pub fn set_cast_network_interface(&self, value: Option<String>) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            ui.cast_network_interface = value;
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-
     pub fn player_preference_options(&self) -> PlayerPreferenceOptions {
         PlayerPreferenceOptions {
             min_crossfade_seconds: playback::MIN_CROSSFADE_SECONDS,

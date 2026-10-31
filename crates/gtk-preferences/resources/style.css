@@ -1797,31 +1797,6 @@ scale.volume-slider:dir(rtl) {
   margin-top: 2px;
 }
 
-.player-output-icon.active-output {
-  color: var(--accent-color);
-}
-
-.playback-output-row.selected-output {
-  background: color-mix(in srgb, var(--accent-bg-color) 14%, transparent);
-}
-
-.playback-output-row.selected-output:dir(ltr) {
-  box-shadow: inset 3px 0 var(--accent-color);
-}
-
-.playback-output-row.selected-output:dir(rtl) {
-  box-shadow: inset -3px 0 var(--accent-color);
-}
-
-.playback-output-row > box.header {
-  min-height: 36px;
-}
-
-.playback-output-row > box.header > box.title {
-  margin-top: 0;
-  margin-bottom: 0;
-}
-
 .player-play-button {
   border-radius: 0;
   background: radial-gradient(circle closest-side,

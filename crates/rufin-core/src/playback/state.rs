@@ -15,7 +15,7 @@ use tokio::task::JoinHandle;
 
 use crate::playback::Placement;
 use playback::{
-    BackendCommand, BackendEvent, BackendState, NextTransition, PlaybackOutput, PlaybackSettings,
+    BackendCommand, BackendEvent, BackendState, NextTransition, PlaybackSettings,
     PlaybackTransitionMode, PreparedNext, PreparedStream, Provenance, QueueRow, RepeatMode,
     RunEndReason, RunId, StreamRequest, manual_end_is_skip, qualified_play_threshold_millis,
 };
@@ -221,7 +221,6 @@ pub(super) struct Player {
     next_run_number: u64,
     candidate_tasks: HashMap<u64, (Placement, JoinHandle<()>)>,
     settings: PlaybackSettings,
-    playback_output: PlaybackOutput,
     output_volume: f64,
     output_muted: bool,
     auto_dj_enabled: bool,
@@ -239,7 +238,6 @@ impl Player {
         sequence: Sequence,
         play_id_prefix: impl Into<Arc<str>>,
         mut settings: PlaybackSettings,
-        playback_output: PlaybackOutput,
         auto_dj_enabled: bool,
         auto_dj_refill_threshold: usize,
         mut backend: Box<dyn PlaybackBackend>,
@@ -275,7 +273,6 @@ impl Player {
             next_run_number: 1,
             candidate_tasks: HashMap::new(),
             settings,
-            playback_output,
             output_volume,
             output_muted,
             auto_dj_enabled,
@@ -343,10 +340,6 @@ impl Player {
         self.pending_queue
             .as_ref()
             .is_some_and(|(pending, _, _)| *pending == id)
-    }
-
-    pub(super) fn playback_output(&self) -> &PlaybackOutput {
-        &self.playback_output
     }
 
     pub(super) fn output_volume(&self) -> f64 {
@@ -428,51 +421,6 @@ impl Player {
 
     pub(super) fn settings(&self) -> &PlaybackSettings {
         &self.settings
-    }
-
-    pub(super) fn replace_output(&mut self, output: PlaybackOutput) {
-        self.playback_output = output;
-        self.last_error = None;
-        if self.playback_output.is_local() {
-            self.output_volume = self.settings.volume;
-            self.output_muted = self.settings.muted;
-        }
-        let Some(current) = self.current_run.as_mut() else {
-            self.dirty = true;
-            if let Some(failed) = self.failed_run.take() {
-                if failed.desired_playing {
-                    self.begin_selected_run();
-                } else {
-                    self.restored_paused = true;
-                }
-            }
-            return;
-        };
-        let Some(stream) = current.resolved_stream.clone() else {
-            self.dirty = true;
-            return;
-        };
-        let run = current.id;
-        let desired_playing = current.desired_playing;
-        current.backend_loaded = false;
-        if !desired_playing {
-            current.status = TransportStatus::Paused;
-            self.dirty = true;
-            return;
-        }
-        current.status = TransportStatus::Buffering;
-        current.backend_loaded = true;
-        let next = self.prepared_next(run);
-
-        self.send_backend(BackendCommand::ConfigureAudio(self.settings.clone().into()));
-        self.send_backend(BackendCommand::Start {
-            run,
-            current: stream,
-            next,
-            start_position_millis: self.sequence.progress_millis(),
-            playback_rate: self.settings.playback_rate,
-        });
-        self.dirty = true;
     }
 
     pub(super) fn auto_dj_enabled(&self) -> bool {
@@ -666,13 +614,11 @@ impl Player {
             Command::SetMuted(muted) => Ok(self.set_muted(muted)),
             Command::PersistVolume(volume) => {
                 self.set_volume(volume);
-                if self.playback_output.is_local() {
-                    self.owner().persist_output(
-                        self.settings.volume,
-                        self.settings.muted,
-                        self.settings.audio_output.clone(),
-                    );
-                }
+                self.owner().persist_output(
+                    self.settings.volume,
+                    self.settings.muted,
+                    self.settings.audio_output.clone(),
+                );
                 Ok(())
             }
             Command::SetRepeat(repeat) => Ok(self.set_repeat(repeat)),
@@ -892,8 +838,7 @@ impl Player {
                 muted,
                 output,
             } => {
-                let local = self.playback_output.is_local();
-                let audio_output_changed = local && self.settings.audio_output != output;
+                let audio_output_changed = self.settings.audio_output != output;
                 let unchanged = self.output_volume == volume
                     && self.output_muted == muted
                     && !audio_output_changed;
@@ -902,11 +847,9 @@ impl Player {
                 }
                 self.output_volume = volume;
                 self.output_muted = muted;
-                if local {
-                    self.settings.volume = volume;
-                    self.settings.muted = muted;
-                    self.settings.audio_output = output.clone();
-                }
+                self.settings.volume = volume;
+                self.settings.muted = muted;
+                self.settings.audio_output = output.clone();
                 if audio_output_changed {
                     self.owner().persist_output(volume, muted, output);
                 }
@@ -1631,10 +1574,8 @@ impl Player {
         }
         self.output_volume = volume;
         self.output_muted = false;
-        if self.playback_output.is_local() {
-            self.settings.volume = volume;
-            self.settings.muted = false;
-        }
+        self.settings.volume = volume;
+        self.settings.muted = false;
 
         self.send_backend(BackendCommand::SetOutputVolume {
             volume,
@@ -1649,21 +1590,17 @@ impl Player {
             return;
         }
         self.output_muted = muted;
-        if self.playback_output.is_local() {
-            self.settings.muted = muted;
-        }
+        self.settings.muted = muted;
         self.send_backend(BackendCommand::SetOutputVolume {
             volume: self.output_volume,
             volume_scale: self.settings.volume_scale,
             muted,
         });
-        if self.playback_output.is_local() {
-            self.owner().persist_output(
-                self.settings.volume,
-                muted,
-                self.settings.audio_output.clone(),
-            );
-        }
+        self.owner().persist_output(
+            self.settings.volume,
+            muted,
+            self.settings.audio_output.clone(),
+        );
 
         self.dirty = true;
     }
@@ -1725,30 +1662,28 @@ impl Player {
             || settings.audio_fade_on_status_change != self.settings.audio_fade_on_status_change;
         self.settings = settings.clone();
         self.dirty = true;
-        if self.playback_output.is_local() {
-            self.output_volume = settings.volume;
-            self.output_muted = settings.muted;
-            if settings.loudness_normalization != playback::LoudnessNormalization::Off
-                && let Some(current) = self.current_run.as_ref()
-                && let Some(stream) = current
-                    .resolved_stream
-                    .as_ref()
-                    .filter(|stream| stream.loudness.is_none())
-                && !self.stream_tasks.contains_key(&current.id)
-            {
-                self.resolve_loudness(current.id, stream.clone());
-            }
+        self.output_volume = settings.volume;
+        self.output_muted = settings.muted;
+        if settings.loudness_normalization != playback::LoudnessNormalization::Off
+            && let Some(current) = self.current_run.as_ref()
+            && let Some(stream) = current
+                .resolved_stream
+                .as_ref()
+                .filter(|stream| stream.loudness.is_none())
+            && !self.stream_tasks.contains_key(&current.id)
+        {
+            self.resolve_loudness(current.id, stream.clone());
         }
-        if self.playback_output.is_local() && audio_configuration_changed {
+        if audio_configuration_changed {
             self.send_backend(BackendCommand::ConfigureAudio(self.settings.clone().into()));
-        } else if self.playback_output.is_local() && output_changed {
+        } else if output_changed {
             self.send_backend(BackendCommand::SetOutputVolume {
                 volume: settings.volume,
                 volume_scale: settings.volume_scale,
                 muted: settings.muted,
             });
         }
-        if self.playback_output.is_local() && playback_rate_changed {
+        if playback_rate_changed {
             self.send_backend(BackendCommand::SetPlaybackRate(playback_rate));
         }
         if stream_changed || normalization_enabled {
@@ -2282,11 +2217,7 @@ impl Player {
             phase,
             started_at_unix_seconds: current.started_at_unix_seconds.unwrap_or_default(),
             position_millis: self.sequence.progress_millis(),
-            playback_rate: if self.playback_output.is_local() {
-                self.settings.playback_rate
-            } else {
-                1.0
-            },
+            playback_rate: self.settings.playback_rate,
             duration_millis: (current.duration_millis > 0).then_some(current.duration_millis),
             paused: !current.desired_playing,
             muted: self.settings.muted,
@@ -2302,10 +2233,6 @@ impl Player {
     }
 
     fn maybe_request_auto_dj(&mut self) {
-        if matches!(&self.playback_output, PlaybackOutput::Remote(output) if output.protocol == playback::RemoteOutputProtocol::RufinConnect)
-        {
-            return;
-        }
         let remaining = self.sequence.remaining_after_selected();
         if !self.auto_dj_enabled
             || remaining >= self.auto_dj_refill_threshold
@@ -2394,11 +2321,7 @@ impl Player {
                 desired_playing: self.desired_playing(),
                 position_millis: self.position_millis(),
                 position_observed_at_millis: self.position_observed_at_millis(),
-                playback_rate: if self.playback_output().is_local() {
-                    settings.playback_rate
-                } else {
-                    1.0
-                },
+                playback_rate: settings.playback_rate,
                 duration_millis: self.duration_millis(),
                 can_seek: self.can_seek(),
                 buffering_percent: self.buffering_percent(),
@@ -2415,7 +2338,6 @@ impl Player {
                 },
                 muted: self.output_muted(),
                 audio_output: settings.audio_output.clone(),
-                playback_output: self.playback_output().clone(),
             },
         }
     }
@@ -2552,32 +2474,6 @@ impl Player {
             view: self.view(),
             notices: Vec::new(),
         }
-    }
-
-    pub(super) fn replace_backend(
-        &mut self,
-        output: PlaybackOutput,
-        backend: Box<dyn PlaybackBackend>,
-    ) {
-        let mut previous = self.install_backend(backend);
-        if let Some(run) = self.current_run()
-            && let Err(error) = previous.send(BackendCommand::Stop { run })
-        {
-            self.report_error(error.to_string());
-        }
-        previous.drain_events();
-        if let Err(error) = previous.shutdown() {
-            self.report_error(error.to_string());
-        }
-        self.replace_output(output);
-    }
-
-    fn install_backend(
-        &mut self,
-        mut backend: Box<dyn PlaybackBackend>,
-    ) -> Box<dyn PlaybackBackend> {
-        backend.set_event_waker(event_waker(&self.playback));
-        std::mem::replace(&mut self.backend, backend)
     }
 
     pub(super) fn shutdown_backend(&mut self) -> Result<(), playback::BackendError> {

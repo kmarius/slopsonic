@@ -641,9 +641,6 @@ fn adjust_volume(shell: &Rc<Shell>, delta: f64) {
 }
 
 fn set_transition_mode_shortcut(shell: &Rc<Shell>, mode: PlaybackTransitionMode) {
-    if !shell.products.playback.playback_output().is_local() {
-        return;
-    }
     shell
         .player_ui
         .update_playback_settings(|settings| settings.transition_mode = mode);

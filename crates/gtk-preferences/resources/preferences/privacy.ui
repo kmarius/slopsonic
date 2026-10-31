@@ -12,18 +12,6 @@
           </object>
         </child>
         <child>
-          <object class="AdwSwitchRow" id="cast_proxy_row">
-            <property name="title" translatable="yes">Proxy casting through Rufin</property>
-            <property name="subtitle" translatable="yes">Route server media through this device instead of sharing provider URLs with the renderer</property>
-          </object>
-        </child>
-        <child>
-          <object class="AdwActionRow" id="cast_network_row">
-            <property name="title" translatable="yes">Casting network</property>
-            <property name="subtitle" translatable="yes">Network used to send local and proxied media to casting devices</property>
-          </object>
-        </child>
-        <child>
           <object class="AdwComboRow" id="secret_storage_row">
             <property name="title" translatable="yes">Secret storage</property>
           </object>

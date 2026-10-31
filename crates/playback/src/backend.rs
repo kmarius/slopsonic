@@ -4,7 +4,6 @@ use crate::{
 use audio_processing::ResolvedStream;
 use library::LoudnessMeasurement;
 use serde::{Deserialize, Serialize};
-use std::net::IpAddr;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -198,7 +197,6 @@ pub struct ProcessingRequest {
     pub config: audio_processing::effects::ProcessingConfig,
     pub meter: bool,
     pub spectrum: bool,
-    pub cast_encoding: library::AudioEncoding,
 }
 impl Default for ProcessingRequest {
     fn default() -> Self {
@@ -208,7 +206,6 @@ impl Default for ProcessingRequest {
             config: Default::default(),
             meter: false,
             spectrum: false,
-            cast_encoding: library::AudioEncoding::mp3(),
         }
     }
 }
@@ -361,12 +358,6 @@ pub struct AudioOutput {
     pub name: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CastNetwork {
-    pub id: String,
-    pub name: String,
-    pub address: IpAddr,
-}
 #[derive(Debug, Error)]
 pub enum BackendError {
     #[error("playback backend failed: {0}")]

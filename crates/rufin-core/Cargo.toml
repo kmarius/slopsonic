@@ -35,7 +35,6 @@ getrandom.workspace = true
 glib.workspace = true
 gio.workspace = true
 playback.workspace = true
-playback-cast.workspace = true
 reqwest = { workspace = true, features = ["blocking", "json"] }
 scrobbling.workspace = true
 sources.workspace = true
