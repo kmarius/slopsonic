@@ -3,15 +3,11 @@ uniffi::setup_scaffolding!();
 
 use std::collections::HashMap;
 use std::fs;
-#[cfg(all(unix, not(target_vendor = "apple")))]
 use std::future::Future;
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-#[cfg(target_os = "macos")]
-use app_identity::APP_ID;
-#[cfg(all(unix, not(target_vendor = "apple")))]
 use app_identity::PROJECT_NAME;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
@@ -19,7 +15,6 @@ use thiserror::Error;
 
 const CONFIG_SECRET_FORMAT: &str = "config-base64";
 const KEYRING_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
-#[cfg(all(unix, not(target_vendor = "apple")))]
 static SECRET_SERVICE: Mutex<Option<(tokio::runtime::Runtime, Arc<oo7::Keyring>)>> =
     Mutex::new(None);
 
@@ -33,24 +28,8 @@ pub enum SecretStorageMode {
 
 impl Default for SecretStorageMode {
     fn default() -> Self {
-        default_secret_storage_mode()
+        SecretStorageMode::SystemKeyring
     }
-}
-
-#[cfg(any(
-    target_os = "macos",
-    all(unix, not(target_vendor = "apple"))
-))]
-fn default_secret_storage_mode() -> SecretStorageMode {
-    SecretStorageMode::SystemKeyring
-}
-
-#[cfg(not(any(
-    target_os = "macos",
-    all(unix, not(target_vendor = "apple"))
-)))]
-fn default_secret_storage_mode() -> SecretStorageMode {
-    SecretStorageMode::ConfigFile
 }
 
 #[derive(Debug, Error)]
@@ -486,14 +465,12 @@ impl SecretStore for SystemKeyringStore {
     }
 }
 
-#[cfg(all(unix, not(target_vendor = "apple")))]
 #[derive(Clone, Debug)]
 struct SystemKeyringBackend {
     application: String,
     scope_id: String,
 }
 
-#[cfg(all(unix, not(target_vendor = "apple")))]
 impl SystemKeyringBackend {
     fn new(scope_id: String) -> SecretResult<Self> {
         Ok(Self {
@@ -582,7 +559,6 @@ impl SystemKeyringBackend {
     }
 }
 
-#[cfg(all(unix, not(target_vendor = "apple")))]
 async fn load_item_secret(
     keyring: &oo7::Keyring,
     attributes: &Vec<(String, String)>,
@@ -596,7 +572,6 @@ async fn load_item_secret(
     Ok(Some(item.secret().await?))
 }
 
-#[cfg(all(unix, not(target_vendor = "apple")))]
 impl SecretStore for SystemKeyringBackend {
     fn save_secret(&self, key: &SecretKey, secret: &str) -> SecretResult<()> {
         let attributes = self.secret_attributes(key);
@@ -643,120 +618,6 @@ impl SecretStore for SystemKeyringBackend {
     }
 }
 
-#[cfg(target_os = "macos")]
-#[derive(Clone, Debug)]
-struct SystemKeyringBackend {
-    scope_id: String,
-    store: Arc<keyring_core::CredentialStore>,
-    operation_lock: Arc<Mutex<()>>,
-}
-
-#[cfg(target_os = "macos")]
-impl SystemKeyringBackend {
-    fn new(scope_id: String) -> SecretResult<Self> {
-        Ok(Self {
-            scope_id,
-            store: native_credential_store().map_err(native_credential_error)?,
-            operation_lock: Arc::new(Mutex::new(())),
-        })
-    }
-
-    fn entry(&self, key: &SecretKey) -> SecretResult<keyring_core::Entry> {
-        let user = key.scoped_config_key(&self.scope_id);
-        self.store
-            .build(APP_ID, &user, None)
-            .map_err(native_credential_error)
-    }
-}
-
-#[cfg(target_os = "macos")]
-impl SecretStore for SystemKeyringBackend {
-    fn save_secret(&self, key: &SecretKey, secret: &str) -> SecretResult<()> {
-        let _guard = self
-            .operation_lock
-            .lock()
-            .map_err(|_| SecretError::Locked)?;
-        self.entry(key)?
-            .set_password(secret)
-            .map_err(native_credential_error)
-    }
-
-    fn load_secret(&self, key: &SecretKey) -> SecretResult<Option<String>> {
-        let _guard = self
-            .operation_lock
-            .lock()
-            .map_err(|_| SecretError::Locked)?;
-        match self.entry(key)?.get_password() {
-            Ok(secret) => Ok(Some(secret)),
-            Err(keyring_core::Error::NoEntry) => Ok(None),
-            Err(error) => Err(native_credential_error(error)),
-        }
-    }
-
-    fn delete_secret(&self, key: &SecretKey) -> SecretResult<()> {
-        let _guard = self
-            .operation_lock
-            .lock()
-            .map_err(|_| SecretError::Locked)?;
-        match self.entry(key)?.delete_credential() {
-            Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
-            Err(error) => Err(native_credential_error(error)),
-        }
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn native_credential_store() -> keyring_core::Result<Arc<keyring_core::CredentialStore>> {
-    Ok(apple_native_keyring_store::keychain::Store::new()?)
-}
-
-#[cfg(target_os = "macos")]
-fn native_credential_error(error: keyring_core::Error) -> SecretError {
-    SecretError::Backend(error.to_string())
-}
-
-#[cfg(not(any(
-    target_os = "macos",
-    all(unix, not(target_vendor = "apple"))
-)))]
-#[derive(Clone, Debug)]
-struct SystemKeyringBackend;
-
-#[cfg(not(any(
-    target_os = "macos",
-    all(unix, not(target_vendor = "apple"))
-)))]
-impl SystemKeyringBackend {
-    fn new(_scope_id: String) -> SecretResult<Self> {
-        Err(SecretError::Backend(
-            "system keyring is unavailable on this platform".to_string(),
-        ))
-    }
-}
-
-#[cfg(not(any(
-    target_os = "macos",
-    all(unix, not(target_vendor = "apple"))
-)))]
-impl SecretStore for SystemKeyringBackend {
-    fn save_secret(&self, _key: &SecretKey, _secret: &str) -> SecretResult<()> {
-        Err(SecretError::Backend(
-            "system keyring is unavailable on this platform".to_string(),
-        ))
-    }
-
-    fn load_secret(&self, _key: &SecretKey) -> SecretResult<Option<String>> {
-        Err(SecretError::Backend(
-            "system keyring is unavailable on this platform".to_string(),
-        ))
-    }
-
-    fn delete_secret(&self, _key: &SecretKey) -> SecretResult<()> {
-        Err(SecretError::Backend(
-            "system keyring is unavailable on this platform".to_string(),
-        ))
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -764,8 +625,7 @@ mod tests {
         CachedSecretStore, ConfigSecretStore, MemorySecretStore, SecretError, SecretKey,
         SecretResult, SecretStorageMode, SecretStore, SwitchableSecretStore,
     };
-    #[cfg(all(unix, not(target_vendor = "apple")))]
-    use super::{PROJECT_NAME, SystemKeyringStore};
+        use super::{PROJECT_NAME, SystemKeyringStore};
     use std::fs;
     use std::sync::{Arc, Mutex};
 
@@ -804,19 +664,10 @@ mod tests {
                 .expect("deserialize system-keyring mode"),
             SecretStorageMode::SystemKeyring
         );
-        #[cfg(any(
-            target_os = "macos",
-            all(unix, not(target_vendor = "apple"))
-        ))]
         assert_eq!(
             SecretStorageMode::default(),
             SecretStorageMode::SystemKeyring
         );
-        #[cfg(not(any(
-            target_os = "macos",
-            all(unix, not(target_vendor = "apple"))
-        )))]
-        assert_eq!(SecretStorageMode::default(), SecretStorageMode::ConfigFile);
     }
 
     #[test]
@@ -951,8 +802,7 @@ mod tests {
         assert!(stored.contains_key("scope:scope-1:example:session"));
     }
 
-    #[cfg(all(unix, not(target_vendor = "apple")))]
-    #[test]
+        #[test]
     fn secret_service_namespaced_attributes_preserve_shape() {
         let store = SystemKeyringStore::new("scope-1").expect("system keyring store");
         let key = example_session_key();
@@ -970,8 +820,7 @@ mod tests {
         assert_eq!(store.backend.secret_label(&key), "Rufin example session");
     }
 
-    #[cfg(all(unix, not(target_vendor = "apple")))]
-    #[test]
+        #[test]
     fn provider_attributes_preserve_current_and_legacy_lookup() {
         let store = SystemKeyringStore::new("scope-1").expect("system keyring store");
         let key = SecretKey::provider_token(SOURCE);

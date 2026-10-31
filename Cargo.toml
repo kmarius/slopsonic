@@ -54,8 +54,6 @@ flate2 = "1.1.10"
 tar = "0.4.46"
 chrono = "0.4.45"
 adw = { package = "libadwaita", version = "0.9.1" }
-apple-native-keyring-store = { version = "1.0.1", features = ["keychain"] }
-apple-cf = "=0.6.0"
 async-channel = "2.5.0"
 async-trait = "0.1.89"
 ashpd = { version = "0.13.13", default-features = false, features = [
@@ -96,7 +94,6 @@ fast_image_resize = { version = "6.1.0", features = ["image"] }
 if-addrs = "0.15.0"
 mdns-sd = { version = "0.21.0", default-features = false }
 ksni = "0.3.4"
-keyring-core = "1.0.0"
 lofty = "0.25.1"
 md5_digest = { package = "md-5", version = "0.10" }
 mediaplayer = "0.4.3"
