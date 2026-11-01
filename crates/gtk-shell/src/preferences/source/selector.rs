@@ -13,7 +13,7 @@ use rufin_core::runtime::SelectedLibrary;
 use rufin_core::runtime::source::{ConfiguredSources, SourceSummary};
 
 use gtk_widgets::source_labels::{
-    choice_action, configured_source_display_name, configured_source_icon_name, source_menu_item,
+    choice_action, configured_source_display_name, source_menu_item,
     source_order,
 };
 
@@ -26,7 +26,6 @@ const ADD_LIBRARY_DETAILED_ACTION: &str = "win.add-music-library";
 
 struct SourceMenuContent<'a> {
     name: String,
-    icon_name: &'static str,
     selected_source_id: Option<SourceId>,
     sources: &'a [SourceSummary],
     music_folders: &'a [FolderChoice],
@@ -106,7 +105,7 @@ pub(crate) fn install_source_menu_actions(shell: &Rc<Shell>) {
     shell.chrome.window.add_action(&add_library);
 }
 
-pub(crate) fn source_submenu(shell: &Rc<Shell>) -> (String, &'static str, gio::Menu) {
+pub(crate) fn source_submenu(shell: &Rc<Shell>) -> (String, gio::Menu) {
     let configured = shell.source.configured.borrow();
     let selected = shell.selected_library();
     let content = source_menu_content(&configured, selected.as_deref());
@@ -120,11 +119,10 @@ pub(crate) fn source_submenu(shell: &Rc<Shell>) -> (String, &'static str, gio::M
         for index in source_order(&content.sources, content.selected_source_id.as_ref()) {
             let source = &content.sources[index];
             let label = source_menu_label(source);
-            sources.append_item(&source_menu_item(
-                &label,
-                &format!("win.{SOURCE_CHOICE_ACTION_PREFIX}{index}"),
-                configured_source_icon_name(source),
-            ));
+            sources.append(
+                Some(&label),
+                Some(&format!("win.{SOURCE_CHOICE_ACTION_PREFIX}{index}")),
+            );
         }
     }
     sources.append_item(&source_menu_item(
@@ -157,7 +155,7 @@ pub(crate) fn source_submenu(shell: &Rc<Shell>) -> (String, &'static str, gio::M
         menu.append_section(Some(&"Server Library".to_string()), &folders);
     }
 
-    (content.name, content.icon_name, menu)
+    (content.name, menu)
 }
 
 fn source_menu_content<'a>(
@@ -175,7 +173,6 @@ fn source_menu_content<'a>(
     let Some(source) = active_source else {
         return SourceMenuContent {
             name: "No source".to_string(),
-            icon_name: "rufin-network-server-symbolic",
             selected_source_id,
             sources: &configured.sources,
             music_folders: &[],
@@ -183,7 +180,6 @@ fn source_menu_content<'a>(
         };
     };
 
-    let icon_name = configured_source_icon_name(&source);
     let music_folders = selected
         .filter(|selected| selected.source_id == source.id)
         .map(|selected| selected.music_folders.as_ref())
@@ -196,7 +192,6 @@ fn source_menu_content<'a>(
     let name = configured_source_display_name(&source);
     SourceMenuContent {
         name,
-        icon_name,
         selected_source_id,
         sources: &configured.sources,
         music_folders,
@@ -352,21 +347,6 @@ mod tests {
             action.state().and_then(|state| state.get::<bool>()),
             Some(true)
         );
-    }
-
-    #[test]
-    fn source_choices_store_their_provider_icon() {
-        let item = source_menu_item(
-            "Server",
-            "win.source-choice-0",
-            "rufin-network-server-symbolic",
-        );
-        let serialized = item
-            .attribute_value("icon", None)
-            .expect("source choice should have an icon");
-        let icon = gio::Icon::deserialize(&serialized).expect("source icon should deserialize");
-
-        assert!(icon.equal(Some(&gio::ThemedIcon::new("rufin-network-server-symbolic"))));
     }
 
     #[test]

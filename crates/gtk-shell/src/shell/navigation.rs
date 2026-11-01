@@ -1276,31 +1276,6 @@ fn sidebar_pin_row(shell: &Rc<Shell>, pin: SidebarPinItem) -> gtk::Overlay {
             item.set_visible(false);
         }
     }
-    let source_label = {
-        let configured = shell.source.configured.borrow();
-        let source_id = match &pin.0.pin {
-            SidebarPin::Playlist { source_id, .. } => {
-                Some(source_id.as_ref().map(sources::SourceId::as_str))
-            }
-            SidebarPin::SmartPlaylist { .. } => Some(None),
-            _ => None,
-        };
-        source_id.map(|source_id| {
-            gtk_widgets::source_labels::source_display_label(
-                configured
-                    .sources
-                    .iter()
-                    .find(|source| Some(source.id.as_str()) == source_id),
-            )
-        })
-    };
-    if let Some((icon, name)) = source_label {
-        let source = gtk::Image::from_icon_name(icon);
-        source.set_pixel_size(gtk_widgets::source_labels::source_icon_pixel_size(icon, 12));
-        source.set_tooltip_text(Some(&name));
-        source.update_property(&[gtk::accessible::Property::Label(&name)]);
-        metadata.append(&source);
-    }
     identity.append(&metadata);
     content.append(&identity);
     activate.set_child(Some(&content));

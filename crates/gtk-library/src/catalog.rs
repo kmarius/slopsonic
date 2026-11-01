@@ -16,7 +16,6 @@ pub struct CatalogUi {
     pub local_source: bool,
     pub media_menus: Rc<gtk_media_menus::media_menus::MediaMenus>,
     pub selected: Option<rufin_core::runtime::SelectedLibrary>,
-    pub source_label: Rc<dyn Fn(Option<&str>) -> (&'static str, String)>,
     pub favorites: Option<Rc<gtk_widgets::favorites::FavoriteSessionState>>,
     pub window: gtk::glib::WeakRef<gtk::ApplicationWindow>,
     pub route_width: Rc<dyn Fn() -> i32>,

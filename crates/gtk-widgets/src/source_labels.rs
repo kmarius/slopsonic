@@ -8,24 +8,6 @@ use rufin_core::runtime::source::SourceSummary;
 use sources::SourceId;
 use std::rc::Rc;
 
-pub fn source_icon_pixel_size(icon: &str, size: i32) -> i32 {
-    if icon == STABLE_APP_ID {
-        size + 4
-    } else {
-        size
-    }
-}
-
-pub fn source_display_label(source: Option<&SourceSummary>) -> (&'static str, String) {
-    match source {
-        Some(source) => (
-            configured_source_icon_name(source),
-            configured_source_display_name(source),
-        ),
-        None => (STABLE_APP_ID, DISPLAY_NAME.to_string()),
-    }
-}
-
 pub fn configured_source_display_name(source: &SourceSummary) -> String {
     let name = source.name.trim();
     if name.is_empty() {
@@ -111,7 +93,7 @@ pub fn bind_source_picker(
 ) -> gtk::SingleSelection {
     let resource = crate::ui_resource::SOURCE_PICKER_RESOURCE;
     let builder = crate::ui_resource::builder(resource);
-    crate::objects!(builder, resource, { content: gtk::Box, icon: gtk::Image, label: gtk::Label });
+    crate::objects!(builder, resource, { content: gtk::Box, label: gtk::Label });
     button.set_child(Some(&content));
     let mut titles = Vec::new();
     if include_all {
@@ -125,23 +107,18 @@ pub fn bind_source_picker(
     button.set_sensitive(!sources.is_empty());
     let update = {
         let sources = sources.clone();
-        let icon = icon.downgrade();
         let label = label.downgrade();
         move |selection: &gtk::SingleSelection| {
-            let (Some(icon), Some(label)) = (icon.upgrade(), label.upgrade()) else {
+            let Some(label) = label.upgrade() else {
                 return;
             };
             if include_all && selection.selected() == 0 {
-                icon.set_icon_name(Some("rufin-library-symbolic"));
                 label.set_label(&"All".to_string());
             } else if let Some(source) = selection
                 .selected()
                 .checked_sub(u32::from(include_all))
                 .and_then(|index| sources.get(index as usize))
             {
-                let name = configured_source_icon_name(source);
-                icon.set_icon_name(Some(name));
-                icon.set_pixel_size(source_icon_pixel_size(name, 20));
                 label.set_label(&configured_source_display_name(source));
             }
         }
@@ -160,14 +137,10 @@ pub fn bind_source_picker(
             .filter(|index| *index as u32 == current)
             .chain((0..count).filter(|index| *index as u32 != current));
         for index in order {
-            let (title, icon) = if include_all && index == 0 {
-                ("All".to_string(), "rufin-library-symbolic")
+            let title = if include_all && index == 0 {
+                "All".to_string()
             } else {
-                let source = &sources[index - usize::from(include_all)];
-                (
-                    configured_source_display_name(source),
-                    configured_source_icon_name(source),
-                )
+                configured_source_display_name(&sources[index - usize::from(include_all)])
             };
             let name = format!("source-{index}");
             let selection = selected.clone();
@@ -179,11 +152,10 @@ pub fn bind_source_picker(
                 }
             });
             actions.add_action(&action);
-            menu.append_item(&source_menu_item(&title, &format!("sources.{name}"), icon));
+            menu.append(Some(&title), Some(&format!("sources.{name}")));
         }
         popover.insert_action_group("sources", Some(&actions));
         button.set_popover(Some(&popover));
-        crate::interactions::show_native_menu_icons(&popover);
         crate::interactions::replace_native_menu_checkmarks(&popover);
     });
     button.set_sensitive(available);

@@ -41,21 +41,6 @@ impl Shell {
                 }),
             media_menus: Rc::clone(&self.media_menus),
             selected,
-            source_label: {
-                let weak = Rc::downgrade(self);
-                Rc::new(move |source_id| {
-                    let Some(shell) = weak.upgrade() else {
-                        return gtk_widgets::source_labels::source_display_label(None);
-                    };
-                    let configured = shell.source.configured.borrow();
-                    gtk_widgets::source_labels::source_display_label(
-                        configured
-                            .sources
-                            .iter()
-                            .find(|source| Some(source.id.as_str()) == source_id),
-                    )
-                })
-            },
             favorites: self
                 .selected_ui
                 .session()

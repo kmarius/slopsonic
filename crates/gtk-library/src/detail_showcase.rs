@@ -84,10 +84,6 @@ mod showcase_imp {
         #[template_child]
         pub summary_icon_2: TemplateChild<gtk::Image>,
         #[template_child]
-        pub source_link: TemplateChild<gtk::LinkButton>,
-        #[template_child]
-        pub source_link_icon: TemplateChild<gtk::Image>,
-        #[template_child]
         pub summary_label_2: TemplateChild<gtk::Label>,
         #[template_child]
         pub actions: TemplateChild<gtk::Box>,
@@ -277,33 +273,6 @@ impl DetailShowcaseView {
             }
         }
         self.imp().summary.set_visible(any);
-    }
-
-    pub fn set_source_summary(&self, icon: &str, name: &str, uri: Option<&str>) {
-        self.imp().summary_icon_2.set_icon_name(Some(icon));
-        self.imp()
-            .summary_icon_2
-            .set_pixel_size(gtk_widgets::source_labels::source_icon_pixel_size(icon, 14));
-        self.imp()
-            .summary_icon_2
-            .update_property(&[gtk::accessible::Property::Label(name)]);
-        self.imp().summary_label_2.set_visible(false);
-        self.imp().summary_item_2.set_tooltip_text(Some(name));
-        self.imp().summary_icon_2.set_visible(uri.is_none());
-        self.imp().source_link.set_visible(uri.is_some());
-        if let Some(uri) = uri {
-            self.imp().source_link.set_uri(uri);
-            self.imp().source_link.set_tooltip_text(Some(name));
-            self.imp()
-                .source_link
-                .update_property(&[gtk::accessible::Property::Label(name)]);
-            self.imp().source_link_icon.set_icon_name(Some(icon));
-            self.imp()
-                .source_link_icon
-                .set_pixel_size(gtk_widgets::source_labels::source_icon_pixel_size(icon, 14));
-        }
-        self.imp().summary_item_2.set_visible(true);
-        self.imp().summary.set_visible(true);
     }
 
     pub fn bind_summary_text_with(&self, index: usize, text: impl Fn() -> String + 'static) {

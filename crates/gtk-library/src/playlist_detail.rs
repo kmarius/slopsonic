@@ -43,24 +43,6 @@ enum PlaylistDetailOwner {
 }
 
 impl PlaylistDetailOwner {
-    fn source_url(&self, catalog: &CatalogUi) -> Option<String> {
-        let Self::Saved { summary, .. } = self else {
-            return None;
-        };
-        let source = catalog
-            .source
-            .configuration(&sources::SourceId::new(summary.source_id.as_deref()?))?;
-        source.detail_web_url("playlist", &summary.object_id).ok()
-    }
-
-    fn source_label(&self, catalog: &CatalogUi) -> (&'static str, String) {
-        let source_id = match self {
-            Self::Saved { summary, .. } => summary.source_id.as_deref(),
-            Self::Smart { .. } => None,
-        };
-        (catalog.source_label)(source_id)
-    }
-
     fn key(&self) -> LibraryListKey {
         match self {
             Self::Saved { .. } => LibraryListKey::PlaylistTracks,
@@ -405,12 +387,6 @@ impl CatalogUi {
                 format_duration_units((owner.duration_millis().max(0) / 1_000) as u32),
             ),
         ]);
-        let (source_icon, source_name) = owner.source_label(self);
-        showcase_view.set_source_summary(
-            source_icon,
-            &source_name,
-            owner.source_url(self).as_deref(),
-        );
         let actions = showcase_view.actions();
         actions.set_halign(gtk::Align::Start);
         let controls =
@@ -520,12 +496,6 @@ impl CatalogUi {
                             format_duration_units((next.duration_millis().max(0) / 1_000) as u32),
                         ),
                     ]);
-                    let (source_icon, source_name) = next.source_label(&shell);
-                    showcase.set_source_summary(
-                        source_icon,
-                        &source_name,
-                        next.source_url(&shell).as_deref(),
-                    );
                     cover.replace(&shell.artwork, &next.artwork());
                     shell.append_playlist_detail_kind_controls(&showcase, &next);
                     apply_owner.replace(next);

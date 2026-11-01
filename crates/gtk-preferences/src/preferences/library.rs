@@ -13,11 +13,10 @@ use super::{
     source::configured_source_kind_display_name,
 };
 use crate::Preferences;
-use gtk_widgets::source_labels::{configured_source_display_name, configured_source_icon_name};
+use gtk_widgets::source_labels::configured_source_display_name;
 use rufin_core::text::{album_count_text, track_count_text};
 use rufin_core::runtime::source::{LocalAccessStatus, SourceLocalAccessSummary, SourceSummary};
 
-const SERVER_PROVIDER_ICON_SIZE: i32 = 28;
 const DOWNLOAD_JOB_DRAG_PREFIX: &str = "rufin-download-job:";
 const DEFAULT_DOWNLOAD_DIRECTORY_SUBTITLE: &str = "Default";
 
@@ -114,11 +113,6 @@ fn library_sources_page(
                     }
                 });
             }
-            let icon = gtk::Image::from_icon_name(configured_source_icon_name(server));
-            icon.set_pixel_size(SERVER_PROVIDER_ICON_SIZE);
-            icon.set_size_request(SERVER_PROVIDER_ICON_SIZE, SERVER_PROVIDER_ICON_SIZE);
-            icon.set_valign(gtk::Align::Center);
-            row.add_prefix(&icon);
             if selected {
                 row.add_suffix(&gtk::Image::from_icon_name("rufin-object-select-symbolic"));
             }

@@ -95,7 +95,7 @@ impl Topbar {
         let weak = Rc::downgrade(shell);
         self.source.set_create_popup_func(move |button| {
             if let Some(shell) = weak.upgrade() {
-                let (_, _, model) = crate::preferences::source::selector::source_submenu(&shell);
+                let (_, model) = crate::preferences::source::selector::source_submenu(&shell);
                 let popover = gtk::PopoverMenu::from_model(Some(&model));
                 popover.connect_show(gtk_widgets::interactions::align_topbar_popup);
                 button.set_popover(Some(&popover));
