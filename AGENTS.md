@@ -8,20 +8,33 @@ Slopsonic is a native Linux desktop client for [Navidrome](https://www.navidrome
 
 The project should focus exclusively on being a polished, native Linux music player that connects to Navidrome servers.
 
+## Features
+
+Planned or supported, and not to be removed:
+
+- **Downloads and offline play**
+- **Transcoding** — for playback and for downloads
+- **MPRIS control** — desktop media controls and remote control via MPRIS
+
+More to be added later.
+
 ## Non-Features
 
 Do not implement or expand:
 
 - **Other server backends** — Navidrome/Subsonic only, no Jellyfin/Plex/etc.
 - **Metadata editing** — Read-only client; editing belongs in the server or dedicated tools
-- **File management** — No local library scanning, file organization, or downloads
-- **Slopsonic Connect / sync / casting** — No cross-device sync, remote control, or UPnP/Chromecast casting
+- **File management** — No local library scanning or file organization
+- **Rufin Connect / sync / casting** — No cross-device sync, remote control, or UPnP/Chromecast casting
 - **Headless/controller mode** — This is a desktop GUI application
-- **Windows/macOS/Android builds** — Linux only. Android, macOS and Windows support was removed; some cross-platform and Android-specific code may remain and should be removed rather than extended
+- **Windows/macOS/Android builds** — Linux only. Android, macOS and Windows support was removed because it can not be tested; some cross-platform and Android-specific code may remain and should be removed
+- **Backup and restore**
+- **Audio fingerprinting and external metadata lookup** — no AcoustID/MusicBrainz or other third-party lookups
 - **Lyrics, visualizer, waveform seekbar**
 - **Discord rich presence, update checks/self-updater**
 - **Listening overview, playback speed/pitch, audio output selection** — the system default output is always used
-- **Private mode, localization**
+- **Private mode**
+- **Localization**
 
 ## Architecture
 
