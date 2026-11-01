@@ -21,7 +21,6 @@ mod home;
 mod keys;
 mod local;
 mod loudness;
-mod migration;
 mod playlist_folders;
 mod playlist_format;
 mod playlist_links;

@@ -684,6 +684,9 @@ CREATE VIEW IF NOT EXISTS local_access_files AS
           FROM local_locators locator
           LEFT JOIN local_access_metadata metadata USING(access_uri);
 
+CREATE INDEX IF NOT EXISTS local_files_root_identity_idx ON local_files(source_key,root_id,relative_path);
+CREATE INDEX IF NOT EXISTS download_source_idx ON connect_media_files(source_id,media_uri,encoding);
+
 CREATE TABLE IF NOT EXISTS native_playlist_pending (
     playlist_key INTEGER NOT NULL REFERENCES playlists ON DELETE CASCADE,
     object_id TEXT NOT NULL, track_key INTEGER NOT NULL REFERENCES tracks,
@@ -692,205 +695,26 @@ CREATE TABLE IF NOT EXISTS native_playlist_pending (
 ) STRICT;
 "#;
 
+pub(crate) const SCHEMA_VERSION: i64 = 58;
+
 pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> LibraryResult<()> {
     let version = pragma(connection, "user_version").await?;
-    if !matches!(
-        version,
-        0 | 47 | 48 | 49 | 50 | 51 | 53 | 54 | 55 | 56 | 57 | 58
-    ) {
+    if version != 0 && version != SCHEMA_VERSION {
         return Err(crate::LibraryError::Migration(format!(
             "unsupported library schema {version}"
         )));
     }
     let mut transaction = connection.begin().await?;
-    if version > 0 && version < 57 {
-        sqlx::raw_sql(
-            "DROP INDEX IF EXISTS tracks_artist_order_idx; DROP INDEX IF EXISTS tracks_added_idx;",
-        )
-        .execute(&mut *transaction)
-        .await?;
-    }
-    if version < 50 {
-        sqlx::query("DROP VIEW IF EXISTS local_access_files")
-            .execute(&mut *transaction)
-            .await?;
-    }
-    if version < 54 {
-        sqlx::query("DROP VIEW IF EXISTS local_track_access")
-            .execute(&mut *transaction)
-            .await?;
-    }
-    if version > 0 && version < 51 {
-        crate::catalog::index::upgrade(&mut transaction).await?;
-    } else if version == 51 {
-        crate::catalog::index::unite_totals(&mut transaction).await?;
-    }
-    if version > 0 {
-        for table in ["playlists", "smart_playlists"] {
-            let present: bool = sqlx::query_scalar(
-                "SELECT EXISTS(SELECT 1 FROM pragma_table_info(?1) WHERE name='playlist_folder_key')"
-            ).bind(table).fetch_one(&mut *transaction).await?;
-            if !present {
-                sqlx::query(sqlx::AssertSqlSafe(format!(
-                    "ALTER TABLE {table} ADD COLUMN playlist_folder_key INTEGER REFERENCES playlist_folders(folder_key) ON DELETE SET NULL"
-                )))
-                .execute(&mut *transaction).await?;
-            }
-        }
-        let previous_folder_layout: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='playlist_folder_members')"
-        ).fetch_one(&mut *transaction).await?;
-        if previous_folder_layout {
-            sqlx::raw_sql("DROP TRIGGER IF EXISTS playlists_folder_cover_update;
-                DROP TRIGGER IF EXISTS playlist_folder_members_cover_insert;
-                DROP TRIGGER IF EXISTS playlist_folder_members_cover_delete;
-                DROP TRIGGER IF EXISTS playlist_folder_members_cover_update;
-                DROP TRIGGER IF EXISTS smart_playlist_folder_members_cover_insert;
-                DROP TRIGGER IF EXISTS smart_playlist_folder_members_cover_delete;
-                DROP TRIGGER IF EXISTS smart_playlist_folder_members_cover_update;
-                UPDATE playlists SET playlist_folder_key=(SELECT folder_key FROM playlist_folder_members member WHERE member.playlist_key=playlists.playlist_key);
-                UPDATE smart_playlists SET playlist_folder_key=(SELECT folder_key FROM smart_playlist_folder_members member WHERE member.smart_playlist_key=smart_playlists.smart_playlist_key);
-                DROP TABLE playlist_folder_members;
-                DROP TABLE smart_playlist_folder_members;")
-                .execute(&mut *transaction).await?;
-        }
-    }
     sqlx::raw_sql(STORE_SCHEMA)
         .execute(&mut *transaction)
         .await?;
-    remove_legacy_search_index(&mut transaction).await?;
-    for table in ["local_files", "local_file_access_roots"] {
-        if !sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM pragma_table_info(?1) WHERE name='root_id')",
-        )
-        .bind(table)
-        .fetch_one(&mut *transaction)
-        .await?
-        {
-            sqlx::query(sqlx::AssertSqlSafe(format!(
-                "ALTER TABLE {table} ADD COLUMN root_id TEXT NOT NULL DEFAULT ''"
-            )))
-            .execute(&mut *transaction)
-            .await?;
-        }
-    }
-    if !sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('local_files') WHERE name='playlist_identity')",
-    )
-    .fetch_one(&mut *transaction)
-    .await?
-    {
-        sqlx::query("ALTER TABLE local_files ADD COLUMN playlist_identity TEXT")
-            .execute(&mut *transaction)
-            .await?;
-    }
-    sqlx::query("CREATE INDEX IF NOT EXISTS local_files_root_identity_idx ON local_files(source_key,root_id,relative_path)")
-        .execute(&mut *transaction).await?;
-    if !sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('user_media_state') WHERE name='extra')",
-    )
-    .fetch_one(&mut *transaction)
-    .await?
-    {
-        sqlx::query("ALTER TABLE user_media_state ADD COLUMN extra BLOB")
-            .execute(&mut *transaction)
-            .await?;
-    }
-    let old_blob: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('connect_media_files') WHERE name='hash')",
-    )
-    .fetch_one(&mut *transaction)
-    .await?;
-    if old_blob {
-        sqlx::raw_sql("DROP INDEX IF EXISTS connect_media_files_hash_idx; ALTER TABLE connect_media_files DROP COLUMN hash;")
-            .execute(&mut *transaction).await?;
-    }
-    for (column, declaration) in [
-        ("source_id", "TEXT"),
-        ("owners", "TEXT NOT NULL DEFAULT '[]'"),
-        ("storage_root", "TEXT NOT NULL DEFAULT ''"),
-        ("relative_path", "TEXT NOT NULL DEFAULT ''"),
-        ("completed_size", "INTEGER"),
-        ("retired_documents", "TEXT NOT NULL DEFAULT '[]'"),
-    ] {
-        let present: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM pragma_table_info('connect_media_files') WHERE name=?1)",
-        )
-        .bind(column)
-        .fetch_one(&mut *transaction)
-        .await?;
-        if !present {
-            sqlx::query(sqlx::AssertSqlSafe(format!(
-                "ALTER TABLE connect_media_files ADD COLUMN {column} {declaration}"
-            )))
-            .execute(&mut *transaction)
-            .await?;
-        }
-    }
-    sqlx::query("CREATE INDEX IF NOT EXISTS download_source_idx ON connect_media_files(source_id,media_uri,encoding)")
-        .execute(&mut *transaction).await?;
-    if version == 47 {
-        sqlx::query(
-            "INSERT OR IGNORE INTO local_file_access_roots(source_key,root) SELECT DISTINCT source_key,root FROM local_files",
-        )
-        .execute(&mut *transaction)
-        .await?;
-    }
-    if matches!(version, 47 | 48) {
-        // Albums derived from file tags are admitted through their current tracks.
-        sqlx::raw_sql("UPDATE albums SET indexed=0 WHERE indexed=1 AND input_metadata IS NULL;
-            UPDATE tracks SET indexed=0 WHERE indexed=1 AND source_key IS NOT NULL AND object_id IS NULL;")
-            .execute(&mut *transaction)
-            .await?;
-    }
-    if version == 0 {
-        crate::smart_playlists::create_default_smart_playlists(&mut transaction).await?;
-    }
-    if version < 50 {
-        crate::migration::current::separate_file_access(&mut transaction).await?;
-    }
-    crate::migration::current::narrow_access_metadata(&mut transaction).await?;
     sqlx::raw_sql("UPDATE connect_media_files AS download SET source_id=source.object_id FROM tracks track JOIN sources source USING(source_key) WHERE download.source_id IS NULL AND download.media_uri=track.media_uri;
         UPDATE local_locators AS locator SET source_key=track.source_key FROM tracks track WHERE locator.source_key IS NULL AND locator.origin='download' AND locator.media_uri=track.media_uri AND track.source_key IS NOT NULL;")
         .execute(&mut *transaction).await?;
-    if version < 51 {
+    if version == 0 {
+        crate::smart_playlists::create_default_smart_playlists(&mut transaction).await?;
         crate::catalog::index::initialize(&mut transaction).await?;
     }
     transaction.commit().await?;
-    Ok(())
-}
-
-/// Removes the full-text index and cache tables of a removed feature from older databases.
-async fn remove_legacy_search_index(connection: &mut SqliteConnection) -> LibraryResult<()> {
-    let indexed: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE name='lyrics_fts')")
-            .fetch_one(&mut *connection)
-            .await?;
-    if indexed {
-        // The index uses a tokenizer that no longer exists, so SQLite cannot open it to drop it.
-        sqlx::raw_sql(
-            "PRAGMA writable_schema=ON;
-            DELETE FROM sqlite_schema WHERE type='table' AND name='lyrics_fts';
-            PRAGMA writable_schema=OFF;
-            DROP TABLE IF EXISTS lyrics_fts_data;
-            DROP TABLE IF EXISTS lyrics_fts_idx;
-            DROP TABLE IF EXISTS lyrics_fts_docsize;
-            DROP TABLE IF EXISTS lyrics_fts_config;",
-        )
-        .execute(&mut *connection)
-        .await?;
-    }
-    sqlx::raw_sql(
-        "DROP TRIGGER IF EXISTS lyrics_search_insert;
-        DROP TRIGGER IF EXISTS lyrics_search_update;
-        DROP TRIGGER IF EXISTS lyrics_documents_insert;
-        DROP TRIGGER IF EXISTS lyrics_documents_delete;
-        DROP TRIGGER IF EXISTS lyrics_documents_update;
-        DROP VIEW IF EXISTS lyrics_search_input;
-        DROP TABLE IF EXISTS lyrics_documents;
-        DROP TABLE IF EXISTS lyrics_cache;",
-    )
-    .execute(&mut *connection)
-    .await?;
     Ok(())
 }

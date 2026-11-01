@@ -200,100 +200,7 @@ impl Database {
     }
 
     pub async fn open(path: impl AsRef<Path>) -> LibraryResult<Self> {
-        Self::open_configured(path, &[], None).await
-    }
-
-    pub async fn open_snapshot(path: impl AsRef<Path>) -> LibraryResult<Self> {
         Self::open_final(path.as_ref()).await
-    }
-
-    pub async fn open_configured(
-        path: impl AsRef<Path>,
-        configured: &[crate::SourceId],
-        selected: Option<&crate::SourceId>,
-    ) -> LibraryResult<Self> {
-        let path = path.as_ref();
-        Self::open_with_legacy_catalog(
-            path,
-            path.with_extension("catalog.sqlite"),
-            configured,
-            selected,
-        )
-        .await
-    }
-
-    pub async fn open_with_legacy_catalog(
-        path: impl AsRef<Path>,
-        catalog: impl AsRef<Path>,
-        configured: &[crate::SourceId],
-        selected: Option<&crate::SourceId>,
-    ) -> LibraryResult<Self> {
-        let path = path.as_ref();
-        let catalog = catalog.as_ref();
-        if path.exists() {
-            Self::migrate_released(path, path, catalog, configured, selected).await?;
-        }
-        Self::open_final(path).await
-    }
-
-    pub async fn open_installation(
-        path: &Path,
-        legacy: &Path,
-        catalog: &Path,
-        configured: &[crate::SourceId],
-        selected: Option<&crate::SourceId>,
-    ) -> LibraryResult<Self> {
-        let input = if !path.exists() && legacy.exists() {
-            legacy
-        } else {
-            path
-        };
-        let opened = async {
-            if input.exists() {
-                Self::migrate_released(input, path, catalog, configured, selected).await?;
-            }
-            Self::open_final(path).await
-        }
-        .await;
-        match opened {
-            Err(error) if input.exists() && !error.is_store_unavailable() => {
-                tracing::warn!(%error, "could not open the Store; trying compatible columns");
-                crate::migration::current::recover_columns(input, path).await?;
-                Self::open_final(path).await
-            }
-            opened => opened,
-        }
-    }
-
-    async fn migrate_released(
-        input: &Path,
-        destination: &Path,
-        catalog: &Path,
-        configured: &[crate::SourceId],
-        selected: Option<&crate::SourceId>,
-    ) -> LibraryResult<()> {
-        let mut reader =
-            SqliteConnection::connect_with(&base_options(input).read_only(true)).await?;
-        let version = schema::pragma(&mut reader, "user_version").await;
-        reader.close().await?;
-        match version? {
-            1..=43 => {
-                crate::migration::import_released(input, destination, catalog, configured, selected)
-                    .await?
-            }
-            44..=46 => crate::migration::import_current(input, destination, catalog).await?,
-            0 | 47 | 48 | 49 | 50 | 51 | 53 | 54 | 55 | 56 | 57 | 58 => {
-                if input != destination {
-                    Self::relocate(input, destination).await?;
-                }
-            }
-            version => {
-                return Err(LibraryError::Migration(format!(
-                    "unsupported library schema {version}"
-                )));
-            }
-        }
-        Ok(())
     }
 
     pub async fn close(self) -> LibraryResult<()> {
@@ -549,26 +456,6 @@ async fn open_readers(
             .connect_with(reader_options(path).row_buffer_size(row_buffer))
             .await?)
     }
-}
-
-pub(crate) fn preserve_store(path: &Path) -> std::io::Result<()> {
-    let destination = path.with_extension(format!(
-        "before-migration-{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos()
-    ));
-    for suffix in ["", "-wal", "-shm"] {
-        let mut from = path.as_os_str().to_os_string();
-        from.push(suffix);
-        let mut to = destination.as_os_str().to_os_string();
-        to.push(suffix);
-        if Path::new(&from).exists() {
-            std::fs::rename(from, to)?;
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

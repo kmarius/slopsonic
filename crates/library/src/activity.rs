@@ -500,18 +500,6 @@ pub(crate) async fn import_activity_jsonl_on(
     Ok(report)
 }
 
-/// Historical aggregate facts from released installations; these are not invented listens.
-#[derive(Serialize, Deserialize, FromRow)]
-pub(crate) struct LegacyActivityRecord {
-    pub(crate) source_id: String,
-    pub(crate) period: String,
-    pub(crate) item_kind: String,
-    pub(crate) track_object_id: String,
-    pub(crate) play_count: i64,
-    pub(crate) skip_count: i64,
-    pub(crate) last_played_at: Option<i64>,
-}
-
 fn activity_export_query(source_id: Option<&SourceId>) -> sqlx::QueryBuilder<sqlx::Sqlite> {
     let mut query = sqlx::QueryBuilder::new(ACTIVITY_EXPORT_SELECT);
     // Use the source index rather than an optional predicate over every listen.
@@ -549,46 +537,6 @@ pub(crate) async fn export_activity_jsonl_on(
         count += 1;
     }
     Ok(count)
-}
-
-pub(crate) async fn write_legacy_activity(
-    connection: &mut SqliteConnection,
-    record: &LegacyActivityRecord,
-) -> LibraryResult<()> {
-    if record.item_kind == "track" {
-        let known = sqlx::query_scalar::<_, String>(
-            "SELECT track.media_uri FROM tracks track JOIN sources source USING(source_key)
-             WHERE source.object_id=?1 AND track.object_id=?2",
-        )
-        .bind(&record.source_id)
-        .bind(&record.track_object_id)
-        .fetch_optional(&mut *connection)
-        .await?;
-        if known.is_none() {
-            let uri =
-                crate::normalize_direct_media_uri(&record.track_object_id).unwrap_or_else(|| {
-                    crate::source_entity_uri(
-                        &SourceId::new(&record.source_id),
-                        "track",
-                        &record.track_object_id,
-                    )
-                });
-            crate::catalog::remember_track(
-                connection,
-                &crate::TrackReference {
-                    media_uri: uri,
-                    ..Default::default()
-                },
-            )
-            .await?;
-        }
-    }
-    let changed = sqlx::query("INSERT INTO legacy_activity(source_id,period,item_kind,track_object_id,play_count,skip_count,last_played_at) VALUES(?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(source_id,period,item_kind,track_object_id) DO UPDATE SET play_count=excluded.play_count,skip_count=excluded.skip_count,last_played_at=excluded.last_played_at WHERE legacy_activity.play_count IS NOT excluded.play_count OR legacy_activity.skip_count IS NOT excluded.skip_count OR legacy_activity.last_played_at IS NOT excluded.last_played_at")
-            .bind(&record.source_id).bind(&record.period).bind(&record.item_kind).bind(&record.track_object_id).bind(record.play_count).bind(record.skip_count).bind(record.last_played_at).execute(&mut *connection).await?.rows_affected();
-    if changed == 0 {
-        return Ok(());
-    }
-    Ok(())
 }
 
 pub(crate) fn history_query(

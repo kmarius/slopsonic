@@ -1325,53 +1325,6 @@ pub struct SmartPlaylistWrite {
     pub position: i64,
 }
 
-pub(crate) async fn write_smart_playlist(
-    connection: &mut SqliteConnection,
-    record: &SmartPlaylistWrite,
-) -> LibraryResult<()> {
-    if record.object_id.is_empty() || record.name.trim().is_empty() || record.position < 0 {
-        return Err(crate::LibraryError::InvalidRequest(
-            "invalid Smart playlist identity or order".into(),
-        ));
-    }
-    let _: SmartPlaylistDefinition = serde_json::from_str(&record.definition_json)?;
-    let revision = record
-        .artwork_bytes
-        .as_ref()
-        .map(|bytes| blake3::hash(bytes).to_hex().to_string());
-    let previous: Option<Vec<u8>> =
-        sqlx::query_scalar("SELECT artwork_binding FROM smart_playlists WHERE object_id=?1")
-            .bind(&record.object_id)
-            .fetch_optional(&mut *connection)
-            .await?
-            .flatten();
-    let incoming = record
-        .artwork_binding
-        .as_deref()
-        .map(crate::normalize_artwork_binding)
-        .transpose()?
-        .or_else(|| {
-            revision.as_ref().map(|revision| {
-                crate::artwork::playlist_binding(
-                    true,
-                    None,
-                    record.object_id.clone(),
-                    revision.clone(),
-                )
-            })
-        });
-    let binding = crate::artwork::merge_playlist_artwork(previous.as_deref(), incoming.as_deref())?;
-    sqlx::query("INSERT INTO smart_playlists(object_id,name,normalized_name,definition_json,position,artwork_bytes,artwork_revision,artwork_binding)
-       VALUES(?1,?2,lower(?2),?3,CASE WHEN EXISTS(SELECT 1 FROM smart_playlists WHERE position=?4)
-       THEN (SELECT COALESCE(max(position)+1,0) FROM smart_playlists) ELSE ?4 END,?5,?6,?7)
-       ON CONFLICT(object_id) DO UPDATE SET name=excluded.name,normalized_name=excluded.normalized_name,
-       definition_json=excluded.definition_json,artwork_bytes=excluded.artwork_bytes,artwork_revision=excluded.artwork_revision,artwork_binding=excluded.artwork_binding")
-       .bind(&record.object_id).bind(&record.name).bind(&record.definition_json).bind(record.position)
-       .bind(&record.artwork_bytes).bind(revision).bind(binding)
-       .execute(&mut *connection).await?;
-    Ok(())
-}
-
 impl Database {
     pub async fn export_smart_playlist_file(
         &self,

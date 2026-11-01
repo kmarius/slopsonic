@@ -355,11 +355,6 @@ impl Artwork {
         database: Arc<library::Database>,
     ) -> Result<(), ArtworkError> {
         self.pipeline.install_database(Arc::clone(&database));
-        let legacy = self.pipeline.cache().preview_index_path();
-        if tokio::fs::try_exists(&legacy).await? {
-            database.import_artwork_previews(&legacy).await?;
-            tokio::fs::remove_file(legacy).await?;
-        }
         Ok(())
     }
     pub fn new(cache_root: impl AsRef<Path>, runtime: Handle) -> Result<Self, ArtworkError> {

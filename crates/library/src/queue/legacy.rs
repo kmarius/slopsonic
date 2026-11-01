@@ -37,68 +37,6 @@ enum SavedProvenance {
     Other(QueueProvenance),
 }
 
-pub(crate) async fn stored_rows(
-    connection: &mut SqliteConnection,
-) -> LibraryResult<(Vec<LegacyQueueRow>, Vec<crate::TrackKey>)> {
-    let columns: Vec<String> =
-        sqlx::query_scalar("SELECT name FROM pragma_table_info('queue_occurrences','old_store')")
-            .fetch_all(&mut *connection)
-            .await?;
-    let column = |name: &str, absent: &str| {
-        if columns.iter().any(|column| column == name) {
-            format!("occurrence.{name}")
-        } else {
-            absent.to_owned()
-        }
-    };
-    let source = column("origin_source", "NULL");
-    let position = column("origin_position", "occurrence.position");
-    let playlist = column("playlist_entry_id", "NULL");
-    let title = column("provenance_context_title", "NULL");
-    let records = sqlx::query(sqlx::AssertSqlSafe(format!(
-        "SELECT occurrence.object_id,occurrence.media_uri,coalesce({position},occurrence.position) canonical_position,
-            {source} source_index,{playlist} playlist_entry_id,{title} context_title,
-            occurrence.provenance_kind,occurrence.provenance_context_id,occurrence.provenance_source_rank,track.track_key
-        FROM old_store.queue_occurrences occurrence JOIN tracks track USING(media_uri) ORDER BY occurrence.traversal_position"
-    )))
-    .fetch_all(&mut *connection)
-    .await?;
-    let mut rows = Vec::with_capacity(records.len());
-    let mut keys = Vec::with_capacity(records.len());
-    for row in records {
-        let provenance = match row.try_get::<String, _>("provenance_kind")?.as_str() {
-            "context" => QueueProvenance::Context {
-                context_id: row.try_get::<String, _>("provenance_context_id")?.into(),
-                context_title: row
-                    .try_get::<Option<String>, _>("context_title")?
-                    .map(|title| serde_json::from_str(&title).map(Arc::new))
-                    .transpose()?,
-                source_rank: row.try_get::<i64, _>("provenance_source_rank")? as usize,
-            },
-            "manual" => QueueProvenance::Manual,
-            "random" => QueueProvenance::Random,
-            "radio" => QueueProvenance::Radio,
-            "auto-dj" => QueueProvenance::AutoDj,
-            _ => QueueProvenance::Legacy,
-        };
-        rows.push(LegacyQueueRow {
-            occurrence: row.try_get("object_id")?,
-            item: TrackReference {
-                media_uri: row.try_get("media_uri")?,
-                ..Default::default()
-            },
-            canonical_position: row.try_get::<i64, _>("canonical_position")? as usize,
-            source_index: row
-                .try_get::<Option<i64>, _>("source_index")?
-                .map(|index| index as usize),
-            playlist_entry_id: row.try_get("playlist_entry_id")?,
-            provenance,
-        });
-        keys.push(row.try_get("track_key")?);
-    }
-    Ok((rows, keys))
-}
-
 pub(crate) async fn decode_saved(
     connection: &mut SqliteConnection,
     value: serde_json::Value,

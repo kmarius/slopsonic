@@ -200,32 +200,6 @@ pub(crate) async fn refresh_batch(
     refresh_choices(connection, &keys[0], &keys[1], &keys[2], update.artwork).await
 }
 
-pub(crate) async fn initialize_choices(connection: &mut SqliteConnection) -> LibraryResult<()> {
-    for kind in ["album", "artist", "track"] {
-        let (table, key) = super::cache::table(kind);
-        let mut after = 0;
-        loop {
-            let keys: Vec<i64> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
-                "SELECT {key} FROM {table} WHERE {key}>?1 ORDER BY {key} LIMIT 128"
-            )))
-            .bind(after)
-            .fetch_all(&mut *connection)
-            .await?;
-            let Some(last) = keys.last() else { break };
-            after = *last;
-            refresh_choices(
-                connection,
-                if kind == "track" { &keys } else { &[] },
-                if kind == "album" { &keys } else { &[] },
-                if kind == "artist" { &keys } else { &[] },
-                true,
-            )
-            .await?;
-        }
-    }
-    Ok(())
-}
-
 impl super::Catalog<'_> {
     pub async fn set_source_artwork(
         &mut self,

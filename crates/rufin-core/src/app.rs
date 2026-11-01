@@ -52,22 +52,8 @@ where
     let secret_storage_fallbacks = settings.secret_storage_fallbacks.1.clone();
     let stored = settings.load();
     let secrets = Arc::new(SwitchableSecretStore::new(platform_secret_store(&settings)));
-    let configured_source_ids = stored
-        .sources
-        .configured
-        .iter()
-        .map(|source| source.configuration.source_id.clone())
-        .collect::<Vec<_>>();
     let store_path = paths.store_file();
-    let (database, temporary_store) = match library::Database::open_installation(
-        &store_path,
-        &paths.legacy_store_file(),
-        &paths.catalog_file(),
-        &configured_source_ids,
-        stored.sources.selected_source_id.as_ref(),
-    )
-    .await
-    {
+    let (database, temporary_store) = match library::Database::open(&store_path).await {
         Ok(database) => (database, false),
         Err(error) if error.is_store_unavailable() => {
             warn!(%error, path=%store_path.display(), "could not access the durable Store; startup will continue with temporary storage");

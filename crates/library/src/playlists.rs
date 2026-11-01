@@ -932,30 +932,6 @@ pub(crate) async fn write_playlist_identity(
         .fetch_one(connection).await?)
 }
 
-pub(crate) async fn write_playlist_entry(
-    connection: &mut SqliteConnection,
-    playlist: PlaylistKey,
-    entry: &PlaylistEntryWrite,
-) -> LibraryResult<()> {
-    if entry.object_id.is_empty() || entry.track.media_uri.is_empty() || entry.position < 0 {
-        return Err(LibraryError::InvalidRequest(
-            "invalid playlist occurrence identity or order".into(),
-        ));
-    }
-    let track = remember_playlist_track(connection, entry).await?;
-    write_entry_positions_on(
-        connection,
-        &[(
-            playlist,
-            entry.object_id.clone(),
-            Some(track),
-            entry.position,
-        )],
-    )
-    .await?;
-    Ok(())
-}
-
 /// Store accepted playlist positions.
 pub(crate) async fn write_positions_on(
     connection: &mut SqliteConnection,
@@ -975,25 +951,6 @@ pub(crate) async fn write_positions_on(
             "WITH input AS(SELECT json_extract(value,'$[0]') id,json_extract(value,'$[1]') position FROM json_each(?1))
              UPDATE playlists SET position=input.position FROM input WHERE playlists.playlist_key=input.id AND playlists.position<>input.position"
         ).bind(rows).execute(&mut *connection).await?.rows_affected()>0;
-    }
-    Ok(changed)
-}
-
-/// Store accepted occurrence identities and their final positions.
-pub(crate) async fn write_entry_positions_on(
-    connection: &mut SqliteConnection,
-    entries: &[(PlaylistKey, String, Option<TrackKey>, i64)],
-) -> LibraryResult<bool> {
-    let mut changed = false;
-    let input = "WITH input AS MATERIALIZED(SELECT json_extract(value,'$[0]') playlist_key,json_extract(value,'$[1]') object_id,json_extract(value,'$[2]') track_key,json_extract(value,'$[3]') position,json_extract(value,'$[2]') IS NOT NULL present FROM json_each(?1)) ";
-    for page in entries.chunks(PLAYLIST_ROW_LIMIT) {
-        let rows = serde_json::to_string(page)?;
-        changed |= sqlx::query(sqlx::AssertSqlSafe(format!("{input} DELETE FROM playlist_entries WHERE playlist_entry_key IN(SELECT old.playlist_entry_key FROM input CROSS JOIN playlist_entries old ON old.playlist_key=input.playlist_key AND old.object_id=input.object_id WHERE NOT input.present)")))
-            .bind(&rows).execute(&mut *connection).await?.rows_affected()>0;
-        sqlx::query(sqlx::AssertSqlSafe(format!("{input},changed AS MATERIALIZED(SELECT input.* FROM input LEFT JOIN playlist_entries old ON old.playlist_key=input.playlist_key AND old.object_id=input.object_id WHERE input.present AND(old.track_key,old.position) IS NOT(input.track_key,input.position)),affected AS MATERIALIZED(SELECT old.playlist_entry_key,old.playlist_key FROM changed input CROSS JOIN playlist_entries old ON old.playlist_key=input.playlist_key AND old.object_id=input.object_id UNION SELECT old.playlist_entry_key,old.playlist_key FROM changed input CROSS JOIN playlist_entries old ON old.playlist_key=input.playlist_key AND old.position=input.position),moved AS MATERIALIZED(SELECT playlist_entry_key,(SELECT coalesce(max(position),-1)+1 FROM playlist_entries WHERE playlist_key=affected.playlist_key)+playlist_entry_key position FROM affected) UPDATE playlist_entries SET position=moved.position FROM moved WHERE playlist_entries.playlist_entry_key=moved.playlist_entry_key")))
-            .bind(&rows).execute(&mut *connection).await?;
-        changed |= sqlx::query(sqlx::AssertSqlSafe(format!("{input} INSERT INTO playlist_entries(playlist_key,object_id,track_key,position) SELECT playlist_key,object_id,track_key,position FROM input WHERE present ON CONFLICT(playlist_key,object_id) DO UPDATE SET track_key=excluded.track_key,position=excluded.position WHERE(track_key,position) IS NOT(excluded.track_key,excluded.position)")))
-            .bind(rows).execute(&mut *connection).await?.rows_affected()>0;
     }
     Ok(changed)
 }
