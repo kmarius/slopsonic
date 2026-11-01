@@ -2832,7 +2832,6 @@ dependencies = [
  "md-5 0.10.6",
  "percent-encoding",
  "proptest",
- "rustix",
  "serde",
  "serde_json",
  "sqlx",

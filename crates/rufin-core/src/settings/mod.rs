@@ -1245,13 +1245,8 @@ pub(crate) fn write_private(path: &Path, bytes: &[u8]) -> Result<(), String> {
     }
     Ok(())
 }
-#[cfg(unix)]
 fn sync_settings_directory(parent: &Path) -> std::io::Result<()> {
     fs::File::open(parent).and_then(|directory| directory.sync_all())
-}
-#[cfg(not(unix))]
-fn sync_settings_directory(_parent: &Path) -> std::io::Result<()> {
-    Ok(())
 }
 
 #[cfg(test)]
@@ -1397,7 +1392,6 @@ mod tests {
             Ok(())
         })
         .unwrap();
-        #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             assert_eq!(
@@ -1410,7 +1404,6 @@ mod tests {
         fs::write(&secrets, b"old").unwrap();
         write_private(&secrets, br#"{"restored": "secret"}"#).unwrap();
         assert_eq!(fs::read(&secrets).unwrap(), br#"{"restored": "secret"}"#);
-        #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             assert_eq!(

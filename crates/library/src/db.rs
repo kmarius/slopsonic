@@ -194,7 +194,6 @@ impl Database {
             .open(&pending)?
             .sync_all()?;
         std::fs::rename(&pending, destination)?;
-        #[cfg(unix)]
         std::fs::File::open(parent)?.sync_all()?;
         Ok(())
     }

@@ -7,7 +7,6 @@ pub enum TrayIntent {
     Quit,
 }
 
-#[cfg(unix)]
 mod freedesktop {
     use ksni::blocking::TrayMethods;
     use std::sync::OnceLock;
@@ -295,24 +294,4 @@ mod freedesktop {
     }
 }
 
-#[cfg(not(unix))]
-mod unsupported {
-    use std::sync::mpsc::Receiver;
-
-    use super::TrayIntent;
-
-    pub struct Tray;
-
-    impl Tray {
-        pub fn start() -> Result<(Self, Receiver<TrayIntent>), String> {
-            Err("system tray integration is unavailable on this platform".to_string())
-        }
-
-        pub fn shutdown(self) {}
-    }
-}
-
-#[cfg(unix)]
 pub use freedesktop::Tray;
-#[cfg(not(unix))]
-pub use unsupported::Tray;

@@ -17,11 +17,9 @@ mod engine;
 mod file_audio;
 mod measurement;
 mod pipeline;
-#[cfg(unix)]
 mod process;
 
 pub use engine::GStreamerPlaybackBackend;
-#[cfg(unix)]
 pub use process::restart_with_http1;
 
 fn gstreamer_playback_error(

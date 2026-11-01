@@ -1,6 +1,5 @@
 pub(crate) mod lifecycle;
 
-#[cfg(target_os = "linux")]
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -9,7 +8,6 @@ use std::sync::mpsc::{TryRecvError, channel};
 use std::time::{Duration, Instant};
 
 use adw::prelude::*;
-#[cfg(target_os = "linux")]
 use ashpd::desktop::background::Background;
 use gtk::glib;
 use playback::{CurrentMedia, PlaybackView, PositionDiscontinuity};
@@ -23,7 +21,6 @@ const TRAY_POLL_INTERVAL: Duration = Duration::from_millis(120);
 const QUIT_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const QUIT_TIMEOUT: Duration = Duration::from_secs(5);
 
-#[cfg(target_os = "linux")]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum BackgroundAccess {
     Unavailable,
@@ -37,7 +34,6 @@ pub(crate) struct DesktopState {
     pub(crate) notifications: Rc<desktop_integration::Notifications>,
     tray: RefCell<Option<desktop_integration::Tray>>,
     tray_command_source: RefCell<Option<glib::SourceId>>,
-    #[cfg(target_os = "linux")]
     background_access: Cell<BackgroundAccess>,
 }
 
@@ -56,7 +52,6 @@ impl DesktopState {
             notifications: desktop_integration::Notifications::new(application.clone().upcast()),
             tray: RefCell::new(None),
             tray_command_source: RefCell::new(None),
-            #[cfg(target_os = "linux")]
             background_access: Cell::new(BackgroundAccess::Unavailable),
         }
     }
@@ -276,7 +271,6 @@ impl Shell {
         }
     }
 
-    #[cfg(target_os = "linux")]
     fn request_background_access(self: &Rc<Self>) {
         let settings = self.settings.current.borrow();
         if !ashpd::is_sandboxed()
@@ -329,20 +323,11 @@ impl Shell {
         });
     }
 
-    #[cfg(not(target_os = "linux"))]
-    fn request_background_access(self: &Rc<Self>) {}
-
-    #[cfg(target_os = "linux")]
     fn background_access_available(&self) -> bool {
         matches!(
             self.desktop.background_access.get(),
             BackgroundAccess::Pending | BackgroundAccess::Granted
         )
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    fn background_access_available(&self) -> bool {
-        false
     }
 
     pub(crate) fn set_start_minimized_enabled(self: &Rc<Self>, enabled: bool) {
@@ -474,24 +459,11 @@ fn close_should_hide(
     if tray_available {
         return true;
     }
-    #[cfg(unix)]
-    {
-        return !sandboxed || background_access_available;
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = (sandboxed, background_access_available);
-        false
-    }
+    !sandboxed || background_access_available
 }
 
 fn host_is_sandboxed() -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        return ashpd::is_sandboxed();
-    }
-    #[cfg(not(target_os = "linux"))]
-    false
+    ashpd::is_sandboxed()
 }
 
 pub(crate) fn present_initial_window(shell: &Rc<Shell>) {
@@ -513,7 +485,6 @@ mod tests {
         assert!(!close_should_hide(false, true, false, true));
     }
 
-    #[cfg(unix)]
     #[test]
     fn unix_without_a_tray_needs_native_or_portal_support() {
         assert!(close_should_hide(true, false, false, false));

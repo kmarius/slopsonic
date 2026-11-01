@@ -275,7 +275,6 @@ impl ConfigSecretStore {
         let temp_path = self.path.with_extension("json.tmp");
         let mut options = fs::OpenOptions::new();
         options.create(true).write(true).truncate(true);
-        #[cfg(unix)]
         {
             use std::os::unix::fs::OpenOptionsExt;
             options.mode(0o600);
@@ -341,14 +340,9 @@ fn config_error(error: impl std::fmt::Display) -> SecretError {
 }
 
 fn restrict_config_secret_file(path: &Path) -> std::io::Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::fs::PermissionsExt;
 
-        fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
-    }
-    #[cfg(not(unix))]
-    let _ = path;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
     Ok(())
 }
 
@@ -726,7 +720,6 @@ mod tests {
         assert!(stored.contains_key("provider-token:source-1"));
         assert!(stored.contains_key("example:session"));
 
-        #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
 

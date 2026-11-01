@@ -1,4 +1,3 @@
-#[cfg(unix)]
 mod freedesktop {
     use std::cell::{Cell, RefCell};
     use std::rc::Rc;
@@ -545,40 +544,4 @@ mod freedesktop {
     }
 }
 
-#[cfg(not(unix))]
-mod unsupported {
-    use std::rc::Rc;
-
-    use playback::{PlaybackView, PositionDiscontinuity};
-
-    pub struct MediaControls;
-
-    impl MediaControls {
-        pub fn start(
-            _transport: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
-            _open_uri: impl Fn(&str) + 'static,
-        ) -> Rc<Self> {
-            Rc::new(Self)
-        }
-
-        pub fn observe(
-            self: &Rc<Self>,
-            _playback: Option<&PlaybackView>,
-            _art_url: Option<String>,
-            _discontinuity: Option<PositionDiscontinuity>,
-        ) {
-        }
-
-        pub fn observe_position(
-            self: &Rc<Self>,
-            _position_millis: Option<u64>,
-            _discontinuity: Option<PositionDiscontinuity>,
-        ) {
-        }
-    }
-}
-
-#[cfg(unix)]
 pub use freedesktop::MediaControls;
-#[cfg(not(unix))]
-pub use unsupported::MediaControls;

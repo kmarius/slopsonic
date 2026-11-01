@@ -12,7 +12,6 @@ mod path_display;
 mod test_support;
 mod tray;
 
-#[cfg(unix)]
 pub(crate) use app_identity::APP_ID;
 
 pub use folders::folder_target;

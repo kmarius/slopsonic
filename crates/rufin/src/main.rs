@@ -6,7 +6,6 @@ use tracing::info;
 
 fn main() -> ExitCode {
     process_memory::configure_allocator();
-    #[cfg(unix)]
     if let Some(result) = playback_gstreamer::restart_with_http1() {
         return result;
     }
@@ -63,14 +62,7 @@ fn finish_storage_reset(mut result: gtk_shell::ApplicationExit) -> ExitCode {
 fn restart_after_storage_reset() -> io::Result<ExitCode> {
     env::current_exe().and_then(|executable| {
         let mut command = Command::new(executable);
-        #[cfg(unix)]
-        {
-            use std::os::unix::process::CommandExt as _;
-            Err(command.exec())
-        }
-        #[cfg(not(unix))]
-        {
-            command.spawn().map(|_| ExitCode::SUCCESS)
-        }
+        use std::os::unix::process::CommandExt as _;
+        Err(command.exec())
     })
 }

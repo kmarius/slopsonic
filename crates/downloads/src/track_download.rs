@@ -1574,7 +1574,6 @@ mod tests {
         assert!(record_download_paths(directory.path(), Some(&source), &traversal, None).is_err());
     }
 
-    #[cfg(unix)]
     #[test]
     fn custom_record_rejects_a_symlink_escape() {
         use std::os::unix::fs::symlink;

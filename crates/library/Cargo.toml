@@ -27,9 +27,6 @@ tracing.workspace = true
 tokio = { workspace = true, features = ["macros", "sync", "time"] }
 url.workspace = true
 
-[target.'cfg(target_os = "linux")'.dependencies]
-rustix.workspace = true
-
 [dev-dependencies]
 proptest = "1.6.0"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

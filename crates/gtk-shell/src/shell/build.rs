@@ -487,7 +487,6 @@ pub async fn build(
     apply_sidebar_queue_visibility(&shell.player_ui);
     install_product_event_receivers(&shell, receivers);
     let weak_shell = Rc::downgrade(&shell);
-    #[cfg(unix)]
     {
         let body: gtk::Label = gtk_widgets::ui_resource::object(
             &shell_root_builder,
