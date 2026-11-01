@@ -106,15 +106,4 @@ impl DecodePipeline {
             }
         }
     }
-
-    pub fn duration_millis(&self) -> Option<u64> {
-        self.window
-            .as_ref()
-            .map(|window| window.end_millis - window.start_millis)
-            .or_else(|| {
-                self.pipeline
-                    .query_duration::<gst::ClockTime>()
-                    .map(|value| value.mseconds())
-            })
-    }
 }

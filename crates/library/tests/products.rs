@@ -1930,14 +1930,6 @@ async fn uri_artwork_is_identical_across_owner_projections_and_current_scopes() 
                     .unwrap();
                 rows.pop().unwrap()
             };
-            if let Some(art) = &view.artwork_binding {
-                let candidates: Vec<library::ArtworkCandidate> =
-                    serde_json::from_slice(art).unwrap();
-                assert!(candidates.iter().all(|candidate| matches!(
-                    candidate.image,
-                    library::ArtworkImage::Artist { .. }
-                )));
-            }
             view.artwork_binding
         };
         let expected_sample: Vec<Vec<u8>> = expected_binding.clone().into_iter().collect();
@@ -2674,10 +2666,6 @@ async fn track_artist_and_album_artist_roles_keep_exact_membership_and_own_artwo
     assert!(matches!(
         &track_artwork[0].image,
         library::ArtworkImage::Native { item_id, .. } if item_id == "album-art"
-    ));
-    assert!(matches!(
-        track_artwork.last().unwrap().image,
-        library::ArtworkImage::Artist { .. }
     ));
     let artist_art: Vec<library::ArtworkCandidate> =
         serde_json::from_slice(album_artist.artwork_binding.as_ref().unwrap()).unwrap();

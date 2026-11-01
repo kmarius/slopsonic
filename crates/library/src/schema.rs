@@ -557,18 +557,8 @@ CREATE TABLE IF NOT EXISTS home_entries (
     PRIMARY KEY (source_key, section_id, position)
 ) STRICT;
 
-CREATE TABLE IF NOT EXISTS fingerprint_cache (
-    media_uri TEXT PRIMARY KEY REFERENCES tracks(media_uri) ON DELETE CASCADE,
-    analysis_key BLOB NOT NULL CHECK(length(analysis_key)=32),
-    version TEXT NOT NULL, fingerprint TEXT NOT NULL, duration_seconds INTEGER NOT NULL,
-    lookup_key TEXT NOT NULL DEFAULT ''
-) STRICT;
-
-CREATE TABLE IF NOT EXISTS metadata_lookup_cache (
-    key TEXT PRIMARY KEY, payload BLOB NOT NULL,
-    written_at INTEGER NOT NULL, expires_at INTEGER NOT NULL
-) STRICT;
-
+DROP TABLE IF EXISTS fingerprint_cache;
+DROP TABLE IF EXISTS metadata_lookup_cache;
 DROP TABLE IF EXISTS waveform_cache;
 
 CREATE TABLE IF NOT EXISTS loudness_measurements (

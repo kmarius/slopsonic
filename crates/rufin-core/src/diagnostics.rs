@@ -127,7 +127,6 @@ const PANIC_FILE: &str = "slopsonic-panic.log";
 
 const NORMAL_FILTER: &str = concat!(
     "warn,",
-    "metadata_lookup=info,",
     "artwork=info,",
     "desktop_integration=info,",
     "library=info,",
@@ -142,7 +141,6 @@ const NORMAL_FILTER: &str = concat!(
 );
 const DEBUG_FILTER: &str = concat!(
     "warn,",
-    "metadata_lookup=debug,",
     "artwork=debug,",
     "desktop_integration=debug,",
     "library=debug,",
@@ -1049,11 +1047,6 @@ mod tests {
                 url = "https://private.test/Users/abc/Views?api_key=secret",
                 "source URL"
             );
-            tracing::debug!(
-                target: "metadata_lookup",
-                public_url = "https://coverartarchive.org/release/abc/front?size=250&token=secret",
-                "public request"
-            );
         });
 
         let snapshot = output
@@ -1066,11 +1059,6 @@ mod tests {
         assert!(snapshot.contains("navigate route=Home"));
         assert!(snapshot.contains("route rows ready"));
         assert!(snapshot.contains("url=https://<server>/Users/abc/Views?keys=api_key"));
-        assert!(
-            snapshot.contains(
-                "public_url=https://coverartarchive.org/release/abc/front?keys=size,token"
-            )
-        );
         assert!(!snapshot.contains("transport frame"));
         assert!(!snapshot.contains("private.test"));
         assert!(!snapshot.contains("secret"));

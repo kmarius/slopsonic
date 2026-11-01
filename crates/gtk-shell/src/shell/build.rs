@@ -277,7 +277,6 @@ pub async fn build(
     let shell = Rc::new_cyclic(|weak: &std::rc::Weak<Shell>| {
         let artwork = ArtworkState::new(
             products.artwork.clone(),
-            Rc::clone(&settings_state),
             {
                 let window = chrome.window.downgrade();
                 Box::new(move || {

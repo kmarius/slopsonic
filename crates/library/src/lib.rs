@@ -7,7 +7,6 @@ pub use audio::*;
 mod activity;
 mod artwork;
 mod metadata;
-mod metadata_lookup;
 mod query;
 pub use metadata::*;
 mod collections;
@@ -18,7 +17,6 @@ pub use query::{
 mod connect_media;
 mod db;
 mod favorites;
-mod fingerprint;
 mod home;
 mod keys;
 mod local;
@@ -54,7 +52,7 @@ pub use activity::{
     PendingListenDelivery,
 };
 pub use artwork::{
-    AlbumCover, ArtworkCacheRetention, ArtworkCandidate, ArtworkImage, PlaylistArtworkManifest,
+    ArtworkCacheRetention, ArtworkCandidate, ArtworkImage, PlaylistArtworkManifest,
     RepresentativeArtworkScope, authored_playlist_artwork, automatic_playlist_artwork,
     merge_playlist_artwork, normalize_artwork_binding,
 };
@@ -66,8 +64,8 @@ pub use catalog::{
 };
 pub use collections::{
     AlbumArtistLink, AlbumDetailIndex, AlbumDetailRow, AlbumGenreLink, AlbumLinks,
-    AlbumReleaseCandidate, AlbumReleaseClass, AlbumReleaseResult, AlbumView, ArtistView,
-    CollectionSummary, FolderChoice, FolderView, GenreChoice, GenreView, MoodView,
+    AlbumReleaseClass, AlbumView, ArtistView, CollectionSummary, FolderChoice, FolderView,
+    GenreChoice, GenreView, MoodView,
 };
 pub use db::{Database, ReadCancellation};
 pub use favorites::{FavoriteTarget, NativeUserState, UserMediaStateWrite};

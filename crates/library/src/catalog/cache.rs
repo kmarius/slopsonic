@@ -253,30 +253,8 @@ pub(super) fn index_credits<'a>(
             query.push(" ) INSERT INTO artists(source_key,object_id,media_uri,metadata,normalized_name) SELECT ")
             .push_bind(source).push(",object_id,media_uri,jsonb(metadata),normalized FROM input WHERE true ON CONFLICT(source_key,object_id) DO UPDATE SET metadata=")
             .push(merged).push(",normalized_name=CASE WHEN excluded.normalized_name='' THEN artists.normalized_name ELSE excluded.normalized_name END WHERE native_metadata=0 AND artists.metadata IS NOT ")
-            .push(merged).push(" RETURNING artist_key,json(metadata),native_artwork");
-            let changed: Vec<(i64, sqlx::types::Json<ArtistMetadata>, Option<Vec<u8>>)> =
-                query.build_query_as().fetch_all(&mut *connection).await?;
-            if !changed.is_empty() {
-                let bindings = changed
-                    .into_iter()
-                    .map(|(key, metadata, artwork)| {
-                        Ok((
-                            key,
-                            super::artwork::artist_binding(
-                                &metadata.name,
-                                metadata.musicbrainz_artist_id.as_deref(),
-                                artwork.as_deref(),
-                            )?,
-                        ))
-                    })
-                    .collect::<LibraryResult<Vec<_>>>()?;
-                let mut update = QueryBuilder::<Sqlite>::new("WITH input(artist_key,binding) AS(");
-                update.push_values(&bindings, |mut row, (key, binding)| {
-                    row.push_bind(key).push_bind(binding);
-                });
-                update.push(") UPDATE artists SET native_artwork=input.binding FROM input WHERE artists.artist_key=input.artist_key AND native_artwork IS NOT input.binding");
-                update.build().execute(&mut *connection).await?;
-            }
+            .push(merged);
+            query.build().execute(&mut *connection).await?;
         }
         Ok(())
     }

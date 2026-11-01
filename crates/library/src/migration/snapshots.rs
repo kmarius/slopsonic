@@ -264,15 +264,6 @@ pub(super) async fn populate(connection: &mut SqliteConnection, prefix: &str) ->
                     gain = None;
                 }
                 let raw = raw_art(&row)?;
-                let raw = if kind == "artist" {
-                    Some(crate::catalog::artwork::artist_binding(
-                        string(&row, "name").as_deref().unwrap_or_default(),
-                        string(&row, "musicbrainz_artist_id").as_deref(),
-                        raw.as_deref(),
-                    )?)
-                } else {
-                    raw
-                };
                 let payload = match kind {
                     "artist" => serde_json::to_string(&ArtistMetadata {
                         name: string(&row, "name").unwrap_or_default(),

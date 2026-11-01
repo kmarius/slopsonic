@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex};
 use sources::{ImageSize, SourceError, SourceImageRequest};
 use tokio::runtime::Handle;
 
+use crate::SourceResolver;
 use crate::selection::Candidate;
-use crate::{ExternalPolicy, SourceResolver};
 
 #[derive(Debug)]
 pub(crate) enum FetchOutcome {
@@ -55,7 +55,6 @@ impl FetchContext {
         runtime: &Handle,
         candidate: &Candidate,
         size: ImageSize,
-        policy: &ExternalPolicy,
     ) -> Result<FetchOutcome, String> {
         match &candidate.image {
             library::ArtworkImage::Playlist { .. } => {
@@ -70,28 +69,6 @@ impl FetchContext {
                             .unwrap_or(FetchOutcome::Missing)
                     })
                     .map_err(|error| error.to_string())
-            }
-            library::ArtworkImage::Artist {
-                name,
-                musicbrainz_id,
-                ..
-            } => {
-                if !policy.allow_musicbrainz {
-                    return Ok(FetchOutcome::Missing);
-                }
-                metadata_lookup::lookup_artist_image(
-                    name,
-                    musicbrainz_id.as_deref(),
-                    match size {
-                        ImageSize::Original => None,
-                        ImageSize::Thumbnail(size) => Some(size),
-                    },
-                )
-                .map(|bytes| {
-                    bytes
-                        .map(FetchOutcome::Ready)
-                        .unwrap_or(FetchOutcome::Missing)
-                })
             }
             library::ArtworkImage::Native {
                 source_id,
@@ -114,22 +91,6 @@ impl FetchContext {
                     .or_else(source_result)
             }
             library::ArtworkImage::Local { .. } => Ok(FetchOutcome::Missing),
-            library::ArtworkImage::Album(album) => metadata_lookup::lookup_album_cover(
-                album,
-                match size {
-                    ImageSize::Original => None,
-                    ImageSize::Thumbnail(size) => Some(size),
-                },
-                &metadata_lookup::AlbumCoverPolicy::new(
-                    policy.lastfm_api_key.clone(),
-                    policy.allow_musicbrainz,
-                ),
-            )
-            .map(|bytes| {
-                bytes
-                    .map(FetchOutcome::Ready)
-                    .unwrap_or(FetchOutcome::Missing)
-            }),
         }
     }
 }

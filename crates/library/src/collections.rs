@@ -4,8 +4,8 @@
 use sqlx::{Arguments, Connection, FromRow, SqliteConnection};
 
 use crate::{
-    AlbumKey, ArtistKey, CatalogSort, Database, FolderKey, GenreKey, LibraryError, LibraryResult,
-    MoodKey, ReadCancellation, SourceKey, TrackView,
+    AlbumKey, ArtistKey, CatalogSort, Database, FolderKey, GenreKey, LibraryResult, MoodKey,
+    ReadCancellation, SourceKey, TrackView,
 };
 
 pub(crate) const COLLECTION_ROW_LIMIT: usize = 128;
@@ -160,19 +160,6 @@ fn release_class_code(class: AlbumReleaseClass) -> i64 {
     }
 }
 
-#[derive(Clone, Debug, Eq, FromRow, PartialEq)]
-pub struct AlbumReleaseCandidate {
-    pub album_key: AlbumKey,
-    pub media_uri: String,
-    pub lookup_identity: String,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum AlbumReleaseResult {
-    Found { release_types: Vec<String> },
-    Missing,
-}
-
 impl Database {
     pub async fn ordered_name_sections<'a>(
         &self,
@@ -260,65 +247,6 @@ impl Database {
         .bind(album_limit)
         .fetch_all(&mut *connection)
         .await?)
-    }
-
-    pub async fn album_release_candidates(
-        &self,
-        source: SourceKey,
-        limit: usize,
-        cancellation: &ReadCancellation,
-    ) -> LibraryResult<Vec<AlbumReleaseCandidate>> {
-        if limit == 0 {
-            return Ok(Vec::new());
-        }
-        let limit = limit.min(100) as i64;
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
-        let identity = "album.release_identity";
-        Ok(sqlx::query_as::<_,AlbumReleaseCandidate>(sqlx::AssertSqlSafe(format!("SELECT album.album_key,album.media_uri,{identity} lookup_identity FROM albums album WHERE (album.indexed=1 OR album.track_count>0) AND source_key=?1 AND {identity} IS NOT NULL AND release_lookup_identity IS NOT {identity} ORDER BY album_key LIMIT ?2"))).bind(source).bind(limit).fetch_all(&mut *connection).await?)
-    }
-
-    pub async fn accept_album_release_result(
-        &self,
-        source: SourceKey,
-        album: AlbumKey,
-        lookup_identity: &str,
-        result: AlbumReleaseResult,
-    ) -> LibraryResult<Option<AlbumKey>> {
-        if lookup_identity.is_empty()
-            || matches!(&result,AlbumReleaseResult::Found { release_types } if release_types.is_empty() || release_types.iter().any(|value|value.trim().is_empty()))
-        {
-            return Err(LibraryError::InvalidRequest(
-                "invalid Album release lookup result".to_string(),
-            ));
-        }
-        let mut writer = self.writer().await?;
-        let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
-        let mut transaction = connection.begin().await?;
-        let identity=sqlx::query_as::<_,(Option<String>,Option<String>)>(sqlx::AssertSqlSafe(format!("SELECT {},release_lookup_identity FROM albums album WHERE source_key=?1 AND album_key=?2","album.release_identity"))).bind(source).bind(album).fetch_optional(&mut *transaction).await?;
-        let Some((current, attempted)) = identity else {
-            transaction.rollback().await?;
-            return Ok(None);
-        };
-        if current.as_deref() != Some(lookup_identity)
-            || attempted.as_deref() == Some(lookup_identity)
-        {
-            transaction.rollback().await?;
-            return Ok(None);
-        }
-        if let AlbumReleaseResult::Found { release_types } = result {
-            sqlx::query("INSERT INTO album_release_observations(album_key,lookup_identity,release_types) VALUES(?1,?2,jsonb(?3)) ON CONFLICT(album_key) DO UPDATE SET lookup_identity=excluded.lookup_identity,release_types=excluded.release_types").bind(album).bind(lookup_identity).bind(serde_json::to_string(&release_types)?).execute(&mut *transaction).await?;
-        }
-        sqlx::query(
-            "UPDATE albums SET release_lookup_identity=?3 WHERE source_key=?1 AND album_key=?2",
-        )
-        .bind(source)
-        .bind(album)
-        .bind(lookup_identity)
-        .execute(&mut *transaction)
-        .await?;
-        crate::catalog::index::albums(&mut transaction, &[album.raw()]).await?;
-        transaction.commit().await?;
-        Ok(Some(album))
     }
 
     pub async fn music_folders(&self, source: SourceKey) -> LibraryResult<Vec<FolderChoice>> {

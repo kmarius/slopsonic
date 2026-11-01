@@ -9,10 +9,6 @@ use gtk::glib;
 use sources::ImageSize;
 use tracing::warn;
 
-use rufin_core::settings::app::Settings as UiSettings;
-
-use crate::settings::SettingsState;
-
 pub const THUMB_COVER_SIZE: u32 = 96;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PlaybackArtworkPath {
@@ -50,7 +46,6 @@ fn cover_fetch_size(render_size: u32) -> u32 {
 
 pub struct ArtworkState {
     service: artwork::Artwork,
-    settings: Rc<SettingsState>,
     scale: Box<dyn Fn() -> f64>,
     playback_ready: Box<dyn Fn()>,
     textures: RefCell<TextureCache>,
@@ -60,13 +55,11 @@ pub struct ArtworkState {
 impl ArtworkState {
     pub fn new(
         service: artwork::Artwork,
-        settings: Rc<SettingsState>,
         scale: Box<dyn Fn() -> f64>,
         playback_ready: Box<dyn Fn()>,
     ) -> Rc<Self> {
         Rc::new(Self {
             service,
-            settings,
             scale,
             playback_ready,
             textures: RefCell::new(Default::default()),
@@ -121,11 +114,6 @@ impl ArtworkState {
         }
         let display_size = render_size;
         let render_size = cover_decode_size(render_size, self.artwork_scale());
-        let external = if cache_only {
-            cache_only_artwork_external_policy()
-        } else {
-            artwork_external_policy(&self.settings.current.borrow())
-        };
         let request = if refresh_desktop_on_ready {
             ArtworkRequest::original(artwork, render_size)
         } else {
@@ -133,8 +121,7 @@ impl ArtworkState {
                 fetch_size: ImageSize::Thumbnail(cover_fetch_size(render_size)),
                 ..ArtworkRequest::new(artwork, render_size)
             }
-        }
-        .with_external(external);
+        };
         let request = if cache_only {
             request.cache_only()
         } else {
@@ -188,9 +175,7 @@ impl ArtworkState {
             );
             return;
         }
-        if let Some(preview) = self
-            .service
-            .preview(request.binding.clone(), request.external.allow_cached)
+        if let Some(preview) = self.service.preview(request.binding.clone())
             && let Some(texture) = texture_cache::texture_from_preview(preview.image.clone())
         {
             tile.set_preview_if_current(generation, texture);
@@ -312,8 +297,7 @@ impl ArtworkState {
         let request = ArtworkRequest {
             fetch_size: ImageSize::Thumbnail(cover_fetch_size(render_size)),
             ..ArtworkRequest::new(binding, render_size)
-        }
-        .with_external(artwork_external_policy(&self.settings.current.borrow()));
+        };
         let outcome = match self.service.load(request) {
             artwork::ArtworkLoad::Ready(image) => artwork::ArtworkOutcome::Ready(image),
             artwork::ArtworkLoad::Missing => artwork::ArtworkOutcome::Missing,
@@ -345,29 +329,15 @@ impl ArtworkState {
             .as_deref()
             .map(ArtworkBinding::opaque)
             .unwrap_or_default();
-        let settings = self.settings.current.borrow().clone();
-        let external = artwork_external_policy(&settings);
-        let request = ArtworkRequest::new(candidates, preferred_size).with_external(external);
+        let request = ArtworkRequest::new(candidates, preferred_size);
         let path = self.service.cache_only_file(&request)?;
         Some(PlaybackArtworkPath { path })
     }
 }
 
-fn artwork_external_policy(settings: &UiSettings) -> artwork::ExternalPolicy {
-    artwork::ExternalPolicy::new(
-        settings.application.external_metadata_enabled,
-        settings.allows_external_metadata_lookup(),
-        settings.lastfm_api_key.clone(),
-    )
-}
-
-fn cache_only_artwork_external_policy() -> artwork::ExternalPolicy {
-    artwork::ExternalPolicy::new(true, false, String::new()).with_musicbrainz(false)
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{cache_only_artwork_external_policy, cover_decode_size, cover_fetch_size};
+    use super::{cover_decode_size, cover_fetch_size};
 
     #[test]
     fn artwork_decoding_uses_physical_size() {
@@ -380,14 +350,6 @@ mod tests {
         for (physical, requested) in [(48, 96), (96, 96), (100, 256), (300, 512), (1024, 1024)] {
             assert_eq!(cover_fetch_size(physical), requested);
         }
-    }
-
-    #[test]
-    fn drag_preview_artwork_never_starts_external_network_work() {
-        let policy = cache_only_artwork_external_policy();
-        assert!(policy.allow_cached);
-        assert!(!policy.allow_network);
-        assert!(!policy.allow_musicbrainz);
     }
 }
 

@@ -28,7 +28,6 @@ gtk-preferences = { path = "crates/gtk-preferences" }
 gtk-shell = { path = "crates/gtk-shell" }
 gtk-widgets = { path = "crates/gtk-widgets" }
 library = { path = "crates/library" }
-metadata-lookup = { path = "crates/metadata-lookup" }
 playback = { path = "crates/playback" }
 playback-gstreamer = { path = "crates/playback-gstreamer" }
 process-memory = { path = "crates/process-memory" }

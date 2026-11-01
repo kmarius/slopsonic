@@ -10,89 +10,6 @@ use crate::{Database, FolderKey, LibraryError, LibraryResult, ReadCancellation, 
 
 const ARTWORK_PAGE_LIMIT: usize = 128;
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
-pub struct AlbumCover {
-    artist: Option<String>,
-    album: Option<String>,
-    release_group_id: Option<String>,
-    release_id: Option<String>,
-}
-
-impl AlbumCover {
-    pub fn new(
-        artist: &str,
-        album: &str,
-        release_group_id: Option<&str>,
-        release_id: Option<&str>,
-    ) -> Option<Self> {
-        let artist = Self::lookup_text(artist).map(ToString::to_string);
-        let album = Self::lookup_text(album).map(ToString::to_string);
-        let release_group_id = release_group_id
-            .and_then(Self::usable_mbid)
-            .map(ToString::to_string);
-        let release_id = release_id
-            .and_then(Self::usable_mbid)
-            .map(ToString::to_string);
-        (release_group_id.is_some() || release_id.is_some() || artist.is_some() && album.is_some())
-            .then_some(Self {
-                artist,
-                album,
-                release_group_id,
-                release_id,
-            })
-    }
-
-    pub fn stable_identity(&self) -> String {
-        format!(
-            "album\0{}\0{}\0{}\0{}",
-            self.artist.as_deref().unwrap_or_default(),
-            self.album.as_deref().unwrap_or_default(),
-            self.release_group_id.as_deref().unwrap_or_default(),
-            self.release_id.as_deref().unwrap_or_default()
-        )
-    }
-
-    pub fn text(&self) -> Option<(&str, &str)> {
-        Some((self.artist.as_deref()?, self.album.as_deref()?))
-    }
-    pub fn release_group_id(&self) -> Option<&str> {
-        self.release_group_id.as_deref()
-    }
-    pub fn release_id(&self) -> Option<&str> {
-        self.release_id.as_deref()
-    }
-
-    fn lookup_text(value: &str) -> Option<&str> {
-        let value = value.trim();
-        if value.is_empty()
-            || matches!(
-                value.to_ascii_lowercase().as_str(),
-                "unknown"
-                    | "unknown album"
-                    | "unknown artist"
-                    | "untitled album"
-                    | "untitled track"
-            )
-        {
-            None
-        } else {
-            Some(value)
-        }
-    }
-
-    pub fn usable_mbid(value: &str) -> Option<&str> {
-        let value = value.trim();
-        if value.is_empty()
-            || !value
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
-        {
-            return None;
-        }
-        Some(value)
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PlaylistArtworkManifest {
     pub source_id: Option<String>,
@@ -114,11 +31,6 @@ pub enum ArtworkImage {
         path: String,
         revision: String,
         picture_index: Option<u32>,
-    },
-    Album(AlbumCover),
-    Artist {
-        name: String,
-        musicbrainz_id: Option<String>,
     },
     Playlist {
         smart: bool,
@@ -162,7 +74,6 @@ impl ArtworkCandidate {
                 format!("native/{:x}", Md5::digest(source_id.as_str()))
             }
             ArtworkImage::Playlist { .. } => "playlists".into(),
-            _ => "external".into(),
         };
         candidate.key = format!("{directory}/{:x}", Md5::digest(candidate.stable_identity()));
         candidate
@@ -185,14 +96,6 @@ impl ArtworkCandidate {
                 picture_index: Some(index),
                 ..
             } => format!("local-embedded\0{source_id}\0{path}\0{index}"),
-            ArtworkImage::Album(album) => album.stable_identity(),
-            ArtworkImage::Artist {
-                name,
-                musicbrainz_id,
-            } => format!(
-                "artist\0{name}\0{}",
-                musicbrainz_id.as_deref().unwrap_or_default()
-            ),
             ArtworkImage::Playlist {
                 smart,
                 source_id,
@@ -232,20 +135,12 @@ impl ArtworkCandidate {
                 }
                 identity
             }
-            ArtworkImage::Artist { .. } => format!("{}\0\0", self.asset_identity()),
             ArtworkImage::Playlist { revision, .. } => {
                 format!("{}\0{revision}", self.asset_identity())
             }
-            ArtworkImage::Album(_) => self.asset_identity(),
         }
     }
 
-    pub fn is_external(&self) -> bool {
-        matches!(
-            self.image,
-            ArtworkImage::Album(_) | ArtworkImage::Artist { .. }
-        )
-    }
     pub fn source_id(&self) -> Option<&crate::SourceId> {
         match &self.image {
             ArtworkImage::Native { source_id, .. } | ArtworkImage::Local { source_id, .. } => {
@@ -319,21 +214,10 @@ pub fn normalize_artwork_binding(bytes: &[u8]) -> LibraryResult<Vec<u8>> {
     let text = |field: &str| value[field].as_str().map(str::to_owned);
     let mut candidates = Vec::new();
     if value["kind"] == "artist" {
-        for field in ["source", "fallback"] {
-            if field == "fallback" {
-                candidates.push(ArtworkCandidate::new(
-                    ArtworkImage::Artist {
-                        name: text("artist_name").unwrap_or_default(),
-                        musicbrainz_id: text("musicbrainz_artist_id"),
-                    },
-                    text("blur_hash"),
-                ));
-            }
-            if let Ok(bytes) = serde_json::from_value::<Vec<u8>>(value[field].clone()) {
-                candidates.extend(serde_json::from_slice::<Vec<ArtworkCandidate>>(
-                    &normalize_artwork_binding(&bytes)?,
-                )?);
-            }
+        if let Ok(bytes) = serde_json::from_value::<Vec<u8>>(value["source"].clone()) {
+            candidates.extend(serde_json::from_slice::<Vec<ArtworkCandidate>>(
+                &normalize_artwork_binding(&bytes)?,
+            )?);
         }
     } else if value["kind"] == "playlist" {
         candidates.push(ArtworkCandidate::new(
@@ -369,16 +253,6 @@ pub fn normalize_artwork_binding(bytes: &[u8]) -> LibraryResult<Vec<u8>> {
                 picture_index: image["picture_index"].as_u64().map(|index| index as u32),
             },
             image["blur_hash"].as_str().map(str::to_owned),
-        ));
-    } else if let Some(album) = AlbumCover::new(
-        value["artist"].as_str().unwrap_or_default(),
-        value["album"].as_str().unwrap_or_default(),
-        value["musicbrainz_release_group_id"].as_str(),
-        value["musicbrainz_release_id"].as_str(),
-    ) {
-        candidates.push(ArtworkCandidate::new(
-            ArtworkImage::Album(album),
-            text("blur_hash"),
         ));
     }
 

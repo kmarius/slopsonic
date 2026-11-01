@@ -1211,10 +1211,6 @@ async fn artwork_publication_keeps_one_effective_binding_per_entity() {
     let artist: Vec<library::ArtworkCandidate> = serde_json::from_slice(&artist).unwrap();
     assert_eq!(serde_json::to_vec(&artist[..1]).unwrap(), br#"[{"key":"native/36cd38f49b9afa08222c0dc9ebfe35eb/8799b34127e8fddd3fdcdff25c21b7dd","image":{"kind":"native","source_id":"source","item_id":"artist-art","tag":null},"blur_hash":null}]"#);
     assert_eq!(serde_json::to_vec(&artist[1..2]).unwrap(), br#"[{"key":"native/36cd38f49b9afa08222c0dc9ebfe35eb/d453ddcc6a2bb4616a7509452b0c0edb","image":{"kind":"native","source_id":"source","item_id":"album-art","tag":null},"blur_hash":null}]"#);
-    assert!(matches!(
-        artist[2].image,
-        library::ArtworkImage::Artist { .. }
-    ));
     let shared = {
         let album = {
             let rows = database

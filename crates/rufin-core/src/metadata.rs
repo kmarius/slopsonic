@@ -6,7 +6,6 @@ pub use details::{
     MediaDetailField, MediaDetailSection, MediaDetailText, MediaDetails, MediaDetailsItem,
     media_details,
 };
-pub use metadata_lookup::{ArtworkQuery, ArtworkResult};
 use std::sync::Arc;
 pub const MAX_ARTWORK_BYTES: usize = 32 * 1024 * 1024;
 
@@ -23,48 +22,6 @@ impl MetadataItemId {
             Self::Track(uri) | Self::Album(uri) | Self::Artist(uri) => uri,
         }
     }
-}
-
-pub fn search_artwork(
-    owner: &SourceOwner,
-    query: ArtworkQuery,
-) -> Receiver<Result<Vec<ArtworkResult>, String>> {
-    owner.reply(move |owner, _| async move {
-        if !owner
-            .shared
-            .settings
-            .load()
-            .ui
-            .allows_external_metadata_lookup()
-        {
-            return Ok(Vec::new());
-        }
-        tokio::task::spawn_blocking(move || metadata_lookup::search_artwork(&query))
-            .await
-            .map_err(string_error)?
-    })
-}
-
-pub fn download_artwork(
-    owner: &SourceOwner,
-    url: String,
-) -> Receiver<Result<Arc<sources::ImageBytes>, String>> {
-    owner.reply(move |owner, _| async move {
-        if !owner
-            .shared
-            .settings
-            .load()
-            .ui
-            .allows_external_metadata_lookup()
-        {
-            return Err("External metadata lookup is disabled".into());
-        }
-        tokio::task::spawn_blocking(move || {
-            metadata_lookup::download_artwork(&url).and_then(checked_artwork)
-        })
-        .await
-        .map_err(string_error)?
-    })
 }
 
 pub fn prepare_artwork(
@@ -84,14 +41,8 @@ pub fn current_artwork(
     binding: Vec<u8>,
 ) -> Receiver<Result<Option<Arc<sources::ImageBytes>>, String>> {
     owner.reply(move |owner, _| async move {
-        let stored = owner.shared.settings.load();
         let request =
-            artwork::ArtworkRequest::original(artwork::ArtworkBinding::opaque(&binding), 512)
-                .with_external(artwork::ExternalPolicy::new(
-                    stored.ui.application.external_metadata_enabled,
-                    stored.ui.allows_external_metadata_lookup(),
-                    stored.ui.lastfm_api_key,
-                ));
+            artwork::ArtworkRequest::original(artwork::ArtworkBinding::opaque(&binding), 512);
         let bytes = owner.shared.artwork.image_bytes(request).await?;
         tokio::task::spawn_blocking(move || bytes.map(checked_artwork).transpose())
             .await

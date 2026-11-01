@@ -236,17 +236,10 @@ async fn generate_artwork(
     owner: &SourceOwner,
     bindings: Vec<Vec<u8>>,
 ) -> Result<Option<Arc<sources::ImageBytes>>, String> {
-    let stored = owner.shared.settings.load();
-    let policy = artwork::ExternalPolicy::new(
-        stored.ui.application.external_metadata_enabled,
-        stored.ui.allows_external_metadata_lookup(),
-        stored.ui.lastfm_api_key,
-    );
     let mut images = futures_util::stream::iter(bindings)
         .map(|binding| {
             let request =
-                artwork::ArtworkRequest::new(artwork::ArtworkBinding::opaque(&binding), 512)
-                    .with_external(policy.clone());
+                artwork::ArtworkRequest::new(artwork::ArtworkBinding::opaque(&binding), 512);
             owner.shared.artwork.image_bytes(request)
         })
         .buffered(4)

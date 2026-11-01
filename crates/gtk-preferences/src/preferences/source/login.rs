@@ -136,8 +136,8 @@ struct CredentialSetupFlow {
 struct SourceChoiceFlow;
 
 impl SourceSetupFlow for SourceChoiceFlow {
-    fn view(&self, shell: &Rc<Preferences>, context: &SetupViewContext) -> gtk::Widget {
-        source_choice_selector(shell, context)
+    fn view(&self, shell: &Rc<Preferences>, _context: &SetupViewContext) -> gtk::Widget {
+        source_choice_selector(shell)
     }
 }
 
@@ -593,13 +593,12 @@ fn setup_scaffold(
     (scroller, content, actions, status)
 }
 
-fn source_choice_selector(shell: &Rc<Preferences>, context: &SetupViewContext) -> gtk::Widget {
+fn source_choice_selector(shell: &Rc<Preferences>) -> gtk::Widget {
     let resource = crate::ui_resource::SOURCE_CHOICE_SELECTOR_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
         wrapper: gtk::ScrolledWindow,
         server_sources: adw::PreferencesGroup,
-        privacy: adw::PreferencesGroup, external_metadata: adw::SwitchRow,
     });
     for &presentation in source_presentations() {
         let resource = crate::ui_resource::SOURCE_CHOICE_RESOURCE;
@@ -630,18 +629,6 @@ fn source_choice_selector(shell: &Rc<Preferences>, context: &SetupViewContext) -
         });
         server_sources.add(&row);
     }
-    privacy.set_visible(context.onboarding);
-    {
-        let settings = shell.settings.current.borrow();
-        external_metadata.set_active(settings.application.external_metadata_enabled);
-    }
-    let weak = Rc::downgrade(shell);
-    external_metadata.connect_active_notify(move |row| {
-        if let Some(shell) = weak.upgrade() {
-            shell.set_external_metadata_enabled(row.is_active());
-        }
-    });
-
     wrapper.upcast()
 }
 

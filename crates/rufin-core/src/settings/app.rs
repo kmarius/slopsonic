@@ -142,8 +142,6 @@ macro_rules! preference_group {
 preference_group!(ApplicationPreferences, application, {
     #[serde(default = "default_starting_page")]
     starting_page: SidebarRouteItem = default_starting_page() => set_starting_page;
-    #[serde(default = "default_true")]
-    external_metadata_enabled: bool = true => set_external_metadata_enabled;
     #[serde(default)]
     prefer_distinct_track_covers: bool = false => set_prefer_distinct_track_covers;
     #[serde(default)]
@@ -282,10 +280,6 @@ impl Settings {
 
     pub fn shows_external_site_links(&self) -> bool {
         self.application.external_site_links.enabled
-    }
-
-    pub fn allows_external_metadata_lookup(&self) -> bool {
-        self.application.external_metadata_enabled
     }
 
     pub fn sanitize(&mut self) {

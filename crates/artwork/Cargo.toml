@@ -12,7 +12,6 @@ publish.workspace = true
 
 [dependencies]
 blurhash.workspace = true
-metadata-lookup.workspace = true
 library.workspace = true
 process-memory.workspace = true
 image.workspace = true

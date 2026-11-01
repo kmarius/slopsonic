@@ -1,26 +1,5 @@
 use super::*;
-use crate::{ArtworkCandidate, ArtworkImage};
 use sqlx::{QueryBuilder, Sqlite};
-
-pub(crate) fn artist_binding(
-    name: &str,
-    musicbrainz_id: Option<&str>,
-    binding: Option<&[u8]>,
-) -> LibraryResult<Vec<u8>> {
-    let mut candidates = binding
-        .map(serde_json::from_slice::<Vec<ArtworkCandidate>>)
-        .transpose()?
-        .unwrap_or_default();
-    candidates.retain(|candidate| !matches!(candidate.image, ArtworkImage::Artist { .. }));
-    candidates.push(ArtworkCandidate::new(
-        ArtworkImage::Artist {
-            name: name.to_owned(),
-            musicbrainz_id: musicbrainz_id.map(str::to_owned),
-        },
-        None,
-    ));
-    Ok(serde_json::to_vec(&candidates)?)
-}
 
 pub(crate) async fn write_images(
     connection: &mut SqliteConnection,
@@ -33,33 +12,14 @@ pub(crate) async fn write_images(
     if rows.is_empty() {
         return Ok(false);
     }
-    let bindings = if kind == "artist" {
-        let names = sqlx::query_as::<_,(String,String,Option<String>,Option<Vec<u8>>)>("SELECT object_id,name,musicbrainz_artist_id,native_artwork FROM artists WHERE source_key=?1 AND object_id IN(SELECT value FROM json_each(?2))")
-            .bind(source).bind(serde_json::to_string(&rows.iter().map(|(id,_)|id).collect::<Vec<_>>())?).fetch_all(&mut *connection).await?
-            .into_iter().map(|(id,name,mbid,artwork)|(id,(name,mbid,artwork))).collect::<std::collections::HashMap<_,_>>();
-        rows.iter()
-            .map(|(id, artwork)| {
-                if let Some((name, mbid, previous)) = names.get(*id) {
-                    let artwork = if native {
-                        *artwork
-                    } else {
-                        previous.as_deref().or(*artwork)
-                    };
-                    Ok(Some(artist_binding(name, mbid.as_deref(), artwork)?))
-                } else {
-                    Ok(artwork.map(<[u8]>::to_vec))
-                }
-            })
-            .collect::<LibraryResult<Vec<_>>>()?
-    } else {
-        rows.iter()
-            .map(|(_, artwork)| artwork.map(<[u8]>::to_vec))
-            .collect()
-    };
+    let bindings = rows
+        .iter()
+        .map(|(_, artwork)| artwork.map(<[u8]>::to_vec))
+        .collect::<Vec<_>>();
     let (table, _) = super::cache::table(kind);
     let next = if kind == "track" && native {
         "CASE WHEN EXISTS(SELECT 1 FROM local_track_access location JOIN observed_local_files physical ON physical.source_key=location.source_key AND physical.path=location.source_path WHERE location.track_key=tracks.track_key AND(physical.artist_pictures IS NULL OR physical.picture_index>=0)) THEN coalesce(input.binding,tracks.native_artwork) ELSE input.binding END".to_owned()
-    } else if native || kind == "artist" {
+    } else if native {
         "input.binding".to_owned()
     } else {
         format!("coalesce({table}.native_artwork,input.binding)")

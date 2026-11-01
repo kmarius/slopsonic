@@ -6,14 +6,6 @@ use std::rc::Rc;
 use tracing::warn;
 
 impl Preferences {
-    pub(super) fn retry_external_artwork(self: &Rc<Self>, warning_action: &'static str) {
-        if let Err(error) = self.products.artwork.retry_external() {
-            warn!(%error, action = warning_action, "failed to retry external artwork");
-            return;
-        }
-        (self.effects)(crate::Effect::MediaControlsChanged);
-    }
-
     pub(super) async fn set_secret_storage_mode(self: &Rc<Self>, mode: SecretStorageMode) -> bool {
         match self.products.source.change_secret_storage(mode).await {
             Ok(()) => {
@@ -47,20 +39,10 @@ impl Preferences {
         warning_action: &'static str,
         edit: rufin_core::scrobbling::ScrobblingCredentialEdit,
     ) {
-        let previous = self.products.scrobbling.preferences();
         let shell = Rc::clone(self);
         gtk::glib::spawn_future_local(async move {
-            match shell.products.scrobbling.save_credential(edit).await {
-                Ok(committed) => {
-                    shell.settings.current.borrow_mut().lastfm_api_key =
-                        committed.lastfm.api_key.clone();
-                    if previous.lastfm.api_key != committed.lastfm.api_key {
-                        shell.retry_external_artwork(warning_action);
-                    }
-                }
-                Err(error) => {
-                    warn!(%error, action = warning_action, "failed to save scrobbling settings")
-                }
+            if let Err(error) = shell.products.scrobbling.save_credential(edit).await {
+                warn!(%error, action = warning_action, "failed to save scrobbling settings");
             }
         });
     }

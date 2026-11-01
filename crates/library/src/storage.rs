@@ -9,18 +9,6 @@ pub struct CacheUsage {
 }
 
 impl Database {
-    pub async fn metadata_lookup_cache_usage(&self) -> LibraryResult<CacheUsage> {
-        self.cached_table_usage("metadata_lookup_cache").await
-    }
-
-    pub async fn clear_metadata_lookup_cache(&self) -> LibraryResult<()> {
-        self.clear_cached_table("metadata_lookup_cache").await
-    }
-
-    pub async fn fingerprint_cache_usage(&self) -> LibraryResult<CacheUsage> {
-        self.cached_table_usage("fingerprint_cache").await
-    }
-
     pub async fn loudness_cache_usage(&self) -> LibraryResult<CacheUsage> {
         self.cached_table_usage("loudness_measurements").await
     }
@@ -34,10 +22,6 @@ impl Database {
             entries: entries as u64,
             bytes: bytes as u64,
         })
-    }
-
-    pub async fn clear_fingerprint_cache(&self) -> LibraryResult<()> {
-        self.clear_cached_table("fingerprint_cache").await
     }
 
     pub async fn clear_loudness_cache(&self) -> LibraryResult<()> {

@@ -71,22 +71,6 @@ pub fn present_downloads_preferences_dialog(shell: &Rc<Preferences>) {
 }
 
 impl Preferences {
-    pub fn set_external_metadata_enabled(self: &Rc<Self>, enabled: bool) {
-        if self
-            .settings
-            .set_app_setting("metadata setting", enabled, |settings| {
-                &mut settings.application.external_metadata_enabled
-            })
-            .is_some()
-        {
-            if enabled {
-                self.retry_external_artwork("metadata setting");
-            } else {
-                (self.effects)(crate::Effect::MediaControlsChanged);
-            }
-        }
-    }
-
     pub fn close_preferences_dialog(&self) {
         if let Some(dialog) = self.state.active_dialog() {
             dialog.close();
@@ -788,7 +772,6 @@ fn general_page(shell: &Rc<Preferences>) -> gtk::Widget {
     gtk_widgets::objects!(builder, resource, {
         page: adw::PreferencesPage,
         prefer_distinct_track_covers_row: adw::SwitchRow,
-        external_metadata_row: adw::SwitchRow,
         starting_page_row: adw::ComboRow,
         window_group: adw::PreferencesGroup,
         tray_row: adw::SwitchRow,
@@ -820,12 +803,6 @@ fn general_page(shell: &Rc<Preferences>) -> gtk::Widget {
                 });
             }
         }
-    });
-
-    external_metadata_row.set_active(settings.application.external_metadata_enabled);
-    let metadata_shell = Rc::clone(shell);
-    external_metadata_row.connect_active_notify(move |row| {
-        metadata_shell.set_external_metadata_enabled(row.is_active());
     });
 
     let starting_pages = SidebarRouteItem::all();

@@ -18,7 +18,6 @@ base64.workspace = true
 thiserror.workspace = true
 audio-processing.workspace = true
 app-identity.workspace = true
-metadata-lookup.workspace = true
 async-channel.workspace = true
 futures-util.workspace = true
 artwork.workspace = true

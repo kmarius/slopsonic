@@ -377,16 +377,7 @@ impl FilesystemCache {
     }
 
     pub(crate) fn mark_missing(&self, candidate: &Candidate) -> io::Result<()> {
-        let path = self.missing_path(candidate);
-        if candidate.is_external() {
-            self.write_tracked(&path, &b"missing\n"[..])
-        } else {
-            atomic_write(&path, &b"missing\n"[..])
-        }
-    }
-
-    pub(crate) fn retry_external(&self) -> io::Result<()> {
-        self.remove_dir_budgeted(&self.root.join("missing/external"))
+        atomic_write(&self.missing_path(candidate), &b"missing\n"[..])
     }
 
     pub(crate) fn invalidate_source(&self, source_id: &SourceId) -> io::Result<()> {
@@ -547,11 +538,7 @@ fn prune_cache(
 }
 
 fn collect_discretionary_files(root: &Path, files: &mut Vec<CacheFile>) -> io::Result<()> {
-    for path in [
-        root.join("missing/external"),
-        root.join("originals/external"),
-        root.join("displays"),
-    ] {
+    for path in [root.join("displays")] {
         if path.is_dir() {
             collect_cache_files(&path, files)?;
         }
@@ -600,9 +587,7 @@ fn path_usage(path: &Path) -> io::Result<CacheUsage> {
 }
 
 fn is_budgeted_path(root: &Path, path: &Path) -> bool {
-    path.starts_with(root.join("missing/external"))
-        || path.starts_with(root.join("originals/external"))
-        || path.starts_with(root.join("displays"))
+    path.starts_with(root.join("displays"))
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> io::Result<MutexGuard<'_, T>> {
@@ -617,7 +602,7 @@ pub(crate) fn valid_cache_key(key: &str) -> bool {
         [state, "native", source, identity, name] if is_digest(source) => {
             (*state, *identity, *name)
         }
-        [state, "external" | "playlists", identity, name] => (*state, *identity, *name),
+        [state, "playlists", identity, name] => (*state, *identity, *name),
         _ => return false,
     };
     is_digest(identity)
@@ -778,25 +763,10 @@ mod tests {
             cache.family_file(&larger).unwrap().unwrap().path,
             cache.ready_entry(&native()).unwrap().path
         );
-        let external = Candidate::new(
-            ArtworkImage::Artist {
-                name: "Artist".into(),
-                musicbrainz_id: None,
-            },
-            None,
-        );
-        cache
-            .write_ready(&external, ImageSize::Original, bytes)
-            .unwrap();
-        cache
-            .write_ready(&external, ImageSize::Thumbnail(512), bytes)
-            .unwrap();
         let empty = CacheLimits { bytes: 0, files: 0 };
         let usage = prune_cache(directory.path(), empty, empty, None).unwrap();
         assert_eq!((usage.bytes, usage.files), (0, 0));
-        assert!(cache.ready_entry(&external).is_none());
         assert!(cache.ready_entry(&native()).is_some());
-        assert!(cache.display_path(&external, 512).is_none());
         assert!(cache.best_display(&native()).is_none());
     }
 

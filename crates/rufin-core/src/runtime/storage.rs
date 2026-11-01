@@ -4,8 +4,6 @@ pub use library::CacheUsage;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CacheKind {
     Loudness,
-    Fingerprints,
-    MetadataLookups,
     Artwork,
 }
 
@@ -34,12 +32,7 @@ impl ProductHandles {
         {
             summary.errors.push(error);
         }
-        for kind in [
-            CacheKind::Loudness,
-            CacheKind::Fingerprints,
-            CacheKind::MetadataLookups,
-            CacheKind::Artwork,
-        ] {
+        for kind in [CacheKind::Loudness, CacheKind::Artwork] {
             let usage = match self.cache_usage(kind).await {
                 Ok(usage) => {
                     summary.total_bytes = summary.total_bytes.map(|total| total + usage.bytes);
@@ -81,16 +74,6 @@ impl ProductHandles {
 
     async fn cache_usage(&self, kind: CacheKind) -> Result<CacheUsage, String> {
         match kind {
-            CacheKind::MetadataLookups => self
-                .library
-                .metadata_lookup_cache_usage()
-                .await
-                .map_err(|error| error.to_string()),
-            CacheKind::Fingerprints => self
-                .library
-                .fingerprint_cache_usage()
-                .await
-                .map_err(|error| error.to_string()),
             CacheKind::Loudness => self
                 .library
                 .loudness_cache_usage()
@@ -106,16 +89,6 @@ impl ProductHandles {
 
     pub async fn clear_cached_data(&self, kind: CacheKind) -> Result<(), String> {
         match kind {
-            CacheKind::MetadataLookups => self
-                .library
-                .clear_metadata_lookup_cache()
-                .await
-                .map_err(|error| error.to_string()),
-            CacheKind::Fingerprints => self
-                .library
-                .clear_fingerprint_cache()
-                .await
-                .map_err(|error| error.to_string()),
             CacheKind::Loudness => self
                 .library
                 .clear_loudness_cache()

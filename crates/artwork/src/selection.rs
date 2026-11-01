@@ -18,9 +18,7 @@ impl ArtworkBinding {
             }
         }
         let asset_identity = candidates
-            .iter()
-            .find(|candidate| matches!(candidate.image, library::ArtworkImage::Artist { .. }))
-            .or_else(|| candidates.first())
+            .first()
             .map(Candidate::asset_identity)
             .unwrap_or_default();
         let stable_identity = candidates
@@ -37,10 +35,6 @@ impl ArtworkBinding {
 
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub(crate) fn has_external(&self) -> bool {
-        self.candidates.iter().any(Candidate::is_external)
     }
 
     pub(crate) fn source_id(&self) -> Option<&sources::SourceId> {
@@ -70,34 +64,10 @@ mod tests {
         let binding = ArtworkBinding::opaque(&encoded);
         assert!(!binding.candidates.is_empty());
         assert!(binding.stable_identity().contains("album"));
-        let album = library::AlbumCover::new(
-            " Artist ",
-            " Album ",
-            Some(" release-group "),
-            Some("bad/id"),
-        )
-        .unwrap();
-        let candidate = Candidate::new(library::ArtworkImage::Album(album), None);
-        assert_eq!(
-            candidate.stable_identity(),
-            "album\0Artist\0Album\0release-group\0"
-        );
-        assert_eq!(
-            serde_json::to_value(&candidate.image).unwrap(),
-            serde_json::json!({
-                "kind":"album", "artist":"Artist", "album":"Album", "release_group_id":"release-group", "release_id":null
-            })
-        );
-        let restored: Candidate =
-            serde_json::from_slice(&serde_json::to_vec(&candidate).unwrap()).unwrap();
-        assert_eq!(restored, candidate);
-        assert!(library::AlbumCover::new("Unknown Artist", "Unknown Album", None, None).is_none());
         for encoded in [
             encoded,
             br#"{"File":{"path":"/cover.png","revision":"one"}}"#.to_vec(),
             br#"{"Embedded":{"path":"/song.flac","picture_index":0,"revision":"one"}}"#.to_vec(),
-            br#"{"artist":"Artist","album":"Album","musicbrainz_release_group_id":null,"musicbrainz_release_id":null}"#.to_vec(),
-            br#"{"kind":"artist","artist_name":"Artist","musicbrainz_artist_id":null,"source":null,"fallback":null}"#.to_vec(),
             br#"{"kind":"playlist","smart":false,"source_id":null,"object_id":"playlist","revision":"one"}"#.to_vec(),
         ] {
             let normalized = library::normalize_artwork_binding(&encoded).unwrap();

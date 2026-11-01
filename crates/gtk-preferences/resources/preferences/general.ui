@@ -44,11 +44,6 @@
             <property name="subtitle" translatable="yes">Use each track's own cover when available</property>
           </object>
         </child>
-        <child>
-          <object class="AdwSwitchRow" id="external_metadata_row">
-            <property name="title" translatable="yes">External metadata lookup</property>
-          </object>
-        </child>
       </object>
     </child>
     <child>

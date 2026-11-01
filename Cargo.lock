@@ -156,7 +156,6 @@ dependencies = [
  "jxl-image-rs-integration",
  "library",
  "md-5 0.10.6",
- "metadata-lookup",
  "process-memory",
  "serde_json",
  "sources",
@@ -2978,20 +2977,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "metadata-lookup"
-version = "0.0.1"
-dependencies = [
- "blake3",
- "library",
- "reqwest",
- "serde",
- "serde_json",
- "sources",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3942,7 +3927,6 @@ dependencies = [
  "glib",
  "image",
  "library",
- "metadata-lookup",
  "playback",
  "scrobbling",
  "secrets",

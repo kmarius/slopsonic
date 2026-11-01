@@ -220,7 +220,6 @@ pub fn scrobbling_page(
                 request,
                 "Failed to open Last.fm authorization: ",
                 fill("Couldn't connect to {service}", &[("service", "Last.fm")]),
-                true,
             )
             .await
             {
@@ -277,7 +276,6 @@ pub fn scrobbling_page(
                 ScrobblingConnection::LibreFm,
                 "Failed to open Libre.fm authorization: ",
                 fill("Couldn't connect to {service}", &[("service", "Libre.fm")]),
-                false,
             )
             .await
             {
@@ -437,7 +435,6 @@ async fn connect_scrobbling(
     request: ScrobblingConnection,
     open_error: &'static str,
     connection_error: String,
-    refresh_external_artwork: bool,
 ) -> Result<String, String> {
     let events = shell.products.scrobbling.connect(request);
     while let Ok(event) = events.next().await {
@@ -456,11 +453,6 @@ async fn connect_scrobbling(
                 }
             }
             ScrobblingConnectionEvent::Connected { username } => {
-                let preferences = shell.products.scrobbling.preferences();
-                shell.settings.current.borrow_mut().lastfm_api_key = preferences.lastfm.api_key;
-                if refresh_external_artwork {
-                    shell.retry_external_artwork("Last.fm connection setting");
-                }
                 return Ok(username);
             }
             ScrobblingConnectionEvent::TimedOut => return Err(connection_error.clone()),

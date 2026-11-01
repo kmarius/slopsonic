@@ -113,7 +113,6 @@ pub(crate) struct Shared {
     pub(crate) prepared_albums: tokio::sync::Mutex<Option<crate::browse::PreparedAlbums>>,
     selection_intent: Mutex<Weak<AtomicBool>>,
     connection: Mutex<Option<tokio::task::AbortHandle>>,
-    album_release: Mutex<Option<tokio::task::AbortHandle>>,
     asset_download: Mutex<Option<tokio::task::JoinHandle<()>>>,
     asset_download_requested: Arc<tokio::sync::Notify>,
     pub(crate) lane: tokio::sync::Mutex<()>,
@@ -447,7 +446,6 @@ impl SourceOwner {
             prepared_albums: tokio::sync::Mutex::new(None),
             selection_intent: Mutex::new(Weak::new()),
             connection: Mutex::new(None),
-            album_release: Mutex::new(None),
             asset_download: Mutex::new(None),
             asset_download_requested: Arc::new(tokio::sync::Notify::new()),
             lane: tokio::sync::Mutex::new(()),
@@ -821,10 +819,14 @@ impl SourceOwner {
     }
 
     fn cancel_selected_jobs(&self) {
-        for job in [&self.shared.connection, &self.shared.album_release] {
-            if let Some(job) = job.lock().unwrap_or_else(|p| p.into_inner()).take() {
-                job.abort();
-            }
+        if let Some(job) = self
+            .shared
+            .connection
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .take()
+        {
+            job.abort();
         }
         if let Ok(playback) = self.shared.playback() {
             playback.cancel_loudness_analysis();
@@ -1640,7 +1642,6 @@ impl SourceOwner {
                         stored.ui.application.secret_storage_mode = mode;
                         // Reset as confirmed in Preferences; never unlock the old keyring.
                         stored.secret_scope_id = scope;
-                        stored.ui.lastfm_api_key.clear();
                         stored.scrobbling.lastfm.username.clear();
                         stored.scrobbling.librefm.username.clear();
                         for descriptor in scrobbling::secret_descriptors() {
@@ -2086,34 +2087,6 @@ impl SourceOwner {
 }
 
 impl SourceOwner {
-    pub fn selected_library_revealed(&self, source_id: SourceId) {
-        let Some(selected) = self
-            .selected_library()
-            .filter(|selected| selected.source_id == source_id)
-        else {
-            return;
-        };
-        let mut active = self
-            .shared
-            .album_release
-            .lock()
-            .unwrap_or_else(|p| p.into_inner());
-        if let Some(task) = active.take() {
-            task.abort();
-        }
-        let task =
-            self.shared
-                .runtime
-                .spawn(crate::album_release::run_selected_album_release_lookup(
-                    self.shared.database.clone(),
-                    self.shared.settings.clone(),
-                    self.shared.outputs.events.clone(),
-                    selected.source_key,
-                ));
-        *active = Some(task.abort_handle());
-        drop(active);
-    }
-
     pub fn refresh_home(
         &self,
         source_id: SourceId,
@@ -3230,7 +3203,7 @@ mod source_tests {
                 .shared
                 .settings
                 .update(|stored| {
-                    stored.ui.application.external_metadata_enabled = false;
+                    stored.ui.application.download_artwork_automatically = true;
                     Ok(())
                 })
                 .unwrap();

@@ -73,45 +73,11 @@ impl CacheImageRequest {
     }
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct ExternalPolicy {
-    pub allow_cached: bool,
-    pub allow_network: bool,
-    pub allow_musicbrainz: bool,
-    pub lastfm_api_key: String,
-}
-
-impl ExternalPolicy {
-    pub fn new(allow_cached: bool, allow_network: bool, lastfm_api_key: impl Into<String>) -> Self {
-        Self {
-            allow_cached,
-            allow_network,
-            allow_musicbrainz: true,
-            lastfm_api_key: lastfm_api_key.into(),
-        }
-    }
-
-    pub const fn with_musicbrainz(mut self, allow: bool) -> Self {
-        self.allow_musicbrainz = allow;
-        self
-    }
-
-    pub const fn disabled() -> Self {
-        Self {
-            allow_cached: false,
-            allow_network: false,
-            allow_musicbrainz: false,
-            lastfm_api_key: String::new(),
-        }
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ArtworkRequest {
     pub binding: ArtworkBinding,
     pub fetch_size: ImageSize,
     pub render_size: u32,
-    pub external: ExternalPolicy,
     pub cache_only: bool,
 }
 
@@ -121,7 +87,6 @@ impl ArtworkRequest {
             binding,
             fetch_size: ImageSize::Thumbnail(render_size.max(1)),
             render_size: render_size.max(1),
-            external: ExternalPolicy::disabled(),
             cache_only: false,
         }
     }
@@ -135,11 +100,6 @@ impl ArtworkRequest {
 
     pub fn cache_only(mut self) -> Self {
         self.cache_only = true;
-        self
-    }
-
-    pub fn with_external(mut self, external: ExternalPolicy) -> Self {
-        self.external = external;
         self
     }
 }
@@ -157,17 +117,13 @@ impl ArtworkKey {
     fn derive(
         binding: &ArtworkBinding,
         sizes: (ImageSize, u32),
-        external: Option<&ExternalPolicy>,
         allow_fetch: bool,
-        epochs: (u64, u64),
+        epoch: u64,
     ) -> Self {
-        let policy = external
-            .map(|policy| format!("{policy:?}\0{}", epochs.1))
-            .unwrap_or_default();
         Self {
             asset: Self::binding_digest(binding.asset_identity()),
             binding: Self::binding_digest(binding.stable_identity()),
-            variant: Self::binding_digest(&format!("{policy}\0{allow_fetch}\0{}", epochs.0)),
+            variant: Self::binding_digest(&format!("{allow_fetch}\0{epoch}")),
             fetch_size: sizes.0,
             render_size: sizes.1,
         }
@@ -282,12 +238,8 @@ pub struct Artwork {
 }
 
 impl Artwork {
-    pub fn preview(
-        &self,
-        binding: ArtworkBinding,
-        allow_cached_external: bool,
-    ) -> Option<Arc<ArtworkPreview>> {
-        self.pipeline.preview(&binding, allow_cached_external)
+    pub fn preview(&self, binding: ArtworkBinding) -> Option<Arc<ArtworkPreview>> {
+        self.pipeline.preview(&binding)
     }
 
     pub async fn cache_usage(&self) -> Result<library::CacheUsage, ArtworkError> {
@@ -481,10 +433,6 @@ impl Artwork {
             .map_err(|error| error.to_string())
     }
 
-    pub fn retry_external(&self) -> Result<(), ArtworkError> {
-        self.pipeline.retry_external()
-    }
-
     pub fn invalidate_source(&self, source_id: &SourceId) -> Result<(), ArtworkError> {
         self.pipeline.invalidate_source(source_id)
     }
@@ -563,28 +511,21 @@ mod tests {
             artwork.key(&ArtworkRequest::new(binding.clone(), 64)),
             identity_without_resolver
         );
-        let preview = artwork.preview(binding.clone(), false).unwrap();
-        assert!(Arc::ptr_eq(
-            &preview,
-            &artwork.preview(binding, false).unwrap()
-        ));
+        let preview = artwork.preview(binding.clone()).unwrap();
+        assert!(Arc::ptr_eq(&preview, &artwork.preview(binding).unwrap()));
         assert_eq!(&preview.png[..8], b"\x89PNG\r\n\x1a\n");
         assert!(Arc::ptr_eq(
             &preview,
-            &artwork
-                .preview(ArtworkBinding::opaque(&encoded), false)
-                .unwrap()
+            &artwork.preview(ArtworkBinding::opaque(&encoded)).unwrap()
         ));
         native.blur_hash = Some(blurhash::encode(4, 3, 1, 1, &[0, 0, 255, 255]).unwrap());
         let changed =
             ArtworkBinding::opaque(&sources::native_artwork_binding("source", &native).unwrap());
-        let changed_preview = artwork.preview(changed, false).unwrap();
+        let changed_preview = artwork.preview(changed).unwrap();
         assert!(!Arc::ptr_eq(&preview, &changed_preview));
         assert!(Arc::ptr_eq(
             &changed_preview,
-            &artwork
-                .preview(ArtworkBinding::opaque(&encoded), false)
-                .unwrap()
+            &artwork.preview(ArtworkBinding::opaque(&encoded)).unwrap()
         ));
         let new_revision = sources::native_artwork_binding(
             "source",
@@ -593,7 +534,7 @@ mod tests {
         .unwrap();
         assert!(
             artwork
-                .preview(ArtworkBinding::opaque(&new_revision), false)
+                .preview(ArtworkBinding::opaque(&new_revision))
                 .is_none()
         );
         assert_eq!(resolutions.load(Ordering::Relaxed), 0);
@@ -641,22 +582,6 @@ mod tests {
             None
         });
 
-        let mut fallback = vec![library::ArtworkCandidate::new(
-            library::ArtworkImage::Artist {
-                name: "Artist without a cached portrait".into(),
-                musicbrainz_id: None,
-            },
-            None,
-        )];
-        fallback.extend(binding.candidates.clone());
-        let fallback_bytes = serde_json::to_vec(&fallback).unwrap();
-        assert!(
-            artwork
-                .preview(ArtworkBinding::opaque(&fallback_bytes), true)
-                .is_none()
-        );
-        assert_eq!(resolutions.load(Ordering::Relaxed), 0);
-
         let request = ArtworkRequest::new(binding.clone(), 128);
         let key = artwork.key(&request);
         let ArtworkLoad::Pending(pending) = artwork.load(request.clone()) else {
@@ -673,17 +598,12 @@ mod tests {
         assert!(Arc::ptr_eq(&smaller, &image));
         assert_eq!(resolutions.load(Ordering::Relaxed), 0);
         assert_eq!(artwork.key(&ArtworkRequest::new(binding.clone(), 128)), key);
-        let preview = artwork.preview(binding.clone(), false).unwrap();
+        let preview = artwork.preview(binding.clone()).unwrap();
         assert_eq!((preview.image.width(), preview.image.height()), (32, 32));
         assert!(Arc::ptr_eq(
             &preview,
-            &artwork.preview(binding.clone(), false).unwrap()
+            &artwork.preview(binding.clone()).unwrap()
         ));
-        fallback[0].blur_hash = Some("LEHV6nWB2yk8pyo0adR*.7kCMdnj".into());
-        let fallback = ArtworkBinding::opaque(&serde_json::to_vec(&fallback).unwrap());
-        let external_preview = artwork.preview(fallback.clone(), true).unwrap();
-        let source_preview = artwork.preview(fallback, false).unwrap();
-        assert_ne!(external_preview.image.rgba(), source_preview.image.rgba());
         assert_eq!(resolutions.load(Ordering::Relaxed), 0);
         assert!(
             artwork
@@ -828,7 +748,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             reopened
-                .preview(ArtworkBinding::opaque(&restored), false)
+                .preview(ArtworkBinding::opaque(&restored))
                 .unwrap()
                 .image
                 .rgba(),
@@ -854,11 +774,7 @@ mod tests {
         let mut native = sources::NativeImageRef::new("cover", None);
         native.blur_hash = Some("LEHV6nWB2yk8pyo0adR*.7kCMdnj".into());
         let encoded = sources::native_artwork_binding("source", &native).unwrap();
-        assert!(
-            artwork
-                .preview(ArtworkBinding::opaque(&encoded), false)
-                .is_some()
-        );
+        assert!(artwork.preview(ArtworkBinding::opaque(&encoded)).is_some());
         assert_eq!(resolutions.load(Ordering::Relaxed), 0);
         assert!(!directory.path().join("covers/v1/previews.sqlite3").exists());
         let request = ArtworkRequest::new(ArtworkBinding::opaque(&encoded), 64);
