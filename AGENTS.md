@@ -18,11 +18,16 @@ Do not implement or expand:
 - **Rufin Connect / sync / casting** — No cross-device sync, remote control, or UPnP/Chromecast casting
 - **Headless/controller mode** — This is a desktop GUI application
 - **Windows/macOS/Android builds** — Linux only; ignore existing cross-platform code
+- **Lyrics, visualizer, waveform seekbar**
+- **Discord rich presence, update checks/self-updater**
+- **Listening overview, playback speed/pitch, audio output selection** — the system default output is always used
+- **Private mode, localization**
 
 ## Architecture
 
 - `crates/` — Rust workspace with modular crates
 - `android/` — Out of scope
+- Dead code is a build error (`-D warnings`); remove unused code and dependencies rather than leaving them
 
 When in doubt, prefer simplicity and removing code over adding features.
 
