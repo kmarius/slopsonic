@@ -1,15 +1,11 @@
 //! Queue source reads, metadata, and saved playback state. Playback owns edits.
 
-pub(crate) mod legacy;
-
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use sqlx::{Connection, Row, SqliteConnection};
 
-use crate::{
-    Database, LibraryError, LibraryResult, ReadCancellation, SourceId, SourceKey, TrackReference,
-};
+use crate::{Database, LibraryError, LibraryResult, ReadCancellation, SourceKey, TrackReference};
 
 pub const QUEUE_CONTEXT_LIMIT: usize = 100;
 
@@ -769,27 +765,6 @@ async fn read_settings(
     Ok(())
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-pub(crate) struct LegacyQueueRow {
-    #[serde(default)]
-    pub playlist_entry_id: Option<String>,
-    pub occurrence: String,
-    pub item: TrackReference,
-    pub canonical_position: usize,
-    #[serde(default)]
-    pub source_index: Option<usize>,
-    pub provenance: QueueProvenance,
-}
-
-impl LegacyQueueRow {
-    pub(crate) fn entry(&self, track_key: crate::TrackKey) -> QueueEntry {
-        QueueEntry {
-            track_key,
-            provenance: self.provenance.clone(),
-        }
-    }
-}
-
 pub(crate) async fn export_queue_jsonl_on(
     connection: &mut SqliteConnection,
     mut output: impl std::io::Write,
@@ -843,56 +818,6 @@ pub(crate) async fn import_queue_jsonl_on(
                 }
             }
             decode_queue_export(connection, header["queue"].clone()).await?
-        }
-        Some(version @ 1..=3) => {
-            let mut rows: Vec<LegacyQueueRow> = if version == 3 {
-                serde_json::from_value(header["snapshots"].clone())?
-            } else if version == 2 {
-                serde_json::from_value(header["queue"]["occurrences"].clone())?
-            } else {
-                Vec::new()
-            };
-            if version == 1 {
-                while {
-                    line.clear();
-                    input.read_line(&mut line)? != 0
-                } {
-                    if !line.trim().is_empty() {
-                        rows.push(serde_json::from_str(&line)?);
-                    }
-                }
-            }
-            let mut keys = Vec::with_capacity(rows.len());
-            for row in &rows {
-                keys.push(persist_metadata(connection, &row.item).await?);
-            }
-            match version {
-                3 => {
-                    legacy::decode_saved(connection, header["queue"].clone())
-                        .await?
-                        .0
-                }
-                2 => {
-                    legacy::migrate_saved(connection, header["queue"].clone(), &rows)
-                        .await?
-                        .0
-                }
-                _ => QueueRestore {
-                    current_index: header["current_occurrence"]
-                        .as_str()
-                        .and_then(|id| rows.iter().position(|row| row.occurrence == id)),
-                    progress_millis: header["progress_millis"].as_i64().unwrap_or(0),
-                    repeat_mode: serde_json::from_value(header["repeat_mode"].clone())?,
-                    shuffled: header["shuffled"].as_bool().unwrap_or(false),
-                    order: (0..rows.len() as u32).collect(),
-                    entries: rows
-                        .iter()
-                        .zip(keys)
-                        .map(|(row, key)| row.entry(key))
-                        .collect(),
-                    ..Default::default()
-                },
-            }
         }
         _ => {
             return Err(LibraryError::InvalidRequest(
