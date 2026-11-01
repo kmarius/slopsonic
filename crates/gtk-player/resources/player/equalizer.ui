@@ -117,13 +117,6 @@
                   </object>
                 </child>
                 <child>
-                  <object class="GtkBox" id="output_host">
-                    <property name="valign">center</property>
-                    <property name="spacing">8</property>
-                    <property name="hexpand">true</property>
-                  </object>
-                </child>
-                <child>
                   <object class="GtkToggleButton" id="mode">
                     <property name="halign">end</property>
                     <property name="margin-start">12</property>

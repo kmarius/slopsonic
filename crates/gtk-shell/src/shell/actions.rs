@@ -1,4 +1,3 @@
-use gtk_player::outputs::{select_next_audio_output, select_previous_audio_output};
 use std::rc::Rc;
 
 use adw::prelude::*;
@@ -309,14 +308,6 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
     add_window_action(shell, "volume-down", volume_down_accels, {
         let shell = Rc::clone(shell);
         move || adjust_volume(&shell, -KEY_VOLUME_STEP)
-    });
-    add_window_action(shell, "previous-audio-output", &[], {
-        let shell = Rc::clone(shell);
-        move || select_previous_audio_output(&shell.player_ui)
-    });
-    add_window_action(shell, "next-audio-output", &[], {
-        let shell = Rc::clone(shell);
-        move || select_next_audio_output(&shell.player_ui)
     });
     #[cfg(target_os = "macos")]
     let queue_accels = &["<Alt><Meta>u"][..];
@@ -698,8 +689,6 @@ fn show_shortcuts_dialog(shell: &Shell) {
         ("shortcut_selection_play_later", "<Meta><Shift>Return"),
         ("shortcut_add_to_playlist", "<Meta><Shift>p"),
         ("shortcut_download", "<Meta><Shift>d"),
-        ("shortcut_previous_output", "<Alt><Meta>Up"),
-        ("shortcut_next_output", "<Alt><Meta>Down"),
         ("shortcut_back", "Back <Meta>bracketleft"),
         ("shortcut_forward", "Forward <Meta>bracketright"),
         ("shortcut_sidebar_position", "<Meta>1...9 <Meta>0"),
@@ -714,8 +703,6 @@ fn show_shortcuts_dialog(shell: &Shell) {
         ("shortcut_selection_play_later", "<Control><Shift>Return"),
         ("shortcut_add_to_playlist", "<Control><Shift>p"),
         ("shortcut_download", "<Control><Shift>d"),
-        ("shortcut_previous_output", "<Control><Shift>Up"),
-        ("shortcut_next_output", "<Control><Shift>Down"),
         ("shortcut_back", "Back <Alt>Left"),
         ("shortcut_forward", "Forward <Alt>Right"),
         ("shortcut_sidebar_position", "<Control>1...9 <Control>0"),

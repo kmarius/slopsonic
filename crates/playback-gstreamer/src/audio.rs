@@ -1,4 +1,3 @@
-use super::ensure_gstreamer_initialized;
 use audio_processing::effects::{EffectsBin, ProcessingConfig};
 use gstreamer as gst;
 #[cfg(test)]
@@ -7,15 +6,13 @@ use gstreamer_audio::gst_base::{BaseTransform, prelude::BaseTransformExt};
 use gstreamer_controller::{self as controller, prelude::*};
 use playback::TrackLoudness;
 use playback::{
-    AudioOutput, BackendAudioSettings, LoudnessNormalization,
+    BackendAudioSettings, LoudnessNormalization,
     LoudnessNormalizationScope, ProcessingRequest,
 };
-use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-const AUDIO_OUTPUT_DEVICE_PREFIX: &str = "gst-device:";
 pub(super) type SharedQueuedLoudness = Arc<Mutex<Option<TrackLoudness>>>;
 
 pub(super) struct AudioGraph {
@@ -414,18 +411,6 @@ impl AudioGraph {
             available.volume = available.volume.or_else(|| pending.volume.clone());
         }
         let effects = prepare_effects(settings, &available)?;
-        if self.audio_output != settings.audio_output
-            && !set_output_target(
-                &self.output,
-                settings
-                    .audio_output
-                    .as_deref()
-                    .and_then(audio_output_device_selector),
-            )
-        {
-            return Ok(false);
-        }
-        self.audio_output = settings.audio_output.clone();
         if state.pending.is_none()
             && (state.effects.stages() == effects.stages()
                 || self.root.current_state() < gst::State::Paused)
@@ -663,157 +648,10 @@ pub(super) fn configure_test_output(output: &gst::Element) {
     sink.set_sync(true);
 }
 
-pub fn available_audio_outputs() -> Vec<AudioOutput> {
-    if ensure_gstreamer_initialized().is_err() {
-        return Vec::new();
-    }
-    available_audio_output_devices()
-        .into_iter()
-        .map(|output| AudioOutput {
-            id: output.id,
-            name: output.name,
-        })
-        .collect()
-}
-
-fn audio_output_device_id(node_name: &str) -> String {
-    format!("{AUDIO_OUTPUT_DEVICE_PREFIX}{node_name}")
-}
-
-fn audio_output_device_selector(id: &str) -> Option<&str> {
-    id.strip_prefix(AUDIO_OUTPUT_DEVICE_PREFIX)
-        .filter(|target| !target.is_empty())
-}
-
-pub(super) fn audio_output_is_available(selected: &str) -> bool {
-    audio_output_device_selector(selected).is_none()
-        || available_audio_output_devices()
-            .into_iter()
-            .any(|output| output.id == selected)
-}
-
-struct AudioOutputDevice {
-    id: String,
-    name: String,
-    device: gst::Device,
-}
-
-fn available_audio_output_devices() -> Vec<AudioOutputDevice> {
-    #[cfg(target_os = "linux")]
-    {
-        let outputs = pulse_audio_output_devices();
-        if !outputs.is_empty() {
-            return outputs;
-        }
-    }
-
-    let monitor = gst::DeviceMonitor::new();
-    let _filter_id = monitor.add_filter(Some("Audio/Sink"), None);
-    if monitor.start().is_err() {
-        return Vec::new();
-    }
-    let outputs = collect_audio_output_devices(monitor.devices());
-    monitor.stop();
-    outputs
-}
-
-#[cfg(target_os = "linux")]
-fn pulse_audio_output_devices() -> Vec<AudioOutputDevice> {
-    let Some(provider) =
-        gst::DeviceProviderFactory::find("pulsedeviceprovider").and_then(|factory| factory.get())
-    else {
-        return Vec::new();
-    };
-    if provider.start().is_err() {
-        return Vec::new();
-    }
-    let outputs = collect_audio_output_devices(
-        provider
-            .devices()
-            .into_iter()
-            .filter(|device| device.device_class() == "Audio/Sink"),
-    );
-    provider.stop();
-    outputs
-}
-
-fn collect_audio_output_devices(
-    devices: impl IntoIterator<Item = gst::Device>,
-) -> Vec<AudioOutputDevice> {
-    let mut seen = HashSet::new();
-    let mut outputs = devices
-        .into_iter()
-        .filter_map(|device| {
-            let selector = audio_output_device_selector_for(&device)?;
-            let id = audio_output_device_id(&selector);
-            if !seen.insert(id.clone()) {
-                return None;
-            }
-            Some(AudioOutputDevice {
-                id,
-                name: device.display_name().to_string(),
-                device,
-            })
-        })
-        .collect::<Vec<_>>();
-    outputs.sort_by_key(|output| output.name.to_lowercase());
-    outputs
-}
-
-fn audio_output_device_selector_for(device: &gst::Device) -> Option<String> {
-    device
-        .properties()
-        .as_deref()
-        .and_then(audio_output_selector_from_properties)
-        .or_else(|| audio_output_selector_from_element(device))
-}
-
-fn audio_output_selector_from_properties(properties: &gst::StructureRef) -> Option<String> {
-    [
-        "node.name",
-        "unique-id",
-        "device.strid",
-        "device.id",
-        "device.guid",
-    ]
-    .into_iter()
-    .find_map(|name| properties.get::<String>(name).ok())
-    .filter(|selector| !selector.trim().is_empty())
-}
-
-fn audio_output_selector_from_element(device: &gst::Device) -> Option<String> {
-    let output = device.create_element(None).ok()?;
-    ["unique-id", "device", "target-object"]
-        .into_iter()
-        .find_map(|name| {
-            output
-                .find_property(name)
-                .filter(|property| property.value_type() == String::static_type())?;
-            output.property::<Option<String>>(name)
-        })
-        .filter(|selector| !selector.trim().is_empty())
-}
-
-pub(super) fn make_audio_output(selected: Option<&str>) -> Result<gst::Element, String> {
-    match selected {
+pub(super) fn make_audio_output(factory: Option<&str>) -> Result<gst::Element, String> {
+    match factory {
+        Some(factory) => make_element(factory, "rufin-audio-output"),
         None => make_element(default_audio_output_factory(), "rufin-audio-output"),
-        Some(selected) => {
-            if audio_output_device_selector(selected).is_some() {
-                let output = available_audio_output_devices()
-                    .into_iter()
-                    .find(|output| output.id == selected)
-                    .ok_or_else(|| selected_output_unavailable(selected))?;
-                return output
-                    .device
-                    .create_element(Some("rufin-audio-output"))
-                    .map_err(|_| selected_output_unavailable(selected));
-            }
-            if gst::ElementFactory::find(selected).is_none() {
-                return Err(selected_output_unavailable(selected));
-            }
-            make_element(selected, "rufin-audio-output")
-                .map_err(|_| selected_output_unavailable(selected))
-        }
     }
 }
 
@@ -825,31 +663,6 @@ fn default_audio_output_factory() -> &'static str {
 #[cfg(not(target_os = "macos"))]
 fn default_audio_output_factory() -> &'static str {
     "autoaudiosink"
-}
-
-fn selected_output_unavailable(selected: &str) -> String {
-    format!("Selected audio output is unavailable: {selected}")
-}
-
-fn set_output_target(output: &gst::Element, target: Option<&str>) -> bool {
-    let apply = |element: &gst::glib::Object| {
-        if element.find_property("device").is_some() {
-            element.set_property("device", target.unwrap_or("@DEFAULT_SINK@"));
-            true
-        } else if element.find_property("target-object").is_some() {
-            element.set_property("target-object", target);
-            true
-        } else {
-            false
-        }
-    };
-    if apply(output.upcast_ref()) {
-        return true;
-    }
-    output
-        .dynamic_cast_ref::<gst::ChildProxy>()
-        .and_then(|proxy| proxy.child_by_index(0))
-        .is_some_and(|child| apply(&child))
 }
 
 fn controlled_volume(
@@ -897,6 +710,7 @@ fn make_element(factory: &str, name: &str) -> Result<gst::Element, String> {
 mod tests {
     use library::LoudnessMeasurement;
 
+    use super::super::ensure_gstreamer_initialized;
     use super::*;
 
     fn initialize_gstreamer() {
@@ -1021,13 +835,6 @@ mod tests {
     }
 
     #[test]
-    fn explicit_unavailable_output_does_not_fall_back_to_default() {
-        initialize_gstreamer();
-        let result = make_audio_output(Some("rufin-output-that-does-not-exist"));
-        assert!(result.is_err_and(|error| error.contains("unavailable")));
-    }
-
-    #[test]
     fn no_output_preference_uses_the_system_default_sink() {
         initialize_gstreamer();
         let expected = default_audio_output_factory();
@@ -1039,68 +846,6 @@ mod tests {
         assert_eq!(
             output.factory().map(|factory| factory.name().to_string()),
             Some(expected.to_string())
-        );
-    }
-
-    #[test]
-    fn device_identity_uses_the_platform_provider_property() {
-        initialize_gstreamer();
-        let cases = [
-            ("node.name", "alsa_output.test"),
-            ("unique-id", "macos-output-id"),
-            ("device.strid", "windows-device-interface"),
-            ("device.id", "windows-endpoint-id"),
-            ("device.guid", "directsound-device-guid"),
-        ];
-
-        for (property, expected) in cases {
-            let properties = gst::Structure::builder("audio-device-properties")
-                .field(property, expected)
-                .build();
-            assert_eq!(
-                audio_output_selector_from_properties(&properties).as_deref(),
-                Some(expected)
-            );
-        }
-
-        let properties = gst::Structure::builder("audio-device-properties")
-            .field("node.name", "alsa_output.persisted")
-            .field("device.id", "different-fallback")
-            .build();
-        assert_eq!(
-            audio_output_selector_from_properties(&properties).as_deref(),
-            Some("alsa_output.persisted")
-        );
-    }
-
-    #[cfg(target_os = "linux")]
-    #[test]
-    fn device_change_retargets_the_selected_sink() {
-        initialize_gstreamer();
-        let settings = BackendAudioSettings {
-            audio_output: Some("pulsesink".to_string()),
-            ..BackendAudioSettings::default()
-        };
-        let mut graph = test_graph(&settings, empty_stream())
-            .expect("Pulse output graph");
-        let mut changed = settings;
-        changed.audio_output = Some(audio_output_device_id("alsa_output.selected"));
-
-        assert!(
-            graph
-                .reconfigure(&changed)
-                .expect("retarget output")
-        );
-        assert_eq!(
-            graph
-                .output
-                .factory()
-                .map(|factory| factory.name().to_string()),
-            Some("pulsesink".to_string())
-        );
-        assert_eq!(
-            graph.output.property::<Option<String>>("device").as_deref(),
-            Some("alsa_output.selected")
         );
     }
 

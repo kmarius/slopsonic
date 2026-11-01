@@ -1,4 +1,4 @@
-use super::audio::{SharedQueuedLoudness, audio_output_is_available, passthrough_allowed};
+use super::audio::{SharedQueuedLoudness, passthrough_allowed};
 use super::pipeline::{AboutToFinishAction, PlayerPipeline, SourceClock};
 use super::measurement::MeasurementAnalyzer;
 use super::*;
@@ -993,7 +993,7 @@ impl GstEngine {
                     Ok(())
                 }
             }
-            BackendCommand::ConfigureAudio(mut settings) => {
+            BackendCommand::ConfigureAudio(settings) => {
                 debug!(
                     fade_on_play_stop = settings.fade_on_status_change,
                     volume_gain = settings.output_gain(),
@@ -1002,28 +1002,11 @@ impl GstEngine {
                     "GStreamer audio configuration requested"
                 );
                 let previous_settings = self.settings();
-                if let Some(selected) = settings.audio_output.as_deref()
-                    && !audio_output_is_available(selected)
-                {
-                    settings.audio_output =
-                        if settings.audio_output != previous_settings.audio_output {
-                            previous_settings.audio_output.clone()
-                        } else {
-                            None
-                        };
-                }
-                let previous_output = previous_settings.audio_output.clone();
-                let output_changed = previous_output != settings.audio_output;
-                if output_changed {
-                    // A crossfade tail never moves to the new device.
-                    self.finish_overlap();
-                }
                 if self.desired_playing {
                     self.cancel_status_fade();
                 } else {
                     self.status_fade = None;
                 }
-                let mut ended_run = None;
                 let result = (|| -> Result<(), BackendFailure> {
                     if !self.desired_playing {
                         if self.active_pipeline().has_session() {
@@ -1035,45 +1018,10 @@ impl GstEngine {
                             self.push_state(BackendState::Paused);
                         }
                     }
-                    // A passed-through session's output is outside the audio graph.
-                    let retargeted = if output_changed
-                        && !audio_output_change_requires_restart()
-                        && !self.active_pipeline().is_bitstream()
-                    {
-                        self.active_pipeline_mut()
-                            .try_reconfigure_audio(&settings)?
-                    } else {
-                        false
-                    };
-                    let restart = if output_changed && !retargeted {
-                        let current = lock_recover(&self.shared).current.clone();
-                        current.map(|current| (current, self.restart_position_millis()))
-                    } else {
-                        None
-                    };
                     lock_recover(&self.shared).settings = settings.clone();
-                    if let Some((current, position_millis)) = restart {
-                        ended_run = self.cancel_handoff_for_replan();
-                        let target_state = if self.desired_playing {
-                            gst::State::Playing
-                        } else {
-                            gst::State::Paused
-                        };
-                        self.start_item_session_at_millis(
-                            current,
-                            position_millis,
-                            target_state,
-                            None,
-                        )?;
-                        self.push_logical_position(position_millis);
-                        if !self.desired_playing {
-                            self.push_state(BackendState::Paused);
-                        }
-                    } else {
-                        self.primary.configure_audio(&settings)?;
-                        self.secondary.configure_audio(&settings)?;
-                        self.end_passthrough_if_needed()?;
-                    }
+                    self.primary.configure_audio(&settings)?;
+                    self.secondary.configure_audio(&settings)?;
+                    self.end_passthrough_if_needed()?;
                     let (gain, muted) = self.output_gain_state();
                     self.apply_output_gain_to_pipelines(gain, muted);
                     push_event(
@@ -1081,17 +1029,12 @@ impl GstEngine {
                         BackendEvent::AudioApplied {
                             volume: settings.volume,
                             muted,
-                            output: settings.audio_output.clone(),
                         },
                     );
                     Ok(())
                 })();
                 if result.is_ok() {
-                    if let Some(ended_run) = ended_run {
-                        self.emit_ended_once(ended_run);
-                    } else {
-                        self.prepare_reserved_incoming();
-                    }
+                    self.prepare_reserved_incoming();
                 } else {
                     let _ = self.primary.configure_audio(&previous_settings);
                     let _ = self.secondary.configure_audio(&previous_settings);
@@ -1124,7 +1067,6 @@ impl GstEngine {
                     BackendEvent::AudioApplied {
                         volume,
                         muted,
-                        output: lock_recover(&self.shared).settings.audio_output.clone(),
                     },
                 );
                 self.end_passthrough_if_needed()
@@ -2976,15 +2918,6 @@ impl GstEngine {
     }
 }
 
-#[cfg(target_os = "linux")]
-fn audio_output_change_requires_restart() -> bool {
-    std::env::var_os("FLATPAK_ID").is_some()
-}
-
-#[cfg(not(target_os = "linux"))]
-fn audio_output_change_requires_restart() -> bool {
-    false
-}
 #[instrument(skip(events))]
 fn run_gstreamer_thread(
     events: Arc<Mutex<EventMailbox>>,
@@ -3520,138 +3453,6 @@ mod tests {
     }
 
     #[test]
-    fn device_change_restores_playback_from_a_physically_paused_output() {
-        ensure_gstreamer_initialized().expect("initialize GStreamer");
-        let directory = tempfile::tempdir().expect("playback fixture directory");
-        let path = directory.path().join("audio-device-change.wav");
-        write_long_silent_wave(&path);
-        let uri = gst::glib::filename_to_uri(&path, None).expect("playback fixture URI");
-        let events = Arc::new(Mutex::new(EventMailbox::default()));
-        let mut engine = GstEngine::new(Arc::clone(&events));
-        let current = PreparedRun {
-            run: RunId::new(1),
-            stream: ResolvedStream::new(uri.as_str()).into(),
-        };
-        let settings = BackendAudioSettings {
-            audio_output: Some("fakesink".to_string()),
-            ..BackendAudioSettings::default()
-        };
-        let pipeline_id = engine
-            .start_pipeline(
-                Slot::Primary,
-                &current,
-                &settings,
-                settings.volume,
-                settings.muted,
-                gst::State::Paused,
-                None,
-                None,
-            )
-            .expect("start paused output");
-        {
-            let mut shared = lock_recover(&engine.shared);
-            shared.settings = settings.clone();
-            shared.current = Some(current);
-            shared.set_pipeline_id(Slot::Primary, Some(pipeline_id));
-        }
-        engine.desired_playing = true;
-
-        let mut changed = settings;
-        changed.audio_output = Some("appsink".to_string());
-        engine.handle_command(BackendCommand::ConfigureAudio(changed));
-
-        let applied = lock_recover(&events).drain();
-        assert!(engine.desired_playing);
-        assert_eq!(
-            engine.primary.audio_output_factory().as_deref(),
-            Some("appsink")
-        );
-        engine.handle_state_changed(BackendState::Playing);
-
-        let resumed_events = lock_recover(&events).drain();
-        assert!(
-            resumed_events.iter().any(|event| matches!(
-                event,
-                BackendEvent::State {
-                    run,
-                    state: BackendState::Playing,
-                } if *run == RunId::new(1)
-            )),
-            "audio configuration events: {applied:?}; resume events: {resumed_events:?}"
-        );
-        engine.shutdown();
-    }
-
-    #[test]
-    fn unavailable_device_selection_keeps_the_working_output() {
-        ensure_gstreamer_initialized().expect("initialize GStreamer");
-        let directory = tempfile::tempdir().expect("playback fixture directory");
-        let path = directory.path().join("unavailable-audio-device.wav");
-        write_long_silent_wave(&path);
-        let uri = gst::glib::filename_to_uri(&path, None).expect("playback fixture URI");
-        let events = Arc::new(Mutex::new(EventMailbox::default()));
-        let mut engine = GstEngine::new(Arc::clone(&events));
-        let current = PreparedRun {
-            run: RunId::new(1),
-            stream: ResolvedStream::new(uri.as_str()).into(),
-        };
-        let settings = BackendAudioSettings {
-            audio_output: Some("fakesink".to_string()),
-            ..BackendAudioSettings::default()
-        };
-        let pipeline_id = engine
-            .start_pipeline(
-                Slot::Primary,
-                &current,
-                &settings,
-                settings.volume,
-                settings.muted,
-                gst::State::Paused,
-                None,
-                None,
-            )
-            .expect("start paused output");
-        {
-            let mut shared = lock_recover(&engine.shared);
-            shared.settings = settings.clone();
-            shared.current = Some(current);
-            shared.set_pipeline_id(Slot::Primary, Some(pipeline_id));
-        }
-        engine.desired_playing = true;
-
-        let mut changed = settings;
-        changed.audio_output = Some("gst-device:unavailable".to_string());
-        engine.handle_command(BackendCommand::ConfigureAudio(changed));
-
-        assert!(engine.desired_playing);
-        assert_eq!(
-            lock_recover(&engine.shared)
-                .settings
-                .audio_output
-                .as_deref(),
-            Some("fakesink")
-        );
-        assert_eq!(
-            engine.primary.audio_output_factory().as_deref(),
-            Some("fakesink")
-        );
-        let applied = lock_recover(&events).drain();
-        assert!(applied.iter().any(|event| matches!(
-            event,
-            BackendEvent::AudioApplied {
-                output: Some(output),
-                ..
-            } if output == "fakesink"
-        )));
-        assert!(
-            applied
-                .iter()
-                .all(|event| !matches!(event, BackendEvent::Error { .. }))
-        );
-        engine.shutdown();
-    }
-
-    #[test]
     fn unconfirmed_gapless_activation_keeps_the_old_run_until_playing() {
         for result in [
             gst::StateChangeSuccess::Async,
@@ -3917,13 +3718,11 @@ mod tests {
         assert_eq!(preserved_fade.target, StatusFadeTarget::Pause);
 
         lock_recover(&events).drain();
-        let mut unavailable_settings = settings.clone();
-        unavailable_settings.audio_output = Some("rufin-test-missing-output".to_string());
-        engine.handle_command(BackendCommand::ConfigureAudio(unavailable_settings));
+        engine.handle_command(BackendCommand::ConfigureAudio(settings.clone()));
         assert!(!engine.desired_playing);
         assert!(engine.status_fade.is_none());
         let failed_events = lock_recover(&events).drain();
-        let paused = failed_events
+        failed_events
             .iter()
             .position(|event| {
                 matches!(
@@ -3935,11 +3734,11 @@ mod tests {
                 )
             })
             .expect("paused acknowledgement before reconfiguration");
-        let error = failed_events
-            .iter()
-            .position(|event| matches!(event, BackendEvent::OperationFailed { run: Some(run), .. } if *run == new_run))
-            .expect("audio reconfiguration error");
-        assert!(paused < error);
+        assert!(
+            failed_events
+                .iter()
+                .all(|event| !matches!(event, BackendEvent::OperationFailed { .. }))
+        );
 
         let mut configured_settings = settings;
         configured_settings.fade_on_status_change = false;

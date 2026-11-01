@@ -20,7 +20,6 @@ mod pipeline;
 #[cfg(unix)]
 mod process;
 
-pub use audio::available_audio_outputs;
 pub use engine::GStreamerPlaybackBackend;
 #[cfg(unix)]
 pub use process::restart_with_http1;

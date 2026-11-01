@@ -187,7 +187,6 @@ impl PlayerUi {
     }
 }
 
-pub mod outputs;
 
 pub type QueueMenu = Rc<
     dyn Fn(

@@ -244,12 +244,6 @@
             <property name="action-name">win.volume-down</property>
           </object>
         </child>
-        <child>
-          <object class="AdwShortcutsItem" id="shortcut_previous_output"><property name="title" translatable="yes">Previous audio device</property></object>
-        </child>
-        <child>
-          <object class="AdwShortcutsItem" id="shortcut_next_output"><property name="title" translatable="yes">Next audio device</property></object>
-        </child>
       </object>
     </child>
 

@@ -39,7 +39,6 @@ fn main() -> ExitCode {
                     .map(|backend| Box::new(backend) as Box<dyn playback::PlaybackBackend>)
                     .map_err(|error| error.to_string())
             },
-            playback_gstreamer::available_audio_outputs,
         )
         .await
     };

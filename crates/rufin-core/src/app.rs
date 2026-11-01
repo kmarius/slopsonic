@@ -39,7 +39,6 @@ pub async fn runtime_inputs<StartBackend>(
     settings: SettingsFile,
     paths: Paths,
     start_backend: StartBackend,
-    audio_outputs: fn() -> Vec<playback::AudioOutput>,
 ) -> Result<RuntimeInputs, String>
 where
     StartBackend: Fn(
@@ -179,7 +178,6 @@ where
         library.clone(),
         settings.clone(),
         runtime.clone(),
-        audio_outputs,
         Arc::clone(&scrobbler),
         start_backend,
     );

@@ -103,7 +103,6 @@ pub(in crate::playback) async fn seeded(
         Arc::new(database.clone()),
         settings,
         runtime,
-        Vec::new,
         scrobbler,
         move |_| Ok(Box::new(IdleBackend(backend_commands.clone()))),
     );
@@ -603,7 +602,6 @@ async fn volume_commit_persists_the_requested_value_after_older_backend_feedback
         BackendEvent::AudioApplied {
             volume: 0.6,
             muted: false,
-            output: None,
         },
         &sample,
     );

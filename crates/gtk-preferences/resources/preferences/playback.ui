@@ -55,7 +55,4 @@
       </object>
     </child>
   </object>
-  <object class="AdwActionRow" id="output_row">
-    <property name="title" translatable="yes">Audio output</property>
-  </object>
 </interface>

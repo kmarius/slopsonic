@@ -895,22 +895,6 @@ impl PlayerPipeline {
         });
     }
 
-    pub(super) fn try_reconfigure_audio(
-        &mut self,
-        settings: &BackendAudioSettings,
-    ) -> Result<bool, BackendFailure> {
-        let changed = self.audio_graph.as_mut().map_or(Ok(false), |graph| {
-            graph.reconfigure(settings)
-        })?;
-        if changed {
-            let request = lock_recover(&self.shared).processing.clone();
-            if let Some(request) = request {
-                self.configure_processing(&request)?;
-            }
-        }
-        Ok(changed)
-    }
-
     pub(super) fn set_stream(&mut self, stream: &PreparedStream) -> Result<(), BackendFailure> {
         *self
             .queued_loudness

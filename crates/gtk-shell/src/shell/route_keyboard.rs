@@ -9,7 +9,6 @@ use gtk::glib;
 use gtk_media_menus::media_menus::{
     download_playlist_entry_selection, download_track_selection, remove_playlist_entry_selection,
 };
-use gtk_player::outputs::{select_next_audio_output, select_previous_audio_output};
 use gtk_widgets::selection::TrackSelectionSnapshot;
 use rufin_core::playback::{QueuePlacement, QueueSelection};
 use std::rc::Rc;
@@ -91,22 +90,6 @@ impl Shell {
                     && let Some(direction) = page_navigation_direction(key)
                 {
                     return shell.navigate_current_route_items(direction);
-                }
-            }
-            if key_has_audio_output_modifiers(state)
-                && shell.playback_keyboard_available()
-                && !focus_blocks_playback_shortcut(current_focus.as_ref())
-            {
-                match key {
-                    gtk::gdk::Key::Up => {
-                        select_previous_audio_output(&shell.player_ui);
-                        return glib::Propagation::Stop;
-                    }
-                    gtk::gdk::Key::Down => {
-                        select_next_audio_output(&shell.player_ui);
-                        return glib::Propagation::Stop;
-                    }
-                    _ => {}
                 }
             }
             let Some(search) = shell.current_route_search() else {
@@ -260,19 +243,6 @@ fn key_has_no_shortcut_modifiers(state: gtk::gdk::ModifierType) -> bool {
     )
 }
 
-fn key_has_audio_output_modifiers(state: gtk::gdk::ModifierType) -> bool {
-    #[cfg(target_os = "macos")]
-    let expected = gtk::gdk::ModifierType::ALT_MASK | gtk::gdk::ModifierType::META_MASK;
-    #[cfg(not(target_os = "macos"))]
-    let expected = gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK;
-    let shortcut_modifiers = gtk::gdk::ModifierType::SHIFT_MASK
-        | gtk::gdk::ModifierType::ALT_MASK
-        | gtk::gdk::ModifierType::CONTROL_MASK
-        | gtk::gdk::ModifierType::SUPER_MASK
-        | gtk::gdk::ModifierType::HYPER_MASK
-        | gtk::gdk::ModifierType::META_MASK;
-    state & shortcut_modifiers == expected
-}
 
 fn selection_shortcut(
     key: gtk::gdk::Key,

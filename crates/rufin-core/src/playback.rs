@@ -44,7 +44,6 @@ pub struct PlaybackOwner {
     runtime: tokio::runtime::Handle,
     pub updates: playback::PlaybackUpdates,
     loudness: Arc<LoudnessAnalysisOwner>,
-    audio_outputs: fn() -> Vec<playback::AudioOutput>,
     scrobbler: Arc<Scrobbler>,
     source: Mutex<std::sync::Weak<SourceOwner>>,
     active: Mutex<Option<Playback>>,
@@ -68,7 +67,6 @@ enum PlaybackStoreWork {
     Output {
         volume: f64,
         muted: bool,
-        audio_output: Option<String>,
     },
     Settings,
     Equalizer {
@@ -122,7 +120,6 @@ impl PlaybackOwner {
         database: Arc<Database>,
         settings: SettingsFile,
         runtime: tokio::runtime::Handle,
-        audio_outputs: fn() -> Vec<playback::AudioOutput>,
         scrobbler: Arc<Scrobbler>,
         start_backend: StartBackend,
     ) -> Arc<Self>
@@ -135,10 +132,7 @@ impl PlaybackOwner {
             + 'static,
     {
         let stored = settings.load();
-        let eq = equalizer::EqualizerState::new(
-            stored.equalizer,
-            stored.ui.playback.audio_output.as_deref(),
-        );
+        let eq = equalizer::EqualizerState::new(stored.equalizer);
         let (store_sender, store_receiver) = async_channel::unbounded();
         let (report_sender, report_receiver) = async_channel::unbounded();
         let owner = Arc::new(Self {
@@ -147,7 +141,6 @@ impl PlaybackOwner {
             runtime: runtime.clone(),
             updates: playback::PlaybackUpdates::default(),
             loudness: LoudnessAnalysisOwner::new(runtime),
-            audio_outputs,
             scrobbler,
             source: Mutex::new(std::sync::Weak::new()),
             active: Mutex::new(None),
@@ -272,11 +265,10 @@ impl PlaybackOwner {
         enqueue_queue_save(&self.pending_queue, &self.store_sender, state);
     }
 
-    fn persist_output(&self, volume: f64, muted: bool, audio_output: Option<String>) {
+    fn persist_output(&self, volume: f64, muted: bool) {
         let _ = self.store_sender.try_send(PlaybackStoreWork::Output {
             volume,
             muted,
-            audio_output,
         });
     }
 
@@ -306,12 +298,10 @@ impl PlaybackOwner {
             PlaybackStoreWork::Output {
                 volume,
                 muted,
-                audio_output,
             } => {
                 let _ = self.settings.update(|stored| {
                     stored.ui.playback.volume = volume;
                     stored.ui.playback.muted = muted;
-                    stored.ui.playback.audio_output = audio_output;
                     Ok(())
                 });
             }
@@ -456,7 +446,6 @@ impl PlaybackOwner {
     }
 
     pub(crate) fn playback_settings_changed(&self, settings: playback::PlaybackSettings) {
-        self.equalizer_output_changed(settings.audio_output.as_deref());
         self.loudness.settings_changed(
             settings.loudness_normalization,
             settings.loudness_normalization_scope,
@@ -778,9 +767,6 @@ impl PlaybackOwner {
         })
     }
 
-    pub fn available_audio_outputs(&self) -> Vec<playback::AudioOutput> {
-        (self.audio_outputs)()
-    }
     pub fn shutdown(&self) {
         if let Some(active) = self.active() {
             let _ = active.shutdown();

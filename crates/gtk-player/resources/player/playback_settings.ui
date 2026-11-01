@@ -25,11 +25,6 @@
             <property name="width-request">400</property>
             <child>
               <object class="AdwPreferencesGroup" id="settings_group">
-                <child>
-                  <object class="AdwActionRow" id="audio_output">
-                    <property name="title" translatable="yes">Audio output</property>
-                  </object>
-                </child>
               </object>
             </child>
           </object>

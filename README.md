@@ -11,7 +11,6 @@ Rufin is a powerful, fast and easy to use native music player for Navidrome.
 - Random play with filters for track count, year range, genre and played/unplayed status
 - Fullscreen player
 - Broad codec support [^codecs]
-- Audio output device selection
 
 ## 📚 Library
 

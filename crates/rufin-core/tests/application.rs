@@ -35,7 +35,6 @@ fn application_starts_on_a_worker_and_reopens_saved_settings_without_a_ui() {
             app::startup_settings(&paths),
             paths.clone(),
             |_| Ok(Box::new(IdleBackend) as Box<dyn PlaybackBackend>),
-            Vec::new,
         ));
         assert!(opened.is_err());
         assert_eq!(
@@ -68,7 +67,6 @@ fn application_starts_on_a_worker_and_reopens_saved_settings_without_a_ui() {
                     app::startup_settings(&paths),
                     paths.clone(),
                     |_| Ok(Box::new(IdleBackend) as Box<dyn PlaybackBackend>),
-                    Vec::new,
                 )))
                 .unwrap()
                 .unwrap();

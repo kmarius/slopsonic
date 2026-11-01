@@ -180,7 +180,6 @@ struct ResponseJob {
 
 struct Editor {
     root: glib::WeakRef<gtk::Box>,
-    player: std::rc::Weak<crate::PlayerUi>,
     owner: Arc<PlaybackOwner>,
     runtime: tokio::runtime::Handle,
     feedback: Rc<gtk_widgets::feedback::ControlFeedbackState>,
@@ -203,7 +202,6 @@ struct Editor {
     custom_title: String,
     preset_names: gtk::StringList,
     preset_items: RefCell<Vec<EqPresetSummary>>,
-    output_selector: gtk::DropDown,
     graphic: gtk::Box,
     parametric: gtk::Box,
     mode: gtk::ToggleButton,
@@ -277,7 +275,7 @@ impl EqualizerSurface {
             rename: gtk::Button, delete: gtk::Button, duplicate: gtk::Button,
             import: gtk::Button, export: gtk::Button,
             custom_title: gtk::Label, preset_names: gtk::StringList,
-            output_host: gtk::Box, graphic: gtk::Box, parametric: gtk::Box,
+            graphic: gtk::Box, parametric: gtk::Box,
             mode: gtk::ToggleButton, mode_titles: gtk::StringList,
             bands: gtk::Box, filters: gtk::Box, graphic_plot: EqualizerPlot,
             parametric_plot: EqualizerPlot, response: gtk::CheckButton,
@@ -293,14 +291,9 @@ impl EqualizerSurface {
             reset: gtk::Button,
             error: gtk::Label,
         });
-        let output_selector = crate::outputs::audio_output_dropdown(player, 1);
-        output_selector.set_halign(gtk::Align::Fill);
-        output_selector.set_hexpand(true);
-        output_host.append(&output_selector);
         let view = player.playback_owner.equalizer_view(String::new());
         let editor = Rc::new(Editor {
             root: root.downgrade(),
-            player: Rc::downgrade(player),
             owner: player.playback_owner.clone(),
             runtime: player.runtime.clone(),
             feedback: player.control_feedback.clone(),
@@ -323,7 +316,6 @@ impl EqualizerSurface {
             custom_title: custom_title.text().to_string(),
             preset_names,
             preset_items: RefCell::new(Vec::new()),
-            output_selector,
             graphic,
             parametric,
             mode,
@@ -1153,25 +1145,6 @@ impl Editor {
         self.error.set_visible(view.error.is_some());
         self.error
             .set_text(view.error.as_deref().unwrap_or_default());
-        if output_changed || first {
-            if let Some(player) = self.player.upgrade() {
-                let selected = player
-                    .settings
-                    .current
-                    .borrow()
-                    .playback
-                    .audio_output
-                    .clone();
-                let index = player
-                    .controls
-                    .audio_output_options
-                    .borrow()
-                    .iter()
-                    .position(|(id, _)| *id == selected);
-                self.output_selector
-                    .set_selected(index.map_or(gtk::INVALID_LIST_POSITION, |index| index as u32));
-            }
-        }
         self.add.set_sensitive(view.profile.bands.len() < 64);
         self.spectrum_unit.set_visible(self.spectrum.is_active());
         for (widgets, band) in self.widgets.borrow().iter().zip(&view.profile.bands) {

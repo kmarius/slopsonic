@@ -105,7 +105,6 @@ pub struct ControlsView {
     pub auto_dj_enabled: bool,
     pub volume: f64,
     pub muted: bool,
-    pub audio_output: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -419,10 +419,6 @@ impl Player {
         self.last_error.as_deref()
     }
 
-    pub(super) fn settings(&self) -> &PlaybackSettings {
-        &self.settings
-    }
-
     pub(super) fn auto_dj_enabled(&self) -> bool {
         self.auto_dj_enabled
     }
@@ -614,11 +610,8 @@ impl Player {
             Command::SetMuted(muted) => Ok(self.set_muted(muted)),
             Command::PersistVolume(volume) => {
                 self.set_volume(volume);
-                self.owner().persist_output(
-                    self.settings.volume,
-                    self.settings.muted,
-                    self.settings.audio_output.clone(),
-                );
+                self.owner()
+                    .persist_output(self.settings.volume, self.settings.muted);
                 Ok(())
             }
             Command::SetRepeat(repeat) => Ok(self.set_repeat(repeat)),
@@ -833,15 +826,8 @@ impl Player {
             } => {
                 self.owner().equalizer_meter(output, peak_db, spectrum_db);
             }
-            BackendEvent::AudioApplied {
-                volume,
-                muted,
-                output,
-            } => {
-                let audio_output_changed = self.settings.audio_output != output;
-                let unchanged = self.output_volume == volume
-                    && self.output_muted == muted
-                    && !audio_output_changed;
+            BackendEvent::AudioApplied { volume, muted } => {
+                let unchanged = self.output_volume == volume && self.output_muted == muted;
                 if unchanged {
                     return;
                 }
@@ -849,10 +835,6 @@ impl Player {
                 self.output_muted = muted;
                 self.settings.volume = volume;
                 self.settings.muted = muted;
-                self.settings.audio_output = output.clone();
-                if audio_output_changed {
-                    self.owner().persist_output(volume, muted, output);
-                }
                 self.dirty = true;
             }
             BackendEvent::Error { run, error } => {
@@ -1595,11 +1577,7 @@ impl Player {
             volume_scale: self.settings.volume_scale,
             muted,
         });
-        self.owner().persist_output(
-            self.settings.volume,
-            muted,
-            self.settings.audio_output.clone(),
-        );
+        self.owner().persist_output(self.settings.volume, muted);
 
         self.dirty = true;
     }
@@ -1654,7 +1632,6 @@ impl Player {
             != self.settings.loudness_normalization
             || settings.loudness_normalization_scope != self.settings.loudness_normalization_scope
             || settings.ebu_r128_target_lufs != self.settings.ebu_r128_target_lufs
-            || settings.audio_output != self.settings.audio_output
             || settings.audio_fade_on_status_change != self.settings.audio_fade_on_status_change;
         self.settings = settings.clone();
         self.dirty = true;
@@ -2275,7 +2252,6 @@ fn decided_transition(
 impl Player {
     pub(super) fn view(&self) -> PlaybackView {
         let sequence = self.sequence();
-        let settings = self.settings();
         let summary = playback::QueueSummaryView {
             revision: sequence.revision(),
             total: sequence.total(),
@@ -2326,7 +2302,6 @@ impl Player {
                     self.output_volume()
                 },
                 muted: self.output_muted(),
-                audio_output: settings.audio_output.clone(),
             },
         }
     }

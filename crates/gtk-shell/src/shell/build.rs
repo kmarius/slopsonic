@@ -1,4 +1,3 @@
-use gtk_player::outputs::{default_audio_output_options, warm_audio_output_cache};
 use gtk_player::right_panel::build_right_panel;
 use gtk_player::right_panel::apply_sidebar_queue_visibility;
 use gtk_player::{
@@ -167,9 +166,6 @@ pub async fn build(
         updating_controls: Cell::new(false),
         seek_pointer_active: Cell::new(false),
         volume_persist_source: RefCell::new(None),
-        audio_output_options: RefCell::new(default_audio_output_options()),
-        audio_output_refresh_running: Default::default(),
-        audio_output_refreshed_at: Cell::new(None),
     };
     let preferences = PreferencesState {
         source_choice: RefCell::new(None),
@@ -488,7 +484,6 @@ pub async fn build(
     connect_transient_entry_focus_dismissal(&shell);
     connect_fullscreen_player_controls(&shell.player_ui);
     connect_player_controls(&shell);
-    warm_audio_output_cache(&shell.player_ui);
     shell.update_layout();
     if defer_initial_route {
         shell.render_startup_loading_view();

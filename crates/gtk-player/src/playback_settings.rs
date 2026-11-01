@@ -26,12 +26,7 @@ fn playback_settings_popover(shell: &Rc<PlayerUi>) -> gtk::Popover {
         popover: gtk::Popover,
         settings_group: adw::PreferencesGroup,
         queue: adw::SwitchRow,
-        audio_output: adw::ActionRow,
     });
-    let device = crate::outputs::audio_output_dropdown(shell, 180);
-    gtk_widgets::interactions::keep_parent_grab_for_dropdown(&device);
-    audio_output.add_suffix(&device);
-    audio_output.set_activatable_widget(Some(&device));
     let (transition_row, crossfade_options) =
         transition_rows(shell, &playback, PLAYBACK_SETTINGS_SCALE_WIDTH);
     settings_group.add(&transition_row);

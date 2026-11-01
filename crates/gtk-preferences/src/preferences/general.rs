@@ -3,7 +3,6 @@ pub const NORMALIZATION_TITLE: &str = "Loudness normalization";
 pub const VOLUME_SCALE_TITLE: &str = "Volume scale";
 pub const STREAM_QUALITY_TITLE: &str = "Stream quality";
 use gtk_player::equalizer::EqualizerSurface;
-use gtk_player::outputs::audio_output_dropdown;
 use gtk_player::playback_settings::{transition_rows, volume_scale_from_index, volume_scale_index};
 use gtk_widgets::forms::{controlled_selection_row, quality_selection_row, selection_row};
 use gtk_widgets::scale::{install_scale_scroll_forwarding, install_sliding_value_bubble};
@@ -490,7 +489,6 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
         audio_group: adw::PreferencesGroup,
         ebu_target_row: adw::ActionRow,
         ebu_target: gtk::Scale,
-        output_row: adw::ActionRow,
     });
 
     let (transition_row, crossfade_options) = transition_rows(&shell.player_ui, &settings, 220);
@@ -711,11 +709,6 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
         },
     );
     audio_group.add(&quality_row);
-
-    let output_dropdown = audio_output_dropdown(&shell.player_ui, 220);
-    output_row.add_suffix(&output_dropdown);
-    output_row.set_activatable_widget(Some(&output_dropdown));
-    audio_group.add(&output_row);
 
     page
 }

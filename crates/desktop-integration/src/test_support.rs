@@ -101,7 +101,6 @@ pub(crate) fn test_view(
             auto_dj_enabled: false,
             volume: 1.0,
             muted: false,
-            audio_output: None,
         },
     }
 }

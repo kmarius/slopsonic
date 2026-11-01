@@ -171,7 +171,7 @@ impl From<PlaybackSettings> for BackendAudioSettings {
             loudness_normalization: settings.loudness_normalization,
             loudness_normalization_scope: settings.loudness_normalization_scope,
             ebu_r128_target_lufs: settings.ebu_r128_target_lufs,
-            audio_output: settings.audio_output,
+            audio_output: None,
             volume: settings.volume,
             volume_scale: settings.volume_scale,
             muted: settings.muted,
@@ -327,7 +327,6 @@ pub enum BackendEvent {
     AudioApplied {
         volume: f64,
         muted: bool,
-        output: Option<String>,
     },
     /// The backend can no longer play this run.
     Error {
@@ -346,12 +345,6 @@ pub enum BackendEvent {
         error: BackendFailure,
     },
 }
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AudioOutput {
-    pub id: String,
-    pub name: String,
-}
-
 #[derive(Debug, Error)]
 pub enum BackendError {
     #[error("playback backend failed: {0}")]

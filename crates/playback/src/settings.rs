@@ -102,8 +102,6 @@ macro_rules! playback_preference_fields {
                 skip_unplayable_tracks: bool = true => set_skip_unplayable_tracks;
                 #[serde(default)]
                 stream_quality: StreamQuality = StreamQuality::Original => set_stream_quality;
-                #[serde(default, skip_serializing_if = "Option::is_none")]
-                audio_output: Option<String> = None;
                 #[serde(default)]
                 muted: bool = false;
             }
@@ -197,22 +195,6 @@ impl PlaybackSettings {
             .clamp(MIN_CROSSFADE_SECONDS, MAX_CROSSFADE_SECONDS);
         self.ebu_r128_target_lufs = sanitize_ebu_r128_target(self.ebu_r128_target_lufs);
         self.volume = sanitize_volume(self.volume);
-        if self.audio_output.as_deref().is_some_and(|output| {
-            output.trim().is_empty()
-                || matches!(
-                    output,
-                    "autoaudiosink"
-                        | "pipewiresink"
-                        | "pulsesink"
-                        | "alsasink"
-                        | "jackaudiosink"
-                        | "osxaudiosink"
-                        | "wasapisink"
-                        | "directsoundsink"
-                )
-        }) {
-            self.audio_output = None;
-        }
     }
 }
 
@@ -307,29 +289,6 @@ mod tests {
         settings.crossfade_seconds = MAX_CROSSFADE_SECONDS + 1;
         settings.sanitize();
         assert_eq!(settings.crossfade_seconds, MAX_CROSSFADE_SECONDS);
-    }
-
-    #[test]
-    fn playback_settings_migrate_backend_factories_to_system_default() {
-        for output in [
-            "autoaudiosink",
-            "pipewiresink",
-            "pulsesink",
-            "alsasink",
-            "jackaudiosink",
-            "osxaudiosink",
-            "wasapisink",
-            "directsoundsink",
-        ] {
-            let mut settings = PlaybackSettings {
-                audio_output: Some(output.to_string()),
-                ..PlaybackSettings::default()
-            };
-
-            settings.sanitize();
-
-            assert_eq!(settings.audio_output, None, "legacy output {output}");
-        }
     }
 
     #[test]

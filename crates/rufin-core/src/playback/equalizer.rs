@@ -197,7 +197,6 @@ struct Observer {
 pub(super) struct EqualizerState {
     pub preferences: EqualizerPreferences,
     current_output: String,
-    local_device: Option<String>,
     observed_route: Option<String>,
     processing: BTreeMap<String, watch::Sender<ProcessingRequest>>,
     observers: Vec<Observer>,
@@ -206,11 +205,10 @@ pub(super) struct EqualizerState {
     write_error: Option<String>,
 }
 impl EqualizerState {
-    pub fn new(preferences: EqualizerPreferences, local: Option<&str>) -> Self {
+    pub fn new(preferences: EqualizerPreferences) -> Self {
         Self {
             preferences,
-            current_output: local_id(local),
-            local_device: local.map(str::to_string),
+            current_output: local_id(None),
             observed_route: None,
             processing: BTreeMap::new(),
             observers: Vec::new(),
@@ -234,7 +232,7 @@ impl EqualizerState {
             .fold((false, false), |(m, s), o| (m || o.meter, s || o.spectrum));
         ProcessingRequest {
             output: output.into(),
-            local_device: self.local_device.clone(),
+            local_device: None,
             config: self.preferences.config(output),
             meter,
             spectrum,
@@ -258,7 +256,6 @@ impl EqualizerState {
                 sender.send_if_modified(|current| {
                     if current.config.same_processing(&request.config)
                         && current.output == request.output
-                        && current.local_device == request.local_device
                         && current.meter == request.meter
                         && current.spectrum == request.spectrum
                     {
@@ -604,12 +601,7 @@ impl PlaybackOwner {
             return;
         }
         state.observed_route = route;
-        let output = local_id(
-            state
-                .local_device
-                .as_deref()
-                .or(state.observed_route.as_deref()),
-        );
+        let output = local_id(state.observed_route.as_deref());
         state.current_output = output.clone();
         state.submit(&output, false);
         state.publish(&self.settings);
@@ -1051,30 +1043,12 @@ impl PlaybackOwner {
         await_write(done).await
     }
     pub(super) fn processing_receiver(&self) -> watch::Receiver<ProcessingRequest> {
-        let device = self.settings.load().ui.playback.audio_output;
         let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-        state.local_device = device;
-        let id = local_id(
-            state
-                .local_device
-                .as_deref()
-                .or(state.observed_route.as_deref()),
-        );
+        let id = local_id(state.observed_route.as_deref());
         let (tx, rx) = watch::channel(state.request(&id));
         state.processing.retain(|_, tx| !tx.is_closed());
         state.processing.insert(backend_key(&id), tx);
         rx
-    }
-    pub(super) fn equalizer_output_changed(&self, local: Option<&str>) {
-        let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-        let id = local_id(local.or(state.observed_route.as_deref()));
-        let changed = state.current_output != id || state.local_device.as_deref() != local;
-        state.local_device = local.map(str::to_string);
-        state.current_output = id.clone();
-        if changed {
-            state.submit(&id, false);
-        }
-        state.publish(&self.settings);
     }
     pub(super) fn equalizer_applied(
         &self,
