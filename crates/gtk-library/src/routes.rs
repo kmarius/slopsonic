@@ -7,7 +7,6 @@ use tracing::warn;
 
 use crate::CatalogUi;
 use crate::{LibraryLayout, LibraryListKey, LibraryListSettings};
-use gtk_widgets::localization::bind_search_placeholder;
 use gtk_widgets::mounted_route::{LatestMountedRouteRead, MountedRoute};
 
 use super::album_detail::AlbumCollectionModels;
@@ -361,7 +360,7 @@ impl CatalogUi {
 
         let search = gtk::SearchEntry::new();
         gtk_widgets::controls::configure_search_entry(&search);
-        bind_search_placeholder(&search, "Search");
+        search.set_placeholder_text(Some("Search"));
         let content = album_collection_projection(self, models.clone(), key);
         let mut page = self.library_page_shell(LibraryPageShellOptions {
             key,
@@ -717,7 +716,7 @@ impl CatalogUi {
             gtk_widgets::controls::configure_search_entry(&search);
             search
         });
-        bind_search_placeholder(&search, "Search");
+        search.set_placeholder_text(Some("Search"));
         search.set_hexpand(true);
         if !persistent_search {
             let model = model.clone();

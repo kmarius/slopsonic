@@ -1,4 +1,3 @@
-use crate::localization::{bind_widget_accessible_label, bind_widget_tooltip};
 use adw::prelude::*;
 
 pub const PLAY_ICON: &str = "rufin-media-playback-start-symbolic";
@@ -57,13 +56,13 @@ pub fn set_active_class(widget: &impl IsA<gtk::Widget>, active: bool) {
 }
 pub fn icon_button(icon_name: &str, label: &str) -> gtk::Button {
     let button = base_icon_button(icon_name);
-    bind_widget_tooltip(&button, label);
+    button.set_tooltip_text(Some(label));
     button
 }
 
 pub fn icon_button_without_tooltip(icon_name: &str, label: &str) -> gtk::Button {
     let button = base_icon_button(icon_name);
-    bind_widget_accessible_label(&button, label);
+    button.update_property(&[gtk::accessible::Property::Label(label)]);
     button
 }
 

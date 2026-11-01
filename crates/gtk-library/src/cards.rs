@@ -14,7 +14,6 @@ use rufin_core::playback::QueuePlacement;
 use std::rc::Rc;
 
 use gtk_widgets::library_fields::{COLLECTION_GRID_CARD_MARGIN, COLLECTION_GRID_MIN_CARD_WIDTH};
-use gtk_widgets::localization::{bind_widget_accessible_label, bind_widget_tooltip};
 use gtk_widgets::route::Route;
 
 pub struct AlbumCover {
@@ -247,10 +246,10 @@ impl CollectionGridCoverView {
                 ActionButtonVariant::CoverSideTransport,
             ),
         ] {
-            bind_widget_tooltip(button, label);
+            button.set_tooltip_text(Some(label));
             configure_action_button(button, variant);
         }
-        bind_widget_accessible_label(&*imp.menu, "More actions");
+        (*imp.menu).update_property(&[gtk::accessible::Property::Label("More actions")]);
         configure_action_button(&imp.menu, ActionButtonVariant::CoverCornerMenu);
         let favorite = with_favorite.then(|| {
             let favorite = favorite_icon_button("Favorite");

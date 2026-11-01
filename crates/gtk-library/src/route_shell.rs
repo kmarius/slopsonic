@@ -20,9 +20,6 @@ use gtk_widgets::layout::{
     configure_fill_width_clip, large_popup_content_height, large_popup_content_width,
     width_allocation_owner,
 };
-use gtk_widgets::localization::{
-    bind_drop_down_options_with, bind_widget_tooltip, bind_widget_tooltip_with,
-};
 use gtk_widgets::mounted_route::{MountedRoute, MountedRouteCommand, MountedRouteResume};
 use gtk_widgets::popup::present_light_dismiss_dialog;
 
@@ -330,25 +327,18 @@ impl CatalogUi {
         let sort_dropdown = toolbar.imp().sort_dropdown.get();
         sort_dropdown.set_model(Some(&sort_options));
         let preferred_sort_width = Rc::new(Cell::new(LIBRARY_TOOLBAR_SORT_MIN_WIDTH));
-        let preferred_sort_width_for_locale = Rc::clone(&preferred_sort_width);
-        let locale_toolbar_state = Rc::clone(&toolbar_state);
-        bind_drop_down_options_with(
-            &sort_dropdown,
-            move || {
-                let state = locale_toolbar_state.borrow();
-                state
-                    .sort_fields
-                    .iter()
-                    .map(|field| library_sort_title(state.key, *field))
-                    .collect()
-            },
-            move |labels| {
-                let width =
-                    library_toolbar_sort_width_for_labels(labels.iter().map(String::as_str));
-                preferred_sort_width_for_locale.set(width);
-                width
-            },
-        );
+        let sort_titles = {
+            let state = toolbar_state.borrow();
+            state
+                .sort_fields
+                .iter()
+                .map(|field| library_sort_title(state.key, *field))
+                .collect::<Vec<_>>()
+        };
+        sort_options.splice(0, sort_options.n_items(), &sort_titles);
+        let sort_width = library_toolbar_sort_width_for_labels(sort_titles.iter().copied());
+        preferred_sort_width.set(sort_width);
+        sort_dropdown.set_width_request(sort_width);
         configure_sort_dropdown_factory(&sort_dropdown);
         sort_dropdown.set_sensitive(sort_fields.len() > 1);
         sort_dropdown.set_hexpand(!has_search);
@@ -410,13 +400,10 @@ impl CatalogUi {
         layout.set_icon_name(layout_icon(current_layout));
         configure_library_toolbar_icon_button(&layout, "Layout");
         let layout_mode = Rc::new(Cell::new(current_layout));
-        let layout_mode_for_locale = Rc::clone(&layout_mode);
-        bind_widget_tooltip_with(&layout, move || {
-            format!(
-                "Layout: {}",
-                String::from(layout_title(layout_mode_for_locale.get()))
-            )
-        });
+        layout.set_tooltip_text(Some(&format!(
+            "Layout: {}",
+            layout_title(layout_mode.get())
+        )));
         {
             let shell = Rc::clone(self);
             let syncing = Rc::clone(&syncing);
@@ -811,7 +798,7 @@ fn configure_library_toolbar_icon_button(button: &gtk::Button, tooltip: &str) {
     button.add_css_class("circular");
     button.add_css_class("library-toolbar-icon-button");
     button.set_width_request(LIBRARY_TOOLBAR_ICON_BUTTON_WIDTH);
-    bind_widget_tooltip(button, tooltip);
+    button.set_tooltip_text(Some(tooltip));
 }
 
 #[cfg(test)]

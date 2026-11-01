@@ -61,10 +61,7 @@ impl PreviewRow {
         } else {
             "rufin-media-playback-start-symbolic"
         });
-        gtk_widgets::localization::bind_widget_tooltip(
-            &*imp.play,
-            if playing { "Pause" } else { "Play" },
-        );
+        (*imp.play).set_tooltip_text(Some(if playing { "Pause" } else { "Play" }));
     }
 }
 

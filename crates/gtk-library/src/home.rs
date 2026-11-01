@@ -17,7 +17,6 @@ use gtk_widgets::favorites::{
 };
 use gtk_widgets::format_duration_units;
 use gtk_widgets::layout::{configure_fill_width_clip, width_allocation_owner};
-use gtk_widgets::localization::{bind_label_text_with, localized_label};
 use gtk_widgets::mounted_route::MountedRoute;
 use rufin_core::settings::{HomeBlockKind, HomeSectionKind};
 
@@ -785,9 +784,9 @@ impl CatalogUi {
         }
         let section = gtk::Box::new(gtk::Orientation::Vertical, 10);
         section.set_hexpand(true);
-        let heading = localized_label(gtk_widgets::settings::home_block_title(
+        let heading = gtk::Label::new(Some(gtk_widgets::settings::home_block_title(
             HomeBlockKind::Genres,
-        ));
+        )));
         heading.add_css_class("section-heading");
         heading.set_xalign(0.0);
         heading.set_margin_start(COLLECTION_GRID_CARD_MARGIN);
@@ -826,13 +825,11 @@ impl CatalogUi {
         let counts = gtk::Label::new(None);
         let album_count = genre.summary.album_count.max(0) as u64;
         let track_count = genre.summary.track_count.max(0) as u64;
-        bind_label_text_with(&counts, move || {
-            format!(
-                "{} • {}",
-                album_count_text(album_count),
-                track_count_text(track_count)
-            )
-        });
+        counts.set_text(&format!(
+            "{} • {}",
+            album_count_text(album_count),
+            track_count_text(track_count)
+        ));
         counts.add_css_class("muted");
         counts.set_xalign(0.0);
         counts.set_ellipsize(gtk::pango::EllipsizeMode::End);

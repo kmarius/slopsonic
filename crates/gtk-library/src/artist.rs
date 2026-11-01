@@ -16,7 +16,6 @@ use gtk_widgets::favorites::{
     set_favorite_button_active,
 };
 use gtk_widgets::layout::width_allocation_owner;
-use gtk_widgets::localization::localized_label;
 use gtk_widgets::mounted_route::MountedRoute;
 
 use super::artist_releases::{ArtistReleaseProjections, ArtistReleaseRoutePreamble};
@@ -106,7 +105,7 @@ impl CatalogUi {
         let favorite_present = !favorite.source_is_empty();
         let favorite_section = gtk::Box::new(gtk::Orientation::Vertical, 10);
         favorite_section.set_visible(favorite_present);
-        let heading = localized_label("Favorite tracks");
+        let heading = gtk::Label::new(Some("Favorite tracks"));
         heading.add_css_class("section-heading");
         heading.set_xalign(0.0);
         favorite_section.append(&heading);
@@ -784,7 +783,7 @@ fn artist_subroute_header(
         &header,
         stable_seed(&artist.object_id),
     );
-    let kind = localized_label(kind_text);
+    let kind = gtk::Label::new(Some(kind_text));
     kind.add_css_class("eyebrow");
     kind.set_xalign(0.0);
     let title = gtk::Label::new(Some(&artist.metadata.name));

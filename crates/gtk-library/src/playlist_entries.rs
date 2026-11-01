@@ -16,7 +16,6 @@ use gtk_widgets::favorites::{
     favorite_button_is_active, set_favorite_button_active, track_favorite_key,
 };
 use gtk_widgets::interactions::install_context_menu_openers;
-use gtk_widgets::localization::{bind_search_placeholder, localized_column};
 
 use super::collection_context::present_playlist_entry_context_menu;
 use super::collections::{
@@ -166,7 +165,7 @@ impl CatalogUi {
 
         let search = gtk::SearchEntry::new();
         gtk_widgets::controls::configure_search_entry(&search);
-        bind_search_placeholder(&search, "Search");
+        search.set_placeholder_text(Some("Search"));
         search.set_hexpand(true);
         search.set_width_request(1);
         let toolbar =
@@ -412,7 +411,7 @@ fn playlist_entry_image_column(
             clear_shell.artwork.clear_artwork_tile(&cell.artwork());
         }
     });
-    let column = localized_column("Image", &factory);
+    let column = gtk::ColumnViewColumn::new(Some("Image"), Some(factory.clone()));
     column.set_fixed_width(width);
     column
 }
@@ -565,7 +564,7 @@ fn playlist_entry_title_column(
             playing.unbind(title.upcast_ref());
         }
     });
-    let column = localized_column("Title", &factory);
+    let column = gtk::ColumnViewColumn::new(Some("Title"), Some(factory.clone()));
     column.set_fixed_width(width);
     column
 }
@@ -645,7 +644,10 @@ fn playlist_entry_text_column(
             cell.clear();
         }
     });
-    let column = localized_column(super::columns::track_column_title(field), &factory);
+    let column = gtk::ColumnViewColumn::new(
+        Some(super::columns::track_column_title(field)),
+        Some(factory.clone()),
+    );
     column.set_fixed_width(width);
     column
 }

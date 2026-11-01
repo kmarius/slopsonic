@@ -5,7 +5,6 @@ use adw::prelude::*;
 use crate::CatalogUi;
 use crate::collection_context::present_track_context_menu;
 use gtk_widgets::interactions::install_context_menu_openers;
-use gtk_widgets::localization::localized_column;
 
 use gtk_widgets::detail_links::DetailLinks;
 use gtk_widgets::recycled_cells::{RecycledTextCell, list_cell};
@@ -86,7 +85,7 @@ where
         }
     });
 
-    let column = localized_column(title, &factory);
+    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory.clone()));
     column.set_fixed_width(width);
     column
 }

@@ -6,7 +6,6 @@ use gtk_widgets::{
     detail_links::DetailLinkBinding,
     favorites::{favorite_icon_button, set_favorite_button_active},
     layout::{AllocationOwner, allocation_owner},
-    localization::{bind_widget_accessible_label, bind_widget_tooltip},
     ratings::RatingControl,
     scale::{
         horizontal_scale_value_at_x, install_pointer_value_bubble, install_scale_fill_updates,
@@ -311,7 +310,7 @@ pub fn build_now_playing_controls(builder: &gtk::Builder, resource: &str) -> Now
         .update_property(&[gtk::accessible::Property::Label(&cover_label)]);
     now_playing.append(&cover.area);
 
-    bind_widget_accessible_label(&menu_button, "More actions");
+    menu_button.update_property(&[gtk::accessible::Property::Label("More actions")]);
     menu_button.set_size_request(
         BOTTOM_PLAYER_TITLE_MENU_BUTTON_SIZE,
         BOTTOM_PLAYER_TITLE_MENU_BUTTON_SIZE,
@@ -514,8 +513,8 @@ pub fn build_player_action_controls(
     root.add_overlay(rating.widget());
     root.set_measure_overlay(rating.widget(), false);
 
-    bind_widget_tooltip(&settings_button, "Settings");
-    bind_widget_accessible_label(&settings_button, "Settings");
+    settings_button.set_tooltip_text(Some("Settings"));
+    settings_button.update_property(&[gtk::accessible::Property::Label("Settings")]);
     volume_group.set_spacing(BOTTOM_PLAYER_VOLUME_SPACING);
     volume_group.set_valign(gtk::Align::Center);
     let favorite_button = favorite_icon_button("Favorite");

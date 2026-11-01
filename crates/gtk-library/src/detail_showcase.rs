@@ -17,7 +17,6 @@ use gtk_widgets::controls::{ActionButtonVariant, configure_action_button, icon_b
 use gtk_widgets::controls::{PLAY_LATER_ICON, PLAY_NEXT_ICON};
 use gtk_widgets::interactions::{ContextMenuOpen, RADIO_ICON};
 use gtk_widgets::layout::{AllocationOwner, width_allocation_owner};
-use gtk_widgets::localization::bind_label_text_with;
 
 use crate::route_layout::detail_showcase_cover_size;
 use gtk_media_menus::media_menus::CollectionPlay;
@@ -137,7 +136,7 @@ impl DetailShowcaseView {
         view.add_css_class("detail-showcase");
         view.add_css_class(route_class);
         add_album_seed_gradient_class(&view, seed);
-        bind_label_text_with(&view.imp().kind, move || String::from(kind));
+        view.imp().kind.set_text(kind);
         if genre_kind {
             view.imp().kind_row.add_css_class("album-detail-genre-row");
         }
@@ -282,7 +281,7 @@ impl DetailShowcaseView {
             self.imp().summary_label_2.get(),
         ];
         if let Some(label) = labels.get(index) {
-            bind_label_text_with(label, text);
+            label.set_text(&text());
         }
     }
 

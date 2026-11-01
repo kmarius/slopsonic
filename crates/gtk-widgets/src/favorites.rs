@@ -1,6 +1,5 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::localization::bind_widget_tooltip;
 use ::library::FavoriteTarget;
 use adw::prelude::*;
 use gtk::glib;
@@ -41,7 +40,7 @@ pub fn favorite_icon_button(label: &str) -> gtk::Button {
     button.add_css_class("circular");
     button.add_css_class("favorite-toggle");
     button.set_valign(gtk::Align::Center);
-    bind_widget_tooltip(&button, label);
+    button.set_tooltip_text(Some(label));
     button
 }
 

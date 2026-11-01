@@ -17,7 +17,6 @@ use gtk_widgets::favorites::{
     row_favorite_icon_button, set_favorite_button_active, track_favorite_key,
 };
 use gtk_widgets::interactions::install_context_menu_openers;
-use gtk_widgets::localization::localized_column;
 
 use rufin_core::playback::PlayRequest;
 
@@ -224,7 +223,7 @@ pub fn album_column(
     } else {
         gtk_widgets::settings::library_field_title(field)
     };
-    let column = localized_column(title, &factory);
+    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory.clone()));
     column.set_fixed_width(column_width(field));
     column
 }
@@ -782,7 +781,10 @@ where
             label.set_text("");
         }
     });
-    let column = localized_column(gtk_widgets::settings::library_field_title(field), &factory);
+    let column = gtk::ColumnViewColumn::new(
+        Some(gtk_widgets::settings::library_field_title(field)),
+        Some(factory.clone()),
+    );
     column.set_fixed_width(width);
     column
 }
@@ -1034,7 +1036,7 @@ where
             set_cover_placeholder(&unbind_shell, &cell.artwork(), true);
         }
     });
-    let column = localized_column(title, &factory);
+    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory.clone()));
     column.set_fixed_width(width);
     column
 }
@@ -1080,7 +1082,7 @@ pub fn artist_image_column(shell: &Rc<CatalogUi>, album_artist: bool) -> gtk::Co
             set_cover_placeholder(&unbind_shell, &cell.artwork(), true);
         }
     });
-    let column = localized_column("Image", &factory);
+    let column = gtk::ColumnViewColumn::new(Some("Image"), Some(factory.clone()));
     column.set_fixed_width(column_width(LibraryField::Image));
     column
 }
@@ -1147,7 +1149,7 @@ where
             cell.clear();
         }
     });
-    let column = localized_column(title, &factory);
+    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory.clone()));
     column.set_fixed_width(width);
     column
 }
@@ -1245,7 +1247,7 @@ where
         }
     });
 
-    let column = localized_column(title, &factory);
+    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory.clone()));
     column.set_fixed_width(width);
     column
 }
@@ -1356,7 +1358,7 @@ where
         }
     });
 
-    let column = localized_column(title, &factory);
+    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory.clone()));
     column.set_fixed_width(width);
     column
 }
@@ -1501,7 +1503,7 @@ where
         }
     });
 
-    let column = localized_column(title, &factory);
+    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory.clone()));
     column.set_fixed_width(width);
     column
 }

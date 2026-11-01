@@ -3,7 +3,6 @@ pub mod clipboard;
 pub mod edge_fade;
 pub mod field_layout;
 pub mod layout;
-pub mod localization;
 pub mod route;
 pub mod settings;
 pub mod sparse_model;

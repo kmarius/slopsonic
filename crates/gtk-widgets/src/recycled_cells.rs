@@ -44,9 +44,9 @@ pub fn row_action_column(
     factory: &gtk::SignalListItemFactory,
 ) -> gtk::ColumnViewColumn {
     if field == rufin_core::settings::LibraryField::Favorite {
-        let column = crate::localization::localized_column(
-            crate::settings::library_field_title(field),
-            factory,
+        let column = gtk::ColumnViewColumn::new(
+            Some(crate::settings::library_field_title(field)),
+            Some(factory.clone()),
         );
         column.set_fixed_width(crate::favorites::FAVORITE_COLUMN_WIDTH);
         column
@@ -494,10 +494,7 @@ pub fn track_row_index_cell(text: &str, activate: impl Fn(&gtk::Button) + 'stati
         } else {
             "rufin-media-playback-start-symbolic"
         });
-        crate::localization::bind_widget_tooltip(
-            &play,
-            if playing { "Pause" } else { "Play track" },
-        );
+        play.set_tooltip_text(Some(if playing { "Pause" } else { "Play track" }));
     });
     number.set_text(text);
     play.set_visible(!text.is_empty());

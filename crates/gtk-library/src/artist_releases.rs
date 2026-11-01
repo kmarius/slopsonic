@@ -456,7 +456,7 @@ impl ArtistAlbumProjection {
         let header = gtk::Box::new(gtk::Orientation::Vertical, ARTIST_RELEASE_HEADER_GAP);
         header.set_hexpand(true);
         header.set_halign(gtk::Align::Fill);
-        let heading = gtk_widgets::localization::localized_label(title);
+        let heading = gtk::Label::new(Some(title));
         heading.add_css_class("section-heading");
         heading.set_xalign(0.0);
         header.append(&heading);
