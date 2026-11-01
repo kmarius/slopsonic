@@ -27,7 +27,7 @@ impl Shell {
                 .state
                 .rating
                 .and_then(|value| u8::try_from(value).ok()),
-            self.half_stars_enabled(&track.media_uri, track.source_id.as_deref()),
+            self.half_stars_enabled(),
         );
     }
 }

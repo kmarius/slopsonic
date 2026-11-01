@@ -105,8 +105,8 @@ pub(crate) struct ConfiguredSource {
 pub(crate) struct SourceSettings {
     #[serde(default)]
     pub(crate) configured: Vec<ConfiguredSource>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) selected_source_id: Option<SourceId>,
+    #[serde(rename = "selected_source_id", default, skip_serializing)]
+    pub(crate) legacy_selected_source_id: Option<SourceId>,
 }
 
 impl SourceSettings {

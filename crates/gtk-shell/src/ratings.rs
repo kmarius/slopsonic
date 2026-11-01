@@ -1,10 +1,7 @@
 use library::FavoriteTarget;
 impl crate::shell::Shell {
-    pub(crate) fn half_stars_enabled(&self, media_uri: &str, source_id: Option<&str>) -> bool {
-        self.source
-            .configured
-            .borrow()
-            .half_stars_enabled(media_uri, source_id)
+    pub(crate) fn half_stars_enabled(&self) -> bool {
+        self.source.configured.borrow().half_stars_enabled()
     }
 
     pub(crate) fn set_rating(&self, item: FavoriteTarget, rating: Option<u8>) {

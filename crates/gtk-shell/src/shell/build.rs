@@ -140,7 +140,7 @@ pub async fn build(
         elapsed_ms = loaded_at.elapsed().as_millis(),
         "loaded music source presentation"
     );
-    let defer_initial_route = configured_sources.selected_source_id.is_some();
+    let defer_initial_route = configured_sources.source.is_some();
     let settings_state = Rc::new(SettingsState::new(settings.clone(), settings_handle));
     let navigation = NavigationState::new(
         rufin_core::route::sidebar_route_descriptor(settings.application.starting_page).root_route,
@@ -550,7 +550,7 @@ pub async fn build(
         }
     });
 
-    if shell.source.configured.borrow().sources.is_empty() {
+    if shell.source.configured.borrow().source.is_none() {
         if shell.chrome.window.is_mapped() {
             shell.preferences.present_onboarding();
         } else {

@@ -51,16 +51,12 @@ fn library_sources_page(
     });
 
     let configured = shell.source.configured.borrow().clone();
-    let remote_sources = configured.sources.clone();
 
-    if configured.sources.is_empty() {
+    if configured.source.is_none() {
         servers_group.add(&empty_remote_row);
     } else {
-        for server in &remote_sources {
-            let summary = configured
-                .caches
-                .iter()
-                .find(|summary| summary.source_id == server.id);
+        for server in configured.source.iter() {
+            let summary = configured.cache.as_ref();
             let credentials = shell
                 .products
                 .source
@@ -129,7 +125,7 @@ fn library_sources_page(
         add_navigation.push(&page);
         add_navigation_controls.set_nested_page_visible(true);
     });
-    add_source.set_visible(configured.sources.is_empty());
+    add_source.set_visible(configured.source.is_none());
     servers_group.set_header_suffix(Some(&add_source));
 
     let weak = Rc::downgrade(shell);
@@ -163,7 +159,7 @@ pub(super) fn downloads_page(
         downloads_group: adw::PreferencesGroup,
         empty_remote_row: adw::ActionRow,
     });
-    let Some(source) = shell.source.configured.borrow().sources.first().cloned() else {
+    let Some(source) = shell.source.configured.borrow().source.clone() else {
         downloads_group.add(&empty_remote_row);
         downloads_page.add(&downloads_group);
         return downloads_page;

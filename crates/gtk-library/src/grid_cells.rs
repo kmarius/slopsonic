@@ -1020,8 +1020,7 @@ impl ReusableCollectionGridCell<ArtistView> for ArtistGridCell {
         });
         self.body.set_download_target(
             &shell,
-            !shell.local_source
-                && collection_is_downloaded(row.summary.track_count, row.summary.downloaded_count),
+            collection_is_downloaded(row.summary.track_count, row.summary.downloaded_count),
         );
         set_grid_favorite(&self.favorite, Some(row.state.favorite));
         self.current.replace(Some(row));
@@ -1077,8 +1076,7 @@ impl ReusableCollectionGridCell<AlbumView> for AlbumGridCell {
         });
         self.body.set_download_target(
             &shell,
-            !shell.local_source
-                && collection_is_downloaded(row.summary.track_count, row.summary.downloaded_count),
+            collection_is_downloaded(row.summary.track_count, row.summary.downloaded_count),
         );
         set_grid_favorite(&self.favorite, Some(row.state.favorite));
         self.current.replace(Some(row));

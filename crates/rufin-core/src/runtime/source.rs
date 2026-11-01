@@ -18,7 +18,6 @@ pub struct SourceSummary {
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
 pub struct SourceCacheSummary {
-    pub source_id: SourceId,
     pub selected_music_folder_name: Option<String>,
     pub album_count: usize,
     pub track_count: usize,
@@ -26,20 +25,14 @@ pub struct SourceCacheSummary {
 
 #[derive(Clone, Debug, Default)]
 pub struct ConfiguredSources {
-    pub sources: Vec<SourceSummary>,
-    pub selected_source_id: Option<SourceId>,
-    pub caches: Vec<SourceCacheSummary>,
+    pub source: Option<SourceSummary>,
+    pub cache: Option<SourceCacheSummary>,
 }
 
 impl ConfiguredSources {
-    pub fn half_stars_enabled(&self, media_uri: &str, source_id: Option<&str>) -> bool {
-        let uri_source = library::source_entity_parts(media_uri).map(|(source, _, _)| source);
-        let source_id = source_id
-            .or_else(|| uri_source.as_ref().map(SourceId::as_str))
-            .or_else(|| self.selected_source_id.as_ref().map(SourceId::as_str));
-        self.sources
-            .iter()
-            .find(|source| Some(source.id.as_str()) == source_id)
+    pub fn half_stars_enabled(&self) -> bool {
+        self.source
+            .as_ref()
             .is_some_and(|source| source.half_stars_enabled)
     }
 }

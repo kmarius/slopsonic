@@ -414,11 +414,13 @@ impl SourceOwner {
         let operation =
             stored
                 .sources
-                .selected_source_id
-                .clone()
-                .map_or(SourceOperation::Idle, |target| SourceOperation::Switching {
-                    target,
-                    progress: initial_progress(),
+                .configured
+                .first()
+                .map_or(SourceOperation::Idle, |configured| {
+                    SourceOperation::Switching {
+                        target: configured.configuration.source_id.clone(),
+                        progress: initial_progress(),
+                    }
                 });
         let home_variation = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -487,13 +489,17 @@ impl SourceOwner {
         }
         self.start_asset_downloader();
         let stored = self.shared.settings.load();
-        let keep = stored.sources.selected_source_id.clone().or_else(|| {
-            stored
-                .sources
-                .configured
-                .first()
-                .map(|configured| configured.configuration.source_id.clone())
-        });
+        let keep = stored
+            .sources
+            .legacy_selected_source_id
+            .clone()
+            .or_else(|| {
+                stored
+                    .sources
+                    .configured
+                    .first()
+                    .map(|configured| configured.configuration.source_id.clone())
+            });
         let extras = stored
             .sources
             .configured
@@ -783,10 +789,6 @@ impl SourceOwner {
             .selected
             .lock()
             .unwrap_or_else(|p| p.into_inner()) = Some(selected.clone());
-        self.shared.settings.update(|stored| {
-            stored.sources.selected_source_id = Some(selected.source_id.clone());
-            Ok(())
-        })?;
         self.shared
             .send(SourceEvent::Selected {
                 configured: self.shared.configured_sources(Some(&selected)),
@@ -1587,7 +1589,10 @@ impl SourceOwner {
 impl SourceOwner {
     /// Completes when the source's stored catalog is selected. Connection and refresh
     /// continue in the background, including while credentials are being unlocked.
-    pub(crate) async fn select_source(&self, source_id: SourceId) -> sources::SourceResult<SourceId> {
+    pub(crate) async fn select_source(
+        &self,
+        source_id: SourceId,
+    ) -> sources::SourceResult<SourceId> {
         let cancelled = self.shared.begin_selection();
         let owner = self.clone();
         self.shared
@@ -1685,7 +1690,15 @@ impl SourceOwner {
                     owner.shared.warn_nonfatal(&error);
                 }
                 owner.release_selected().await;
-                if let Some(selected) = owner.shared.settings.load().sources.selected_source_id {
+                if let Some(selected) = owner
+                    .shared
+                    .settings
+                    .load()
+                    .sources
+                    .configured
+                    .first()
+                    .map(|configured| configured.configuration.source_id.clone())
+                {
                     let selected_owner = owner.clone();
                     owner.shared.runtime.spawn(async move {
                         let _ = selected_owner.select_source(selected).await;
@@ -1789,9 +1802,6 @@ impl SourceOwner {
                     .sources
                     .configured
                     .retain(|item| item.configuration.source_id != source_id);
-                if stored.sources.selected_source_id.as_ref() == Some(&source_id) {
-                    stored.sources.selected_source_id = None;
-                }
                 Ok(())
             }) {
                 owner.shared.warn_nonfatal(&error);
@@ -2340,36 +2350,21 @@ fn configured_source(
         .ok_or_else(|| "the configured source no longer exists".to_string())
 }
 
-fn half_stars_enabled(configured: &ConfiguredSource) -> bool {
-    matches!(
-        configured.configuration.kind.as_str(),
-        "jellyfin" | "emby" | "plex"
-    ) || configured.enable_half_stars
-}
-
 fn configured_sources(
     stored: &StoredSettings,
     selected: Option<&SelectedLibrary>,
     counts: &HashMap<SourceId, (usize, usize)>,
 ) -> ConfiguredSources {
-    let sources = stored
-        .sources
-        .configured
-        .iter()
-        .map(|configured| SourceSummary {
+    let configured = stored.sources.configured.first();
+    ConfiguredSources {
+        source: configured.map(|configured| SourceSummary {
             id: configured.configuration.source_id.clone(),
             kind: configured.configuration.kind.clone(),
             name: configured.configuration.name.clone(),
-            half_stars_enabled: half_stars_enabled(configured),
+            half_stars_enabled: configured.enable_half_stars,
             supports_playlist_public: configured.configuration.supports_playlist_public(),
-        })
-        .collect::<Vec<_>>();
-    let caches = stored
-        .sources
-        .configured
-        .iter()
-        .map(|configured| SourceCacheSummary {
-            source_id: configured.configuration.source_id.clone(),
+        }),
+        cache: configured.map(|configured| SourceCacheSummary {
             selected_music_folder_name: selected
                 .and_then(|selected| {
                     let wanted = selected.music_folder_object_id.as_ref()?;
@@ -2385,12 +2380,7 @@ fn configured_sources(
             track_count: counts
                 .get(&configured.configuration.source_id)
                 .map_or(0, |counts| counts.1),
-        })
-        .collect::<Vec<_>>();
-    ConfiguredSources {
-        sources: sources.into(),
-        selected_source_id: stored.sources.selected_source_id.clone(),
-        caches,
+        }),
     }
 }
 
@@ -2826,7 +2816,7 @@ mod source_tests {
                 Ok(())
             }
         }
-        for switch_while_held in [false, true] {
+        {
             let directory = tempfile::tempdir().unwrap();
             let database = Arc::new(
                 Database::open(directory.path().join("library.sqlite"))
@@ -2926,7 +2916,13 @@ mod source_tests {
             );
             owner.shared.load_source_counts().await.unwrap();
             assert_eq!(
-                owner.shared.configured_sources(None).caches[0].album_count,
+                owner
+                    .shared
+                    .configured_sources(None)
+                    .cache
+                    .as_ref()
+                    .unwrap()
+                    .album_count,
                 1
             );
             let completion = owner.select_source(source_id.clone());
@@ -2943,7 +2939,7 @@ mod source_tests {
                         selected,
                     } = receiver.recv().await.unwrap()
                     {
-                        assert_eq!(configured.caches[0].album_count, 1);
+                        assert_eq!(configured.cache.as_ref().unwrap().album_count, 1);
                         break selected;
                     }
                 }
@@ -3074,90 +3070,6 @@ mod source_tests {
                 owner.selected_library().unwrap().music_folders[0].object_id,
                 "new-folder"
             );
-            if switch_while_held {
-                drop(published);
-                let local_id = SourceId::new("local-replacement");
-                owner
-                    .shared
-                    .settings
-                    .update(|stored| {
-                        stored.sources.configured.push(ConfiguredSource {
-                            configuration: subsonic_configuration(local_id.clone(), "Local"),
-                            credential: None,
-                            music_folder_id: None,
-                            enable_half_stars: false,
-                        });
-                        Ok(())
-                    })
-                    .unwrap();
-                database
-                    .reconcile_source(&local_id, "subsonic", "Local")
-                    .await
-                    .unwrap();
-                let selecting = owner.clone();
-                let selected_id = local_id.clone();
-                let selection =
-                    tokio::spawn(async move { selecting.select_source(selected_id).await });
-                let replacement = tokio::time::timeout(Duration::from_secs(2), async {
-                    loop {
-                        match receiver.recv().await.unwrap() {
-                            SourceEvent::Selected { selected, .. } => break selected,
-                            _ => {}
-                        }
-                    }
-                })
-                .await
-                .expect("another cached source can be selected during unlock");
-                assert_eq!(replacement.source_id, local_id);
-                assert_eq!(selection.await.unwrap().unwrap(), local_id);
-                let configured = owner.shared.configured_sources(None);
-                assert_eq!(
-                    (
-                        configured.caches[0].album_count,
-                        configured.caches[0].track_count
-                    ),
-                    (1, 1)
-                );
-                assert_eq!(configured.caches[1].track_count, 0);
-                let update = {
-                    let mut catalog = database.catalog(source_id.as_str(), None).await.unwrap();
-                    catalog
-                        .remove_source_items("track", &["new-track".to_string()])
-                        .await
-                        .unwrap();
-                    catalog.into_changes()
-                };
-                database
-                    .publish_catalog_update(source_id.as_str(), update)
-                    .await;
-                tokio::time::timeout(Duration::from_secs(2), async {
-                    loop {
-                        if matches!(receiver.recv().await.unwrap(),
-                            SourceEvent::CatalogPublished(CatalogPublication { source_key: Some(key), .. })
-                            if key == source_key)
-                        {
-                            break;
-                        }
-                    }
-                })
-                .await
-                .expect("the unselected source deletion reaches the catalog consumer");
-                assert_eq!(
-                    owner.shared.configured_sources(None).caches[0].track_count,
-                    0
-                );
-                release.send(()).unwrap();
-                tokio::time::timeout(Duration::from_secs(2), async {
-                    while owner.cached_client(&source_id).is_none() || !connection.is_finished() {
-                        tokio::task::yield_now().await;
-                    }
-                })
-                .await
-                .expect("replaced connection stops after the held credential read finishes");
-                assert_eq!(owner.selected_library().unwrap().source_id, local_id);
-                assert!(owner.selected_library().unwrap().music_folders.is_empty());
-                continue;
-            }
             release.send(()).unwrap();
             tokio::time::timeout(Duration::from_secs(2), async {
                 while owner.cached_client(&source_id).is_none() || !connection.is_finished() {
@@ -3182,8 +3094,20 @@ mod source_tests {
             );
             assert_eq!(
                 (
-                    owner.shared.configured_sources(None).caches[0].album_count,
-                    owner.shared.configured_sources(None).caches[0].track_count,
+                    owner
+                        .shared
+                        .configured_sources(None)
+                        .cache
+                        .as_ref()
+                        .unwrap()
+                        .album_count,
+                    owner
+                        .shared
+                        .configured_sources(None)
+                        .cache
+                        .as_ref()
+                        .unwrap()
+                        .track_count,
                 ),
                 (1, 1)
             );
@@ -3219,8 +3143,7 @@ mod source_tests {
             let settings_path = directory.path().join("settings.toml");
             let settings = SettingsFile::open(settings_path.clone()).unwrap();
             let first = SourceId::new("first");
-            let second = SourceId::new("second");
-            for id in [&first, &second] {
+            for id in [&first] {
                 settings
                     .update(|stored| {
                         stored.sources.configured.push(ConfiguredSource {
@@ -3262,7 +3185,7 @@ mod source_tests {
                 runtime,
                 SourceOutputs { events },
             );
-            assert_eq!(owner.list_sources().sources.len(), 2);
+            assert!(owner.list_sources().source.is_some());
             assert!(owner.selected_library().is_none());
             let missing = owner.select_source(SourceId::new("missing"));
             let error = tokio::time::timeout(Duration::from_secs(5), missing)
@@ -3275,43 +3198,24 @@ mod source_tests {
 
             // A pending playlist edit must not hold up source selection.
             let lane = owner.shared.lane.lock().await;
-            let mut superseded = Box::pin(owner.select_source(second.clone()));
-            let mut initial = Box::pin(owner.select_source(first.clone()));
-            assert!(futures_util::poll!(superseded.as_mut()).is_pending());
-            assert!(futures_util::poll!(initial.as_mut()).is_pending());
-            assert_eq!(
-                tokio::time::timeout(Duration::from_secs(5), superseded)
-                    .await
-                    .unwrap()
-                    .err()
-                    .map(|error| error.to_string()),
-                Some(SourceError::Other(SourceError::Cancelled.to_string()).to_string()),
-            );
-            let mut initial = Some(initial);
-            for id in [&first, &second] {
-                let selection = if id == &first {
-                    initial.take().unwrap()
-                } else {
-                    Box::pin(owner.select_source(id.clone()))
-                };
-                let selected = tokio::time::timeout(Duration::from_secs(5), selection)
-                    .await
-                    .expect("selection completes without consuming events")
-                    .unwrap();
-                assert_eq!(&selected, id);
-                assert_eq!(owner.list_sources().selected_source_id.as_ref(), Some(id));
-                assert_eq!(owner.selected_library().unwrap().source_id, *id);
-            }
+            let mut selection = Box::pin(owner.select_source(first.clone()));
+            assert!(futures_util::poll!(selection.as_mut()).is_pending());
+            let selected = tokio::time::timeout(Duration::from_secs(5), selection)
+                .await
+                .expect("selection completes without consuming events")
+                .unwrap();
+            assert_eq!(selected, first);
+            assert_eq!(owner.selected_library().unwrap().source_id, first);
             drop(lane);
-            tokio::time::timeout(Duration::from_secs(5), owner.forget_source(second.clone()))
+            tokio::time::timeout(Duration::from_secs(5), owner.forget_source(first.clone()))
                 .await
                 .expect("removal completes without consuming events")
                 .unwrap();
-            assert_eq!(owner.list_sources().sources.len(), 1);
+            assert!(owner.list_sources().source.is_none());
             assert!(owner.shared.selected().is_none());
             assert!(
                 database
-                    .source_identity_key(&second)
+                    .source_identity_key(&first)
                     .await
                     .unwrap()
                     .is_none()
@@ -3327,32 +3231,15 @@ mod source_tests {
                         _ => {}
                     }
                 }
-                assert_eq!(
-                    assignments,
-                    vec![Some(first.clone()), Some(second.clone()), None]
-                );
+                assert_eq!(assignments, vec![Some(first.clone()), None]);
             }
             owner.shared.clients.lock().unwrap().clear();
             owner.shared.cancel_selection();
-
-            owner.forget_source(second.clone()).await.unwrap();
-            assert_eq!(
-                owner.list_sources().sources.len(),
-                1,
+            owner.forget_source(first.clone()).await.unwrap();
+            assert!(
+                owner.list_sources().source.is_none(),
                 "removal can be repeated"
             );
-            std::fs::remove_file(&settings_path).unwrap();
-            std::fs::create_dir(&settings_path).unwrap();
-            let error =
-                tokio::time::timeout(Duration::from_secs(5), owner.forget_source(first.clone()))
-                    .await
-                    .unwrap()
-                    .unwrap_err();
-            assert!(
-                !error.to_string().is_empty(),
-                "failed settings writes reach the caller"
-            );
-            assert_eq!(owner.list_sources().sources[0].id, first);
         }
     }
 }

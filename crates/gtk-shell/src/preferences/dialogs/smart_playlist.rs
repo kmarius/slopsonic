@@ -147,7 +147,14 @@ impl Shell {
         let dialog = gtk_editors::smart_playlist::build_dialog(
             playlist,
             suggestions,
-            self.source.configured.borrow().sources.clone().into(),
+            self.source
+                .configured
+                .borrow()
+                .source
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .into(),
             Rc::new(move |change, settled| {
                 if let Some(shell) = shell.upgrade() {
                     shell.publish_smart_playlist_change_in_folder(change, settled, folder);

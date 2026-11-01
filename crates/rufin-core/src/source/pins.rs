@@ -12,14 +12,13 @@ impl SourceOwner {
         let stored = settings.load();
         let sources = self
             .list_sources()
-            .sources
+            .source
             .iter()
             .filter(|source| {
-                source.kind != "local"
-                    && !stored
-                        .sidebar
-                        .playlist_pin_imported_sources
-                        .contains(&source.id)
+                !stored
+                    .sidebar
+                    .playlist_pin_imported_sources
+                    .contains(&source.id)
             })
             .map(|source| source.id.clone())
             .collect::<Vec<_>>();

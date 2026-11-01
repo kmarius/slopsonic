@@ -912,7 +912,7 @@ impl<T: NamedCollectionRow> ReusableCollectionGridCell<T> for NamedCollectionGri
         self.body
             .bind(item.name(), |field| DetailLinks::text(&item.field(field)));
         self.body
-            .set_download_target(&self.shell, !self.shell.local_source && item.downloaded());
+            .set_download_target(&self.shell, item.downloaded());
         self.current.replace(Some(item));
     }
 

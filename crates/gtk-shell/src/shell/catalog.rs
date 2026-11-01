@@ -13,11 +13,10 @@ impl Shell {
         let source = self.products.source.clone();
         let history_source_name = {
             let configured = self.source.configured.borrow();
-            let source = configured
-                .sources
-                .iter()
-                .find(|source| Some(&source.id) == configured.selected_source_id.as_ref());
-            source.map(gtk_widgets::source_labels::configured_source_display_name)
+            configured
+                .source
+                .as_ref()
+                .map(gtk_widgets::source_labels::configured_source_display_name)
         };
         Rc::new(gtk_library::CatalogUi {
             library: self.products.library.clone(),
@@ -27,18 +26,6 @@ impl Shell {
             settings: Rc::clone(&self.settings),
             artwork: Rc::clone(&self.artwork),
             downloads: Rc::clone(&self.downloads),
-            local_source: self
-                .source
-                .configured
-                .borrow()
-                .sources
-                .iter()
-                .any(|source| {
-                    source.kind == "local"
-                        && selected
-                            .as_ref()
-                            .is_some_and(|selected| selected.source_id == source.id)
-                }),
             media_menus: Rc::clone(&self.media_menus),
             selected,
             favorites: self
@@ -95,7 +82,13 @@ impl Shell {
                 let weak = Rc::downgrade(self);
                 Rc::new(move || {
                     weak.upgrade().and_then(|shell| {
-                        shell.source.configured.borrow().selected_source_id.clone()
+                        shell
+                            .source
+                            .configured
+                            .borrow()
+                            .source
+                            .as_ref()
+                            .map(|source| source.id.clone())
                     })
                 })
             },

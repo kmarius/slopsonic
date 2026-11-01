@@ -59,7 +59,7 @@ pub fn present_preferences_dialog(shell: &Rc<Preferences>) {
     present_preferences_dialog_with_page(shell, PreferencesPageKind::General, false, false);
 }
 pub fn present_add_server_preferences_dialog(shell: &Rc<Preferences>) {
-    if shell.source.configured.borrow().sources.is_empty() {
+    if shell.source.configured.borrow().source.is_none() {
         shell.present_onboarding();
     } else {
         present_preferences_dialog_with_page(shell, PreferencesPageKind::Library, true, false);

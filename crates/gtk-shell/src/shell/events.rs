@@ -86,7 +86,7 @@ fn apply_source_event(shell: &Rc<Shell>, event: SourceEvent) {
                 .source
                 .configured
                 .borrow()
-                .sources
+                .source
                 .iter()
                 .find(|source| source.id == source_id)
                 .map(gtk_widgets::source_labels::configured_source_display_name)

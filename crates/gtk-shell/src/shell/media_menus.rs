@@ -154,9 +154,9 @@ pub(super) fn build(
         },
         half_stars_enabled: {
             let weak = weak.clone();
-            Rc::new(move |uri, source| {
+            Rc::new(move |_, _| {
                 weak.upgrade()
-                    .is_some_and(|shell| shell.half_stars_enabled(uri, source))
+                    .is_some_and(|shell| shell.half_stars_enabled())
             })
         },
         source_download_available: {
@@ -167,9 +167,9 @@ pub(super) fn build(
                         .source
                         .configured
                         .borrow()
-                        .sources
+                        .source
                         .iter()
-                        .any(|source| &source.id == source_id && source.kind != "local")
+                        .any(|source| &source.id == source_id)
                 })
             })
         },

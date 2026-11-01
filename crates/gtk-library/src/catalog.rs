@@ -13,7 +13,6 @@ pub struct CatalogUi {
     pub settings: Rc<gtk_widgets::settings::SettingsState>,
     pub artwork: Rc<gtk_widgets::artwork::ArtworkState>,
     pub downloads: Rc<gtk_widgets::downloads::DownloadsState>,
-    pub local_source: bool,
     pub media_menus: Rc<gtk_media_menus::media_menus::MediaMenus>,
     pub selected: Option<rufin_core::runtime::SelectedLibrary>,
     pub favorites: Option<Rc<gtk_widgets::favorites::FavoriteSessionState>>,
@@ -53,8 +52,7 @@ pub struct CatalogUi {
 
 impl CatalogUi {
     pub fn bind_download_badge(&self, image: &gtk::Image, downloaded: bool) {
-        self.downloads
-            .bind_download_badge(image, downloaded && !self.local_source);
+        self.downloads.bind_download_badge(image, downloaded);
     }
 
     pub fn register_current_route_track_selection(&self, selection: RouteCurrentTrackSelection) {

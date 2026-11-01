@@ -90,11 +90,7 @@ impl Shell {
         folder: Option<library::PlaylistFolderKey>,
     ) {
         let configured = self.source.configured.borrow();
-        let selected = configured
-            .selected_source_id
-            .as_ref()
-            .and_then(|id| configured.sources.iter().find(|source| &source.id == id))
-            .cloned();
+        let selected = configured.source.clone();
         drop(configured);
         let shell = Rc::downgrade(self);
         let dialog = gtk_widgets::playlists::new_playlist_dialog(
