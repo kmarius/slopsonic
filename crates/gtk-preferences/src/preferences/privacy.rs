@@ -21,11 +21,6 @@ pub(super) fn page(
     navigation_controls.set_nested_page_visible(false);
     let controls = navigation_controls.clone();
     navigation.connect_popped(move |_, _| controls.set_nested_page_visible(false));
-    privacy_page.add(&super::backup::group(
-        shell,
-        &navigation,
-        navigation_controls,
-    ));
     let settings = shell.settings.current.borrow().clone();
     let secret_storage_titles = ["Legacy".to_string(), "System keyring".to_string()];
     let secret_storage_refs = secret_storage_titles

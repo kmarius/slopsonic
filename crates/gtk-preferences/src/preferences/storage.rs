@@ -50,6 +50,11 @@ pub(super) fn page(
     navigation_controls.set_nested_page_visible(false);
     let controls = navigation_controls.clone();
     navigation.connect_popped(move |_, _| controls.set_nested_page_visible(false));
+    storage_page.add(&super::backup::group(
+        shell,
+        &navigation,
+        navigation_controls,
+    ));
     storage_page.add(&reset_group);
     let settings = shell.settings.persistence.load();
     artwork_download.set_selected(u32::from(
