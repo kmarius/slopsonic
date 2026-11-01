@@ -91,4 +91,4 @@ Icon is designed by [Commenter25](https://commenter.cc) and it is licensed under
 
 [LICENSE](LICENSE)
 
-[^codecs]:AAC and ALAC (including M4A/MP4), AIFF and WAV, APE, FLAC, TTA and WavPack, MP1/MP2/MP3 and Musepack, Ogg Vorbis/Opus/Speex, MKA and audio-only WebM, WMA/ASF, DSD, tracker modules such as MOD/XM/IT/S3M/MPTM, and emulated game music such as NSF/VGM. All supported packages have the required plugins. You may need additional GStreamer plugins if you are building Slopsonic natively; after installing them, restart Slopsonic and Resync the local library to retry rejected files.
+[^codecs]:MP3, AAC/M4A, FLAC, Ogg Vorbis/Opus, ALAC, WAV and AIFF. Playback goes through GStreamer, so other formats work if the matching plugins are installed.
