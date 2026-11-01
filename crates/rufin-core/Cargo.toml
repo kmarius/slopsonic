@@ -12,8 +12,6 @@ publish.workspace = true
 
 [dependencies]
 age.workspace = true
-# Bundle age error translations in development packages too.
-image.workspace = true
 base64.workspace = true
 thiserror.workspace = true
 audio-processing.workspace = true
@@ -25,7 +23,6 @@ directories.workspace = true
 downloads.workspace = true
 getrandom.workspace = true
 glib.workspace = true
-gio.workspace = true
 playback.workspace = true
 scrobbling.workspace = true
 sources.workspace = true

@@ -19,7 +19,6 @@ bytes.workspace = true
 http-body-util.workspace = true
 futures-util.workspace = true
 getrandom.workspace = true
-image.workspace = true
 library.workspace = true
 lofty.workspace = true
 md5_digest.workspace = true
