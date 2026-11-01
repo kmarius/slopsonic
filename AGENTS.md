@@ -6,7 +6,7 @@ Slopsonic is a native Linux desktop client for [Navidrome](https://www.navidrome
 
 ## Scope
 
-The project should focus exclusively on being a polished, native Linux music player that connects to Navidrome servers.
+The project should focus exclusively on being a polished, native Linux music player that connects to a Navidrome or OpenSubsonic server.
 
 ## Features
 
@@ -40,6 +40,9 @@ Do not implement or expand:
 ## Architecture
 
 - `crates/` — Rust workspace with modular crates
+- Single server: the app talks to exactly one Navidrome or OpenSubsonic server. Both share the one Subsonic client in `crates/sources/src/subsonic/`; Navidrome-only features are gated on the flavor. Do not add provider abstractions, multi-server selection or per-source UI
+- Settings keep a list of configured servers on disk, but the app enforces at most one
+- The library schema is versioned in `crates/library/src/schema.rs` (`SCHEMA_VERSION`); add migrations in `initialize_durable`
 - Dead code is a build error (`-D warnings`); remove unused code and dependencies rather than leaving them
 
 When in doubt, prefer simplicity and removing code over adding features.
