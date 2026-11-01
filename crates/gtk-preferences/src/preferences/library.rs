@@ -6,12 +6,11 @@ use adw::prelude::*;
 use downloads::{DownloadQueueState, DownloadRule};
 use gtk::gio;
 
-use rufin_core::text::fill_plural;
 
 use super::{PreferencesNavigationControls, source::configured_source_kind_display_name};
 use crate::Preferences;
 use gtk_widgets::source_labels::configured_source_display_name;
-use rufin_core::runtime::source::{LocalAccessStatus, SourceLocalAccessSummary, SourceSummary};
+use rufin_core::runtime::source::{SourceCacheSummary, SourceSummary};
 use rufin_core::text::{album_count_text, track_count_text};
 
 const DOWNLOAD_JOB_DRAG_PREFIX: &str = "rufin-download-job:";
@@ -62,7 +61,7 @@ fn library_sources_page(
         for server in &remote_sources {
             let selected = configured.selected_source_id.as_ref() == Some(&server.id);
             let summary = configured
-                .local_access
+                .caches
                 .iter()
                 .find(|summary| summary.source_id == server.id);
             let credentials = shell
@@ -83,33 +82,9 @@ fn library_sources_page(
                     credentials
                         .as_ref()
                         .map(|credentials| credentials.username.as_str()),
-                    None,
                 ))
                 .subtitle_lines(4)
                 .build();
-            if summary.is_some_and(|summary| summary.access.is_some()) {
-                let source = shell.products.source.clone();
-                let server = server.clone();
-                let summary = summary.cloned();
-                let row = row.downgrade();
-                gtk::glib::spawn_future_local(async move {
-                    if let Ok(status) = source.local_access_status(server.id.clone()).await
-                        && let Some(row) = row.upgrade()
-                    {
-                        row.set_subtitle(&source_summary_subtitle(
-                            &server,
-                            summary.as_ref(),
-                            credentials
-                                .as_ref()
-                                .map(|credentials| credentials.server_url.as_str()),
-                            credentials
-                                .as_ref()
-                                .map(|credentials| credentials.username.as_str()),
-                            Some(&status),
-                        ));
-                    }
-                });
-            }
             if selected {
                 row.add_suffix(&gtk::Image::from_icon_name("rufin-object-select-symbolic"));
             }
@@ -131,7 +106,7 @@ fn library_sources_page(
                 let on_close: Rc<dyn Fn()> = Rc::new(move || {
                     navigation_controls_for_close.set_nested_page_visible(false);
                 });
-                let page = crate::preferences::source::local_access::manage_server_navigation_page(
+                let page = crate::preferences::source::manage::manage_server_navigation_page(
                     &settings_shell,
                     server.clone(),
                     &navigation,
@@ -970,10 +945,9 @@ fn confirm_remove_all_downloads(
 
 fn source_summary_subtitle(
     server: &SourceSummary,
-    summary: Option<&SourceLocalAccessSummary>,
+    summary: Option<&SourceCacheSummary>,
     address: Option<&str>,
     username: Option<&str>,
-    status: Option<&LocalAccessStatus>,
 ) -> String {
     let address = address
         .filter(|address| !address.trim().is_empty())
@@ -983,7 +957,6 @@ fn source_summary_subtitle(
         .and_then(|summary| summary.selected_music_folder_name.as_deref())
         .map(ToOwned::to_owned)
         .unwrap_or_else(|| "All Music".to_string());
-    let mapping = local_mapping_status(summary, status);
     let account = username
         .filter(|username| !username.trim().is_empty())
         .map(|username| format!("User: {username}"))
@@ -991,7 +964,7 @@ fn source_summary_subtitle(
     let cache = summary.map(source_cache_line).unwrap_or_default();
     let provider_line = metadata_line([configured_source_kind_display_name(&server.kind), address]);
     let folder_line = metadata_line([account, format!("Music Folder: {folder}")]);
-    let cache_line = metadata_line([cache, mapping]);
+    let cache_line = metadata_line([cache]);
     [provider_line, folder_line, cache_line]
         .into_iter()
         .filter(|line| !line.trim().is_empty())
@@ -1007,36 +980,10 @@ fn metadata_line(parts: impl IntoIterator<Item = String>) -> String {
         .join(" - ")
 }
 
-fn source_cache_line(summary: &SourceLocalAccessSummary) -> String {
+fn source_cache_line(summary: &SourceCacheSummary) -> String {
     format!(
         "Cached: {}, {}",
         album_count_text(summary.album_count as u64),
         track_count_text(summary.track_count as u64)
-    )
-}
-
-fn local_mapping_status(
-    summary: Option<&SourceLocalAccessSummary>,
-    status: Option<&LocalAccessStatus>,
-) -> String {
-    let Some(summary) = summary else {
-        return "No local file mapping".to_string();
-    };
-    if summary.access.is_none() {
-        return "No local file mapping".to_string();
-    }
-    let Some(status) = status else {
-        return "Local playback saved".to_string();
-    };
-    if status.total_track_count == 0 {
-        return "Local playback saved".to_string();
-    }
-    let matched = status.matched_track_count.to_string();
-    let total = status.total_track_count.to_string();
-    fill_plural(
-        "Local file mapping: {matched} of {total} server path matches",
-        "Local file mapping: {matched} of {total} server paths match",
-        status.total_track_count as u64,
-        &[("matched", matched.as_str()), ("total", total.as_str())],
     )
 }

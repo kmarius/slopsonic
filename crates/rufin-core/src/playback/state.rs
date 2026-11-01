@@ -77,7 +77,6 @@ pub enum Command {
         refill_threshold: usize,
     },
     UpdateSettings(PlaybackSettings),
-    StreamInputsChanged,
     CatalogChanged,
     RekeyTracks(Arc<[(library::TrackKey, library::TrackKey)]>),
 }
@@ -621,7 +620,6 @@ impl Player {
                 refill_threshold,
             } => Ok(self.set_auto_dj(enabled, refill_threshold)),
             Command::UpdateSettings(settings) => Ok(self.update_settings(settings)),
-            Command::StreamInputsChanged => Ok(self.stream_inputs_changed()),
             Command::RekeyTracks(pairs) => Ok({
                 let mut changed = false;
                 self.edit_queue(|sequence| changed = sequence.rekey_tracks(&pairs));
@@ -1659,10 +1657,6 @@ impl Player {
         } else {
             self.replan_next_if_changed();
         }
-    }
-
-    fn stream_inputs_changed(&mut self) {
-        self.replan_next(true);
     }
 
     fn current_stream_resolved(&mut self, run: RunId, mut stream: PreparedStream) {

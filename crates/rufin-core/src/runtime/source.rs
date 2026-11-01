@@ -3,18 +3,9 @@
 //! Provider configuration and lifecycle policy stay in Rufin and Sources. UI
 //! sees only form values, settings-derived summaries, and one operation state.
 
-use std::path::PathBuf;
-
 use std::sync::Arc;
 
 use sources::{CredentialPreset, SourceId};
-
-#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize)]
-pub struct LocalAccessStatus {
-    pub total_track_count: usize,
-    pub matched_track_count: usize,
-    pub sample_source_path: Option<String>,
-}
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
 pub struct SourceSummary {
@@ -25,19 +16,9 @@ pub struct SourceSummary {
     pub supports_playlist_public: bool,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct SourceLocalAccess {
-    pub source_id: SourceId,
-    pub root_path: PathBuf,
-    pub server_prefix: Option<String>,
-    pub local_prefix: Option<String>,
-    pub sample_source_path: Option<String>,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
-pub struct SourceLocalAccessSummary {
+pub struct SourceCacheSummary {
     pub source_id: SourceId,
-    pub access: Option<SourceLocalAccess>,
     pub selected_music_folder_name: Option<String>,
     pub album_count: usize,
     pub track_count: usize,
@@ -47,7 +28,7 @@ pub struct SourceLocalAccessSummary {
 pub struct ConfiguredSources {
     pub sources: Vec<SourceSummary>,
     pub selected_source_id: Option<SourceId>,
-    pub local_access: Vec<SourceLocalAccessSummary>,
+    pub caches: Vec<SourceCacheSummary>,
 }
 
 impl ConfiguredSources {

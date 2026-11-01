@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use rufin_core::runtime::source::{ConfiguredSources, SourceOperation, SourceSummary};
 
-pub(super) mod local_access;
 pub mod login;
+pub(super) mod manage;
 
 pub struct SourceState {
     pub configured: RefCell<ConfiguredSources>,

@@ -629,10 +629,7 @@ async fn stream_access_changes_leave_the_audible_run_untouched() {
     session.handle_backend(BackendEvent::Started { run }, &sample);
     let position = session.sequence.selected().unwrap().position;
     session.sequence.set_progress_millis(42_000);
-    for command in [
-        Command::StreamInputsChanged,
-        Command::UpdateSettings(session.settings.clone()),
-    ] {
+    for command in [Command::UpdateSettings(session.settings.clone())] {
         commands.lock().unwrap().clear();
         session.handle_command(command, &sample).unwrap();
         assert!(

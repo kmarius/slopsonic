@@ -25,6 +25,7 @@ Do not implement or expand:
 - **Other server backends** — Navidrome/Subsonic only, no Jellyfin/Plex/etc.
 - **Metadata editing** — Read-only client; editing belongs in the server or dedicated tools
 - **File management** — No local library scanning or file organization
+- **Playing from disk** — No mapping server paths to local music folders; playback streams from the server or uses downloads
 - **Rufin Connect / sync / casting** — No cross-device sync, remote control, or UPnP/Chromecast casting
 - **Headless/controller mode** — This is a desktop GUI application
 - **Windows/macOS/Android builds** — Linux only. Android, macOS and Windows support was removed because it can not be tested; some cross-platform and Android-specific code may remain and should be removed

@@ -12,8 +12,8 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::runtime::source::{
-    ConfiguredSources, EditableSource, LocalAccessStatus, SourceLocalAccess,
-    SourceLocalAccessSummary, SourceOperation, SourceProgress, SourceProgressStage, SourceSummary,
+    ConfiguredSources, EditableSource, SourceCacheSummary, SourceOperation, SourceProgress,
+    SourceProgressStage, SourceSummary,
 };
 use crate::runtime::{
     CatalogChange, CatalogPublication, CatalogRevision, FavoriteSettlement, SelectedLibrary,
@@ -34,8 +34,8 @@ use tracing::{info, warn};
 
 use crate::playback::PlaybackOwner;
 use crate::settings::{
-    ConfiguredSource, SavedLocalAccess, SettingsFile, StoredSettings, fresh_source_id,
-    load_provider_secret, platform_secret_store, seal_credential,
+    ConfiguredSource, SettingsFile, StoredSettings, fresh_source_id, load_provider_secret,
+    platform_secret_store, seal_credential,
 };
 
 const SOURCE_CHECK_INTERVAL: Duration = Duration::from_secs(5 * 60);
@@ -56,7 +56,6 @@ struct CachedSource {
     source: Arc<Source>,
     refresh: Option<Refresh>,
     observer: Option<(Arc<SelectedFeed>, tokio::task::AbortHandle)>,
-    mapping: Option<Arc<AtomicBool>>,
 }
 
 struct Refresh {
@@ -74,9 +73,6 @@ impl Drop for CachedSource {
         }
         if let Some(refresh) = &self.refresh {
             refresh.cancelled.store(true, Ordering::Release);
-        }
-        if let Some(mapping) = &self.mapping {
-            mapping.store(true, Ordering::Release);
         }
     }
 }
@@ -1103,7 +1099,6 @@ impl SourceOwner {
                 source: source.clone(),
                 refresh: None,
                 observer: None,
-                mapping: None,
             },
         );
         source
@@ -1463,7 +1458,6 @@ impl SourceOwner {
                     configuration: configuration.clone(),
                     credential: None,
                     music_folder_id: None,
-                    local_access: None,
                     enable_half_stars: false,
                 };
                 let configured = owner.persist_connected_source(&configured, credential)?;
@@ -1704,208 +1698,6 @@ impl SourceOwner {
         self.refresh_now(&source_id, &source, automatic, true)
             .await
             .map_err(SourceError::Other)
-    }
-}
-
-impl SourceOwner {
-    pub async fn local_access_status(
-        &self,
-        source_id: SourceId,
-    ) -> sources::SourceResult<LocalAccessStatus> {
-        self.reply(move |owner, database| async move {
-            let configured = configured_source(&owner.shared.settings.load().sources, &source_id)?;
-            let Some(source) = database
-                .source_identity_key(&source_id)
-                .await
-                .map_err(string_error)?
-            else {
-                return Ok(LocalAccessStatus::default());
-            };
-            let cancellation = ReadCancellation::new();
-            let (_, total_track_count) = database
-                .source_counts(source, &cancellation)
-                .await
-                .map_err(string_error)?;
-            let matched_track_count = match configured.local_access {
-                Some(access) => database
-                    .mapping_formula_match_count(
-                        source,
-                        access.root_path.to_string_lossy().as_ref(),
-                        access.server_prefix.as_deref(),
-                        &cancellation,
-                    )
-                    .await
-                    .map_err(string_error)?,
-                None => 0,
-            };
-            let sample_source_path = database
-                .mapping_track_page(source, None, None, 1, &cancellation)
-                .await
-                .map_err(string_error)?
-                .pop()
-                .map(|track| track.source_path);
-            Ok(LocalAccessStatus {
-                total_track_count,
-                matched_track_count,
-                sample_source_path,
-            })
-        })
-        .recv()
-        .await
-        .map_err(|error| SourceError::Other(error.to_string()))?
-        .map_err(SourceError::Other)
-    }
-
-    pub async fn save_local_access(
-        &self,
-        mut input: SourceLocalAccess,
-        wait_until_mapped: bool,
-    ) -> sources::SourceResult<()> {
-        let (sender, receiver) = async_channel::bounded(1);
-        let owner = self.clone();
-        self.shared.runtime.spawn(async move {
-            let cancelled = Arc::new(AtomicBool::new(false));
-            let result = async {
-                let (source, source_key) = owner.source_target(&input.source_id).await?;
-                {
-                    let mut clients = owner
-                        .shared
-                        .clients
-                        .lock()
-                        .unwrap_or_else(|p| p.into_inner());
-                    if let Some(cached) = clients.get_mut(&input.source_id) {
-                        if let Some(previous) = cached.mapping.replace(cancelled.clone()) {
-                            previous.store(true, Ordering::Release);
-                        }
-                    }
-                }
-                let (root_path, server_prefix) = source
-                    .apply_local_mapping(
-                        &owner.shared.database,
-                        source_key,
-                        &input.root_path,
-                        input.server_prefix.as_deref(),
-                        input.local_prefix.as_deref(),
-                        input.sample_source_path.as_deref(),
-                        Arc::clone(&cancelled),
-                    )
-                    .await
-                    .map_err(string_error)?;
-                input.server_prefix = server_prefix;
-                if source.is_retired() || cancelled.load(Ordering::Acquire) {
-                    return Err(SourceError::Cancelled.to_string());
-                }
-                owner.shared.settings.update(|stored| {
-                    let configured = stored
-                        .sources
-                        .configured
-                        .iter_mut()
-                        .find(|configured| configured.configuration.source_id == input.source_id)
-                        .ok_or_else(|| "the mapped source is no longer configured".to_string())?;
-                    configured.local_access = Some(SavedLocalAccess {
-                        root_path: root_path.clone(),
-                        server_prefix: input.server_prefix.clone(),
-                        local_prefix: input.local_prefix.clone(),
-                    });
-                    Ok(())
-                })?;
-                owner.shared.playback()?.stream_inputs_changed()?;
-                owner
-                    .shared
-                    .send(SourceEvent::Configured(owner.list_sources()))
-                    .await;
-                Ok((root_path, source, source_key))
-            }
-            .await;
-            let (root_path, source, source_key) = match result {
-                Ok(completed) => completed,
-                Err(error) => {
-                    let _ = sender.send(Err(error)).await;
-                    return;
-                }
-            };
-            if !wait_until_mapped {
-                let _ = sender.send(Ok(())).await;
-            }
-            let completion: Result<(), String> = async {
-                if cancelled.load(Ordering::Acquire) {
-                    return Err("Local file mapping was cancelled".to_string());
-                }
-                source
-                    .complete_local_mapping(
-                        &owner.shared.database,
-                        source_key,
-                        &root_path,
-                        input.server_prefix.as_deref(),
-                        input.local_prefix.as_deref(),
-                        Arc::clone(&cancelled),
-                    )
-                    .await
-                    .map_err(string_error)?;
-                owner.shared.playback()?.stream_inputs_changed()?;
-                owner
-                    .shared
-                    .send(SourceEvent::Configured(owner.list_sources()))
-                    .await;
-                Ok(())
-            }
-            .await;
-            if wait_until_mapped {
-                let _ = sender.send(completion).await;
-            } else if let Err(error) = completion {
-                warn!(%error, "background Local mapping did not complete");
-            }
-        });
-        receiver
-            .recv()
-            .await
-            .map_err(|error| SourceError::Other(error.to_string()))?
-            .map_err(SourceError::Other)
-    }
-}
-
-impl SourceOwner {
-    pub fn clear_local_access(&self, source_id: SourceId) {
-        let owner = self.clone();
-        self.shared.runtime.spawn(async move {
-            if let Some(cached) = owner
-                .shared
-                .clients
-                .lock()
-                .unwrap_or_else(|p| p.into_inner())
-                .get_mut(&source_id)
-                && let Some(token) = cached.mapping.take()
-            {
-                token.store(true, Ordering::Release);
-            }
-
-            if let Ok(Some(source)) = owner.shared.database.source_identity_key(&source_id).await {
-                let _ = owner.shared.database.clear_mapping_access(source).await;
-                let _ = owner
-                    .shared
-                    .playback()
-                    .and_then(|playback| playback.stream_inputs_changed());
-            }
-            let _ = owner.shared.settings.update(|stored| {
-                if let Some(configured) = stored
-                    .sources
-                    .configured
-                    .iter_mut()
-                    .find(|configured| configured.configuration.source_id == source_id)
-                {
-                    configured.local_access = None;
-                }
-                Ok(())
-            });
-            owner
-                .shared
-                .send(SourceEvent::Configured(
-                    owner
-                        .shared
-                        .configured_sources(owner.shared.selected().as_ref()),
-                ))
-                .await;
-        });
     }
 }
 
@@ -2319,7 +2111,6 @@ impl SourceOwner {
                     source: Arc::clone(&source),
                     refresh: None,
                     observer: None,
-                    mapping: None,
                 },
             );
             return Ok(source);
@@ -2551,46 +2342,33 @@ fn configured_sources(
             supports_playlist_public: configured.configuration.supports_playlist_public(),
         })
         .collect::<Vec<_>>();
-    let local_access = stored
+    let caches = stored
         .sources
         .configured
         .iter()
-        .map(|configured| {
-            let access = configured
-                .local_access
-                .as_ref()
-                .map(|access| SourceLocalAccess {
-                    source_id: configured.configuration.source_id.clone(),
-                    root_path: access.root_path.clone(),
-                    server_prefix: access.server_prefix.clone(),
-                    local_prefix: access.local_prefix.clone(),
-                    sample_source_path: None,
-                });
-            SourceLocalAccessSummary {
-                source_id: configured.configuration.source_id.clone(),
-                access,
-                selected_music_folder_name: selected
-                    .and_then(|selected| {
-                        let wanted = selected.music_folder_object_id.as_ref()?;
-                        selected
-                            .music_folders
-                            .iter()
-                            .find(|folder| &folder.object_id == wanted)
-                    })
-                    .map(|folder| folder.name.clone()),
-                album_count: counts
-                    .get(&configured.configuration.source_id)
-                    .map_or(0, |counts| counts.0),
-                track_count: counts
-                    .get(&configured.configuration.source_id)
-                    .map_or(0, |counts| counts.1),
-            }
+        .map(|configured| SourceCacheSummary {
+            source_id: configured.configuration.source_id.clone(),
+            selected_music_folder_name: selected
+                .and_then(|selected| {
+                    let wanted = selected.music_folder_object_id.as_ref()?;
+                    selected
+                        .music_folders
+                        .iter()
+                        .find(|folder| &folder.object_id == wanted)
+                })
+                .map(|folder| folder.name.clone()),
+            album_count: counts
+                .get(&configured.configuration.source_id)
+                .map_or(0, |counts| counts.0),
+            track_count: counts
+                .get(&configured.configuration.source_id)
+                .map_or(0, |counts| counts.1),
         })
         .collect::<Vec<_>>();
     ConfiguredSources {
         sources: sources.into(),
         selected_source_id: stored.sources.selected_source_id.clone(),
-        local_access,
+        caches,
     }
 }
 
@@ -2734,7 +2512,6 @@ mod source_tests {
             configuration: configuration.clone(),
             credential: None,
             music_folder_id: None,
-            local_access: None,
             enable_half_stars: false,
         };
         owner
@@ -3093,7 +2870,6 @@ mod source_tests {
                 },
                 credential: Some(crate::settings::Credential::new("held")),
                 music_folder_id: None,
-                local_access: None,
                 enable_half_stars: false,
             });
             Ok(())
@@ -3128,7 +2904,7 @@ mod source_tests {
             );
             owner.shared.load_source_counts().await.unwrap();
             assert_eq!(
-                owner.shared.configured_sources(None).local_access[0].album_count,
+                owner.shared.configured_sources(None).caches[0].album_count,
                 1
             );
             let completion = owner.select_source(source_id.clone());
@@ -3145,7 +2921,7 @@ mod source_tests {
                         selected,
                     } = receiver.recv().await.unwrap()
                     {
-                        assert_eq!(configured.local_access[0].album_count, 1);
+                        assert_eq!(configured.caches[0].album_count, 1);
                         break selected;
                     }
                 }
@@ -3287,7 +3063,6 @@ mod source_tests {
                             configuration: subsonic_configuration(local_id.clone(), "Local"),
                             credential: None,
                             music_folder_id: None,
-                            local_access: None,
                             enable_half_stars: false,
                         });
                         Ok(())
@@ -3316,12 +3091,12 @@ mod source_tests {
                 let configured = owner.shared.configured_sources(None);
                 assert_eq!(
                     (
-                        configured.local_access[0].album_count,
-                        configured.local_access[0].track_count
+                        configured.caches[0].album_count,
+                        configured.caches[0].track_count
                     ),
                     (1, 1)
                 );
-                assert_eq!(configured.local_access[1].track_count, 0);
+                assert_eq!(configured.caches[1].track_count, 0);
                 let update = {
                     let mut catalog = database.catalog(source_id.as_str(), None).await.unwrap();
                     catalog
@@ -3346,7 +3121,7 @@ mod source_tests {
                 .await
                 .expect("the unselected source deletion reaches the catalog consumer");
                 assert_eq!(
-                    owner.shared.configured_sources(None).local_access[0].track_count,
+                    owner.shared.configured_sources(None).caches[0].track_count,
                     0
                 );
                 release.send(()).unwrap();
@@ -3385,8 +3160,8 @@ mod source_tests {
             );
             assert_eq!(
                 (
-                    owner.shared.configured_sources(None).local_access[0].album_count,
-                    owner.shared.configured_sources(None).local_access[0].track_count,
+                    owner.shared.configured_sources(None).caches[0].album_count,
+                    owner.shared.configured_sources(None).caches[0].track_count,
                 ),
                 (1, 1)
             );
@@ -3430,7 +3205,6 @@ mod source_tests {
                             configuration: subsonic_configuration(id.clone(), id.as_str()),
                             credential: None,
                             music_folder_id: None,
-                            local_access: None,
                             enable_half_stars: false,
                         });
                         Ok(())

@@ -448,14 +448,6 @@ impl PlaybackOwner {
             refill_threshold: usize::from(threshold),
         });
     }
-    pub(crate) fn stream_inputs_changed(&self) -> Result<(), String> {
-        let active = self
-            .active()
-            .ok_or_else(|| "Playback is unavailable".to_string())?;
-        active
-            .command(Command::StreamInputsChanged)
-            .map_err(string_error)
-    }
     pub(crate) fn rekey_tracks(&self, pairs: Arc<[(library::TrackKey, library::TrackKey)]>) {
         self.send(Command::RekeyTracks(pairs));
     }
