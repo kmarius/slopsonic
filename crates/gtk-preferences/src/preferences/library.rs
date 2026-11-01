@@ -6,7 +6,6 @@ use adw::prelude::*;
 use downloads::{DownloadQueueState, DownloadRule};
 use gtk::gio;
 
-
 use super::{PreferencesNavigationControls, source::configured_source_kind_display_name};
 use crate::Preferences;
 use gtk_widgets::source_labels::configured_source_display_name;

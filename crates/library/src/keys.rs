@@ -213,7 +213,6 @@ integer_key!(PlaylistEntryKey);
 integer_key!(SmartPlaylistKey);
 integer_key!(ListenKey);
 integer_key!(ListenOutboxKey);
-integer_key!(LocalFileKey);
 integer_key!(LocalAccessFileKey);
 
 #[cfg(test)]

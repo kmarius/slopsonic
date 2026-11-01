@@ -2171,10 +2171,7 @@ async fn downloaded_row_facts_require_download_owned_local_access() {
         .expect("initial Track rows");
     assert!(rows.iter().all(|row| !row.access.is_downloaded));
 
-    for (index, origin) in [LocalAccessOrigin::Mapping, LocalAccessOrigin::Download]
-        .into_iter()
-        .enumerate()
-    {
+    for (index, origin) in [(1, LocalAccessOrigin::Download)] {
         let track = &rows[index];
         fixture
             .database
@@ -2214,7 +2211,7 @@ async fn downloaded_row_facts_require_download_owned_local_access() {
         .expect("provenance Track rows");
     assert!(
         !rows[0].access.is_downloaded,
-        "configured mapping is not a Download"
+        "a track without an artifact is not a Download"
     );
     assert!(
         rows[1].access.is_downloaded,

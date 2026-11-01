@@ -22,16 +22,12 @@ mod keys;
 mod local;
 mod loudness;
 mod playlist_folders;
-mod playlist_format;
-mod playlist_links;
 pub use playlist_folders::{PlaylistFolderMember, PlaylistFolderRow, PlaylistListRow};
 mod pins;
 mod playlists;
 pub use pins::{SidebarPin, SidebarPinRow};
 mod queue;
-pub use connect_media::{
-    CatalogFile, CatalogFileDependency, CatalogFileStamp, ConnectMediaFile, media_encoding_key,
-};
+pub use connect_media::{ConnectMediaFile, media_encoding_key};
 mod catalog;
 mod radio;
 mod scroll_sections;
@@ -58,8 +54,8 @@ pub use artwork::{
 
 pub use catalog::{
     AlbumObservation, ArtistObservation, CachedSource, Catalog, CatalogBatch, CatalogUpdate,
-    FolderObservation, Freshness, GenreObservation, LocalArtworkCandidate, MoodObservation,
-    PlaylistEntryObservation, PlaylistObservation, TrackObservation,
+    FolderObservation, Freshness, GenreObservation, MoodObservation, PlaylistEntryObservation,
+    PlaylistObservation, TrackObservation,
 };
 pub use collections::{
     AlbumArtistLink, AlbumDetailIndex, AlbumDetailRow, AlbumGenreLink, AlbumLinks,
@@ -74,23 +70,14 @@ pub use home::{
 };
 pub use keys::{
     AlbumKey, ArtistKey, FolderKey, GenreKey, ListenKey, ListenOutboxKey, LocalAccessFileKey,
-    LocalFileKey, MoodKey, PlaylistEntryKey, PlaylistFolderKey, PlaylistKey, SmartPlaylistKey,
-    SourceId, SourceKey, TrackKey, cue_media_parts, cue_media_uri, document_access_uri,
+    MoodKey, PlaylistEntryKey, PlaylistFolderKey, PlaylistKey, SmartPlaylistKey, SourceId,
+    SourceKey, TrackKey, cue_media_parts, cue_media_uri, document_access_uri,
     document_fragment_parts, document_locator_fragment, document_locator_parts, document_media_id,
     document_media_uri, file_media_path, normalize_direct_media_uri, source_entity_parts,
     source_entity_uri, source_id_for_uri,
 };
-pub use local::{
-    DownloadItem, DownloadMetadata, DownloadStatus, FileEditRow, LocalAccessOrigin,
-    LocalAccessWrite, LocalFileKind, LocalFileRow, LocalFileState, LocalFileWrite,
-    LocalLocatorWrite, LocalMediaLocation, MappingTrackRow, ObservedMediaFile,
-};
+pub use local::{DownloadMetadata, DownloadStatus, LocalAccessOrigin, LocalAccessWrite};
 pub use loudness::{AlbumLoudnessWork, LoudnessMeasurement, R128TagWrite, TrackLoudnessWork};
-pub use playlist_format::{
-    PlaylistFile, PlaylistFileEntry, PlaylistFormat, PlaylistImportReport, PlaylistPathMode,
-    playlist_host_path, playlist_locator,
-};
-pub use playlist_links::{ObservedPlaylistFile, PlaylistFileLink};
 pub use playlists::{
     PlaylistAccess, PlaylistEditEntry, PlaylistEntryRemovals, PlaylistEntryView,
     PlaylistEntryWrite, PlaylistGenreLink, PlaylistIdentity, PlaylistRow,

@@ -17,9 +17,7 @@ pub(crate) async fn write_images(
         .map(|(_, artwork)| artwork.map(<[u8]>::to_vec))
         .collect::<Vec<_>>();
     let (table, _) = super::cache::table(kind);
-    let next = if kind == "track" && native {
-        "CASE WHEN EXISTS(SELECT 1 FROM local_track_access location JOIN observed_local_files physical ON physical.source_key=location.source_key AND physical.path=location.source_path WHERE location.track_key=tracks.track_key AND(physical.artist_pictures IS NULL OR physical.picture_index>=0)) THEN coalesce(input.binding,tracks.native_artwork) ELSE input.binding END".to_owned()
-    } else if native {
+    let next = if native {
         "input.binding".to_owned()
     } else {
         format!("coalesce({table}.native_artwork,input.binding)")

@@ -1325,40 +1325,6 @@ pub struct SmartPlaylistWrite {
     pub position: i64,
 }
 
-impl Database {
-    pub async fn export_smart_playlist_file(
-        &self,
-        key: SmartPlaylistKey,
-        now: i64,
-        file: &std::path::Path,
-        mode: crate::PlaylistPathMode,
-        output: impl std::io::Write,
-    ) -> LibraryResult<u64> {
-        use futures_util::TryStreamExt;
-        let (_export, mut connection) = self.acquire_export().await?;
-        let mut output =
-            crate::playlist_format::PlaylistWriter::new(output, file, mode, None, None)?;
-        let query = smart_query(&mut connection, key, "", None, false, now).await?;
-        let rows = query.select(&format!(
-            "track.*,row_number() OVER(ORDER BY {}) result_position",
-            query.order.join(",")
-        ));
-        let sql = format!(
-            "WITH export_rows AS ({rows}) SELECT 'm3u:' || result_position object_id,media_uri,json(metadata) metadata,result_position-1 position FROM export_rows ORDER BY result_position"
-        );
-        let mut rows = sqlx::query_as_with::<_, crate::PlaylistEntryWrite, _>(
-            AssertSqlSafe(sql),
-            query.arguments.clone(),
-        )
-        .persistent(false)
-        .fetch(&mut *connection);
-        while let Some(entry) = rows.try_next().await? {
-            output.entry(&entry)?;
-        }
-        output.finish()
-    }
-}
-
 pub(crate) async fn smart_parent_query(
     connection: &mut SqliteConnection,
     now: i64,

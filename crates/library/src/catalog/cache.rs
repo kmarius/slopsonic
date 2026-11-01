@@ -14,17 +14,6 @@ pub(crate) fn table(kind: &str) -> (&'static str, &'static str) {
     }
 }
 
-pub(super) async fn source_key(
-    connection: &mut SqliteConnection,
-    source: &str,
-) -> LibraryResult<i64> {
-    sqlx::query_scalar("SELECT source_key FROM sources WHERE object_id=?1")
-        .bind(source)
-        .fetch_optional(connection)
-        .await?
-        .ok_or_else(|| LibraryError::InvalidRequest("source is no longer configured".into()))
-}
-
 pub(super) async fn write_headers<T: serde::Serialize + Default + Sync>(
     connection: &mut SqliteConnection,
     source: i64,
@@ -574,7 +563,7 @@ pub(super) async fn tracks(
                 .push_bind(sqlx::types::Json(crate::TrackMetadata::default()))
                 .push(",input.metadata)");
         }
-        query.push(",input.source_path,input.cue_path,input.cue_start,input.cue_end,input.first_seen,input.audio_key,coalesce((SELECT loudness_analysis_key FROM local_access_files WHERE media_uri=input.media_uri ORDER BY CASE origin WHEN 'download' THEN 0 WHEN 'mapping' THEN 1 ELSE 2 END,local_access_file_key LIMIT 1),input.audio_key),input.normalized_search,")
+        query.push(",input.source_path,input.cue_path,input.cue_start,input.cue_end,input.first_seen,input.audio_key,coalesce((SELECT loudness_analysis_key FROM local_access_files WHERE media_uri=input.media_uri ORDER BY local_access_file_key LIMIT 1),input.audio_key),input.normalized_search,")
             .push_bind(admit).push(",").push_bind(authoritative).push(" FROM input LEFT JOIN albums album ON album.source_key=").push_bind(source)
             .push(" AND album.object_id=input.album_id WHERE NOT EXISTS(SELECT 1 FROM tracks known WHERE known.source_key=").push_bind(source).push(" AND known.object_id=input.object_id AND(known.observed_stamp>").push_bind(observed.unwrap_or(i64::MAX)).push(if authoritative{")"}else{" OR known.native_metadata=1)"}).push(") ON CONFLICT(media_uri) DO UPDATE SET source_key=excluded.source_key,object_id=excluded.object_id,album_key=excluded.album_key,metadata=")
             .push(&metadata).push(",normalized_search=excluded.normalized_search,native_metadata=max(tracks.native_metadata,excluded.native_metadata),observed_stamp=CASE WHEN tracks.source_key IS excluded.source_key THEN tracks.observed_stamp ELSE 0 END,source_path=excluded.source_path,cue_path=excluded.cue_path,cue_start_millis=excluded.cue_start_millis,cue_end_millis=excluded.cue_end_millis,first_seen_at=coalesce(tracks.first_seen_at,excluded.first_seen_at),source_loudness_analysis_key=excluded.source_loudness_analysis_key,loudness_analysis_key=excluded.loudness_analysis_key,indexed=max(tracks.indexed,excluded.indexed) WHERE ")
@@ -631,8 +620,6 @@ pub(super) async fn tracks(
             observed,
         )
         .await?;
-        sqlx::query("UPDATE tracks SET local_file_key=(SELECT local_file_key FROM local_files WHERE source_key=tracks.source_key AND path=coalesce(tracks.cue_path,tracks.source_path)) WHERE source_key=?1 AND observed_stamp<=?2 AND object_id IN(SELECT value FROM json_each(?3)) AND local_file_key IS NOT(SELECT local_file_key FROM local_files WHERE source_key=tracks.source_key AND path=coalesce(tracks.cue_path,tracks.source_path))")
-            .bind(source).bind(observed.unwrap_or(i64::MAX)).bind(serde_json::to_string(&page.iter().map(|track|&track.object_id).collect::<Vec<_>>())?).execute(&mut *connection).await?;
         track_indexes(
             connection,
             source,
@@ -770,120 +757,6 @@ impl Database {
         Ok(sqlx::query("INSERT INTO tracks(media_uri,metadata,normalized_search,native_metadata) VALUES(?1,jsonb(?2),?3,1) ON CONFLICT(media_uri) DO UPDATE SET metadata=excluded.metadata,normalized_search=excluded.normalized_search,native_metadata=1 WHERE tracks.source_key IS NULL AND(tracks.metadata IS NOT excluded.metadata OR tracks.native_metadata=0)")
             .bind(uri).bind(serde_json::to_string(metadata)?).bind(track_search(metadata)).execute(writer.as_mut().ok_or(LibraryError::WriterUnavailable)?).await?.rows_affected()>0)
     }
-}
-
-pub(crate) async fn remember_collection(
-    connection: &mut SqliteConnection,
-    kind: &str,
-    source: SourceKey,
-    object_id: &str,
-    uri: Option<&str>,
-    metadata: &serde_json::Value,
-    artwork: Option<Vec<u8>>,
-) -> LibraryResult<i64> {
-    if kind == "playlist" {
-        let key: Option<i64> = sqlx::query_scalar("INSERT INTO playlists(source_key,owner,object_id,name,normalized_name,sort_text,artwork_binding,writable,metadata_writable,provider_revision,valid_until,indexed,position)
-            VALUES(?1,'source',?2,json_extract(?3,'$.name'),json_extract(?3,'$.normalized_name'),json_extract(?3,'$.sort_text'),?4,coalesce(json_extract(?3,'$.writable'),1),coalesce(json_extract(?3,'$.metadata_writable'),json_extract(?3,'$.writable'),1),json_extract(?3,'$.provider_revision'),json_extract(?3,'$.valid_until'),0,
-                CASE WHEN json_extract(?3,'$.position') IS NOT NULL AND NOT EXISTS(SELECT 1 FROM playlists WHERE position=json_extract(?3,'$.position')) THEN json_extract(?3,'$.position') ELSE(SELECT coalesce(max(position),-1)+1 FROM playlists) END)
-            ON CONFLICT(source_key,object_id) DO UPDATE SET
-                name=coalesce(playlists.name,excluded.name),normalized_name=coalesce(playlists.normalized_name,excluded.normalized_name),sort_text=coalesce(playlists.sort_text,excluded.sort_text),artwork_binding=coalesce(playlists.artwork_binding,excluded.artwork_binding),writable=coalesce(playlists.writable,excluded.writable),metadata_writable=coalesce(playlists.metadata_writable,excluded.metadata_writable),provider_revision=coalesce(playlists.provider_revision,excluded.provider_revision),valid_until=coalesce(playlists.valid_until,excluded.valid_until)
-            WHERE(name,normalized_name,sort_text,artwork_binding,writable,metadata_writable,provider_revision,valid_until) IS NOT(coalesce(playlists.name,excluded.name),coalesce(playlists.normalized_name,excluded.normalized_name),coalesce(playlists.sort_text,excluded.sort_text),coalesce(playlists.artwork_binding,excluded.artwork_binding),coalesce(playlists.writable,excluded.writable),coalesce(playlists.metadata_writable,excluded.metadata_writable),coalesce(playlists.provider_revision,excluded.provider_revision),coalesce(playlists.valid_until,excluded.valid_until))
-            RETURNING playlist_key")
-            .bind(source).bind(object_id).bind(serde_json::to_string(metadata)?).bind(artwork).fetch_optional(&mut *connection).await?;
-        return match key {
-            Some(key) => Ok(key),
-            None => Ok(sqlx::query_scalar(
-                "SELECT playlist_key FROM playlists WHERE source_key=?1 AND object_id=?2",
-            )
-            .bind(source)
-            .bind(object_id)
-            .fetch_one(connection)
-            .await?),
-        };
-    }
-    let source_id: String = sqlx::query_scalar("SELECT object_id FROM sources WHERE source_key=?1")
-        .bind(source)
-        .fetch_one(&mut *connection)
-        .await?;
-    let (table, key_column) = table(kind);
-    let previous: Option<(i64, bool)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
-        "SELECT {key_column},native_metadata FROM {table} WHERE source_key=?1 AND object_id=?2"
-    )))
-    .bind(source)
-    .bind(object_id)
-    .fetch_optional(&mut *connection)
-    .await?;
-    if let Some((key, true)) = previous {
-        return Ok(key);
-    }
-    let normalized = metadata
-        .get("title")
-        .or_else(|| metadata.get("name"))
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or(if kind == "folder" { object_id } else { "" })
-        .to_lowercase();
-    macro_rules! remember {
-        ($metadata:ty) => {{
-            let metadata: $metadata = serde_json::from_value(metadata.clone())?;
-            write_headers(
-                connection,
-                source.raw(),
-                &source_id,
-                kind,
-                &[(object_id, &metadata, normalized, artwork.clone())],
-                false,
-                false,
-                None,
-            )
-            .await?;
-        }};
-    }
-    match kind {
-        "album" => remember!(crate::AlbumMetadata),
-        "artist" => remember!(crate::ArtistMetadata),
-        "genre" | "mood" => remember!(crate::TagMetadata),
-        "folder" => remember!(crate::FolderMetadata),
-        _ => unreachable!("collection reference kind"),
-    }
-    let (table, key) = self::table(kind);
-    if let Some(uri) = uri {
-        sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE {table} SET media_uri=?3 WHERE source_key=?1 AND object_id=?2 AND indexed=0 AND media_uri<>?3"))).bind(source).bind(object_id).bind(uri).execute(&mut *connection).await?;
-    }
-    let key: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
-        "SELECT {key} FROM {table} WHERE source_key=?1 AND object_id=?2"
-    )))
-    .bind(source)
-    .bind(object_id)
-    .fetch_one(&mut *connection)
-    .await?;
-    if kind == "album" {
-        let album = AlbumObservation {
-            object_id: object_id.to_owned(),
-            metadata: serde_json::from_value(metadata.clone())?,
-            artwork_binding: artwork,
-            ..Default::default()
-        };
-        super::collections::headers(connection, source.raw(), &source_id, &[&album], &[], None)
-            .await?;
-        super::index::albums(connection, &[key]).await?;
-    }
-    super::artwork::refresh_choices(
-        connection,
-        &[],
-        if kind == "album" {
-            std::slice::from_ref(&key)
-        } else {
-            &[]
-        },
-        if kind == "artist" {
-            std::slice::from_ref(&key)
-        } else {
-            &[]
-        },
-        true,
-    )
-    .await?;
-    Ok(key)
 }
 
 pub(crate) async fn apply_on(

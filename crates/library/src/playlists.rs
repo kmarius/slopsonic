@@ -356,9 +356,7 @@ impl Database {
         ).bind(source).bind(playlist).bind(name).bind(artwork.is_some())
             .bind(image.map(|(bytes, _)| bytes)).bind(image.and_then(|(_, mime)| mime)).bind(revision).bind(binding)
             .execute(&mut *transaction).await?.rows_affected() == 1;
-        if changed && name.is_some() {
-            crate::playlist_links::mark_dirty_on(&mut transaction, playlist).await?;
-        }
+        if changed && name.is_some() {}
         transaction.commit().await?;
         Ok(changed)
     }
@@ -455,9 +453,7 @@ impl Database {
             skip_existing,
         )
         .await?;
-        if accepted > 0 {
-            crate::playlist_links::mark_dirty_on(&mut transaction, playlist).await?;
-        }
+        if accepted > 0 {}
         transaction.commit().await?;
         Ok(accepted)
     }
@@ -532,7 +528,6 @@ impl Database {
             .bind(playlist)
             .execute(&mut *transaction)
             .await?;
-            crate::playlist_links::mark_dirty_on(&mut transaction, playlist).await?;
         }
         transaction.commit().await?;
         Ok(removed)
@@ -600,7 +595,6 @@ impl Database {
         .bind(offset)
         .execute(&mut *transaction)
         .await?;
-        crate::playlist_links::mark_dirty_on(&mut transaction, playlist).await?;
         transaction.commit().await?;
         Ok(true)
     }
@@ -881,57 +875,6 @@ pub struct PlaylistEntryWrite {
     pub track: crate::TrackReference,
 }
 
-pub(crate) async fn write_playlist_identity(
-    connection: &mut SqliteConnection,
-    identity: &PlaylistIdentity,
-) -> LibraryResult<PlaylistKey> {
-    if identity.object_id.is_empty() || identity.position < 0 {
-        return Err(LibraryError::InvalidRequest(
-            "invalid playlist identity or order".into(),
-        ));
-    }
-    let source = if let Some(source_id) = &identity.source_id {
-        Some(crate::db::write_source_identity(connection, source_id).await?)
-    } else {
-        None
-    };
-    let source_owned = identity.source_owned || identity.name.is_none();
-    if source_owned && let Some(source) = source {
-        return crate::catalog::remember_collection(
-            connection,
-            "playlist",
-            SourceKey::from_raw(source),
-            &identity.object_id,
-            None,
-            &serde_json::json!({"position":identity.position}),
-            None,
-        )
-        .await
-        .map(PlaylistKey::from_raw);
-    }
-    let owner = if source_owned { "source" } else { "rufin" };
-    let existing = sqlx::query_scalar::<_, PlaylistKey>(
-        "SELECT playlist_key FROM playlists WHERE object_id=?1 AND source_key IS ?2",
-    )
-    .bind(&identity.object_id)
-    .bind(source)
-    .fetch_optional(&mut *connection)
-    .await?;
-    if let Some(key) = existing {
-        if !source_owned {
-            sqlx::query("UPDATE playlists SET name=?2,normalized_name=lower(?2),sort_text=lower(?2) WHERE playlist_key=?1 AND owner='rufin'")
-                .bind(key).bind(&identity.name).execute(&mut *connection).await?;
-        }
-        return Ok(key);
-    }
-    Ok(sqlx::query_scalar("INSERT INTO playlists(source_key,owner,object_id,name,normalized_name,sort_text,position,indexed)
-        VALUES(?1,?2,?3,?4,lower(?4),lower(?4),CASE WHEN EXISTS(SELECT 1 FROM playlists WHERE position=?5)
-        THEN (SELECT COALESCE(max(position)+1,0) FROM playlists) ELSE ?5 END,?6) RETURNING playlist_key")
-        .bind(source).bind(owner).bind(&identity.object_id).bind(&identity.name).bind(identity.position)
-        .bind(!source_owned)
-        .fetch_one(connection).await?)
-}
-
 /// Store accepted playlist positions.
 pub(crate) async fn write_positions_on(
     connection: &mut SqliteConnection,
@@ -953,13 +896,6 @@ pub(crate) async fn write_positions_on(
         ).bind(rows).execute(&mut *connection).await?.rows_affected()>0;
     }
     Ok(changed)
-}
-
-pub(crate) async fn remember_playlist_track(
-    connection: &mut SqliteConnection,
-    entry: &PlaylistEntryWrite,
-) -> LibraryResult<crate::TrackKey> {
-    crate::catalog::remember_track(connection, &entry.track).await
 }
 
 pub(crate) fn playlist_query(

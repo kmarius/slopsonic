@@ -413,23 +413,6 @@ impl super::Catalog<'_> {
         tx.commit().await?;
         Ok(())
     }
-    pub async fn create_observed_playlist(
-        &mut self,
-        observed: i64,
-        name: &str,
-    ) -> LibraryResult<crate::PlaylistKey> {
-        let mut writer = self.database.writer().await?;
-        let mut tx = writer
-            .as_mut()
-            .ok_or(LibraryError::WriterUnavailable)?
-            .begin()
-            .await?;
-        let source = self.source.raw();
-        let (key, _) = crate::playlists::create_playlist_identity(&mut tx, None, name).await?;
-        sqlx::query("INSERT INTO playlist_entries(playlist_key,object_id,track_key,position) SELECT ?1,'rufin:entry:'||lower(hex(randomblob(16))),track_key,row_number() OVER(ORDER BY coalesce(cue_path,source_path),disc_number,track_number,object_id)-1 FROM tracks WHERE source_key=?2 AND local_file_key IN(SELECT local_file_key FROM local_files WHERE source_key=?2 AND observed_stamp=?3)").bind(key).bind(source).bind(observed).execute(&mut *tx).await?;
-        tx.commit().await?;
-        Ok(key)
-    }
     pub async fn complete_source_folder_membership(
         &mut self,
         id: &str,

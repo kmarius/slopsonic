@@ -1618,14 +1618,6 @@ mod tests {
             Some("release-track-one")
         );
         assert_eq!(track.metadata.bpm, Some(123));
-        let mapping = database
-            .mapping_track_page(source_key, None, None, 1, &cancellation)
-            .await
-            .expect("mapping Track");
-        assert_eq!(
-            mapping[0].source_path,
-            "/srv/navidrome/audio/Artist/Album/Track.flac"
-        );
         let artists = library::ListRead {
             playlist_scope: Default::default(),
             kind: library::ListKind::Artists {

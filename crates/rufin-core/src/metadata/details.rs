@@ -215,17 +215,6 @@ pub async fn media_details(
                     Some(track.access.source_name.clone()),
                 );
                 copy(&mut origin, "File path", track.access.source_path.clone());
-                if let Some(size) = db.media_file_size(uri).await? {
-                    add(
-                        &mut origin,
-                        if track.access.cue_path.is_some() {
-                            "Shared file size"
-                        } else {
-                            "File size"
-                        },
-                        Some(glib::format_size(size.max(0) as u64).to_string()),
-                    );
-                }
                 copy(&mut origin, "CUE file", track.access.cue_path.clone());
                 if let Some(start) = track.access.cue_start_millis {
                     add(

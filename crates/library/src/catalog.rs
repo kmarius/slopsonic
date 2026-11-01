@@ -5,11 +5,9 @@ use std::sync::Arc;
 pub(crate) mod artwork;
 pub(crate) mod cache;
 pub(crate) mod collections;
-pub(crate) mod file_reads;
-pub(crate) mod files;
 pub(crate) mod index;
 mod observations;
-pub(crate) use cache::{remember_collection, remember_track};
+pub(crate) use cache::remember_track;
 pub use observations::*;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -84,20 +82,6 @@ pub struct CachedSource {
     pub object_id: String,
     pub display_name: String,
     pub catalog_complete: bool,
-}
-
-#[derive(Clone, Debug, FromRow)]
-pub struct LocalArtworkCandidate {
-    pub object_id: String,
-    pub path: String,
-    pub root: Option<String>,
-    pub picture_index: Option<i64>,
-    pub artist_pictures: Option<String>,
-    pub primary_artist: bool,
-    pub revision: Option<String>,
-    pub disc_number: i64,
-    pub track_number: i64,
-    pub sort_text: String,
 }
 
 impl Database {

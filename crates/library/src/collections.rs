@@ -382,9 +382,6 @@ pub(crate) fn genre_keys(genre: &str) -> String {
     format!("SELECT track_key FROM track_genres WHERE genre_key={genre}
         UNION SELECT member.track_key FROM album_genres credit CROSS JOIN tracks member INDEXED BY tracks_album_order_idx ON member.album_key=credit.album_key WHERE credit.genre_key={genre}")
 }
-pub(crate) fn album_artist_member(song: &str, artist: &str) -> String {
-    format!("{song}.track_key IN ({})", album_artist_keys(artist))
-}
 fn album_summary_field(field: &str, folder: Option<FolderKey>) -> String {
     if let Some(folder) = folder {
         let selected = if field == "album_count" {
