@@ -105,8 +105,6 @@ pub(crate) struct ConfiguredSource {
 pub(crate) struct SourceSettings {
     #[serde(default)]
     pub(crate) configured: Vec<ConfiguredSource>,
-    #[serde(rename = "selected_source_id", default, skip_serializing)]
-    pub(crate) legacy_selected_source_id: Option<SourceId>,
 }
 
 impl SourceSettings {
@@ -116,40 +114,6 @@ impl SourceSettings {
     pub(crate) fn connections_mut(&mut self) -> impl Iterator<Item = &mut ConfiguredSource> {
         self.configured.iter_mut()
     }
-}
-
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq)]
-pub(crate) enum LegacyTrackSortKey {
-    TrackNumber,
-    #[default]
-    Title,
-    Artist,
-    Album,
-    Year,
-    Duration,
-    Favorite,
-}
-
-impl LegacyTrackSortKey {
-    fn library_field(self) -> LibraryField {
-        match self {
-            Self::TrackNumber => LibraryField::TrackNumber,
-            Self::Title => LibraryField::Title,
-            Self::Artist => LibraryField::Artist,
-            Self::Album => LibraryField::Album,
-            Self::Year => LibraryField::Year,
-            Self::Duration => LibraryField::Duration,
-            Self::Favorite => LibraryField::Favorite,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
-pub(crate) struct LegacyTrackTableSettings {
-    #[serde(default)]
-    sort_key: LegacyTrackSortKey,
-    #[serde(default)]
-    descending: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -168,10 +132,6 @@ pub struct StoredSettings {
     pub(crate) sources: SourceSettings,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub(crate) secret_scope_id: String,
-    #[serde(default, rename = "home_sections", skip_serializing)]
-    pub(crate) legacy_home_sections: Option<Vec<HomeSectionKind>>,
-    #[serde(default, rename = "track_table", skip_serializing)]
-    pub(crate) legacy_track_table: Option<LegacyTrackTableSettings>,
 }
 
 impl Default for StoredSettings {
@@ -184,8 +144,6 @@ impl Default for StoredSettings {
             scrobbling_credentials: Default::default(),
             sources: SourceSettings::default(),
             secret_scope_id: String::new(),
-            legacy_home_sections: None,
-            legacy_track_table: None,
         }
     }
 }
@@ -197,8 +155,6 @@ impl StoredSettings {
         }
         self.scrobbling.lastfm.api_key.clear();
         self.scrobbling.sanitize();
-        self.migrate_home_blocks();
-        self.migrate_legacy_track_table();
         app::migrate_library_lists(&mut self.ui.library_lists);
         self.ui.sanitize();
     }
@@ -208,72 +164,6 @@ impl StoredSettings {
         settings.lastfm.api_key = self.ui.lastfm_api_key.clone();
         settings
     }
-
-    fn migrate_home_blocks(&mut self) {
-        if self.ui.application.home_blocks.is_empty() {
-            let home_sections = self
-                .legacy_home_sections
-                .take()
-                .filter(|sections| !sections.is_empty())
-                .unwrap_or_else(default_home_sections);
-            self.ui.application.home_blocks = Vec::with_capacity(home_sections.len() + 2);
-            self.ui
-                .application
-                .home_blocks
-                .push(HomeBlockKind::Showcase);
-            for section in home_sections {
-                self.ui.application.home_blocks.push(match section {
-                    HomeSectionKind::Explore => HomeBlockKind::Explore,
-                    HomeSectionKind::MostPlayed => HomeBlockKind::MostPlayed,
-                    HomeSectionKind::NewlyAdded => HomeBlockKind::NewlyAdded,
-                    HomeSectionKind::RecentlyPlayed => HomeBlockKind::RecentlyPlayed,
-                    HomeSectionKind::RecentlyReleased => HomeBlockKind::RecentlyReleased,
-                });
-            }
-            if !self
-                .ui
-                .application
-                .home_blocks
-                .contains(&HomeBlockKind::Genres)
-            {
-                self.ui.application.home_blocks.push(HomeBlockKind::Genres);
-            }
-        } else {
-            self.legacy_home_sections.take();
-        }
-    }
-
-    fn migrate_legacy_track_table(&mut self) {
-        let Some(legacy) = self.legacy_track_table.take() else {
-            return;
-        };
-        if self
-            .ui
-            .library_lists
-            .iter()
-            .any(|entry| entry.key == LibraryListKey::Tracks)
-        {
-            return;
-        }
-
-        let mut settings = LibraryListSettings::for_key(LibraryListKey::Tracks);
-        settings.sort_key = legacy.sort_key.library_field();
-        settings.descending = legacy.descending;
-        self.ui.library_lists.push(LibraryListSettingsEntry {
-            key: LibraryListKey::Tracks,
-            settings,
-        });
-    }
-}
-
-fn default_home_sections() -> Vec<HomeSectionKind> {
-    vec![
-        HomeSectionKind::Explore,
-        HomeSectionKind::MostPlayed,
-        HomeSectionKind::NewlyAdded,
-        HomeSectionKind::RecentlyPlayed,
-        HomeSectionKind::RecentlyReleased,
-    ]
 }
 
 #[derive(Clone)]
@@ -301,7 +191,8 @@ impl SettingsFile {
         &self.config_dir
     }
     pub(crate) fn open(path: PathBuf) -> Result<Self, String> {
-        let (mut value, mut changed) = read_startup_settings(&path)?;
+        let mut value = read_startup_settings(&path)?;
+        let mut changed = false;
         value.migrate_defaults();
         for recent in &mut value.ui.recent_search_results {
             if let Some(binding) = &mut recent.artwork_binding {
@@ -1086,15 +977,6 @@ fn recover_setting(
 pub(crate) fn decode_settings(
     raw: &toml::Value,
 ) -> Result<(StoredSettings, Vec<Vec<String>>), String> {
-    let mut migrated = raw.clone();
-    if migrated.get("equalizer").is_none()
-        && let Some(legacy) = raw.get("playback").and_then(|p| p.get("equalizer"))
-    {
-        migrated["equalizer"] =
-            toml::Value::try_from(crate::playback::EqualizerPreferences::from_legacy(legacy))
-                .map_err(|e| e.to_string())?;
-    }
-    let raw = &migrated;
     if let Ok(stored) = raw.clone().try_into::<StoredSettings>() {
         stored.equalizer.validate()?;
         return Ok((stored, Vec::new()));
@@ -1117,21 +999,16 @@ pub(crate) fn decode_settings(
         .map_err(|error| error.to_string())
 }
 
-fn read_startup_settings(path: &Path) -> Result<(StoredSettings, bool), String> {
+fn read_startup_settings(path: &Path) -> Result<StoredSettings, String> {
     let Some(raw) = read_settings_file(path)? else {
-        return Ok((StoredSettings::default(), false));
+        return Ok(StoredSettings::default());
     };
     let (stored, unsupported) = decode_settings(&raw)?;
     if !unsupported.is_empty() {
         warn!(?unsupported, path = %path.display(),
             "using defaults for incompatible preferences; saved values remain intact");
     }
-    let migrated = raw.get("equalizer").is_none()
-        && raw
-            .get("playback")
-            .and_then(|p| p.get("equalizer"))
-            .is_some();
-    Ok((stored, migrated))
+    Ok(stored)
 }
 
 // Apply typed changes without dropping fields this version does not understand.
@@ -1177,20 +1054,11 @@ fn persistent_settings(value: &StoredSettings) -> StoredSettings {
 pub(crate) fn write_settings(path: &Path, value: &StoredSettings) -> Result<(), String> {
     let next =
         toml::Value::try_from(persistent_settings(value)).map_err(|error| error.to_string())?;
-    let mut merged = match read_settings_file(path)? {
+    let merged = match read_settings_file(path)? {
         None => next,
         Some(mut saved) => {
             let (mut previous, unsupported) = decode_settings(&saved)?;
             let mut before = toml::Value::try_from(&previous).map_err(|error| error.to_string())?;
-            // These decoded legacy fields are consumed by migration and never serialized.
-            for (key, present) in [
-                ("home_sections", previous.legacy_home_sections.is_some()),
-                ("track_table", previous.legacy_track_table.is_some()),
-            ] {
-                if present {
-                    before[key] = saved[key].clone();
-                }
-            }
             if !unsupported.is_empty() {
                 previous.migrate_defaults();
                 let defaults =
@@ -1207,17 +1075,6 @@ pub(crate) fn write_settings(path: &Path, value: &StoredSettings) -> Result<(), 
             saved
         }
     };
-    // The decoded legacy value can compare equal before and after migration.
-    // Install its new key even when the ordinary merge has no changed fields.
-    if merged.get("equalizer").is_none() {
-        merged["equalizer"] = toml::Value::try_from(&value.equalizer).map_err(|e| e.to_string())?;
-    }
-    if let Some(playback) = merged
-        .get_mut("playback")
-        .and_then(toml::Value::as_table_mut)
-    {
-        playback.remove("equalizer");
-    }
     write_private(path, &encode_settings(&merged)?)
 }
 
@@ -1311,7 +1168,7 @@ mod tests {
         assert!(committed.ui.application.download_artwork_automatically);
         assert_eq!(committed.ui.window_width, Some(1234));
         file.flush().unwrap();
-        assert_eq!(read_startup_settings(&path).unwrap().0, file.load());
+        assert_eq!(read_startup_settings(&path).unwrap(), file.load());
     }
 
     #[test]
@@ -1346,7 +1203,7 @@ mod tests {
         assert_ne!(committed.ui.sidebar, initial.ui.sidebar);
         assert!(changes.has_changed().unwrap());
         assert_eq!(*changes.borrow(), committed.ui.sidebar);
-        assert_eq!(read_startup_settings(&path).unwrap().0, committed);
+        assert_eq!(read_startup_settings(&path).unwrap(), committed);
     }
 
     #[derive(Default)]

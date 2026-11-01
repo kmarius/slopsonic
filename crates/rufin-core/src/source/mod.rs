@@ -491,15 +491,9 @@ impl SourceOwner {
         let stored = self.shared.settings.load();
         let keep = stored
             .sources
-            .legacy_selected_source_id
-            .clone()
-            .or_else(|| {
-                stored
-                    .sources
-                    .configured
-                    .first()
-                    .map(|configured| configured.configuration.source_id.clone())
-            });
+            .configured
+            .first()
+            .map(|configured| configured.configuration.source_id.clone());
         let extras = stored
             .sources
             .configured
