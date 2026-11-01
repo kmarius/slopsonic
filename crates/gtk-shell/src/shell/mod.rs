@@ -1,4 +1,3 @@
-mod activity;
 mod activity_export;
 pub(crate) mod build;
 pub(crate) mod chrome;
@@ -37,7 +36,6 @@ use selected_ui::SelectedUiState;
 
 pub(crate) struct Shell {
     pub(crate) search_session: Rc<gtk_library::SearchSession>,
-    activity: std::cell::RefCell<Option<Rc<activity::ActivityView>>>,
     pub(crate) quitting: Rc<Cell<bool>>,
     pub(crate) storage_reset: crate::application::StorageResetResult,
     pub(crate) diagnostics: DiagnosticsHandle,

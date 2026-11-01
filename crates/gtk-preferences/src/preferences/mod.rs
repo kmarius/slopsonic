@@ -2,7 +2,6 @@ pub const DEFAULT_LEFT_TITLE: &str = "Default left sidebar";
 pub const DEFAULT_RIGHT_TITLE: &str = "Default right sidebar";
 pub const NARROW_LEFT_TITLE: &str = "Narrow left sidebar";
 pub const NARROW_RIGHT_TITLE: &str = "Narrow right sidebar";
-mod activity;
 pub mod backup;
 use crate::Preferences;
 use crate::{
@@ -775,7 +774,7 @@ fn build_preferences_page(
     kind: PreferencesPageKind,
 ) -> gtk::Widget {
     match kind {
-        PreferencesPageKind::General => general_page(shell, navigation_controls),
+        PreferencesPageKind::General => general_page(shell),
         PreferencesPageKind::Customization => appearance_page(shell).upcast(),
         PreferencesPageKind::Theme => themes::page(shell).upcast(),
         PreferencesPageKind::Privacy => privacy::page(shell, dialog, navigation_controls),
@@ -787,10 +786,7 @@ fn build_preferences_page(
         PreferencesPageKind::Library => library::library_page(shell, dialog, navigation_controls),
     }
 }
-fn general_page(
-    shell: &Rc<Preferences>,
-    navigation_controls: &PreferencesNavigationControls,
-) -> gtk::Widget {
+fn general_page(shell: &Rc<Preferences>) -> gtk::Widget {
     let resource = crate::ui_resource::GENERAL_PREFERENCES_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
@@ -799,7 +795,6 @@ fn general_page(
         external_metadata_row: adw::SwitchRow,
         starting_page_row: adw::ComboRow,
         window_group: adw::PreferencesGroup,
-        activity_overview_row: adw::ActionRow,
         tray_row: adw::SwitchRow,
         keep_running_row: adw::SwitchRow,
         start_minimized_row: adw::SwitchRow,
@@ -950,7 +945,7 @@ fn general_page(
             (notifications_shell.effects)(crate::Effect::WithdrawNotification);
         }
     });
-    activity::wrap_general(shell, &page, &activity_overview_row, navigation_controls)
+    page.upcast()
 }
 fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
     let resource = crate::ui_resource::APPEARANCE_PREFERENCES_RESOURCE;

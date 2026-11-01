@@ -20,7 +20,6 @@ gtk-widgets.workspace = true
 rufin-core.workspace = true
 adw = { workspace = true, features = ["v1_9", "gtk_v4_20"] }
 app-identity.workspace = true
-async-channel.workspace = true
 artwork.workspace = true
 desktop-integration.workspace = true
 downloads.workspace = true

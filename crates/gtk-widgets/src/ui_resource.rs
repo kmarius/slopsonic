@@ -140,7 +140,6 @@ pub fn verify_icons() -> Result<(), String> {
         "scalable/actions/rufin-drive-harddisk-symbolic.svg",
         "scalable/actions/rufin-edit-clear-symbolic.svg",
         "scalable/actions/rufin-go-last-symbolic.svg",
-        "scalable/actions/rufin-activity-overview-symbolic.svg",
         "scalable/actions/rufin-audio-only-symbolic.svg",
         "scalable/actions/rufin-library-music-symbolic.svg",
         "scalable/actions/rufin-mail-forward-symbolic.svg",

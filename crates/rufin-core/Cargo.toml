@@ -19,7 +19,6 @@ age.workspace = true
 # Bundle age error translations in development packages too.
 image.workspace = true
 base64.workspace = true
-resvg.workspace = true
 thiserror.workspace = true
 backup.workspace = true
 audio-processing.workspace = true

@@ -69,14 +69,6 @@ pub struct ListenDeliveryTarget {
     pub next_attempt_at: Option<i64>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
-pub enum CalendarActivityPeriod {
-    Month { year: i32, month: u8 },
-    Year(i32),
-    Lifetime,
-}
-
 #[derive(Clone, Debug, FromRow, PartialEq)]
 pub struct PendingListenDelivery {
     pub outbox_key: ListenOutboxKey,

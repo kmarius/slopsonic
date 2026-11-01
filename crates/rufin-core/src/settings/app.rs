@@ -18,55 +18,6 @@ use super::{
 };
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
-pub struct ActivityOverviewSettings {
-    pub autoplay_first_track: bool,
-    pub dynamic_background: bool,
-    pub background_image: bool,
-    pub tracks: bool,
-    pub artists: bool,
-    pub albums: bool,
-    pub genres: bool,
-    pub result_count: super::PreferenceIndex,
-    pub show_comparison: bool,
-    pub show_rufin_in_headline: bool,
-    pub monthly_enabled: bool,
-    pub yearly_enabled: bool,
-    pub monthly_days_before_end: u32,
-    pub monthly_days_after_end: u32,
-    pub yearly_days_before_end: u32,
-    pub yearly_days_after_end: u32,
-    pub opened_month: Option<String>,
-    pub opened_year: Option<i32>,
-}
-
-impl Default for ActivityOverviewSettings {
-    fn default() -> Self {
-        Self {
-            autoplay_first_track: true,
-            dynamic_background: true,
-            background_image: true,
-            tracks: true,
-            artists: true,
-            albums: true,
-            genres: true,
-            result_count: 3,
-            show_comparison: true,
-            show_rufin_in_headline: true,
-            monthly_enabled: true,
-            yearly_enabled: true,
-            monthly_days_before_end: 0,
-            monthly_days_after_end: 5,
-            yearly_days_before_end: 6,
-            yearly_days_after_end: 7,
-            opened_month: None,
-            opened_year: None,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct ExternalSiteLinkSettings {
     #[serde(default = "default_true")]
@@ -221,8 +172,6 @@ preference_group!(#[cfg_attr(feature = "bindings", derive(uniffi::Record))] Appl
     home_blocks: Vec<HomeBlockKind> = default_home_blocks() => set_home_blocks;
     #[serde(default)]
     context_menu: ContextMenuSettings = ContextMenuSettings::default() => set_context_menu;
-    #[serde(default)]
-    activity_overview: ActivityOverviewSettings = ActivityOverviewSettings::default();
     #[serde(default)]
     backup: crate::runtime::BackupSettings = crate::runtime::BackupSettings::default();
     #[serde(default = "legacy_secret_storage_mode")]

@@ -258,7 +258,6 @@ pub async fn build(
         operation_feedback_action,
         root_stack,
         app_root_overlay,
-        app_content_overlay,
         app_content_stack,
         startup_loading_host,
         startup_loading_status,
@@ -439,7 +438,6 @@ pub async fn build(
             startup,
             player_ui,
             preferences,
-            activity: RefCell::new(None),
             downloads,
             download_feedback: Default::default(),
             control_feedback,
@@ -475,7 +473,6 @@ pub async fn build(
             if let Err(error) = shell.products.settings.flush() {
                 tracing::warn!(%error, "could not finish saving settings");
             }
-            shell.close_activity();
         }
     });
     install_normal_navigation_activation(&shell);
@@ -584,19 +581,6 @@ pub async fn build(
     }
     if !shell.chrome.window.is_visible() {
         present_initial_window(&shell);
-    }
-    if shell.chrome.window.is_mapped() {
-        shell.open_startup_activity();
-    } else {
-        let pending = Cell::new(true);
-        let weak = Rc::downgrade(&shell);
-        shell.chrome.window.connect_map(move |_| {
-            if pending.replace(false)
-                && let Some(shell) = weak.upgrade()
-            {
-                shell.open_startup_activity();
-            }
-        });
     }
     if defer_initial_route && !shell.source.operation.borrow().blocks_library() {
         shell.prepare_startup_route_content();

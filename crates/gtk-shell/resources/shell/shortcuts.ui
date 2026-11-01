@@ -27,12 +27,6 @@
           </object>
         </child>
         <child>
-          <object class="AdwShortcutsItem" id="shortcut_listening_overview">
-            <property name="title" translatable="yes">Listening overview</property>
-            <property name="action-name">win.listening-overview</property>
-          </object>
-        </child>
-        <child>
           <object class="AdwShortcutsItem" id="shortcut_troubleshooting">
             <property name="title" translatable="yes">Troubleshooting</property>
             <property name="action-name">win.troubleshooting</property>

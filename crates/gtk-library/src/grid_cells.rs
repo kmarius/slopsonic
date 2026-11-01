@@ -813,10 +813,6 @@ pub struct AlbumGridCell {
 }
 
 impl AlbumGridCell {
-    pub(crate) fn set_play_count_caption(&self, count: i64) {
-        self.body.set_play_count_caption(count);
-    }
-
     pub fn enable_card_activation(&self) {
         let click = gtk::GestureClick::new();
         click.set_button(1);
@@ -922,10 +918,6 @@ pub struct ArtistGridCell {
 }
 
 impl ArtistGridCell {
-    pub(crate) fn set_play_count_caption(&self, count: i64) {
-        self.body.set_play_count_caption(count);
-    }
-
     pub fn new(shell: &Rc<CatalogUi>, fields: &[LibraryField], album_artist: bool) -> Self {
         let current = Rc::new(RefCell::new(None::<ArtistView>));
         let controls = cards::CollectionGridCoverView::new("Play artist");
@@ -1188,21 +1180,6 @@ pub struct CollectionGridCardCell {
 }
 
 impl CollectionGridCardCell {
-    fn set_play_count_caption(&self, count: i64) {
-        let text = rufin_core::text::fill_plural(
-            "{count} play",
-            "{count} plays",
-            count as u64,
-            &[("count", &count.to_string())],
-        );
-        for field in self.fields.borrow().iter() {
-            if field.field == LibraryField::PlayCount {
-                field.bind(DetailLinks::text(&text));
-                field.widget.add_css_class("activity-play-count");
-            }
-        }
-    }
-
     pub fn new(shell: &Rc<CatalogUi>, fields: &[LibraryField], cover: gtk::Widget) -> Self {
         let card = CollectionGridCardView::new();
         card.prepend(&cover);

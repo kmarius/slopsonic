@@ -1,4 +1,3 @@
-mod activity;
 mod player;
 mod preferences;
 pub type PreferenceIndex = usize;

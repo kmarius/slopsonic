@@ -37,8 +37,7 @@ impl Shell {
     }
 
     fn route_keyboard_available(&self) -> bool {
-        self.activity.borrow().is_none()
-            && !self.fullscreen_player_visible()
+        !self.fullscreen_player_visible()
             && !self.transient_route_input_active()
     }
 

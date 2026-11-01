@@ -11,8 +11,6 @@ pub const PREFERENCES_REORDER_ROW_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/reorder_row.ui";
 pub const LIBRARY_PREFERENCES_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/library.ui";
 pub const INTEGRATIONS_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/integrations.ui";
-pub const ACTIVITY_PREFERENCES_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/activity.ui";
 pub const PREFERENCES_DIALOG_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/dialog.ui";
 pub const GENERAL_PREFERENCES_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/general.ui";
 pub const APPEARANCE_PREFERENCES_RESOURCE: &str =
@@ -48,7 +46,6 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     PREFERENCES_REORDER_ROW_RESOURCE,
     LIBRARY_PREFERENCES_RESOURCE,
     INTEGRATIONS_RESOURCE,
-    ACTIVITY_PREFERENCES_RESOURCE,
     PREFERENCES_DIALOG_RESOURCE,
     GENERAL_PREFERENCES_RESOURCE,
     APPEARANCE_PREFERENCES_RESOURCE,

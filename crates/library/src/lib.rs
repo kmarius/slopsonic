@@ -15,8 +15,6 @@ uniffi::custom_type!(LibraryIndex, u64, {
 mod audio;
 pub use audio::*;
 mod activity;
-mod activity_overview;
-pub use activity_overview::{ActivityOverview, ActivityTotals, GenreActivity};
 mod artwork;
 mod backup;
 mod metadata;
@@ -66,7 +64,7 @@ mod tracks;
 pub use tracks::AudioProperties;
 
 pub use activity::{
-    ActivityCsvFormat, ActivityImportReport, ActivityRecord, CalendarActivityPeriod,
+    ActivityCsvFormat, ActivityImportReport, ActivityRecord,
     ListenDeliveryTarget, ListenWrite, PendingListenDelivery,
 };
 pub use artwork::{

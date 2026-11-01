@@ -40,33 +40,4 @@ impl SettingsOwner {
         Ok(self.random_preferences())
     }
 
-    pub fn mark_activity_opened(
-        &self,
-        period: library::CalendarActivityPeriod,
-    ) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            ui.application.activity_overview.mark_opened(period);
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-
-    pub fn activity_preferences(&self) -> app::ActivityOverviewSettings {
-        self.load().application.activity_overview
-    }
-
-    pub fn set_activity_preferences(
-        &self,
-        value: app::ActivityOverviewSettings,
-    ) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            let current = &mut ui.application.activity_overview;
-            let mut value = value;
-            value.opened_month = current.opened_month.clone();
-            value.opened_year = current.opened_year;
-            *current = value;
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
 }
