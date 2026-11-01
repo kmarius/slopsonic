@@ -10,11 +10,7 @@ repository.workspace = true
 readme.workspace = true
 publish.workspace = true
 
-[features]
-bindings = ["dep:uniffi"]
-
 [dependencies]
-uniffi = { workspace = true, optional = true }
 sources.workspace = true
 library.workspace = true
 tokio = { workspace = true, features = ["rt"] }

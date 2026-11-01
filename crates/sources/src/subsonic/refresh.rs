@@ -1,4 +1,3 @@
-
 use library::Freshness;
 
 use super::*;
@@ -503,7 +502,6 @@ impl SubsonicSource {
         }
         Ok(())
     }
-
 }
 
 fn freshness(status: ScanStatus) -> Vec<u8> {

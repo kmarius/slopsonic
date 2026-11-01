@@ -279,7 +279,6 @@ pub(crate) struct QueueBatch {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum QueueSelection {
     Positions(Vec<usize>),
     Occurrences(Vec<u64>),

@@ -13,20 +13,18 @@ use std::{
 
 use super::{
     LASTFM_API_CREATE_URL, LISTENBRAINZ_TOKEN_URL, configure_sidebar_items_expander,
-    context_menu::configure_context_menus,
-    layout::populate_home_block_rows,
-    populate_layout_group,
+    context_menu::configure_context_menus, layout::populate_home_block_rows, populate_layout_group,
 };
 
 use crate::Preferences;
 use adw::prelude::*;
-use rufin_core::text::{fill};
 use playback::StreamQuality;
 use playback::{
     LoudnessNormalization, LoudnessNormalizationScope, MAX_AUTO_DJ_REFILL_THRESHOLD,
     MAX_EBU_R128_TARGET_LUFS, MIN_AUTO_DJ_REFILL_THRESHOLD, MIN_EBU_R128_TARGET_LUFS,
 };
 use rufin_core::runtime::{ScrobblingConnection, ScrobblingConnectionEvent, ScrobblingPreferences};
+use rufin_core::text::fill;
 
 pub(super) type ScrobblingCredentialDrafts = Rc<RefCell<ScrobblingPreferences>>;
 
@@ -138,10 +136,10 @@ pub fn scrobbling_page(
         |settings, active| replace_if_changed(&mut settings.lastfm.enabled, active),
     );
     lastfm_api_help.set_subtitle(&inline_link_markup(
-        &"If you do not have API keys, create them".to_string(),
+        "If you do not have API keys, create them",
         LASTFM_API_CREATE_URL,
-        &"here".to_string(),
-        &". You only need to fill email and an application name parts".to_string(),
+        "here",
+        ". You only need to fill email and an application name parts",
     ));
 
     lastfm_api_key.set_text(&drafts.borrow().lastfm.api_key);
@@ -204,11 +202,11 @@ pub fn scrobbling_page(
         let api_key = lastfm_api_key_row.text().trim().to_string();
         let api_secret = lastfm_secret_row.text().trim().to_string();
         if api_key.is_empty() || api_secret.is_empty() {
-            lastfm_connection_row.set_subtitle(&"Enter API credentials first".to_string());
+            lastfm_connection_row.set_subtitle("Enter API credentials first");
             return;
         }
         button.set_sensitive(false);
-        lastfm_connection_row.set_subtitle(&"Opening Last.fm authorization...".to_string());
+        lastfm_connection_row.set_subtitle("Opening Last.fm authorization...");
         let shell = Rc::clone(&lastfm_connect_shell);
         let row = lastfm_connection_row.clone();
         let button = button.clone();
@@ -228,7 +226,7 @@ pub fn scrobbling_page(
             {
                 Ok(username) => {
                     row.set_subtitle(&audioscrobbler_connected_subtitle(&username));
-                    button.set_label(&"Reconnect".to_string());
+                    button.set_label("Reconnect");
                 }
                 Err(error) => {
                     row.set_subtitle(&error);
@@ -269,7 +267,7 @@ pub fn scrobbling_page(
             return;
         };
         button.set_sensitive(false);
-        librefm_connection_row.set_subtitle(&"Opening Libre.fm authorization...".to_string());
+        librefm_connection_row.set_subtitle("Opening Libre.fm authorization...");
         let shell = Rc::clone(&librefm_connect_shell);
         let row = librefm_connection_row.clone();
         let button = button.clone();
@@ -285,7 +283,7 @@ pub fn scrobbling_page(
             {
                 Ok(username) => {
                     row.set_subtitle(&audioscrobbler_connected_subtitle(&username));
-                    button.set_label(&"Reconnect".to_string());
+                    button.set_label("Reconnect");
                 }
                 Err(error) => {
                     row.set_subtitle(&error);
@@ -309,9 +307,9 @@ pub fn scrobbling_page(
         |settings, active| replace_if_changed(&mut settings.listenbrainz.enabled, active),
     );
     listenbrainz_token_help.set_subtitle(&inline_link_markup(
-        &"Find your ListenBrainz user token".to_string(),
+        "Find your ListenBrainz user token",
         LISTENBRAINZ_TOKEN_URL,
-        &"here".to_string(),
+        "here",
         ".",
     ));
 
@@ -559,7 +557,7 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
                 });
         },
     );
-    loudness_scope_row.set_subtitle(&"Track evens out every song, while Album preserves the intended differences within each album".to_string());
+    loudness_scope_row.set_subtitle("Track evens out every song, while Album preserves the intended differences within each album");
 
     ebu_target.set_range(MIN_EBU_R128_TARGET_LUFS, MAX_EBU_R128_TARGET_LUFS);
     ebu_target.set_increments(1.0, 10.0);
@@ -578,7 +576,11 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
     });
     ebu_target_row.set_activatable_widget(Some(&ebu_target));
 
-    let mode_titles = ["Off".to_string(), "ReplayGain".to_string(), "EBU R128".to_string()];
+    let mode_titles = [
+        "Off".to_string(),
+        "ReplayGain".to_string(),
+        "EBU R128".to_string(),
+    ];
     let (loudness_normalization_row, mode_buttons) = controlled_selection_row(
         &String::from(NORMALIZATION_TITLE),
         &mode_titles,
@@ -631,8 +633,8 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
                 .heading("Enable EBU R128 Analysis?".to_string())
                 .body("Slopsonic will calculate the missing EBU R128 metadata for the whole library. This can use significant CPU, battery, and network bandwidth for a long time.".to_string())
                 .build();
-            confirm.add_response("cancel", &"Cancel".to_string());
-            confirm.add_response("enable", &"Enable".to_string());
+            confirm.add_response("cancel", "Cancel");
+            confirm.add_response("enable", "Enable");
             confirm.set_default_response(Some("cancel"));
             confirm.set_close_response("cancel");
             let shell = Rc::clone(&shell);
@@ -686,7 +688,8 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
                 });
         },
     );
-    volume_scale_row.set_subtitle(&"Perceptual for a finer control at low volume; Linear for a direct scale".to_string());
+    volume_scale_row
+        .set_subtitle("Perceptual for a finer control at low volume; Linear for a direct scale");
     audio_group.add(&volume_scale_row);
 
     let quality_shell = Rc::clone(shell);

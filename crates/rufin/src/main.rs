@@ -1,45 +1,26 @@
-#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
-
 use rufin_core::{app, diagnostics, paths};
 use std::env;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-use std::ffi::OsStr;
 use std::io;
 use std::process::{Command, ExitCode};
-#[cfg(target_os = "macos")]
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
 use tracing::info;
 
 fn main() -> ExitCode {
     process_memory::configure_allocator();
-    #[cfg(target_os = "macos")]
-    if let Some(result) = restart_in_macos_bundle() {
-        return result;
-    }
     #[cfg(unix)]
     if let Some(result) = playback_gstreamer::restart_with_http1() {
         return result;
     }
     let settings = app::startup_settings(&paths::roots());
     let (diagnostics, _stderr_guard) = diagnostics::Diagnostics::install(paths::state_dir());
-    let _desktop_platform = desktop_integration::Platform::initialize();
     info!("starting Slopsonic native shell");
 
     let initial_settings = settings.load().ui.clone();
     let bootstrap = move || async move {
-        app::runtime_inputs(
-            diagnostics,
-            settings,
-            paths::roots(),
-            |processing| {
-                playback_gstreamer::GStreamerPlaybackBackend::new(processing)
-                    .map(|backend| Box::new(backend) as Box<dyn playback::PlaybackBackend>)
-                    .map_err(|error| error.to_string())
-            },
-        )
+        app::runtime_inputs(diagnostics, settings, paths::roots(), |processing| {
+            playback_gstreamer::GStreamerPlaybackBackend::new(processing)
+                .map(|backend| Box::new(backend) as Box<dyn playback::PlaybackBackend>)
+                .map_err(|error| error.to_string())
+        })
         .await
     };
     let runtime = match app::worker_runtime() {
@@ -92,133 +73,4 @@ fn restart_after_storage_reset() -> io::Result<ExitCode> {
             command.spawn().map(|_| ExitCode::SUCCESS)
         }
     })
-}
-
-#[cfg(target_os = "macos")]
-fn restart_in_macos_bundle() -> Option<ExitCode> {
-    const BUNDLE_ENVIRONMENT_READY: &str = "RUFIN_MACOS_BUNDLE_ENVIRONMENT_READY";
-
-    if env::var_os(BUNDLE_ENVIRONMENT_READY).is_some() {
-        return None;
-    }
-    let executable = env::current_exe().ok()?;
-    let macos_dir = executable.parent()?;
-    let contents_dir = macos_dir.parent()?;
-    if macos_dir.file_name() != Some(OsStr::new("MacOS"))
-        || contents_dir.file_name() != Some(OsStr::new("Contents"))
-    {
-        return None;
-    }
-    let resources_dir = contents_dir.join("Resources");
-    let frameworks_dir = contents_dir.join("Frameworks");
-    if !resources_dir.is_dir() || !frameworks_dir.is_dir() {
-        return None;
-    }
-
-    Some(
-        match macos_bundle_command(&executable, macos_dir, &resources_dir, &frameworks_dir) {
-            Ok(mut command) => {
-                use std::os::unix::process::CommandExt as _;
-
-                let error = command.exec();
-                let _ = writeln!(io::stderr().lock(), "Could not start Slopsonic: {error}");
-                ExitCode::FAILURE
-            }
-            Err(error) => {
-                let _ = writeln!(io::stderr().lock(), "Could not prepare Slopsonic: {error}");
-                ExitCode::FAILURE
-            }
-        },
-    )
-}
-
-#[cfg(target_os = "macos")]
-fn macos_bundle_command(
-    executable: &Path,
-    macos_dir: &Path,
-    resources_dir: &Path,
-    frameworks_dir: &Path,
-) -> Result<Command, String> {
-    let loader_dir = resources_dir.join("lib/gdk-pixbuf-2.0/loaders");
-    let loader_cache = paths::project_cache_dir()
-        .unwrap_or_else(|| env::temp_dir().join(app_identity::APP_ID))
-        .join("gdk-pixbuf-loaders.cache");
-    if let Some(parent) = loader_cache.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|error| format!("could not prepare the image loader cache: {error}"))?;
-    }
-    let mut loader_modules = fs::read_dir(&loader_dir)
-        .map_err(|error| format!("could not read image loaders: {error}"))?
-        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-        .filter(|path| path.extension() == Some(OsStr::new("so")))
-        .collect::<Vec<_>>();
-    loader_modules.sort();
-    if loader_modules.is_empty() {
-        return Err("no bundled image loaders were found".to_string());
-    }
-    let loader_output = Command::new(macos_dir.join("gdk-pixbuf-query-loaders"))
-        .args(loader_modules)
-        .output()
-        .map_err(|error| format!("could not inspect image loaders: {error}"))?;
-    if !loader_output.status.success() {
-        return Err(format!(
-            "image loader inspection failed with status {}",
-            loader_output.status
-        ));
-    }
-    fs::write(&loader_cache, loader_output.stdout)
-        .map_err(|error| format!("could not write the image loader cache: {error}"))?;
-
-    let registry_path = env::var_os("RUFIN_GST_REGISTRY_1_0")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            let registry_file = format!(
-                "gstreamer-registry-{}.bin",
-                env::consts::ARCH.replace("aarch64", "arm64")
-            );
-            paths::project_cache_dir()
-                .map(|cache_dir| cache_dir.join(&registry_file))
-                .unwrap_or_else(|| env::temp_dir().join(registry_file))
-        });
-    let mut command = Command::new(executable);
-    command
-        .args(env::args_os().skip(1))
-        .env("RUFIN_MACOS_BUNDLE_ENVIRONMENT_READY", "1")
-        .env("GDK_PIXBUF_MODULEDIR", &loader_dir)
-        .env("GDK_PIXBUF_MODULE_FILE", loader_cache)
-        .env("GIO_MODULE_DIR", resources_dir.join("lib/gio/modules"))
-        .env(
-            "GSETTINGS_SCHEMA_DIR",
-            resources_dir.join("share/glib-2.0/schemas"),
-        )
-        .env(
-            "GST_PLUGIN_SCANNER_1_0",
-            macos_dir.join("gst-plugin-scanner"),
-        )
-        .env("GST_PLUGIN_PATH", "")
-        .env("GST_PLUGIN_PATH_1_0", "")
-        .env(
-            "GST_PLUGIN_SYSTEM_PATH_1_0",
-            resources_dir.join("lib/gstreamer-1.0"),
-        )
-        .env("RUFIN_LOCALEDIR", resources_dir.join("share/locale"))
-        .env("XDG_DATA_DIRS", resources_dir.join("share"));
-    command.env("SOUP_FORCE_HTTP1", "1");
-    if registry_path
-        .parent()
-        .is_some_and(|parent| fs::create_dir_all(parent).is_ok())
-    {
-        command.env("GST_REGISTRY_1_0", registry_path);
-    }
-    let library_path = match env::var_os("DYLD_LIBRARY_PATH") {
-        Some(existing) if !existing.is_empty() => {
-            let mut paths = vec![frameworks_dir.to_path_buf()];
-            paths.extend(env::split_paths(&existing));
-            env::join_paths(paths)
-                .map_err(|error| format!("could not prepare the library path: {error}"))?
-        }
-        _ => frameworks_dir.as_os_str().to_owned(),
-    };
-    command.env("DYLD_LIBRARY_PATH", library_path);
-    Ok(command)
 }

@@ -57,34 +57,6 @@ pub(crate) async fn narrow_access_metadata(connection: &mut SqliteConnection) ->
 }
 
 pub(crate) async fn separate_file_access(connection: &mut SqliteConnection) -> LibraryResult<()> {
-    if has_table(connection, "main", "connect_profile").await? {
-        let profile = columns(connection, "main", "connect_profile").await?;
-        for (column, declaration) in [
-            ("actor", "TEXT NOT NULL DEFAULT '0'"),
-            ("clock", "INTEGER NOT NULL DEFAULT 0"),
-            ("receiving", "INTEGER NOT NULL DEFAULT 0"),
-            ("enabled", "INTEGER NOT NULL DEFAULT 0"),
-        ] {
-            if !profile.iter().any(|name| name == column) {
-                sqlx::query(sqlx::AssertSqlSafe(format!(
-                    "ALTER TABLE connect_profile ADD COLUMN {column} {declaration}"
-                )))
-                .execute(&mut *connection)
-                .await?;
-            }
-        }
-    }
-    sqlx::query("CREATE TABLE IF NOT EXISTS connect_roots(source_id TEXT NOT NULL,id TEXT NOT NULL,label TEXT NOT NULL,root TEXT,PRIMARY KEY(source_id,id)) STRICT")
-        .execute(&mut *connection).await?;
-    if !columns(connection, "main", "connect_roots")
-        .await?
-        .iter()
-        .any(|column| column == "root")
-    {
-        sqlx::query("ALTER TABLE connect_roots ADD COLUMN root TEXT")
-            .execute(&mut *connection)
-            .await?;
-    }
     sqlx::query("CREATE TEMP TABLE file_identity(physical INTEGER NOT NULL,canonical INTEGER NOT NULL,PRIMARY KEY(physical,canonical))")
         .execute(&mut *connection).await?;
     if has_table(connection, "main", "local_track_files").await? {
@@ -118,24 +90,18 @@ pub(crate) async fn separate_file_access(connection: &mut SqliteConnection) -> L
         DELETE FROM local_files WHERE local_file_key IN(SELECT physical FROM file_identity WHERE physical<>canonical AND physical NOT IN(SELECT canonical FROM file_identity));
         DROP TABLE file_identity; DROP TABLE IF EXISTS local_track_files;")
         .execute(&mut *connection).await?;
-    let roots: Vec<(i64,String,String,Option<String>)> = sqlx::query_as("SELECT DISTINCT file.source_key,source.object_id,file.root,(SELECT id FROM connect_roots shared WHERE shared.source_id=source.object_id AND shared.root=file.root LIMIT 1) FROM local_files file JOIN sources source USING(source_key)")
-        .fetch_all(&mut *connection).await?;
-    for (source, source_id, root, shared) in roots {
-        let id = shared.unwrap_or_else(|| blake3::hash(root.as_bytes()).to_hex().to_string());
+    let roots: Vec<(i64, String)> =
+        sqlx::query_as("SELECT DISTINCT file.source_key,file.root FROM local_files file")
+            .fetch_all(&mut *connection)
+            .await?;
+    for (source, root) in roots {
+        let id = blake3::hash(root.as_bytes()).to_hex().to_string();
         sqlx::query("UPDATE local_files SET root_id=?3 WHERE source_key=?1 AND root=?2")
             .bind(source)
             .bind(&root)
             .bind(&id)
             .execute(&mut *connection)
             .await?;
-        sqlx::query(
-            "INSERT OR IGNORE INTO connect_roots(source_id,id,label,root) VALUES(?1,?2,'',?3)",
-        )
-        .bind(source_id)
-        .bind(&id)
-        .bind(root)
-        .execute(&mut *connection)
-        .await?;
     }
     sqlx::raw_sql("ALTER TABLE local_file_access_roots RENAME TO old_file_roots;
         CREATE TABLE local_file_access_roots(source_key INTEGER NOT NULL REFERENCES sources ON DELETE CASCADE,root TEXT NOT NULL,root_id TEXT NOT NULL DEFAULT '',PRIMARY KEY(source_key,root_id,root)) STRICT,WITHOUT ROWID;
@@ -143,31 +109,6 @@ pub(crate) async fn separate_file_access(connection: &mut SqliteConnection) -> L
         DROP TABLE old_file_roots;
         UPDATE local_files SET device_id=NULL,inode=NULL,native_id=NULL,observed_stamp=0;")
         .execute(&mut *connection).await?;
-    if has_table(connection, "main", "connect_versions").await? {
-        sqlx::query("DELETE FROM connect_versions WHERE kind GLOB 'catalog:*' AND kind NOT IN ('catalog:source','catalog:file','catalog:artwork')")
-            .execute(&mut *connection).await?;
-        let mut after = String::new();
-        loop {
-            let rows:Vec<(String,String)>=sqlx::query_as("SELECT name,version FROM connect_versions WHERE name>?1 AND json_type(version,'$.lamport') IS NULL ORDER BY name LIMIT 128")
-                .bind(&after).fetch_all(&mut *connection).await?;
-            let Some(last) = rows.last() else {
-                break;
-            };
-            after = last.0.clone();
-            for (name, version) in rows {
-                let values: std::collections::BTreeMap<u64, u64> = serde_json::from_str(&version)?;
-                let stamp = crate::RecordStamp {
-                    lamport: values.values().copied().sum(),
-                    actor: values.keys().copied().max().unwrap_or_default(),
-                };
-                sqlx::query("UPDATE connect_versions SET version=?2 WHERE name=?1")
-                    .bind(name)
-                    .bind(serde_json::to_string(&stamp)?)
-                    .execute(&mut *connection)
-                    .await?;
-            }
-        }
-    }
     Ok(())
 }
 
@@ -268,7 +209,6 @@ pub(crate) async fn recover_columns(input: &Path, destination: &Path) -> Library
     let mut connection = crate::db::open_writer(&pending).await?;
     let copied = async {
         crate::schema::initialize_durable(&mut connection).await?;
-        crate::connect::initialize(&mut connection).await?;
         attach(&mut connection, input, "old_store").await?;
         sqlx::query("PRAGMA foreign_keys=OFF").execute(&mut connection).await?;
         let mut transaction = connection.begin().await?;
@@ -294,7 +234,6 @@ pub(crate) async fn recover_columns(input: &Path, destination: &Path) -> Library
             return Err(LibraryError::Migration("no compatible Store tables were found".into()));
         }
         sqlx::raw_sql(crate::schema::STORE_SCHEMA).execute(&mut *transaction).await?;
-        crate::connect::initialize(&mut transaction).await?;
         crate::catalog::index::initialize(&mut transaction).await?;
         if sqlx::query("PRAGMA foreign_key_check").fetch_optional(&mut *transaction).await?.is_some() {
             return Err(LibraryError::Migration("the recovered Store has incomplete references".into()));
@@ -547,27 +486,6 @@ async fn snapshot_candidates(
         .join(",");
     sqlx::query(sqlx::AssertSqlSafe(format!("INSERT INTO migration_metadata(media_uri,priority,present,stamp,tie,{fields}) SELECT old.media_uri,{priority},{order},{values} FROM {schema}.{table} old")))
         .execute(connection).await?;
-    Ok(())
-}
-
-async fn connect_candidates(connection: &mut SqliteConnection) -> LibraryResult<()> {
-    if !has_table(connection, "old_store", "connect_collection").await? {
-        return Ok(());
-    }
-    sqlx::query("INSERT INTO tracks(media_uri,indexed,metadata,first_seen_at,native_artwork) SELECT media_uri,0,jsonb(json_object('comment',json_extract(payload,'$.comment'),'bpm',json_extract(payload,'$.bpm'),'date_added',json_extract(payload,'$.date_added'))),json_extract(payload,'$.first_seen_at'),unhex(json_extract(payload,'$.artwork_binding')) FROM old_store.connect_collection WHERE true ON CONFLICT(media_uri) DO NOTHING")
-        .execute(&mut *connection).await?;
-    sqlx::query("INSERT INTO native_media_state(media_uri,favorite,rating) SELECT media_uri,json_extract(payload,'$.source_favorite'),json_extract(payload,'$.source_rating') FROM old_store.connect_collection WHERE true ON CONFLICT(media_uri) DO NOTHING").execute(&mut *connection).await?;
-    let fields = FIELDS
-        .iter()
-        .map(|(name, _)| *name)
-        .collect::<Vec<_>>()
-        .join(",");
-    let values = FIELDS
-        .iter()
-        .map(|(name, _)| format!("json_extract(payload,'$.{name}')"))
-        .collect::<Vec<_>>()
-        .join(",");
-    sqlx::query(sqlx::AssertSqlSafe(format!("INSERT INTO migration_metadata(media_uri,priority,present,stamp,tie,{fields}) SELECT media_uri,5,0,0,0,{values} FROM old_store.connect_collection"))).execute(connection).await?;
     Ok(())
 }
 
@@ -849,27 +767,6 @@ async fn restore_saved_queue(connection: &mut SqliteConnection) -> LibraryResult
             state.order = serde_json::from_str(&order)?;
         }
     }
-    if columns(connection, "old_store", "queue_occurrences")
-        .await?
-        .iter()
-        .any(|column| column == "received_from_connect")
-    {
-        let received = sqlx::query_scalar::<_, String>(
-            "SELECT object_id FROM old_store.queue_occurrences WHERE received_from_connect=1",
-        )
-        .fetch_all(&mut *connection)
-        .await?
-        .into_iter()
-        .collect::<std::collections::HashSet<_>>();
-        for (entry, occurrence) in std::sync::Arc::make_mut(&mut state.entries)
-            .iter_mut()
-            .zip(&occurrences)
-        {
-            entry.received_from_connect = occurrence
-                .as_ref()
-                .is_some_and(|occurrence| received.contains(occurrence));
-        }
-    }
     if let Some((current,progress,repeat,shuffled))=sqlx::query_as::<_,(Option<String>,i64,String,bool)>("SELECT current_occurrence_id,progress_millis,repeat_mode,shuffled FROM old_store.queue_state WHERE singleton=1").fetch_optional(&mut *connection).await? {
         state.current_index=current.and_then(|current|state.order.iter().position(|index|occurrences.get(*index as usize).and_then(Option::as_deref)==Some(current.as_str())));
         state.progress_millis=progress;
@@ -888,7 +785,6 @@ pub(crate) async fn import(input: &Path, destination: &Path, catalog: &Path) -> 
     let pending = stage.path().join("library.sqlite");
     let mut connection = crate::db::open_writer(&pending).await?;
     crate::schema::initialize_durable(&mut connection).await?;
-    crate::connect::initialize(&mut connection).await?;
     attach(&mut connection, input, "old_store").await?;
     let has_catalog = catalog.exists();
     if has_catalog {
@@ -904,7 +800,6 @@ pub(crate) async fn import(input: &Path, destination: &Path, catalog: &Path) -> 
         copy_catalog(&mut transaction, "old_catalog", false).await?;
     }
     create_metadata_candidates(&mut transaction).await?;
-    connect_candidates(&mut transaction).await?;
     snapshot_candidates(
         &mut transaction,
         "old_store",
@@ -967,21 +862,14 @@ pub(crate) async fn import(input: &Path, destination: &Path, catalog: &Path) -> 
         copy_table(&mut transaction, "old_store", table, table, &[]).await?;
     }
     sqlx::query("UPDATE smart_playlists SET artwork_binding=CAST(json_object('kind','playlist','smart',json('true'),'source_id',NULL,'object_id',object_id,'revision',artwork_revision) AS BLOB) WHERE artwork_revision IS NOT NULL").execute(&mut *transaction).await?;
-    let has_received_media = has_table(&mut transaction, "old_store", "connect_collection").await?;
     loop {
         let files:Vec<(String,String)>=sqlx::query_as("SELECT media_uri,encoding FROM connect_media_files WHERE backing_uri IS NULL LIMIT 128").fetch_all(&mut *transaction).await?;
         if files.is_empty() {
             break;
         }
         for (uri, encoding) in files {
-            let received_backing = if has_received_media {
-                sqlx::query_scalar::<_,Option<String>>("SELECT json_extract(payload,'$.backing_id') FROM old_store.connect_collection WHERE media_uri=?1")
-                    .bind(&uri).fetch_optional(&mut *transaction).await?.flatten()
-            } else {
-                None
-            };
-            let backing = received_backing
-                .or_else(|| crate::cue_media_parts(&uri).map(|(_, backing, _, _)| backing))
+            let backing = crate::cue_media_parts(&uri)
+                .map(|(_, backing, _, _)| backing)
                 .unwrap_or_else(|| uri.clone());
             sqlx::query(
                 "UPDATE connect_media_files SET backing_uri=?1 WHERE media_uri=?2 AND encoding=?3",
@@ -1016,22 +904,6 @@ pub(crate) async fn import(input: &Path, destination: &Path, catalog: &Path) -> 
     }
     restore_saved_queue(&mut transaction).await?;
     sqlx::query("UPDATE tracks SET local_play_count=(SELECT count(*) FROM listens WHERE listens.media_uri=tracks.media_uri)").execute(&mut *transaction).await?;
-    copy_table(
-        &mut transaction,
-        "old_store",
-        "connect_roots",
-        "connect_roots",
-        &[],
-    )
-    .await?;
-    crate::connect::migrate_collection_on(&mut transaction, "old_store").await?;
-    if has_table(&mut transaction, "old_store", "connect_changes").await? {
-        sqlx::raw_sql("CREATE TABLE legacy_connect_changes(kind TEXT NOT NULL,object_key TEXT NOT NULL,payload TEXT,PRIMARY KEY(kind,object_key)) STRICT;
-            INSERT INTO legacy_connect_changes SELECT kind,object_key,payload FROM old_store.connect_changes WHERE payload IS NULL AND kind<>'cache_lyrics';").execute(&mut *transaction).await?;
-    }
-    if has_table(&mut transaction, "old_store", "connect_capture").await? {
-        sqlx::query("UPDATE connect_profile SET enabled=COALESCE((SELECT enabled FROM old_store.connect_capture WHERE singleton=1),0),receiving=0 WHERE singleton=1").execute(&mut *transaction).await?;
-    }
     super::normalize_stored_artwork(&mut transaction).await?;
     transaction.commit().await?;
     connection.close().await?;

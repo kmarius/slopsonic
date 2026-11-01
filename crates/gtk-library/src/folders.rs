@@ -43,7 +43,7 @@ impl CatalogUi {
         let wrapper = FoldersRouteView::new();
         let search = gtk::SearchEntry::new();
         gtk_widgets::controls::configure_search_entry(&search);
-        search.set_placeholder_text(Some(&"Search current folder".to_string()));
+        search.set_placeholder_text(Some("Search current folder"));
         let toolbar = self.library_toolbar_projection_without_detail(
             LibraryListKey::Folders,
             Some(search.clone()),
@@ -926,7 +926,7 @@ fn folder_path_switcher(shell: &Rc<CatalogUi>, path: &[FolderPathItem]) -> gtk::
     switcher.set_hexpand(true);
     switcher.set_halign(gtk::Align::Fill);
     switcher.set_width_request(1);
-    let root = folder_path_button(shell, &"Folders".to_string(), Vec::new(), path.is_empty(), None);
+    let root = folder_path_button(shell, "Folders", Vec::new(), path.is_empty(), None);
     switcher.append(&root);
     for (index, entry) in path.iter().enumerate() {
         let destination = path.iter().take(index + 1).cloned().collect::<Vec<_>>();
@@ -1003,7 +1003,7 @@ fn folder_status_view(shell: &Rc<CatalogUi>, message: &'static str, empty: bool)
     } else {
         view.append(&crate::route_layout::route_empty_view(message));
     }
-    let refresh = gtk::Button::with_label(&"Refresh".to_string());
+    let refresh = gtk::Button::with_label("Refresh");
     if empty {
         refresh.add_css_class("pill");
     }

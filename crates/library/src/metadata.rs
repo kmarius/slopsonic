@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct TrackMetadata {
     pub title: String,
     pub artist: String,
@@ -38,7 +37,6 @@ pub struct TrackMetadata {
 /// None on TrackMetadata means the old cache never observed raw album tags.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct AlbumTags {
     pub sort_text: String,
     pub is_compilation: Option<bool>,
@@ -47,7 +45,6 @@ pub struct AlbumTags {
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct AlbumMetadata {
     pub title: String,
     pub artist: String,
@@ -65,7 +62,6 @@ pub struct AlbumMetadata {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct ArtistMetadata {
     pub name: String,
     pub sort_text: Option<String>,
@@ -74,7 +70,6 @@ pub struct ArtistMetadata {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct TagMetadata {
     pub name: String,
     pub sort_text: Option<String>,
@@ -82,7 +77,6 @@ pub struct TagMetadata {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct FolderMetadata {
     pub name: Option<String>,
     pub sort_text: Option<String>,
@@ -90,7 +84,6 @@ pub struct FolderMetadata {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct ArtistCredit {
     pub object_id: String,
     pub name: String,
@@ -100,7 +93,6 @@ pub struct ArtistCredit {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct TagReference {
     pub object_id: String,
     pub name: String,
@@ -109,7 +101,6 @@ pub struct TagReference {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct NativeGain {
     pub integrated_lufs: Option<f64>,
     pub true_peak: Option<f64>,
@@ -118,7 +109,6 @@ pub struct NativeGain {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, sqlx::FromRow)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct TrackReference {
     pub media_uri: String,
     #[serde(flatten)]

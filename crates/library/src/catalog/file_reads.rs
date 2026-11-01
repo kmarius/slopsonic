@@ -355,39 +355,3 @@ pub(super) async fn referenced_file_page_on(
         ORDER BY track_key LIMIT 128")
         .bind(source).bind(serde_json::to_string(paths)?).bind(after).fetch_all(connection).await?)
 }
-
-/// Read one bounded page of the parser output accepted for a shared file.
-pub(crate) async fn accepted_file_output_on(
-    connection: &mut sqlx::SqliteConnection,
-    source: i64,
-    file: i64,
-    after: i64,
-) -> LibraryResult<Vec<(i64, super::TrackObservation)>> {
-    use sqlx::Row;
-    let rows=sqlx::query("SELECT track.track_key,track.object_id,track.media_uri,album.object_id album_object_id,json(track.metadata) metadata,track.source_path,track.cue_path,track.cue_start_millis,track.cue_end_millis,track.first_seen_at,track.source_loudness_analysis_key,track.native_artwork FROM tracks track LEFT JOIN albums album USING(album_key) WHERE track.source_key=?1 AND track.local_file_key=?2 AND track.indexed=1 AND track.track_key>?3 ORDER BY track.track_key LIMIT 128")
-        .bind(source).bind(file).bind(after).fetch_all(connection).await?;
-    rows.into_iter()
-        .map(|row| {
-            let loudness: Vec<u8> = row.try_get("source_loudness_analysis_key")?;
-            Ok((
-                row.try_get("track_key")?,
-                super::TrackObservation {
-                    object_id: row.try_get("object_id")?,
-                    media_uri: Some(row.try_get("media_uri")?),
-                    album_object_id: row.try_get("album_object_id")?,
-                    metadata: serde_json::from_str(row.try_get("metadata")?)?,
-                    source_path: row.try_get("source_path")?,
-                    cue_path: row.try_get("cue_path")?,
-                    cue_start_millis: row.try_get("cue_start_millis")?,
-                    cue_end_millis: row.try_get("cue_end_millis")?,
-                    first_seen_at: row.try_get("first_seen_at")?,
-                    loudness_analysis_key: loudness.try_into().map_err(|_| {
-                        crate::LibraryError::InvalidStore("invalid accepted audio identity".into())
-                    })?,
-                    artwork_binding: row.try_get("native_artwork")?,
-                    ..Default::default()
-                },
-            ))
-        })
-        .collect()
-}

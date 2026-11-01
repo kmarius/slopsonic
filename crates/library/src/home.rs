@@ -11,7 +11,6 @@ use crate::{
 const HOME_LIMIT: i64 = 24;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum HomeBlockKind {
     Showcase,
     Explore,

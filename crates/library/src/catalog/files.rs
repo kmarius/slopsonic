@@ -35,13 +35,11 @@ async fn observe_files(
         .map(|(file, _)| file.root.as_str())
         .collect::<std::collections::BTreeSet<_>>()
     {
-        let mut shared:Vec<(String,String)>=sqlx::query_as("SELECT access.root_id,coalesce((SELECT root FROM local_files file WHERE file.source_key=access.source_key AND file.root_id=access.root_id LIMIT 1),(SELECT shared.root FROM connect_roots shared JOIN sources source ON source.object_id=shared.source_id WHERE source.source_key=access.source_key AND shared.id=access.root_id),access.root) FROM local_file_access_roots access WHERE source_key=?1 AND access.root=?2")
+        let mut shared:Vec<(String,String)>=sqlx::query_as("SELECT access.root_id,coalesce((SELECT root FROM local_files file WHERE file.source_key=access.source_key AND file.root_id=access.root_id LIMIT 1),access.root) FROM local_file_access_roots access WHERE source_key=?1 AND access.root=?2")
             .bind(source).bind(root).fetch_all(&mut *connection).await?;
         if shared.is_empty() {
             let id = blake3::hash(root.as_bytes()).to_hex().to_string();
             sqlx::query("INSERT OR IGNORE INTO local_file_access_roots(source_key,root,root_id) VALUES(?1,?2,?3)")
-                .bind(source).bind(root).bind(&id).execute(&mut *connection).await?;
-            sqlx::query("INSERT OR IGNORE INTO connect_roots(source_id,id,label,root) SELECT object_id,?3,'',?2 FROM sources WHERE source_key=?1")
                 .bind(source).bind(root).bind(&id).execute(&mut *connection).await?;
             shared.push((id, root.to_owned()));
         }
@@ -243,13 +241,6 @@ pub(crate) async fn physical(
                 .bind(source).bind(serde_json::to_string(page)?).execute(&mut *connection).await?;
         }
         if parsed.is_empty() {
-            crate::connect::catalog::mark_files_on(
-                connection,
-                source,
-                &changed_paths.iter().map(String::as_str).collect::<Vec<_>>(),
-                false,
-            )
-            .await?;
             continue;
         }
         let input = serde_json::to_string(&parsed)?;
@@ -261,121 +252,6 @@ pub(crate) async fn physical(
         if !dependency_keys.is_empty() {
             changed_paths.extend(sqlx::query_scalar::<_,String>("SELECT path FROM local_files WHERE local_file_key IN(SELECT value FROM json_each(?1))").bind(serde_json::to_string(&dependency_keys)?).fetch_all(&mut *connection).await?);
         }
-        crate::connect::catalog::mark_files_on(
-            connection,
-            source,
-            &changed_paths.iter().map(String::as_str).collect::<Vec<_>>(),
-            false,
-        )
-        .await?;
-    }
-    Ok(changed)
-}
-
-pub(crate) async fn import_index_on(
-    connection: &mut SqliteConnection,
-    source: i64,
-    observed: Option<i64>,
-    files: &[crate::CatalogFile],
-    accessible: bool,
-) -> LibraryResult<bool> {
-    if files.is_empty() {
-        return Ok(false);
-    }
-    let observations = files
-        .iter()
-        .map(|row| {
-            (
-                {
-                    let mut file = row.file.clone();
-                    file.device_id = None;
-                    file.inode = None;
-                    file.native_id = None;
-                    file
-                },
-                row.dependencies
-                    .iter()
-                    .map(|dependency| dependency.path.clone())
-                    .collect(),
-            )
-        })
-        .collect::<Vec<_>>();
-    let changed = physical(connection, source, &observations, observed, accessible).await?;
-    let roots = files
-        .iter()
-        .map(|row| {
-            (
-                &row.file.path,
-                row.root_id
-                    .clone()
-                    .unwrap_or_else(|| blake3::hash(row.file.root.as_bytes()).to_hex().to_string()),
-            )
-        })
-        .collect::<Vec<_>>();
-    sqlx::query("UPDATE local_files SET root_id=json_extract(input.value,'$[1]') FROM json_each(?2) input WHERE local_files.source_key=?1 AND local_files.path=json_extract(input.value,'$[0]') AND local_files.root_id IS NOT json_extract(input.value,'$[1]')")
-        .bind(source).bind(serde_json::to_string(&roots)?).execute(&mut *connection).await?;
-
-    let parsed = files
-        .iter()
-        .map(|row| -> LibraryResult<_> {
-            let stamp = row
-                .parsed
-                .as_ref()
-                .map(|(stamp, version)| {
-                    let mut values = vec![
-                        serde_json::json!(stamp.size_bytes),
-                        serde_json::json!(stamp.mtime_ns),
-                        serde_json::json!(stamp.revision),
-                        serde_json::json!(version),
-                    ];
-                    if row.file.kind == crate::LocalFileKind::Directory {
-                        values.push(serde_json::json!(if row.directory_complete {
-                            observed
-                        } else {
-                            None
-                        }));
-                    }
-                    serde_json::to_string(&values)
-                })
-                .transpose()?;
-            Ok((&row.file.path, stamp))
-        })
-        .collect::<LibraryResult<Vec<_>>>()?;
-    let mut query = QueryBuilder::<Sqlite>::new("WITH input(path,parsed) AS(");
-    query.push_values(&parsed, |mut row, (path, parsed)| {
-        row.push_bind(path).push_bind(parsed);
-    });
-    query.push(") UPDATE local_files SET parsed_stamp=input.parsed FROM input WHERE local_files.path=input.path AND source_key=").push_bind(source)
-            .push(" AND observed_stamp=").push_bind(observed).push(" AND input.parsed IS NOT NULL AND parsed_stamp IS NOT input.parsed");
-    query.build().execute(&mut *connection).await?;
-    let dependencies = files
-        .iter()
-        .flat_map(|row| {
-            row.dependencies
-                .iter()
-                .map(move |dependency| (&row.file.path, dependency))
-        })
-        .map(|(path, dependency)| -> LibraryResult<_> {
-            let accepted = dependency
-                .accepted
-                .as_ref()
-                .map(|stamp| {
-                    serde_json::to_string(&(stamp.size_bytes, stamp.mtime_ns, &stamp.revision))
-                })
-                .transpose()?;
-            Ok((path, &dependency.path, accepted))
-        })
-        .collect::<LibraryResult<Vec<_>>>()?;
-    if !dependencies.is_empty() {
-        let mut query = QueryBuilder::<Sqlite>::new("WITH input(path,dependency,accepted) AS(");
-        query.push_values(&dependencies, |mut row, (path, dependency, accepted)| {
-            row.push_bind(path)
-                .push_bind(dependency)
-                .push_bind(accepted);
-        });
-        query.push(") UPDATE local_file_dependencies AS edge SET accepted_inputs=input.accepted FROM input JOIN local_files file ON file.path=input.path AND file.source_key=").push_bind(source)
-                .push(" AND file.observed_stamp=").push_bind(observed).push(" WHERE edge.local_file_key=file.local_file_key AND edge.dependency_path=input.dependency AND input.accepted IS NOT NULL AND edge.accepted_inputs IS NOT input.accepted");
-        query.build().execute(&mut *connection).await?;
     }
     Ok(changed)
 }
@@ -467,19 +343,9 @@ async fn write_track_membership(
         sqlx::query("UPDATE tracks SET observed_stamp=max(observed_stamp,coalesce(?2,observed_stamp)) WHERE track_key IN(SELECT value FROM json_each(?1)) AND observed_stamp<coalesce(?2,observed_stamp)")
             .bind(&input).bind(observed).execute(&mut *connection).await?;
     }
-    let file_paths:Vec<(i64,String)>=sqlx::query_as("SELECT DISTINCT file.source_key,file.path FROM tracks track JOIN local_files file ON file.source_key=track.source_key AND file.path=coalesce(track.cue_path,track.source_path) WHERE track.track_key IN(SELECT value FROM json_each(?1)) AND(track.indexed<>?2 OR(?3 AND track.local_file_key IS NOT NULL))")
-        .bind(&input).bind(indexed).bind(files_removed).fetch_all(&mut *connection).await?;
     let changed:Vec<i64>=sqlx::query_scalar("UPDATE tracks SET indexed=?2,local_file_key=CASE WHEN ?3 THEN NULL ELSE local_file_key END WHERE track_key IN(SELECT value FROM json_each(?1)) AND(indexed<>?2 OR(?3 AND local_file_key IS NOT NULL )) RETURNING track_key")
         .bind(&input).bind(indexed).bind(files_removed).fetch_all(&mut *connection).await?;
     let changed = !changed.is_empty();
-    let mut files = std::collections::BTreeMap::<i64, Vec<&str>>::new();
-    for (source, path) in &file_paths {
-        files.entry(*source).or_default().push(path);
-    }
-    for (source, paths) in files {
-        crate::connect::catalog::mark_files_on(connection, source, &paths, false).await?;
-    }
-
     crate::loudness::invalidate_album_audio(
         connection,
         &albums
@@ -503,28 +369,8 @@ pub(crate) async fn delete_physical_files(
     bound: i64,
 ) -> LibraryResult<()> {
     let input = serde_json::to_string(keys)?;
-    let modified:Vec<String>=sqlx::query_scalar("UPDATE local_files SET state='observed' WHERE source_key=?1 AND local_file_key IN(SELECT dependency.local_file_key FROM local_file_dependencies dependency JOIN local_files missing ON missing.path=dependency.dependency_path AND missing.source_key=?1 WHERE missing.local_file_key IN(SELECT value FROM json_each(?2))) AND observed_stamp<=?3 AND state<>'observed' RETURNING path")
-        .bind(source).bind(&input).bind(bound).fetch_all(&mut *connection).await?;
-    crate::connect::catalog::mark_files_on(
-        connection,
-        source,
-        &modified.iter().map(String::as_str).collect::<Vec<_>>(),
-        false,
-    )
-    .await?;
-    let deleted: Vec<String> = sqlx::query_scalar(
-        "SELECT path FROM local_files WHERE local_file_key IN(SELECT value FROM json_each(?1))",
-    )
-    .bind(&input)
-    .fetch_all(&mut *connection)
-    .await?;
-    crate::connect::catalog::mark_files_on(
-        connection,
-        source,
-        &deleted.iter().map(String::as_str).collect::<Vec<_>>(),
-        true,
-    )
-    .await?;
+    sqlx::query("UPDATE local_files SET state='observed' WHERE source_key=?1 AND local_file_key IN(SELECT dependency.local_file_key FROM local_file_dependencies dependency JOIN local_files missing ON missing.path=dependency.dependency_path AND missing.source_key=?1 WHERE missing.local_file_key IN(SELECT value FROM json_each(?2))) AND observed_stamp<=?3 AND state<>'observed' RETURNING path")
+        .bind(source).bind(&input).bind(bound).execute(&mut *connection).await?;
     sqlx::query("DELETE FROM local_files WHERE local_file_key IN(SELECT value FROM json_each(?1))")
         .bind(input)
         .execute(connection)
@@ -606,7 +452,6 @@ pub(crate) async fn write_file_observations_on(
     files: &[(LocalFileWrite, Vec<String>)],
     mut songs: Vec<TrackObservation>,
     admit: bool,
-    accessible: bool,
 ) -> LibraryResult<CatalogUpdate> {
     let observed = Some(super::cache::observation_stamp(&mut *connection, source, observed).await?);
     let mut update = CatalogUpdate::default();
@@ -639,11 +484,8 @@ pub(crate) async fn write_file_observations_on(
             ))
         })
         .collect::<Vec<_>>();
-    let aliases = if accessible {
-        super::file_reads::equivalent_cue_uris_on(&mut *connection, source, &whole_files).await?
-    } else {
-        Vec::new()
-    };
+    let aliases =
+        super::file_reads::equivalent_cue_uris_on(&mut *connection, source, &whole_files).await?;
     let reused: std::collections::HashSet<_> =
         aliases.iter().map(|(uri, _, _)| uri.as_str()).collect();
     songs.retain(|track| {
@@ -658,17 +500,12 @@ pub(crate) async fn write_file_observations_on(
                 )),
         )
     });
-    let withdrawn = if accessible {
-        withdrawn_tracks(&mut *connection, source, files, &songs, observed.unwrap()).await?
-    } else {
-        Vec::new()
-    };
-    if accessible {
-        update.metadata = physical(&mut *connection, source, files, observed, true).await?;
-    }
+    let withdrawn =
+        withdrawn_tracks(&mut *connection, source, files, &songs, observed.unwrap()).await?;
+    update.metadata = physical(&mut *connection, source, files, observed, true).await?;
     update.metadata |=
         write_track_membership(&mut *connection, &withdrawn, false, true, None).await?;
-    if admit && accessible {
+    if admit {
         let admitted: Vec<i64> = sqlx::query_scalar("SELECT track.track_key FROM tracks track JOIN local_track_access location USING(track_key) WHERE track.source_key=?1 AND track.object_id IS NOT NULL AND indexed=0 AND observed_stamp<=?3 AND location.local_file_key IN(SELECT local_file_key FROM observed_local_files WHERE source_key=?1 AND path IN(SELECT json_extract(value,'$[0]') FROM json_each(?2)))")
                 .bind(source).bind(serde_json::to_string(&files.iter().filter(|(file,_)|file.state==LocalFileState::Accepted).map(|(file,_)|(&file.path,)).collect::<Vec<_>>())?).bind(observed).fetch_all(&mut *connection).await?;
         update.metadata |=
@@ -678,7 +515,7 @@ pub(crate) async fn write_file_observations_on(
         .iter()
         .filter_map(|track| track.source_path.clone())
         .collect::<Vec<_>>();
-    if accessible && !songs.is_empty() {
+    if !songs.is_empty() {
         let input = serde_json::to_string(
             &songs
                 .iter()
@@ -705,7 +542,7 @@ pub(crate) async fn write_file_observations_on(
     )
     .await?;
     update.merge(track_update);
-    if accessible && !files.is_empty() {
+    if !files.is_empty() {
         update.metadata |= sqlx::query("WITH paths AS MATERIALIZED(
                 SELECT DISTINCT file.local_file_key,file.path FROM json_each(?2) input
                 JOIN local_file_observations access ON access.path=json_extract(input.value,'$[0].path')
@@ -731,7 +568,7 @@ pub(crate) async fn write_file_observations_on(
         })
         .map(|(file, _)| file.path.clone())
         .collect::<Vec<_>>();
-    if accessible && (!aliases.is_empty() || !accepted_cues.is_empty()) {
+    if !aliases.is_empty() || !accepted_cues.is_empty() {
         let paths = whole_files
             .iter()
             .map(|(_, path, _, _)| path.clone())
@@ -773,17 +610,6 @@ pub(crate) async fn write_file_observations_on(
         )
         .await?;
     }
-    if update.metadata && accessible {
-        let paths:Vec<String>=sqlx::query_scalar("SELECT DISTINCT file.path FROM json_each(?2) input JOIN local_file_observations access ON access.path=json_extract(input.value,'$[0].path') JOIN local_files file USING(local_file_key) WHERE file.source_key=?1")
-                .bind(source).bind(serde_json::to_string(files)?).fetch_all(&mut *connection).await?;
-        crate::connect::catalog::mark_files_on(
-            &mut *connection,
-            source,
-            &paths.iter().map(String::as_str).collect::<Vec<_>>(),
-            false,
-        )
-        .await?;
-    }
     if update.changed() {
         sqlx::query("UPDATE sources SET catalog_revision=catalog_revision+1 WHERE source_key=?1")
             .bind(source)
@@ -801,8 +627,10 @@ impl super::Catalog<'_> {
         admit: bool,
     ) -> LibraryResult<()> {
         let mut writer = self.database.writer().await?;
-        let mut tx = self
-            .begin_write(writer.as_mut().ok_or(LibraryError::WriterUnavailable)?)
+        let mut tx = writer
+            .as_mut()
+            .ok_or(LibraryError::WriterUnavailable)?
+            .begin()
             .await?;
         let update = write_file_observations_on(
             &mut tx,
@@ -811,10 +639,9 @@ impl super::Catalog<'_> {
             files,
             songs,
             admit,
-            !self.incoming,
         )
         .await?;
-        self.commit_write(tx).await?;
+        tx.commit().await?;
         self.changes.merge(update);
         Ok(())
     }
@@ -891,12 +718,14 @@ impl super::Catalog<'_> {
         for path in paths {
             loop {
                 let mut writer = self.database.writer().await?;
-                let mut tx = self
-                    .begin_write(writer.as_mut().ok_or(LibraryError::WriterUnavailable)?)
+                let mut tx = writer
+                    .as_mut()
+                    .ok_or(LibraryError::WriterUnavailable)?
+                    .begin()
                     .await?;
                 let (update, done) =
                     remove_files_page_on(&mut tx, self.source.raw(), path, observed).await?;
-                self.commit_write(tx).await?;
+                tx.commit().await?;
                 self.changes.merge(update);
                 if done {
                     break;

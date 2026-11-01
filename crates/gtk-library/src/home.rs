@@ -5,8 +5,8 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::{gio, glib};
 use library::{GenreView, HomeAlbumRow, HomePage, HomeSectionRows, HomeTrackRow, RadioSeed};
-use rufin_core::text::{album_count_text, track_count_text};
 use rufin_core::playback::RadioPlayRequest;
+use rufin_core::text::{album_count_text, track_count_text};
 
 use crate::CatalogUi;
 use crate::LibraryField;
@@ -689,12 +689,8 @@ impl CatalogUi {
         let play: CollectionPlay = Rc::new(move |placement, shuffled| {
             (play_shell.media_menus.play_target)(&play_target, placement, shuffled);
         });
-        let controls = detail_playback_controls(
-            &actions,
-            "Play album",
-            Some(album.state.favorite),
-            play,
-        );
+        let controls =
+            detail_playback_controls(&actions, "Play album", Some(album.state.favorite), play);
         let favorite = favorite_icon_button("Favorite");
         configure_action_button(&favorite, ActionButtonVariant::DetailFavorite);
         set_favorite_button_active(&favorite, album.state.favorite);

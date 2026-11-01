@@ -102,7 +102,14 @@ pub(super) fn items(shell: &Preferences) -> Vec<PreferencesSearchItem> {
         super::NARROW_LEFT_TITLE,
         super::NARROW_RIGHT_TITLE,
     ] {
-        add(&mut items, Page::Customization, String::from(title), "", "", None);
+        add(
+            &mut items,
+            Page::Customization,
+            String::from(title),
+            "",
+            "",
+            None,
+        );
     }
     for title in [
         super::general::NORMALIZATION_SCOPE_TITLE,
@@ -111,7 +118,14 @@ pub(super) fn items(shell: &Preferences) -> Vec<PreferencesSearchItem> {
         super::general::STREAM_QUALITY_TITLE,
         gtk_player::playback_settings::CROSSFADE_DURATION_TITLE,
     ] {
-        add(&mut items, Page::Playback, String::from(title), "", "", None);
+        add(
+            &mut items,
+            Page::Playback,
+            String::from(title),
+            "",
+            "",
+            None,
+        );
     }
     for (id, titles) in [
         (

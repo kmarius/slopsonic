@@ -190,7 +190,7 @@ pub struct PreferencesNavigationControls {
 
 impl PreferencesNavigationControls {
     fn new(back: gtk::Button) -> Self {
-        back.update_property(&[gtk::accessible::Property::Label(&"Back".to_string())]);
+        back.update_property(&[gtk::accessible::Property::Label("Back")]);
         set_preferences_back_visible(&back, false);
 
         let controls = Self {
@@ -348,7 +348,7 @@ fn build_preferences_dialog(
         .bind_property("can-close", &category_back, "sensitive")
         .sync_create()
         .build();
-    search_button.update_property(&[gtk::accessible::Property::Label(&"Search".to_string())]);
+    search_button.update_property(&[gtk::accessible::Property::Label("Search")]);
     dialog
         .bind_property("can-close", &categories, "sensitive")
         .sync_create()
@@ -860,63 +860,44 @@ fn general_page(shell: &Rc<Preferences>) -> gtk::Widget {
                 &mut settings.application.starting_page
             });
     });
-    {
-        #[cfg(not(target_os = "macos"))]
-        tray_row.set_active(settings.tray_enabled);
-        #[cfg(not(target_os = "macos"))]
-        tray_row.set_sensitive(!settings.keep_running_after_close);
-        #[cfg(not(target_os = "macos"))]
-        keep_running_row.set_active(settings.keep_running_after_close);
-        #[cfg(not(target_os = "macos"))]
-        start_minimized_row.set_active(settings.tray_enabled && settings.start_minimized);
-        type_to_search_row.set_active(settings.type_to_search_enabled);
-        #[cfg(target_os = "macos")]
-        for row in [&tray_row, &keep_running_row, &start_minimized_row] {
-            window_group.remove(row);
+    tray_row.set_active(settings.tray_enabled);
+    tray_row.set_sensitive(!settings.keep_running_after_close);
+    keep_running_row.set_active(settings.keep_running_after_close);
+    start_minimized_row.set_active(settings.tray_enabled && settings.start_minimized);
+    type_to_search_row.set_active(settings.type_to_search_enabled);
+    start_minimized_row.set_visible(settings.tray_enabled);
+    let tray_shell = Rc::clone(shell);
+    let start_minimized_row_for_tray = start_minimized_row.clone();
+    tray_row.connect_active_notify(move |row| {
+        let enabled = row.is_active();
+        start_minimized_row_for_tray.set_visible(enabled);
+        if !enabled {
+            start_minimized_row_for_tray.set_active(false);
         }
-        #[cfg(not(target_os = "macos"))]
-        start_minimized_row.set_visible(settings.tray_enabled);
-        #[cfg(not(target_os = "macos"))]
-        let tray_shell = Rc::clone(shell);
-        #[cfg(not(target_os = "macos"))]
-        let start_minimized_row_for_tray = start_minimized_row.clone();
-        #[cfg(not(target_os = "macos"))]
-        tray_row.connect_active_notify(move |row| {
-            let enabled = row.is_active();
-            start_minimized_row_for_tray.set_visible(enabled);
-            if !enabled {
-                start_minimized_row_for_tray.set_active(false);
-            }
-            (tray_shell.effects)(crate::Effect::TrayEnabled(enabled));
-        });
-        #[cfg(not(target_os = "macos"))]
-        let keep_running_shell = Rc::clone(shell);
-        #[cfg(not(target_os = "macos"))]
-        let tray_row_for_keep_running = tray_row.clone();
-        #[cfg(not(target_os = "macos"))]
-        keep_running_row.connect_active_notify(move |row| {
-            let enabled = row.is_active();
-            (keep_running_shell.effects)(crate::Effect::KeepRunningAfterClose(enabled));
-            if enabled {
-                tray_row_for_keep_running.set_active(true);
-            }
-            tray_row_for_keep_running.set_sensitive(!enabled);
-        });
-        #[cfg(not(target_os = "macos"))]
-        let start_minimized_shell = Rc::clone(shell);
-        #[cfg(not(target_os = "macos"))]
-        start_minimized_row.connect_active_notify(move |row| {
-            (start_minimized_shell.effects)(crate::Effect::StartMinimized(row.is_active()));
-        });
-        let type_to_search_shell = Rc::clone(shell);
-        type_to_search_row.connect_active_notify(move |row| {
-            type_to_search_shell.settings.set_app_setting(
-                "type to search setting",
-                row.is_active(),
-                |settings| &mut settings.type_to_search_enabled,
-            );
-        });
-    }
+        (tray_shell.effects)(crate::Effect::TrayEnabled(enabled));
+    });
+    let keep_running_shell = Rc::clone(shell);
+    let tray_row_for_keep_running = tray_row.clone();
+    keep_running_row.connect_active_notify(move |row| {
+        let enabled = row.is_active();
+        (keep_running_shell.effects)(crate::Effect::KeepRunningAfterClose(enabled));
+        if enabled {
+            tray_row_for_keep_running.set_active(true);
+        }
+        tray_row_for_keep_running.set_sensitive(!enabled);
+    });
+    let start_minimized_shell = Rc::clone(shell);
+    start_minimized_row.connect_active_notify(move |row| {
+        (start_minimized_shell.effects)(crate::Effect::StartMinimized(row.is_active()));
+    });
+    let type_to_search_shell = Rc::clone(shell);
+    type_to_search_row.connect_active_notify(move |row| {
+        type_to_search_shell.settings.set_app_setting(
+            "type to search setting",
+            row.is_active(),
+            |settings| &mut settings.type_to_search_enabled,
+        );
+    });
 
     control_notifications_row.set_active(settings.application.control_notifications_enabled);
     let control_notifications_shell = Rc::clone(shell);
@@ -1248,10 +1229,7 @@ fn move_sidebar_item(shell: &Rc<Preferences>, item: SidebarRouteItem, delta: isi
 fn sidebar_route_item_subtitle(entry: &SidebarRouteItemSettings, position: usize) -> String {
     let state = visibility_position_subtitle(entry.visible, position);
     if entry.item == SidebarRouteItem::Moods {
-        format!(
-            "{state} · {}",
-            "Files need Mood/BPM tags written on them. Not supported for Jellyfin".to_string()
-        )
+        format!("{state} · Files need Mood/BPM tags written on them. Not supported for Jellyfin")
     } else {
         state
     }

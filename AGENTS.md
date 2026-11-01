@@ -17,7 +17,7 @@ Do not implement or expand:
 - **File management** — No local library scanning, file organization, or downloads
 - **Slopsonic Connect / sync / casting** — No cross-device sync, remote control, or UPnP/Chromecast casting
 - **Headless/controller mode** — This is a desktop GUI application
-- **Windows/macOS/Android builds** — Linux only; ignore existing cross-platform code
+- **Windows/macOS/Android builds** — Linux only. Android, macOS and Windows support was removed; some cross-platform and Android-specific code may remain and should be removed rather than extended
 - **Lyrics, visualizer, waveform seekbar**
 - **Discord rich presence, update checks/self-updater**
 - **Listening overview, playback speed/pitch, audio output selection** — the system default output is always used
@@ -26,7 +26,6 @@ Do not implement or expand:
 ## Architecture
 
 - `crates/` — Rust workspace with modular crates
-- `android/` — Out of scope
 - Dead code is a build error (`-D warnings`); remove unused code and dependencies rather than leaving them
 
 When in doubt, prefer simplicity and removing code over adding features.

@@ -1199,7 +1199,7 @@ fn search_merged_column(
             }
         }
     });
-    let column = gtk::ColumnViewColumn::new(Some(&"Title".to_string()), Some(factory));
+    let column = gtk::ColumnViewColumn::new(Some("Title"), Some(factory));
     column.set_fixed_width(width);
     column
 }

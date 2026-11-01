@@ -11,8 +11,6 @@ pub use fingerprint::{AudioFingerprint, FINGERPRINT_VERSION, fingerprint_audio};
 mod loudness;
 mod media_input;
 pub use media_input::{ResolvedStream, StreamWindow};
-#[cfg(target_os = "macos")]
-mod tls;
 mod spectrum;
 mod transcode;
 
@@ -29,10 +27,6 @@ pub fn ensure_gstreamer_initialized() -> Result<(), String> {
     INITIALIZED
         .get_or_init(|| {
             gst::init().map_err(|error| error.to_string())?;
-            #[cfg(target_os = "macos")]
-            if let Err(error) = tls::configure_native_trust() {
-                tracing::warn!(%error, "Could not load native certificates for media HTTPS");
-            }
             Ok(())
         })
         .clone()
@@ -97,6 +91,3 @@ mod tests {
         assert!(!source.property::<bool>("ssl-strict"));
     }
 }
-
-#[cfg(feature = "bindings")]
-uniffi::setup_scaffolding!();

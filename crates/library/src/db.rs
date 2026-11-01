@@ -311,7 +311,6 @@ impl Database {
         let mut writer = open_writer(path).await?;
         let initialized = async {
             schema::initialize_durable(&mut writer).await?;
-            crate::connect::initialize(&mut writer).await?;
             sqlx::raw_sql("PRAGMA optimize=0x10002")
                 .execute(&mut writer)
                 .await?;
@@ -370,18 +369,6 @@ impl Database {
                 if keys.is_empty() {
                     break;
                 }
-                crate::profile::write_local_on(
-                    &mut transaction,
-                    &keys
-                        .into_iter()
-                        .map(|key| crate::ConnectRecord {
-                            kind: "state".into(),
-                            key,
-                            value: None,
-                        })
-                        .collect::<Vec<_>>(),
-                )
-                .await?;
             }
             for query in [
                 "DELETE FROM native_media_state WHERE substr(media_uri,1,length(?1))=?1 OR media_uri IN (SELECT media_uri FROM tracks WHERE source_key=?2)",
@@ -408,15 +395,7 @@ impl Database {
             .bind(source)
             .execute(&mut *transaction)
             .await?;
-        if source.is_some() {
-            crate::connect::mark_current_on(
-                &mut transaction,
-                "catalog:source",
-                &serde_json::json!([source_id.as_str(), source_id.as_str()]).to_string(),
-                true,
-            )
-            .await?;
-        }
+        if source.is_some() {}
         let removed = sqlx::query("DELETE FROM sources WHERE source_key=?1")
             .bind(source)
             .execute(&mut *transaction)
@@ -514,38 +493,6 @@ pub(crate) async fn open_writer(path: &Path) -> LibraryResult<SqliteConnection> 
         return Err(error.into());
     }
     Ok(connection)
-}
-
-#[allow(unsafe_code)]
-pub(crate) async fn copy_database(
-    source: &mut SqliteConnection,
-    destination: &mut SqliteConnection,
-) -> LibraryResult<()> {
-    destination.clear_cached_statements().await?;
-    let mut source = source.lock_handle().await?;
-    let mut destination = destination.lock_handle().await?;
-    // SAFETY: SQLx keeps both handles alive and excludes its workers for these guards.
-    unsafe {
-        let destination = destination.as_raw_handle().as_ptr();
-        let backup = libsqlite3_sys::sqlite3_backup_init(
-            destination,
-            c"main".as_ptr(),
-            source.as_raw_handle().as_ptr(),
-            c"main".as_ptr(),
-        );
-        if !backup.is_null() {
-            let copied = libsqlite3_sys::sqlite3_backup_step(backup, -1);
-            let finished = libsqlite3_sys::sqlite3_backup_finish(backup);
-            if copied == libsqlite3_sys::SQLITE_DONE && finished == libsqlite3_sys::SQLITE_OK {
-                return Ok(());
-            }
-        }
-        Err(LibraryError::InvalidStore(
-            std::ffi::CStr::from_ptr(libsqlite3_sys::sqlite3_errmsg(destination))
-                .to_string_lossy()
-                .into_owned(),
-        ))
-    }
 }
 
 fn reader_options(path: &Path) -> SqliteConnectOptions {

@@ -239,13 +239,6 @@ mod tests {
             },
             "Track"
         );
-        assert!(
-            database
-                .connect_track_reference(&uri)
-                .await
-                .unwrap()
-                .is_none()
-        );
         let alternative = root.path().join("download.opus");
         std::fs::write(&alternative, b"alternative").unwrap();
         let alternate = ConnectMediaFile {
@@ -418,7 +411,7 @@ impl Database {
         encoding: &str,
         revision: &str,
     ) -> LibraryResult<Option<ConnectMediaFile>> {
-        let backing = self.connect_backing_id(uri).await?;
+        let backing = backing_id(uri);
         let mut reader = self.acquire_reader().await?;
         Ok(sqlx::query_as("SELECT * FROM connect_media_files WHERE backing_uri=?1 AND encoding=?2 AND revision=?3 ORDER BY managed DESC LIMIT 1")
             .bind(backing).bind(encoding).bind(revision)
@@ -434,7 +427,7 @@ impl Database {
     }
 
     pub async fn connect_save_media_file(&self, file: &ConnectMediaFile) -> LibraryResult<()> {
-        let backing = self.connect_backing_id(&file.media_uri).await?;
+        let backing = backing_id(&file.media_uri);
         let mut writer = self.writer().await?;
         save_download_on(
             writer.as_mut().ok_or(LibraryError::WriterUnavailable)?,
@@ -450,7 +443,7 @@ impl Database {
         source: Option<crate::SourceKey>,
         access: &crate::LocalAccessWrite,
     ) -> LibraryResult<()> {
-        let backing = self.connect_backing_id(&file.media_uri).await?;
+        let backing = backing_id(&file.media_uri);
         let mut writer = self.writer().await?;
         let mut transaction = writer
             .as_mut()
@@ -473,16 +466,12 @@ impl Database {
         Ok(sqlx::query_as("SELECT * FROM connect_media_files WHERE source_id IS ?1 AND (media_uri,encoding)>(?2,?3) AND (?4 IS NULL OR EXISTS(SELECT 1 FROM json_each(owners) WHERE value=json_extract(?4,'$'))) ORDER BY media_uri,encoding LIMIT 128")
             .bind(source).bind(&after.0).bind(&after.1).bind(owner).fetch_all(&mut *reader).await?)
     }
+}
 
-    pub async fn connect_backing_id(&self, uri: &str) -> LibraryResult<String> {
-        let reference = self.connect_track_reference(uri).await?;
-        Ok(reference
-            .as_ref()
-            .and_then(|value| value["backing_id"].as_str())
-            .map(str::to_owned)
-            .or_else(|| crate::cue_media_parts(uri).map(|(_, backing, _, _)| backing))
-            .unwrap_or_else(|| uri.to_string()))
-    }
+fn backing_id(uri: &str) -> String {
+    crate::cue_media_parts(uri)
+        .map(|(_, backing, _, _)| backing)
+        .unwrap_or_else(|| uri.to_string())
 }
 
 async fn save_download_on(

@@ -584,7 +584,7 @@ mod tests {
                     }),
                     start_offset_millis: 10,
                     duration_millis: None,
-                        },
+                },
                 || false,
             )
             .expect("start windowed transcode");

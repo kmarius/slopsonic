@@ -102,9 +102,6 @@ async fn reopening_without_statistics_preserves_library_order() {
         super::support::catalog::copy_before_index(&mut raw, &fixture.path).await;
         sqlx::raw_sql("CREATE VIEW local_access_files AS SELECT * FROM local_locators;
             CREATE VIEW local_track_access AS SELECT track_key,source_key,source_path,cue_path,local_file_key FROM tracks;
-            DROP TABLE connect_profile;
-            CREATE TABLE connect_profile(singleton INTEGER PRIMARY KEY CHECK(singleton=1),profile TEXT,publisher TEXT,schema_version INTEGER NOT NULL DEFAULT 1) STRICT;
-            INSERT INTO connect_profile VALUES(1,NULL,NULL,1);
             ALTER TABLE local_access_metadata ADD COLUMN title TEXT NOT NULL DEFAULT '';
             ALTER TABLE local_access_metadata ADD COLUMN normalized_title TEXT NOT NULL DEFAULT '';
             ALTER TABLE local_access_metadata ADD COLUMN album TEXT NOT NULL DEFAULT '';
@@ -173,7 +170,6 @@ async fn reopening_without_statistics_preserves_library_order() {
         INSERT INTO local_locators(media_uri,origin,path,root,relative_path,access_uri) VALUES('https://media.example/legacy-access.flac','download','/downloads/legacy.flac','/downloads','legacy.flac','file:///downloads/legacy.flac');
         INSERT INTO local_access_metadata(access_uri,size_bytes,mtime_ns,device_id,inode,parser_version,loudness_analysis_key,title,album,artist,disc_number,track_number,duration_millis)
         VALUES('file:///downloads/legacy.flac',111,222,3,4,17,zeroblob(32),'Legacy title','Legacy album','Legacy artist',1,4,1234);
-        UPDATE connect_profile SET profile='shared-profile',publisher='saved-publisher',schema_version=1;
         PRAGMA user_version=49;")
         .execute(&mut raw)
         .await
@@ -201,24 +197,6 @@ async fn reopening_without_statistics_preserves_library_order() {
         .await
         .unwrap(),
         7
-    );
-    let profile: (String, String, i64, String, i64, bool, bool) = sqlx::query_as(
-        "SELECT profile,publisher,schema_version,actor,clock,receiving,enabled FROM connect_profile WHERE singleton=1",
-    )
-    .fetch_one(&mut raw)
-    .await
-    .unwrap();
-    assert_eq!(
-        profile,
-        (
-            "shared-profile".into(),
-            "saved-publisher".into(),
-            1,
-            "0".into(),
-            0,
-            false,
-            false,
-        )
     );
     raw.close().await.unwrap();
     migrated.close().await.unwrap();
@@ -1256,41 +1234,6 @@ async fn schema_43_malformed_listen_keeps_valid_siblings_and_preserves_input() {
 }
 
 #[tokio::test]
-async fn older_source_scoped_playlist_ids_remain_distinct_global_playlists() {
-    let directory = tempfile::tempdir().unwrap();
-    let path = directory.path().join("library.sqlite3");
-    create_legacy_store(&path).await;
-    let mut old = connection(&path, false).await;
-    sqlx::raw_sql("INSERT INTO local_playlists VALUES('second-source','user-list','Other User List');
-                   INSERT INTO local_playlist_entries VALUES('second-source','user-list',0,'other-occurrence','other-track')")
-        .execute(&mut old).await.unwrap();
-    old.close().await.unwrap();
-    let database = Database::open(&path).await.unwrap();
-
-    let mut reader = connection(&path, false).await;
-    let rows = sqlx::query_as::<_, (String, String, i64)>(
-        "SELECT p.name,group_concat(e.object_id,','),p.source_key IS NULL
-         FROM main.playlists p JOIN main.playlist_entries e USING(playlist_key)
-         GROUP BY p.playlist_key ORDER BY p.position",
-    )
-    .fetch_all(&mut reader)
-    .await
-    .unwrap();
-    assert_eq!(
-        rows,
-        [
-            (
-                "User List".into(),
-                "user-occurrence-one,user-occurrence-two".into(),
-                1
-            ),
-            ("Other User List".into(), "other-occurrence".into(), 1)
-        ]
-    );
-    database.close().await.unwrap();
-}
-
-#[tokio::test]
 async fn schema_40_store_migrates_into_current_schema() {
     let directory = tempfile::tempdir().expect("temporary Store directory");
     let path = directory.path().join("library.sqlite3");
@@ -1989,51 +1932,6 @@ async fn durable_rows(path: &Path) -> Vec<(String, Vec<String>)> {
     }
     raw.close().await.unwrap();
     result
-}
-
-#[tokio::test]
-async fn forgetting_source_retains_canonical_metadata_for_global_playlists() {
-    let fixture = super::support::fixture().await;
-    let database = &fixture.database;
-    database
-        .create_playlist(
-            None,
-            "Snapshot",
-            &library::MemberSelection::Uris((vec![fixture.track_uris[0].clone()]).into()),
-        )
-        .await
-        .unwrap();
-    let mut raw = connection(&fixture.path, false).await;
-    for kind in ["track", "album", "artist"] {
-        let uri = library::source_entity_uri(&SourceId::new("source"), kind, "owned");
-        sqlx::query("INSERT INTO user_media_state(media_uri,favorite,rating) VALUES(?1,1,87)")
-            .bind(uri)
-            .execute(&mut raw)
-            .await
-            .unwrap();
-    }
-    raw.close().await.unwrap();
-    assert!(
-        database
-            .remove_source(&library::SourceId::new("source"))
-            .await
-            .unwrap()
-    );
-    let mut raw = connection(&fixture.path, false).await;
-    assert_eq!(
-        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM user_media_state")
-            .fetch_one(&mut raw)
-            .await
-            .unwrap(),
-        0
-    );
-    assert_eq!(
-        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM main.playlist_entries")
-            .fetch_one(&mut raw)
-            .await
-            .unwrap(),
-        1
-    );
 }
 
 #[tokio::test]

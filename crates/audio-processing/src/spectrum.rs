@@ -89,8 +89,8 @@ mod tests {
         let bin = 48;
         let samples = (0..SPECTRUM_FFT_SIZE)
             .map(|index| {
-                let phase =
-                    2.0 * std::f32::consts::PI * bin as f32 * index as f32 / SPECTRUM_FFT_SIZE as f32;
+                let phase = 2.0 * std::f32::consts::PI * bin as f32 * index as f32
+                    / SPECTRUM_FFT_SIZE as f32;
                 phase.sin() * 0.8
             })
             .collect::<Vec<_>>();

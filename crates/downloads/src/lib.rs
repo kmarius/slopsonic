@@ -1,8 +1,5 @@
 //! Download queue ownership, command handling, and bounded transfer execution.
 
-#[cfg(feature = "bindings")]
-uniffi::setup_scaffolding!();
-
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -28,13 +25,6 @@ pub use storage::DownloadDirectory;
 use track_download::*;
 
 pub type DownloadCount = usize;
-#[cfg(feature = "bindings")]
-uniffi::custom_type!(DownloadCount, u64, {
-    remote,
-    lower: |value| value as u64,
-    try_lift: |value| Ok(usize::try_from(value)?),
-});
-
 const QUEUE_VERSION: u32 = 3;
 const QUEUE_FILE: &str = "queue.json";
 const QUEUE_PART_FILE: &str = "queue.json.part";
@@ -42,7 +32,6 @@ const RETRY_INTERVAL: Duration = Duration::from_secs(30);
 const MAX_ACTIVE_DOWNLOADS: usize = 3;
 
 #[derive(Clone)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct Downloads {
     root: Arc<PathBuf>,
     commands: Sender<Command>,
@@ -558,7 +547,6 @@ struct ActiveDownload {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum DownloadRule {
     EntireLibrary,
     Favorites,
@@ -567,7 +555,6 @@ pub enum DownloadRule {
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct DownloadRules {
     #[serde(default)]
     pub entire_library: bool,
@@ -619,7 +606,6 @@ impl DownloadRule {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct SourceDownloadSettings {
     pub source_id: SourceId,
     #[serde(flatten)]
@@ -702,7 +688,6 @@ fn prepare_rules(intent: RuleIntent, prepared: Sender<PreparedRules>) {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum DownloadSubject {
     Rule(DownloadRule),
     Prepared {
@@ -722,7 +707,6 @@ impl DownloadSubject {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum DownloadQueueState {
     Queued,
     Downloading,
@@ -731,7 +715,6 @@ pub enum DownloadQueueState {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct DownloadQueueItem {
     pub id: String,
     pub source_id: Option<SourceId>,
@@ -744,7 +727,6 @@ pub struct DownloadQueueItem {
 }
 
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum DownloadQueueMove {
     Up,
     Down,
@@ -753,7 +735,6 @@ pub enum DownloadQueueMove {
 }
 
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum DownloadQueueScope {
     All,
     Source { source_id: SourceId },
@@ -906,7 +887,6 @@ impl Downloads {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl Downloads {
     pub fn remove_rule(&self, source_id: SourceId, rule: DownloadRule, delete_downloads: bool) {
         self.send(Command::RemoveRule {
@@ -923,7 +903,6 @@ impl Downloads {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl Downloads {
     pub fn cancel_job(&self, source_id: Option<SourceId>, job_id: String) {
         self.send(Command::Cancel { source_id, job_id });
@@ -956,14 +935,12 @@ impl Downloads {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl Downloads {
     pub fn set_paused(&self, paused: bool) {
         self.send(Command::SetPaused(paused));
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl Downloads {
     pub fn move_job(&self, source_id: SourceId, job_id: String, movement: DownloadQueueMove) {
         self.send(Command::Move {
@@ -974,7 +951,6 @@ impl Downloads {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl Downloads {
     pub fn clear(&self, source_id: SourceId, notify: bool) {
         self.send(Command::Clear { source_id, notify });
@@ -1119,13 +1095,7 @@ impl Actor {
                 })
                 .await;
                 let result = self
-                    .attach(
-                        source_id.clone(),
-                        source_key,
-                        source,
-                        folder,
-                        directory,
-                    )
+                    .attach(source_id.clone(), source_key, source, folder, directory)
                     .await;
                 let ready = result.is_ok();
                 self.pending_rules = None;
@@ -2170,11 +2140,10 @@ impl Actor {
             ..
         } = active;
         let result = match joined {
-            Ok(Ok(())) => {
-                self.commit_transfer(&source_id, &media_uri, &subject, &paths, quality)
-                    .await
-                    .map(|_| ())
-            }
+            Ok(Ok(())) => self
+                .commit_transfer(&source_id, &media_uri, &subject, &paths, quality)
+                .await
+                .map(|_| ()),
             Ok(Err(error)) => Err(error),
             Err(error) => Err(DownloadFailure::NeedsAttention(format!(
                 "download task failed: {error}"
@@ -3972,7 +3941,6 @@ mod tests {
 }
 
 #[derive(Clone, Default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct DownloadStatus {
     pub revision: u64,
     pub queue_revision: u64,
@@ -3982,14 +3950,12 @@ pub struct DownloadStatus {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct DownloadQueueSummary {
     pub source_id: Option<SourceId>,
     pub downloaded_tracks: u64,
     pub total_jobs: u64,
 }
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct DownloadPage {
     pub total: u64,
     pub jobs: Vec<DownloadQueueItem>,
@@ -4119,7 +4085,6 @@ impl Actor {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl Downloads {
     pub async fn clear_artwork_cache(&self) -> sources::SourceResult<()> {
         let (response, receive) = async_channel::bounded(1);
@@ -4163,12 +4128,10 @@ impl Downloads {
     }
 }
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct DownloadSubscription {
     changes: tokio::sync::Mutex<tokio::sync::watch::Receiver<DownloadStatus>>,
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl DownloadSubscription {
     pub async fn next(&self) -> sources::SourceResult<DownloadStatus> {
         let mut changes = self.changes.lock().await;

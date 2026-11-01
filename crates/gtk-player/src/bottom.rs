@@ -814,7 +814,7 @@ impl crate::PlayerUi {
         set_active_class(&controls.repeat_button, repeat_mode != RepeatMode::Off);
         set_repeat_button_icon(&controls.repeat_button, repeat_mode);
         set_active_class(&controls.dj_button, auto_dj_enabled);
-        controls.dj_button.set_tooltip_text(Some(&"Auto DJ".to_string()));
+        controls.dj_button.set_tooltip_text(Some("Auto DJ"));
         controls
             .repeat_button
             .set_tooltip_text(Some(&repeat_label(repeat_mode)));

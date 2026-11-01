@@ -1,7 +1,6 @@
 use super::ProductHandles;
 pub use library::CacheUsage;
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CacheKind {
     Loudness,
@@ -10,14 +9,12 @@ pub enum CacheKind {
     Artwork,
 }
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 #[derive(Clone, Debug)]
 pub struct CacheSummary {
     pub kind: CacheKind,
     pub usage: Option<CacheUsage>,
 }
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 #[derive(Clone, Debug)]
 pub struct StorageSummary {
     pub caches: Vec<CacheSummary>,

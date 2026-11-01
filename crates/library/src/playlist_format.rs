@@ -10,7 +10,6 @@ use crate::{
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum PlaylistPathMode {
     #[default]
     Automatic,
@@ -473,10 +472,7 @@ pub(crate) async fn import_playlist_on(
     } else {
         true
     };
-    let mut removed = Vec::<String>::new();
     if entries_changed {
-        removed=sqlx::query_scalar("SELECT json_array((SELECT object_id FROM sources WHERE source_key=playlist.source_key),playlist.object_id,entry.object_id) FROM playlist_entries entry JOIN playlists playlist USING(playlist_key) WHERE playlist.playlist_key=?1")
-            .bind(key).fetch_all(&mut *connection).await?;
         changed = true;
         sqlx::query("DELETE FROM main.playlist_entries WHERE playlist_key=?1")
             .bind(key)
@@ -490,32 +486,6 @@ pub(crate) async fn import_playlist_on(
                 .bind(key).bind(&entry.object_id).bind(track).bind(entry.position)
                 .execute(&mut *connection).await?;
         }
-    }
-    if changed {
-        let mut records = if entries_changed {
-            crate::playlists::playlist_entry_records_on(connection, key, 0, i64::MAX).await?
-        } else {
-            Vec::new()
-        };
-        let present = records
-            .iter()
-            .filter(|record| record.kind == "entry")
-            .map(|record| record.key.as_str())
-            .collect::<std::collections::HashSet<_>>();
-        let tombstones = removed
-            .into_iter()
-            .filter(|key| !present.contains(key.as_str()))
-            .map(|key| crate::ConnectRecord {
-                kind: "entry".into(),
-                key,
-                value: None,
-            })
-            .collect::<Vec<_>>();
-        records.extend(tombstones);
-        let identity:String=sqlx::query_scalar("SELECT json_array((SELECT object_id FROM sources WHERE source_key=playlist.source_key),playlist.object_id) FROM playlists playlist WHERE playlist_key=?1")
-            .bind(key).fetch_one(&mut *connection).await?;
-        records.push(Database::connect_record_on(connection, "playlist", &identity).await?);
-        crate::profile::write_local_on(connection, &records).await?;
     }
     Ok(PlaylistImportReport {
         playlist: key,
@@ -1300,14 +1270,6 @@ mod tests {
             sqlx::query("INSERT INTO local_file_observations(local_file_key,path,root,relative_path,mtime_ns,native_id,state) SELECT local_file_key,path,root,relative_path,mtime_ns,'native-track',state FROM local_files WHERE path=?1")
                 .bind(&source_path).execute(&mut *connection).await.unwrap();
         }
-        assert_eq!(
-            database
-                .connect_track_reference(&provider)
-                .await
-                .unwrap()
-                .unwrap()["backing_id"],
-            crate::document_media_uri("native-track")
-        );
         assert_eq!(
             database
                 .media_uris_for_document_ids(&[

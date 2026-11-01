@@ -443,13 +443,13 @@ fn replace_primary_menu_model(menu: &gio::Menu, shell: &Rc<Shell>) {
     let preferences = gio::Menu::new();
     append_menu_action(
         &preferences,
-        &"Preferences".to_string(),
+        "Preferences",
         "app.preferences",
         "rufin-preferences-system-symbolic",
     );
     append_menu_action(
         &preferences,
-        &"Keyboard Shortcuts".to_string(),
+        "Keyboard Shortcuts",
         "app.show-shortcuts",
         "rufin-preferences-desktop-keyboard-shortcuts-symbolic",
     );
@@ -458,7 +458,7 @@ fn replace_primary_menu_model(menu: &gio::Menu, shell: &Rc<Shell>) {
     let window = gio::Menu::new();
     append_menu_action(
         &window,
-        &"Toggle Fullscreen".to_string(),
+        "Toggle Fullscreen",
         "win.toggle-fullscreen",
         if shell.chrome.window.is_fullscreen() {
             "rufin-view-restore-symbolic"
@@ -477,13 +477,13 @@ fn replace_primary_menu_model(menu: &gio::Menu, shell: &Rc<Shell>) {
     let information = gio::Menu::new();
     append_menu_action(
         &information,
-        &"Troubleshooting".to_string(),
+        "Troubleshooting",
         "win.troubleshooting",
         "rufin-utilities-terminal-symbolic",
     );
     append_menu_action(
         &information,
-        &"About Slopsonic".to_string(),
+        "About Slopsonic",
         "app.about",
         "rufin-help-about-symbolic",
     );
@@ -753,7 +753,7 @@ fn append_sidebar_pins(shell: &Rc<Shell>) {
         return;
     }
 
-    let heading = gtk::Label::new(Some(&"Pins".to_string()));
+    let heading = gtk::Label::new(Some("Pins"));
     heading.add_css_class(SIDEBAR_PINS_HEADING_CLASS);
     heading.set_xalign(0.0);
     shell.navigation_view.normal_nav_pins.append(&heading);
@@ -1062,7 +1062,7 @@ fn reconcile_sidebar_pin_widgets(shell: &Rc<Shell>, items: &[SidebarPinItem]) {
         .first_child()
         .filter(|child| child.has_css_class(SIDEBAR_PINS_HEADING_CLASS))
         .unwrap_or_else(|| {
-            let heading = gtk::Label::new(Some(&"Pins".to_string()));
+            let heading = gtk::Label::new(Some("Pins"));
             heading.add_css_class(SIDEBAR_PINS_HEADING_CLASS);
             heading.set_xalign(0.0);
             normal.prepend(&heading);

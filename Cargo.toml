@@ -14,7 +14,6 @@ readme = "README.md"
 publish = false
 
 [workspace.dependencies]
-uniffi = "=0.32.1"
 # Rufin crates
 app-identity = { path = "crates/app-identity" }
 artwork = { path = "crates/artwork" }
@@ -46,7 +45,6 @@ tar = "0.4.46"
 chrono = "0.4.45"
 adw = { package = "libadwaita", version = "0.9.1" }
 async-channel = "2.5.0"
-async-trait = "0.1.89"
 ashpd = { version = "0.13.13", default-features = false, features = [
     "background",
     "tokio",
@@ -83,7 +81,6 @@ percent-encoding = "2.3.2"
 tokio-util = { version = "0.7", features = ["io"] }
 reqwest = { version = "0.13.3", default-features = false, features = ["http2", "rustls", "system-proxy"] }
 roxmltree = "0.21.0"
-rust-embed = { version = "8.11.0", features = ["debug-embed"] }
 rustix = { version = "1.1.4", features = ["fs"] }
 rustfft = "6.2.0"
 serde = { version = "1.0.228", features = ["derive", "rc"] }
@@ -95,7 +92,6 @@ regex = "1.13.1"
 tempfile = "3.23.0"
 thiserror = "2.0.18"
 tokio = "1.53.3"
-tokio-rustls = { version = "0.26.4", default-features = false }
 tracing = "0.1.41"
 tracing-subscriber = "0.3.23"
 url = "2.5.7"

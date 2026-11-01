@@ -144,7 +144,6 @@ pub(crate) async fn decode_saved(
         entries.push(QueueEntry {
             track_key,
             provenance,
-            received_from_connect: false,
         });
         occurrences.push(Some(occurrence));
     }
@@ -276,7 +275,6 @@ pub(crate) async fn migrate_saved(
                         entries.push(QueueEntry {
                             track_key: key,
                             provenance: choice.provenance.clone(),
-                            received_from_connect: false,
                         });
                         occurrences.push(None);
                         index
@@ -308,7 +306,6 @@ pub(crate) async fn migrate_saved(
                             context_title: None,
                             source_rank: rank,
                         },
-                        received_from_connect: false,
                     });
                     occurrences.push(None);
                     positions.insert((uri, identity), index);

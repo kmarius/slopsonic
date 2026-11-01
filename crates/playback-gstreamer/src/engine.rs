@@ -1,6 +1,6 @@
 use super::audio::{SharedQueuedLoudness, passthrough_allowed};
-use super::pipeline::{AboutToFinishAction, PlayerPipeline, SourceClock};
 use super::measurement::MeasurementAnalyzer;
+use super::pipeline::{AboutToFinishAction, PlayerPipeline, SourceClock};
 use super::*;
 use std::collections::HashMap;
 use std::sync::mpsc::{SyncSender, sync_channel};
@@ -966,16 +966,14 @@ impl GstEngine {
                 current,
                 next,
                 start_position_millis,
-            } => {
-                self.play_prepared(
-                    PreparedRun {
-                        run,
-                        stream: current,
-                    },
-                    next,
-                    start_position_millis,
-                )
-            }
+            } => self.play_prepared(
+                PreparedRun {
+                    run,
+                    stream: current,
+                },
+                next,
+                start_position_millis,
+            ),
             BackendCommand::PrepareNext { current_run, next } => {
                 if self.run_is_current(current_run) {
                     self.prepare_next(next);
@@ -1062,13 +1060,7 @@ impl GstEngine {
                 }
                 let (gain, muted) = self.output_gain_state();
                 self.apply_output_gain_to_pipelines(gain, muted);
-                push_event(
-                    &self.events,
-                    BackendEvent::AudioApplied {
-                        volume,
-                        muted,
-                    },
-                );
+                push_event(&self.events, BackendEvent::AudioApplied { volume, muted });
                 self.end_passthrough_if_needed()
             }
             BackendCommand::Play { run } => {
@@ -2825,10 +2817,7 @@ impl GstEngine {
                     let shared = lock_recover(&self.shared);
                     let pipeline_id = shared.pipeline_id(slot)?;
                     let run = shared.current.as_ref()?.run;
-                    Some(
-                        self.measurement
-                            .tap(slot, pipeline_id, run, output.clone()),
-                    )
+                    Some(self.measurement.tap(slot, pipeline_id, run, output.clone()))
                 });
             self.pipeline_for_slot_mut(slot).set_processing_tap(tap);
         }

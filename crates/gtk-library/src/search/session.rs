@@ -209,9 +209,7 @@ impl SearchSession {
         self.cancel();
         self.items.replace(Default::default());
         self.revision.set(self.revision.get().wrapping_add(1));
-        if self.query.borrow().is_empty()
-            || self.selected.borrow().is_none()
-        {
+        if self.query.borrow().is_empty() || self.selected.borrow().is_none() {
             self.status.set("initial");
         } else {
             self.status.set("loading");

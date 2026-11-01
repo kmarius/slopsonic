@@ -3,7 +3,6 @@ use crate::*;
 use sqlx::{FromRow, SqliteConnection};
 
 #[derive(Clone, Debug, PartialEq, FromRow)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct PlaylistFolderRow {
     pub folder_key: PlaylistFolderKey,
     pub object_id: String,
@@ -31,7 +30,6 @@ impl PlaylistListRow {
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum PlaylistFolderMember {
     Playlist { key: PlaylistKey },
     SmartPlaylist { key: SmartPlaylistKey },

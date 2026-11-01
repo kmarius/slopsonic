@@ -18,7 +18,6 @@ use super::{
 };
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct ExternalSiteLinkSettings {
     #[serde(default = "default_true")]
     pub enabled: bool,
@@ -48,7 +47,6 @@ const MIN_RANDOM_PLAY_YEAR: u16 = 1850;
 const MAX_RANDOM_PLAY_YEAR: u16 = 2050;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct RandomPlayGenreSelection {
     pub source_id: SourceId,
     #[serde(default)]
@@ -58,7 +56,6 @@ pub struct RandomPlayGenreSelection {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct RandomPlaySettings {
     pub limit: super::PreferenceIndex,
     pub min_year: Option<u16>,
@@ -108,7 +105,6 @@ pub use library::{HomeBlockKind, HomeSectionKind};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum RecentSearchKind {
     Track,
     Album,
@@ -116,7 +112,6 @@ pub enum RecentSearchKind {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct RecentSearchResult {
     pub kind: RecentSearchKind,
     pub media_uri: String,
@@ -133,7 +128,6 @@ macro_rules! preference_group {
         impl Default for $name {
             fn default() -> Self { Self { $( $field: $default, )* } }
         }
-        #[cfg_attr(feature = "bindings", uniffi::export)]
         impl SettingsOwner {
             $( $(pub fn $setter(&self, value: $ty) -> Result<(), SettingsError> {
                 self.update_preferences(move |ui| {
@@ -145,7 +139,7 @@ macro_rules! preference_group {
     };
 }
 
-preference_group!(#[cfg_attr(feature = "bindings", derive(uniffi::Record))] ApplicationPreferences, application, {
+preference_group!(ApplicationPreferences, application, {
     #[serde(default = "default_starting_page")]
     starting_page: SidebarRouteItem = default_starting_page() => set_starting_page;
     #[serde(default = "default_true")]
@@ -177,7 +171,7 @@ preference_group!(#[cfg_attr(feature = "bindings", derive(uniffi::Record))] Appl
     secret_storage_mode: SecretStorageMode = SecretStorageMode::default();
 });
 
-preference_group!(#[cfg_attr(feature = "bindings", derive(uniffi::Record))] PlayerDisplayPreferences, player_display, {
+preference_group!(PlayerDisplayPreferences, player_display, {
     #[serde(default)]
     clear_queue_includes_current: bool = false => set_clear_queue_includes_current;
     #[serde(default = "default_true")]
@@ -498,10 +492,7 @@ fn sanitize_downloads(downloads: &mut Vec<SourceDownloadSettings>) {
 mod tests {
     use crate::settings::SidebarRouteItem;
 
-    use super::{
-        PlayerDisplayPreferences, RecentSearchKind, RecentSearchResult,
-        Settings,
-    };
+    use super::{PlayerDisplayPreferences, RecentSearchKind, RecentSearchResult, Settings};
 
     #[test]
     fn recent_search_results_keep_exact_items_in_recency_order_and_round_trip() {

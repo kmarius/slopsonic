@@ -187,7 +187,6 @@ impl PlayerUi {
     }
 }
 
-
 pub type QueueMenu = Rc<
     dyn Fn(
         &gtk::Widget,

@@ -2,7 +2,6 @@
 
 use crate::{Database, LibraryError, LibraryResult};
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CacheUsage {
     pub entries: u64,

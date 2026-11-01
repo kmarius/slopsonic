@@ -4,9 +4,6 @@
 //! translation, and bounded Library updates. Rufin owns source lifecycle,
 //! artwork preparation, and publication of committed catalog changes.
 
-#[cfg(feature = "bindings")]
-uniffi::setup_scaffolding!();
-
 #[cfg(test)]
 extern crate self as sources;
 
@@ -23,14 +20,14 @@ mod remote_json;
 mod subsonic;
 
 pub use config::{
-    CredentialInput, CredentialPreset, EditableSource,
-    SourceConfiguration, SourceSettingsChange, SourceSetup,
+    CredentialInput, CredentialPreset, EditableSource, SourceConfiguration, SourceSettingsChange,
+    SourceSetup,
 };
 pub use library::SourceId;
 pub use operations::{
-    ArtworkChange, ArtworkEdit, ArtworkEditing, ArtworkStorage, ImageBytes,
-    MetadataChanges, MetadataDraft, MetadataEdit, MetadataField, MetadataFieldKind,
-    SourceMetadataError, artwork_file, finish_metadata_save,
+    ArtworkChange, ArtworkEdit, ArtworkEditing, ArtworkStorage, ImageBytes, MetadataChanges,
+    MetadataDraft, MetadataEdit, MetadataField, MetadataFieldKind, SourceMetadataError,
+    artwork_file, finish_metadata_save,
 };
 pub use source::*;
 
@@ -39,8 +36,6 @@ pub use subsonic::{SubsonicAuthentication, SubsonicFlavor};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Error))]
-#[cfg_attr(feature = "bindings", uniffi(flat_error))]
 pub enum SourceError {
     #[error(transparent)]
     Library(#[from] library::LibraryError),

@@ -371,8 +371,7 @@ pub fn confirm_forget_source(
     let dialog = adw::AlertDialog::builder()
         .heading("Forget Source".to_string())
         .body(format!(
-            "{} {}",
-            "This removes the server, cached library metadata, queue snapshot, and saved token for".to_string(),
+            "This removes the server, cached library metadata, queue snapshot, and saved token for {}",
             server_name
         ))
         .build();

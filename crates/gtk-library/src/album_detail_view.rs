@@ -17,8 +17,8 @@ use gtk_widgets::favorites::{
 };
 use gtk_widgets::format_duration_units;
 use gtk_widgets::mounted_route::MountedRoute;
-use rufin_core::text::{track_count_text};
 use rufin_core::playback::RadioPlayRequest;
+use rufin_core::text::track_count_text;
 
 use super::collections::library_route_inset;
 use super::detail_showcase::{

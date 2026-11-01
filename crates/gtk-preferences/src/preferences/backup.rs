@@ -2,7 +2,7 @@ use crate::Preferences;
 use adw::prelude::*;
 use backup::{BackupContents, BackupFrequency};
 use gtk::{gio, glib};
-use rufin_core::text::{fill};
+use rufin_core::text::fill;
 use std::rc::Rc;
 
 const CONTENT_FIELDS: [fn(&mut BackupContents) -> &mut bool; 7] = [
@@ -272,10 +272,10 @@ pub(super) fn group(
             .is_some()
         {
             if let Some(row) = folder.upgrade() {
-                row.set_subtitle(&"Slopsonic data folder".to_string());
+                row.set_subtitle("Slopsonic data folder");
             }
             if let Some(row) = summary.upgrade() {
-                row.set_subtitle(&"Slopsonic data folder".to_string());
+                row.set_subtitle("Slopsonic data folder");
             }
             button.set_visible(false);
         }
@@ -517,7 +517,9 @@ async fn options(shell: &Preferences, importing: bool) -> Option<(Option<String>
 }
 fn feedback(shell: &Preferences, result: Result<(), String>, success: &str) {
     match result {
-        Ok(()) => shell.control_feedback.show_feedback_toast(String::from(success)),
+        Ok(()) => shell
+            .control_feedback
+            .show_feedback_toast(String::from(success)),
         Err(error) => shell
             .control_feedback
             .show_feedback_toast(fill("Backup failed: {error}", &[("error", &error)])),

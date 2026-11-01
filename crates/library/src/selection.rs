@@ -4,7 +4,6 @@ use sqlx::{Connection, SqliteConnection};
 use std::{ops::Range, sync::Arc};
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub enum MemberSelection {
     Members {
         read: MemberRead,
@@ -27,9 +26,7 @@ pub enum MemberSelection {
     },
     Concat(Vec<MemberSelection>),
 }
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl MemberSelection {
-    #[cfg_attr(feature = "bindings", uniffi::constructor)]
     pub fn from_uris(uris: Vec<String>) -> Arc<Self> {
         Arc::new(Self::Uris(uris.into()))
     }

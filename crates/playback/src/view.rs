@@ -3,15 +3,7 @@ use std::sync::Arc;
 use crate::{QueueRow, RepeatMode, RunId};
 
 pub type QueuePosition = usize;
-#[cfg(feature = "bindings")]
-uniffi::custom_type!(QueuePosition, u64, {
-    remote,
-    lower: |value| value as u64,
-    try_lift: |value| Ok(usize::try_from(value)?),
-});
-
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum TransportStatus {
     #[default]
     Stopped,
@@ -23,14 +15,12 @@ pub enum TransportStatus {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct PositionDiscontinuity {
     pub run: RunId,
     pub position_millis: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct QueueSummaryView {
     pub revision: u64,
     pub total: QueuePosition,
@@ -40,7 +30,6 @@ pub struct QueueSummaryView {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct CurrentMedia {
     pub stream: Option<CurrentStream>,
     pub id: CurrentMediaId,
@@ -48,7 +37,6 @@ pub struct CurrentMedia {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct CurrentStream {
     pub local: bool,
     pub format: Option<String>,
@@ -57,14 +45,12 @@ pub struct CurrentStream {
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct CurrentMediaId {
     pub run: Option<RunId>,
     pub media_uri: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct TransportView {
     pub current: Option<CurrentMedia>,
     pub state: TransportStatus,
@@ -98,7 +84,6 @@ fn effective_transport_state(state: TransportStatus, desired_playing: bool) -> T
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct ControlsView {
     pub repeat_mode: RepeatMode,
     pub shuffle_enabled: bool,
@@ -118,7 +103,6 @@ pub struct PlaybackView {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum PlaybackNotice {
     RunStarted(RunId),
     PositionDiscontinuity(crate::PositionDiscontinuity),

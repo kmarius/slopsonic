@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum AudioCodec {
     #[default]
     Opus,
@@ -42,7 +41,6 @@ impl AudioCodec {
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum AudioChannels {
     #[default]
     Preserve,
@@ -51,7 +49,6 @@ pub enum AudioChannels {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct AudioEncoding {
     pub codec: AudioCodec,
     pub bitrate_kbps: Option<u32>,

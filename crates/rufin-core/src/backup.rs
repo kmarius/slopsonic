@@ -37,7 +37,6 @@ struct PlaylistPins {
 }
 
 #[derive(Clone)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct BackupOwner {
     default_directory: std::path::PathBuf,
     database: Arc<library::Database>,
@@ -406,7 +405,6 @@ impl BackupOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl BackupOwner {
     pub async fn restore(
         &self,
@@ -912,8 +910,10 @@ mod tests {
             .unwrap();
         assert_eq!(password.as_deref(), Some("scheduled-password"));
         let mut settings = StoredSettings::default();
-        settings.sources.configured =
-            vec![source("source", "reference"), source("files", "file-reference")];
+        settings.sources.configured = vec![
+            source("source", "reference"),
+            source("files", "file-reference"),
+        ];
         settings.scrobbling_secrets_present = true;
         credentials
             .save_secret(
@@ -981,10 +981,7 @@ mod tests {
         assert_eq!(
             load_provider_secret(
                 &credentials,
-                incoming.sources.configured[1]
-                    .credential
-                    .as_ref()
-                    .unwrap(),
+                incoming.sources.configured[1].credential.as_ref().unwrap(),
             )
             .unwrap()
             .as_deref(),

@@ -7,8 +7,8 @@ use adw::prelude::*;
 use glib::subclass::prelude::*;
 use gtk::{gio, glib};
 use library::{AlbumKey, AlbumView, TrackView};
-use rufin_core::text::track_count_text;
 use rufin_core::playback::QueuePlacement;
+use rufin_core::text::track_count_text;
 
 use crate::CatalogUi;
 use crate::{LibraryField, LibraryListKey};
@@ -1591,7 +1591,9 @@ fn album_track_header(fields: &[LibraryField]) -> (gtk::Box, Vec<gtk::Widget>) {
                     gtk_widgets::favorites::FAVORITE_ADD_ICON
                 };
                 let image = gtk::Image::from_icon_name(icon);
-                image.set_tooltip_text(Some(&String::from(gtk_widgets::settings::library_field_title(*field))));
+                image.set_tooltip_text(Some(&String::from(
+                    gtk_widgets::settings::library_field_title(*field),
+                )));
                 image.upcast()
             } else if *field == LibraryField::Tools {
                 gtk::Box::new(gtk::Orientation::Horizontal, 0).upcast()

@@ -67,7 +67,6 @@ struct SubsonicSourcePayload {
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum SubsonicAuthentication {
     #[default]
     Password,
@@ -229,7 +228,6 @@ pub(crate) async fn edit(
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum SubsonicFlavor {
     Navidrome,
     #[serde(rename = "open_subsonic")]

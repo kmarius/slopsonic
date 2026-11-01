@@ -220,11 +220,7 @@ pub fn present_folder_context_menu(
             smart: folder.smart,
         }),
     );
-    surface.append_fixed_action(
-        "Rename folder",
-        "rename",
-        gtk_widgets::controls::EDIT_ICON,
-    );
+    surface.append_fixed_action("Rename folder", "rename", gtk_widgets::controls::EDIT_ICON);
     let rename_menus = Rc::clone(menus);
     let rename_folder = folder.clone();
     surface.add_action("rename", move || {

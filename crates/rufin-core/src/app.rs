@@ -96,11 +96,7 @@ where
     let scrobbler = Arc::new(
         runtime
             .spawn_blocking(move || {
-                Scrobbler::new(
-                    scrobbling_library,
-                    scrobbling_runtime,
-                    scrobbling_settings,
-                )
+                Scrobbler::new(scrobbling_library, scrobbling_runtime, scrobbling_settings)
             })
             .await
             .map_err(string_error)??,

@@ -79,13 +79,11 @@ const BUILTINS: &[(&str, &str, [f64; 10])] = &[
 ];
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum EqPresetFormat {
     Json,
     Apo,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum EqEdit {
     Enabled { value: bool },
     BandGain { index: u32, value: f64 },
@@ -106,7 +104,6 @@ pub enum EqEdit {
     Mono { value: bool },
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct EqPresetSummary {
     pub id: String,
     pub name: String,
@@ -158,7 +155,6 @@ pub struct EqualizerPreferences {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct EqView {
     pub output: String,
     pub enabled: bool,
@@ -553,14 +549,12 @@ impl EqualizerPreferences {
     }
 }
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct EqSubscription {
     owner: Weak<PlaybackOwner>,
     id: u64,
     first: AtomicBool,
     receiver: tokio::sync::Mutex<watch::Receiver<EqView>>,
 }
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl EqSubscription {
     pub async fn next(&self) -> Result<EqView, PlaybackError> {
         let mut rx = self.receiver.lock().await;
@@ -593,7 +587,6 @@ impl Drop for EqSubscription {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl PlaybackOwner {
     pub fn observe_local_output(&self, route: Option<String>) {
         let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
@@ -1201,8 +1194,9 @@ fn export_apo(profile: &EqProfile, rate: u32) -> Result<String, String> {
     let preamp = audio_processing::effects::effective_preamp_db(profile, rate);
     let mut text = format!("# Reference sample rate: {rate} Hz\nPreamp: {preamp:.4} dB\n");
     for (i, filter) in bands.iter().enumerate() {
-        let q = audio_processing::effects::filter_q(filter, rate)
-            .ok_or("This filter cannot be exported at the current sample rate; use Slopsonic JSON")?;
+        let q = audio_processing::effects::filter_q(filter, rate).ok_or(
+            "This filter cannot be exported at the current sample rate; use Slopsonic JSON",
+        )?;
         let kind = match filter.kind {
             FilterKind::Peak => "PK",
             FilterKind::LowShelf => "LSC",

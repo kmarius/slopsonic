@@ -36,8 +36,7 @@ impl Shell {
     }
 
     fn route_keyboard_available(&self) -> bool {
-        !self.fullscreen_player_visible()
-            && !self.transient_route_input_active()
+        !self.fullscreen_player_visible() && !self.transient_route_input_active()
     }
 
     fn playback_keyboard_available(&self) -> bool {
@@ -243,14 +242,10 @@ fn key_has_no_shortcut_modifiers(state: gtk::gdk::ModifierType) -> bool {
     )
 }
 
-
 fn selection_shortcut(
     key: gtk::gdk::Key,
     state: gtk::gdk::ModifierType,
 ) -> Option<SelectionShortcut> {
-    #[cfg(target_os = "macos")]
-    let primary = gtk::gdk::ModifierType::META_MASK;
-    #[cfg(not(target_os = "macos"))]
     let primary = gtk::gdk::ModifierType::CONTROL_MASK;
     let shortcut_modifiers = gtk::gdk::ModifierType::SHIFT_MASK
         | gtk::gdk::ModifierType::ALT_MASK
@@ -271,8 +266,6 @@ fn selection_shortcut(
         return Some(SelectionShortcut::Play(QueuePlacement::Last));
     }
     let delete = matches!(key, gtk::gdk::Key::Delete | gtk::gdk::Key::KP_Delete);
-    #[cfg(target_os = "macos")]
-    let delete = delete || key == gtk::gdk::Key::BackSpace;
     if delete && modifiers.is_empty() {
         return Some(SelectionShortcut::Delete);
     }
@@ -341,9 +334,6 @@ mod tests {
     use super::*;
     #[test]
     fn selection_shortcuts_require_exact_platform_modifiers_and_leave_text_inputs_alone() {
-        #[cfg(target_os = "macos")]
-        let primary = gtk::gdk::ModifierType::META_MASK;
-        #[cfg(not(target_os = "macos"))]
         let primary = gtk::gdk::ModifierType::CONTROL_MASK;
         assert!(matches!(
             selection_shortcut(gtk::gdk::Key::Return, gtk::gdk::ModifierType::empty()),
@@ -366,11 +356,6 @@ mod tests {
         ));
         assert!(matches!(
             selection_shortcut(gtk::gdk::Key::Delete, gtk::gdk::ModifierType::empty()),
-            Some(SelectionShortcut::Delete)
-        ));
-        #[cfg(target_os = "macos")]
-        assert!(matches!(
-            selection_shortcut(gtk::gdk::Key::BackSpace, gtk::gdk::ModifierType::empty()),
             Some(SelectionShortcut::Delete)
         ));
         assert!(selection_shortcut(gtk::gdk::Key::Delete, primary).is_none());

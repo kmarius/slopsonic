@@ -3,11 +3,11 @@ use super::super::{
     state::tests::{IdleBackend, seeded},
 };
 use super::*;
-use std::time::Duration;
 use crate::playback::{Placement, PlayRequest, RadioPlayRequest};
 use playback::{
     BackendEvent, BackendFailure, PlaybackNotice, PlaybackSubscription, Provenance, TrackReference,
 };
+use std::time::Duration;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn canceled_queue_preparation_publishes_loading_completion() {

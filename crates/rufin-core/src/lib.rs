@@ -1,7 +1,4 @@
 //! Rufin application composition and concrete product operations.
-#[cfg(feature = "bindings")]
-uniffi::setup_scaffolding!();
-
 mod album_release;
 pub mod app;
 pub mod backup;
@@ -22,11 +19,9 @@ pub mod text;
 pub mod themes;
 pub use settings::SettingsHandle;
 
-
 pub mod metadata;
 pub mod playlists;
 
 pub use playback::equalizer::{
-    EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView,
-    EqualizerPreferences,
+    EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView, EqualizerPreferences,
 };

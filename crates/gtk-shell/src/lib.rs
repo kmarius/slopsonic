@@ -10,8 +10,6 @@ mod ratings;
 mod shell;
 mod ui_resource;
 
-pub use application::{
-    ApplicationExit, run_application, run_startup_error_application,
-};
+pub use application::{ApplicationExit, run_application, run_startup_error_application};
 
 use rufin_core::settings::*;

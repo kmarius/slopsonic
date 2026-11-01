@@ -35,7 +35,6 @@ pub struct CatalogPublication {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum CatalogChange {
     Activity,
     Scope,
@@ -46,7 +45,6 @@ pub enum CatalogChange {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct CatalogRevision {
     pub catalog: u64,
     pub activity: u64,
@@ -54,7 +52,6 @@ pub struct CatalogRevision {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct FavoriteSettlement {
     pub target: library::FavoriteTarget,
     pub requested: bool,

@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use gtk::glib;
 use gtk::prelude::WidgetExt;
-use rufin_core::text::{fill};
+use rufin_core::text::fill;
 use tracing::warn;
 
 use crate::player::{now_playing_notification_can_send, now_playing_notification_should_withdraw};
@@ -24,10 +24,7 @@ use super::navigation::update_sidebar_pin_playback;
 use gtk_widgets::mounted_route::route_current_track;
 
 pub(crate) fn install_product_event_receivers(shell: &Rc<Shell>, receivers: ProductReceivers) {
-    let ProductReceivers {
-        source,
-        downloads,
-    } = receivers;
+    let ProductReceivers { source, downloads } = receivers;
 
     let event_shell = Rc::clone(shell);
     glib::spawn_future_local(async move {
@@ -319,8 +316,7 @@ fn apply_source_operation(shell: &Rc<Shell>, operation: SourceOperation) {
     if matches!(
         operation,
         SourceOperation::Idle | SourceOperation::Failed { .. }
-    ) {
-    }
+    ) {}
     if operation.blocks_library() {
         shell.chrome.source_refresh_feedback.set_visible(false);
     }

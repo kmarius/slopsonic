@@ -5,18 +5,11 @@
 
 use std::path::PathBuf;
 
-#[cfg(feature = "bindings")]
-uniffi::custom_type!(PathBuf, String, {
-    remote,
-    lower: |path| path.to_string_lossy().into_owned(),
-    try_lift: |path| Ok(PathBuf::from(path)),
-});
 use std::sync::Arc;
 
 use sources::{CredentialPreset, SourceId};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct LocalAccessStatus {
     pub total_track_count: usize,
     pub matched_track_count: usize,
@@ -24,7 +17,6 @@ pub struct LocalAccessStatus {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct SourceSummary {
     pub id: SourceId,
     pub kind: String,
@@ -34,7 +26,6 @@ pub struct SourceSummary {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct SourceLocalAccess {
     pub source_id: SourceId,
     pub root_path: PathBuf,
@@ -44,7 +35,6 @@ pub struct SourceLocalAccess {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct SourceLocalAccessSummary {
     pub source_id: SourceId,
     pub access: Option<SourceLocalAccess>,
@@ -54,7 +44,6 @@ pub struct SourceLocalAccessSummary {
 }
 
 #[derive(Clone, Debug, Default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct ConfiguredSources {
     pub sources: Vec<SourceSummary>,
     pub selected_source_id: Option<SourceId>,
@@ -75,7 +64,6 @@ impl ConfiguredSources {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct EditableSource {
     pub source: SourceSummary,
     pub credentials: CredentialPreset,
@@ -83,7 +71,6 @@ pub struct EditableSource {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum SourceProgressStage {
     Connecting,
     Albums,
@@ -97,7 +84,6 @@ pub enum SourceProgressStage {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct SourceProgress {
     pub stage: SourceProgressStage,
     pub completed: usize,
@@ -106,7 +92,6 @@ pub struct SourceProgress {
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
 #[serde(tag = "state", rename_all = "snake_case")]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum SourceOperation {
     Idle,
     Adding {
@@ -170,15 +155,12 @@ pub fn source_progress_text(progress: &SourceProgress) -> String {
 
 pub fn source_download_text(progress: &SourceProgress) -> String {
     let message = match progress.stage {
-        SourceProgressStage::Artwork => {
-            "Downloading artwork... {count} checked"
-        }
+        SourceProgressStage::Artwork => "Downloading artwork... {count} checked",
         _ => return source_progress_text(progress),
     };
     crate::text::fill(message, &[("count", &progress.completed.to_string())])
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 pub fn source_operation_text(operation: &SourceOperation) -> Option<String> {
     match operation {
         SourceOperation::Idle => None,

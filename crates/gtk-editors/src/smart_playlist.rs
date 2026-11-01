@@ -41,18 +41,12 @@ fn smart_playlist_templates() -> Vec<SmartPlaylistTemplate> {
         },
     };
     vec![
-        most_played(
-            "Most Played (Weekly)",
-            SmartPlaylistActivityPeriod::Weekly,
-        ),
+        most_played("Most Played (Weekly)", SmartPlaylistActivityPeriod::Weekly),
         most_played(
             "Most Played (Monthly)",
             SmartPlaylistActivityPeriod::Monthly,
         ),
-        most_played(
-            "Most Played (Yearly)",
-            SmartPlaylistActivityPeriod::Yearly,
-        ),
+        most_played("Most Played (Yearly)", SmartPlaylistActivityPeriod::Yearly),
         most_played("Most Played", SmartPlaylistActivityPeriod::Lifetime),
         SmartPlaylistTemplate {
             name: "Never Played",
@@ -505,7 +499,7 @@ fn append_rule_row(
 
     let remove = gtk::Button::from_icon_name(REMOVE_ICON);
     remove.add_css_class("flat");
-    remove.set_tooltip_text(Some(&"Remove rule".to_string()));
+    remove.set_tooltip_text(Some("Remove rule"));
     {
         let rules = Rc::clone(&rules);
         let rerender = Rc::clone(&rerender);
@@ -595,7 +589,7 @@ fn append_value_editor(
             let max_spin = number_spin(max_value, min_bound, max_bound, rating);
             connect_number_range(rules, index, min_spin.clone(), max_spin.clone(), rating);
             container.append(&min_spin);
-            container.append(&gtk::Label::new(Some(&"to".to_string())));
+            container.append(&gtk::Label::new(Some("to")));
             container.append(&max_spin);
         }
         SmartPlaylistRuleValueKind::Date => {
@@ -627,7 +621,7 @@ fn append_value_editor(
             }
             connect_date_range(rules, index, start.clone(), end.clone());
             container.append(&start);
-            container.append(&gtk::Label::new(Some(&"to".to_string())));
+            container.append(&gtk::Label::new(Some("to")));
             container.append(&end);
         }
         SmartPlaylistRuleValueKind::Bool => {
@@ -866,7 +860,10 @@ fn op_title(field: SmartPlaylistRuleField, operator: SmartPlaylistRuleOperator) 
 }
 
 fn dropdown_from_titles(titles: &[&str], selected: usize) -> gtk::DropDown {
-    let labels = titles.iter().map(|title| title.to_string()).collect::<Vec<_>>();
+    let labels = titles
+        .iter()
+        .map(|title| title.to_string())
+        .collect::<Vec<_>>();
     dropdown_from_labels(&labels, selected)
 }
 

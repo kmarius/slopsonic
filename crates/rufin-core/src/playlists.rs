@@ -30,14 +30,12 @@ where
 }
 
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct PlaylistCreation {
     pub playlist_key: Option<PlaylistKey>,
     pub object_id: String,
     pub settings_error: Option<String>,
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 pub async fn create_playlist(
     owner: &SourceOwner,
     source_id: Option<SourceId>,
@@ -157,7 +155,6 @@ pub fn playlist_public(
 }
 
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct PlaylistArtworkEditing {
     pub binding: Option<Vec<u8>>,
     pub automatic_binding: Option<Vec<u8>>,
@@ -276,7 +273,6 @@ async fn generate_artwork(
     })))
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 pub async fn update_playlist(
     owner: &SourceOwner,
     playlist: PlaylistKey,
@@ -414,7 +410,6 @@ pub(crate) async fn update_playlist_on(
         .map_err(string_error)
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 pub async fn delete_playlist(
     owner: &SourceOwner,
     playlist: PlaylistKey,
@@ -449,7 +444,6 @@ pub async fn delete_playlist(
     .map_err(SourceError::Other)
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 pub async fn add_playlist_tracks(
     owner: &SourceOwner,
     playlist: PlaylistKey,
@@ -592,9 +586,7 @@ pub fn remove_playlist_entries(
 }
 
 pub fn can_remove_unavailable(playlist: &library::PlaylistRow) -> bool {
-    !playlist.source_owned
-        && playlist.writable
-        && playlist.source_id.is_none()
+    !playlist.source_owned && playlist.writable && playlist.source_id.is_none()
 }
 
 pub fn remove_unavailable_tracks(
@@ -826,7 +818,6 @@ pub async fn playlist_folders_changed(owner: &SourceOwner) {
         .await;
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 pub async fn create_playlist_folder(
     owner: &SourceOwner,
     name: String,
@@ -843,7 +834,6 @@ pub async fn create_playlist_folder(
         .map_err(|error| SourceError::Other(error.to_string()))?
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 pub async fn rename_playlist_folder(
     owner: &SourceOwner,
     key: library::PlaylistFolderKey,
@@ -860,7 +850,6 @@ pub async fn rename_playlist_folder(
         .map_err(|error| SourceError::Other(error.to_string()))?
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 pub async fn delete_playlist_folder(
     owner: &SourceOwner,
     key: library::PlaylistFolderKey,
@@ -891,7 +880,6 @@ pub async fn delete_playlist_folder(
         .map_err(|error| SourceError::Other(error.to_string()))?
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 pub async fn move_playlist_to_folder(
     owner: &SourceOwner,
     member: library::PlaylistFolderMember,

@@ -179,9 +179,9 @@ pub fn build_fullscreen_player() -> FullscreenPlayerParts {
     cover.area.set_valign(gtk::Align::Start);
     cover_button.set_child(Some(&cover.area));
     hero.append(&hero_content);
-    stack.add_titled(&queue_panel, Some("queue"), &"Queue".to_string());
-    stack.add_titled(&related_panel, Some("related"), &"Related".to_string());
-    stack.add_titled(&equalizer_panel, Some("equalizer"), &"Equalizer".to_string());
+    stack.add_titled(&queue_panel, Some("queue"), "Queue");
+    stack.add_titled(&related_panel, Some("related"), "Related");
+    stack.add_titled(&equalizer_panel, Some("equalizer"), "Equalizer");
     stack.set_visible_child_name("queue");
     connect_fullscreen_player_switcher(
         &stack,
@@ -965,8 +965,8 @@ fn update_fullscreen_meta_row(row: &gtk::FlowBox, parts: &[String]) {
 mod playback_refresh_tests {
     use super::*;
     use playback::{
-        ControlsView, CurrentMedia, CurrentMediaId, Provenance, QueueRow,
-        QueueSummaryView, RepeatMode, RunId, TrackReference, TransportStatus, TransportView,
+        ControlsView, CurrentMedia, CurrentMediaId, Provenance, QueueRow, QueueSummaryView,
+        RepeatMode, RunId, TrackReference, TransportStatus, TransportView,
     };
     use std::sync::Arc;
 
@@ -1074,7 +1074,6 @@ mod playback_refresh_tests {
             row: Arc::new(QueueRow {
                 occurrence_id: None,
                 position: 0,
-                received_from_connect: false,
                 provenance: Provenance::Manual,
                 track: {
                     let reference = TrackReference {

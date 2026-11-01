@@ -562,7 +562,7 @@ fn queue_title_column(shell: &Rc<crate::PlayerUi>) -> gtk::ColumnViewColumn {
             }
         }
     });
-    let column = gtk::ColumnViewColumn::new(Some(&"Title".to_string()), Some(factory));
+    let column = gtk::ColumnViewColumn::new(Some("Title"), Some(factory));
     column.set_fixed_width(gtk_widgets::library_fields::column_width(
         LibraryField::TitleMerged,
     ));
@@ -722,7 +722,7 @@ fn queue_year_column(shell: &Rc<crate::PlayerUi>) -> gtk::ColumnViewColumn {
             label.set_text("");
         }
     });
-    let column = gtk::ColumnViewColumn::new(Some(&"Year".to_string()), Some(factory));
+    let column = gtk::ColumnViewColumn::new(Some("Year"), Some(factory));
     column.set_fixed_width(62);
     column
 }
@@ -912,7 +912,9 @@ fn queue_text_column(shell: &Rc<crate::PlayerUi>, field: LibraryField) -> gtk::C
         }
     });
     gtk::ColumnViewColumn::new(
-        Some(&String::from(gtk_widgets::settings::library_field_title(field))),
+        Some(&String::from(gtk_widgets::settings::library_field_title(
+            field,
+        ))),
         Some(factory),
     )
 }
@@ -1036,7 +1038,7 @@ fn queue_overlay_empty_label(
         }
         child = widget.next_sibling();
     }
-    let empty = gtk::Label::new(Some(&"Nothing queued".to_string()));
+    let empty = gtk::Label::new(Some("Nothing queued"));
     empty.add_css_class("dim-label");
     empty.add_css_class("queue-empty-label");
     empty.set_halign(gtk::Align::Center);
@@ -1482,7 +1484,6 @@ mod tests {
                 links: Default::default(),
                 artwork_binding: None,
             },
-            received_from_connect: false,
             provenance: library::QueueProvenance::Manual,
         })
     }

@@ -19,7 +19,6 @@ const NEVER_PLAYED_OBJECT_ID: &str = "builtin:never_played";
 const MOST_SKIPPED_OBJECT_ID: &str = "builtin:most_skipped";
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum SmartPlaylistRuleField {
     Title,
     Artist,
@@ -39,7 +38,6 @@ pub enum SmartPlaylistRuleField {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum SmartPlaylistRuleOperator {
     Contains,
     NotContains,
@@ -57,7 +55,6 @@ pub enum SmartPlaylistRuleOperator {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum SmartPlaylistRuleValue {
     Text(String),
     Number(i64),
@@ -216,7 +213,6 @@ impl SmartPlaylistRuleField {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct SmartPlaylistRule {
     pub field: SmartPlaylistRuleField,
     pub operator: SmartPlaylistRuleOperator,
@@ -225,7 +221,6 @@ pub struct SmartPlaylistRule {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum SmartPlaylistSort {
     Title,
     Artist,
@@ -257,7 +252,6 @@ impl SmartPlaylistSort {
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum SmartPlaylistActivityPeriod {
     Weekly,
     Monthly,
@@ -278,7 +272,6 @@ impl SmartPlaylistActivityPeriod {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct SmartPlaylistDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_id: Option<crate::SourceId>,
@@ -365,7 +358,6 @@ fn default_smart_playlists() -> [(&'static str, &'static str, SmartPlaylistDefin
 }
 
 #[derive(Clone, Debug, PartialEq, FromRow)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct SmartPlaylistRow {
     pub smart_playlist_key: SmartPlaylistKey,
     pub object_id: String,
@@ -493,28 +485,6 @@ pub(crate) async fn create_default_smart_playlists(
     Ok(())
 }
 
-pub(crate) async fn sync_smart_on(
-    connection: &mut SqliteConnection,
-    key: SmartPlaylistKey,
-) -> LibraryResult<()> {
-    let (identity, position): (String, i64) = sqlx::query_as(
-        "SELECT object_id,position FROM smart_playlists WHERE smart_playlist_key=?1",
-    )
-    .bind(key)
-    .fetch_one(&mut *connection)
-    .await?;
-    crate::connect::mark_current_on(connection, "smart", &identity, false).await?;
-    crate::profile::write_local_on(
-        connection,
-        &[crate::ConnectRecord {
-            kind: "smart_order".into(),
-            key: identity,
-            value: Some(serde_json::json!({"position":position})),
-        }],
-    )
-    .await
-}
-
 impl Database {
     pub async fn smart_playlist_value_suggestions(
         &self,
@@ -624,7 +594,6 @@ impl Database {
         .execute(&mut *transaction)
         .await?;
         let key = SmartPlaylistKey::from_raw(result.last_insert_rowid());
-        sync_smart_on(&mut transaction, key).await?;
         transaction.commit().await?;
         Ok(key)
     }
@@ -673,9 +642,7 @@ impl Database {
         .await?
         .rows_affected()
             == 1;
-        if changed {
-            sync_smart_on(&mut transaction, key).await?;
-        }
+        if changed {}
         transaction.commit().await?;
         Ok(changed)
     }
@@ -690,17 +657,6 @@ impl Database {
         .bind(key)
         .fetch_optional(&mut *transaction)
         .await?;
-        if let Some(identity) = &identity {
-            crate::profile::write_local_on(
-                &mut transaction,
-                &[crate::ConnectRecord {
-                    kind: "smart".into(),
-                    key: identity.clone(),
-                    value: None,
-                }],
-            )
-            .await?;
-        }
         transaction.commit().await?;
         Ok(identity.is_some())
     }
@@ -739,16 +695,6 @@ impl Database {
             .map(|(row, position)| (row.0, *position))
             .collect::<Vec<_>>();
         write_positions_on(&mut transaction, &final_positions).await?;
-        let records = order
-            .into_iter()
-            .zip(positions)
-            .map(|((_, key, _), position)| crate::ConnectRecord {
-                kind: "smart_order".into(),
-                key,
-                value: Some(serde_json::json!({"position":position})),
-            })
-            .collect::<Vec<_>>();
-        crate::profile::write_local_on(&mut transaction, &records).await?;
         transaction.commit().await?;
         Ok(true)
     }
@@ -1454,15 +1400,15 @@ pub(crate) async fn write_smart_playlist(
             })
         });
     let binding = crate::artwork::merge_playlist_artwork(previous.as_deref(), incoming.as_deref())?;
-    let key = sqlx::query_scalar("INSERT INTO smart_playlists(object_id,name,normalized_name,definition_json,position,artwork_bytes,artwork_revision,artwork_binding)
+    sqlx::query("INSERT INTO smart_playlists(object_id,name,normalized_name,definition_json,position,artwork_bytes,artwork_revision,artwork_binding)
        VALUES(?1,?2,lower(?2),?3,CASE WHEN EXISTS(SELECT 1 FROM smart_playlists WHERE position=?4)
        THEN (SELECT COALESCE(max(position)+1,0) FROM smart_playlists) ELSE ?4 END,?5,?6,?7)
        ON CONFLICT(object_id) DO UPDATE SET name=excluded.name,normalized_name=excluded.normalized_name,
-       definition_json=excluded.definition_json,artwork_bytes=excluded.artwork_bytes,artwork_revision=excluded.artwork_revision,artwork_binding=excluded.artwork_binding RETURNING smart_playlist_key")
+       definition_json=excluded.definition_json,artwork_bytes=excluded.artwork_bytes,artwork_revision=excluded.artwork_revision,artwork_binding=excluded.artwork_binding")
        .bind(&record.object_id).bind(&record.name).bind(&record.definition_json).bind(record.position)
        .bind(&record.artwork_bytes).bind(revision).bind(binding)
-       .fetch_one(&mut *connection).await?;
-    sync_smart_on(connection, key).await
+       .execute(&mut *connection).await?;
+    Ok(())
 }
 
 impl Database {

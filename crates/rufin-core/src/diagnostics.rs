@@ -309,7 +309,6 @@ fn profile_filter(debug_enabled: bool) -> EnvFilter {
     })
 }
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct DiagnosticUpdate {
     pub end: u64,
     pub start_character: u64,

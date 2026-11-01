@@ -1,6 +1,5 @@
 use super::{SettingsError, SettingsOwner, app};
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SettingsOwner {
     pub fn application_preferences(&self) -> app::ApplicationPreferences {
         self.file
@@ -39,5 +38,4 @@ impl SettingsOwner {
         })?;
         Ok(self.random_preferences())
     }
-
 }

@@ -8,7 +8,6 @@ fn default_true() -> bool {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum SidebarRouteItem {
     Home,
     Search,
@@ -52,7 +51,6 @@ impl SidebarRouteItem {
     }
 }
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct SidebarRouteItemSettings {
     pub item: SidebarRouteItem,
     pub visible: bool,

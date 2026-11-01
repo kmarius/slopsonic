@@ -39,7 +39,6 @@ async fn wait_for_authorization(
 }
 
 #[derive(Clone)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct ScrobblingOwner {
     settings: SettingsFile,
     secrets: Arc<SwitchableSecretStore>,
@@ -66,7 +65,9 @@ impl ScrobblingOwner {
 
     pub(crate) fn settings_changed(&self, credentials_changed: bool) {
         let stored = self.settings.load();
-        if let Err(error) = self.scrobbler.update_preferences(&stored.scrobbling_runtime_settings())
+        if let Err(error) = self
+            .scrobbler
+            .update_preferences(&stored.scrobbling_runtime_settings())
         {
             warn!(%error, "could not update external scrobbling settings");
         }
@@ -296,7 +297,6 @@ fn preferences(settings: &scrobbling::Settings) -> ScrobblingPreferences {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl ScrobblingOwner {
     pub fn preferences(&self) -> ScrobblingPreferences {
         preferences(&self.scrobbler.settings())
@@ -379,7 +379,6 @@ impl ScrobblingOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum ScrobblingCredentialEdit {
     LastFm {
         api_key: Option<String>,
@@ -389,7 +388,6 @@ pub enum ScrobblingCredentialEdit {
         user_token: String,
     },
 }
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl ScrobblingOwner {
     pub async fn save_credential(
         &self,

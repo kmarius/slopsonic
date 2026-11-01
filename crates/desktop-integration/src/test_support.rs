@@ -13,8 +13,7 @@ pub(crate) fn test_view(
     state: TransportStatus,
     position_millis: u64,
 ) -> PlaybackView {
-    let media_uri =
-        library::source_entity_uri(&library::SourceId::new("source"), "track", "track");
+    let media_uri = library::source_entity_uri(&library::SourceId::new("source"), "track", "track");
     let current = CurrentMedia {
         stream: None,
         id: CurrentMediaId {
@@ -24,7 +23,6 @@ pub(crate) fn test_view(
         row: Arc::new(QueueRow {
             occurrence_id: None,
             position: 0,
-            received_from_connect: false,
             provenance: Provenance::Manual,
             track: {
                 let reference = TrackReference {
@@ -84,9 +82,7 @@ pub(crate) fn test_view(
             state,
             desired_playing: matches!(
                 state,
-                TransportStatus::Resolving
-                    | TransportStatus::Buffering
-                    | TransportStatus::Playing
+                TransportStatus::Resolving | TransportStatus::Buffering | TransportStatus::Playing
             ),
             position_millis,
             position_observed_at_millis: 0,

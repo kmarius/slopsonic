@@ -3,8 +3,8 @@ pub use rufin_core::runtime::source::{source_kind_icon_name, source_kind_title};
 use adw::prelude::*;
 use app_identity::{DISPLAY_NAME, STABLE_APP_ID};
 use gtk::gio;
-use rufin_core::text::{fill};
 use rufin_core::runtime::source::SourceSummary;
+use rufin_core::text::fill;
 use std::rc::Rc;
 
 pub fn configured_source_display_name(source: &SourceSummary) -> String {
@@ -90,7 +90,7 @@ pub fn bind_source_picker(
                 return;
             };
             if include_all && selection.selected() == 0 {
-                label.set_label(&"All".to_string());
+                label.set_label("All");
             } else if let Some(source) = selection
                 .selected()
                 .checked_sub(u32::from(include_all))

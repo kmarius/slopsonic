@@ -78,7 +78,7 @@ where
     title_label.set_wrap(true);
     title_label.set_wrap_mode(gtk::pango::WrapMode::WordChar);
     title_group.append(&title_label);
-    let unit = gtk::Label::new(Some(&"kbps".to_string()));
+    let unit = gtk::Label::new(Some("kbps"));
     unit.add_css_class("dim-label");
     title_group.append(&unit);
 

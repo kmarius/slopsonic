@@ -20,7 +20,6 @@ pub(crate) fn whole_file_cue_sql(alias: &str) -> String {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum DownloadItem {
     Track {
         media_uri: String,
@@ -47,7 +46,6 @@ pub enum DownloadItem {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct DownloadStatus {
     pub total: u64,
     pub downloaded: u64,
@@ -573,7 +571,7 @@ impl Database {
                       WHERE media_uri=requested.value AND source.kind='local')),
                 EXISTS(SELECT 1 FROM tracks track WHERE track.media_uri=requested.value AND track.source_path IS NOT NULL AND NOT EXISTS(SELECT 1 FROM local_track_access access WHERE access.track_key=track.track_key) AND NOT EXISTS(SELECT 1 FROM local_locators locator WHERE locator.media_uri=track.media_uri AND locator.origin IN ('local','import'))),
                 EXISTS(SELECT 1 FROM playlist_entries entry JOIN tracks track USING(track_key) WHERE track.media_uri=requested.value)
-                    OR EXISTS(SELECT 1 FROM queue_entries entry JOIN tracks track USING(track_key) WHERE track.media_uri=requested.value AND NOT entry.received_from_connect)
+                    OR EXISTS(SELECT 1 FROM queue_entries entry JOIN tracks track USING(track_key) WHERE track.media_uri=requested.value)
              FROM json_each(?1) requested",
         )
         .bind(serde_json::to_string(uris)?)
@@ -625,24 +623,6 @@ impl Database {
             WHERE EXISTS(SELECT 1 FROM main.sources WHERE object_id=json_extract(requested.value,'$[1]') AND catalog_complete=1)
               AND NOT EXISTS(SELECT 1 FROM main.tracks WHERE media_uri=json_extract(requested.value,'$[0]') AND indexed=1)")
             .bind(serde_json::to_string(media)?).fetch_all(&mut *connection).await?)
-    }
-
-    /// A native scan establishes local access even if the URI is also shared.
-    pub async fn file_media_is_remote(
-        &self,
-        media_uri: &str,
-        received_from_connect: bool,
-    ) -> LibraryResult<bool> {
-        let mut connection = self.acquire_reader().await?;
-        Ok(sqlx::query_scalar(
-            "SELECT
-            NOT EXISTS(SELECT 1 FROM tracks track JOIN local_track_access access USING(track_key) WHERE media_uri=?1)
-            AND (EXISTS(SELECT 1 FROM tracks track WHERE track.media_uri=?1 AND track.source_path IS NOT NULL) OR ?2)",
-        )
-        .bind(media_uri)
-        .bind(received_from_connect)
-        .fetch_one(&mut *connection)
-        .await?)
     }
 
     pub async fn playback_window(&self, uri: &str) -> LibraryResult<Option<(u64, u64)>> {

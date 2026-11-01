@@ -128,7 +128,7 @@ impl LibraryPageShell {
         changed: impl Fn(bool) + 'static,
     ) {
         let dropdown = &self.toolbar.sort_dropdown;
-        let labels = gtk::StringList::new(&[&"All".to_string()]);
+        let labels = gtk::StringList::new(&["All"]);
         if let Some(name) = current_source_name.as_deref() {
             labels.append(name);
         }
@@ -214,7 +214,10 @@ impl CatalogUi {
         let wrapper = LibraryPageView::new();
         let toolbar = self.library_toolbar_projection(options.key, options.search.clone());
         wrapper.imp().toolbar_host.append(&toolbar.widget());
-        wrapper.imp().empty_label.set_label(&String::from(options.empty_body));
+        wrapper
+            .imp()
+            .empty_label
+            .set_label(&String::from(options.empty_body));
         wrapper
             .imp()
             .search_empty_label
@@ -410,8 +413,7 @@ impl CatalogUi {
         let layout_mode_for_locale = Rc::clone(&layout_mode);
         bind_widget_tooltip_with(&layout, move || {
             format!(
-                "{}: {}",
-                "Layout".to_string(),
+                "Layout: {}",
                 String::from(layout_title(layout_mode_for_locale.get()))
             )
         });
@@ -495,7 +497,9 @@ impl CatalogUi {
             fields_group: adw::PreferencesGroup,
             display_host: gtk::Box,
         });
-        title.set_subtitle(&String::from(gtk_widgets::settings::library_list_title(key)));
+        title.set_subtitle(&String::from(gtk_widgets::settings::library_list_title(
+            key,
+        )));
         configure_fill_width_clip(&scroller, gtk::PolicyType::Automatic);
         dialog.set_content_width(large_popup_content_width(LIBRARY_CONFIG_DIALOG_WIDTH));
         dialog.set_content_height(large_popup_content_height(

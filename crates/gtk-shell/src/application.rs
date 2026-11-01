@@ -1,5 +1,4 @@
 use std::cell::{Cell, RefCell};
-use std::io::{self, Write};
 use std::ops::ControlFlow;
 use std::process::ExitCode;
 use std::rc::Rc;
@@ -14,30 +13,10 @@ use rufin_core::runtime::RuntimeInputs;
 
 const ICON_RESOURCE_ROOT: &str = "/io/github/screwys/Rufin/icons/hicolor";
 const GTK_DECORATION_LAYOUT_OPTION: &str = "gtk-decoration-layout";
-const WINDOW_BAR_PREVIEW_OPTION: &str = "window-bar-preview";
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum WindowBarPreview {
-    Macos,
-    Windows,
-}
-
-impl WindowBarPreview {
-    fn parse(value: &str) -> Result<Self, String> {
-        match value {
-            "macos" => Ok(Self::Macos),
-            "windows" => Ok(Self::Windows),
-            _ => Err(format!(
-                "Unknown window bar preview '{value}'. Use 'macos' or 'windows'."
-            )),
-        }
-    }
-}
 
 #[derive(Default)]
 struct ApplicationOptions {
     decoration_layout: Option<String>,
-    window_bar_preview: Option<WindowBarPreview>,
 }
 
 pub struct ApplicationExit {
@@ -81,7 +60,6 @@ where
         let settings = settings.clone();
         let quitting = Rc::clone(&quitting);
         let storage_reset = Rc::clone(&storage_reset);
-        let window_bar_preview = options.borrow().window_bar_preview;
         gtk::glib::spawn_future_local(async move {
             let _hold = hold;
             if let Err(error) = crate::shell::build::build(
@@ -90,12 +68,11 @@ where
                 bootstrap(),
                 quitting,
                 Rc::clone(&storage_reset),
-                window_bar_preview,
             )
             .await
             {
                 error!(%error, "failed to start Slopsonic");
-                present_startup_error(&app, &error, window_bar_preview, storage_reset);
+                present_startup_error(&app, &error, storage_reset);
             }
         });
     });
@@ -119,12 +96,7 @@ pub fn run_startup_error_application(error: String) -> ApplicationExit {
         if let Some(window) = app.active_window() {
             present_window(&window);
         } else {
-            present_startup_error(
-                app,
-                &error,
-                options.borrow().window_bar_preview,
-                Rc::clone(&storage_reset),
-            );
+            present_startup_error(app, &error, Rc::clone(&storage_reset));
         }
     });
     let code = app.run().into();
@@ -138,9 +110,7 @@ pub fn run_startup_error_application(error: String) -> ApplicationExit {
 }
 
 fn application() -> (adw::Application, Rc<RefCell<ApplicationOptions>>) {
-    let app = adw::Application::builder()
-        .application_id(APP_ID)
-        .build();
+    let app = adw::Application::builder().application_id(APP_ID).build();
     app.set_option_context_summary(Some(
         "Open audio files or M3U, PLS and XSPF playlists. Use --headless --help for playback without a window.",
     ));
@@ -152,28 +122,11 @@ fn application() -> (adw::Application, Rc<RefCell<ApplicationOptions>>) {
         "Override GTK's window control layout for this run",
         Some("LAYOUT"),
     );
-    app.add_main_option(
-        WINDOW_BAR_PREVIEW_OPTION,
-        0u8.into(),
-        gtk::glib::OptionFlags::NONE,
-        gtk::glib::OptionArg::String,
-        "Preview a 25px platform window bar",
-        Some("macos|windows"),
-    );
     let options = Rc::new(RefCell::new(ApplicationOptions::default()));
     let requested_options = Rc::clone(&options);
     app.connect_handle_local_options(move |_, options| {
         if let Ok(Some(layout)) = options.lookup::<String>(GTK_DECORATION_LAYOUT_OPTION) {
             requested_options.borrow_mut().decoration_layout = Some(layout);
-        }
-        if let Ok(Some(value)) = options.lookup::<String>(WINDOW_BAR_PREVIEW_OPTION) {
-            match WindowBarPreview::parse(&value) {
-                Ok(preview) => requested_options.borrow_mut().window_bar_preview = Some(preview),
-                Err(message) => {
-                    let _ = writeln!(io::stderr().lock(), "{message}");
-                    return ControlFlow::Break(gtk::glib::ExitCode::FAILURE);
-                }
-            }
         }
         ControlFlow::Continue(())
     });
@@ -182,16 +135,8 @@ fn application() -> (adw::Application, Rc<RefCell<ApplicationOptions>>) {
     let quit_app = app.clone();
     quit.connect_activate(move |_, _| quit_app.quit());
     app.add_action(&quit);
-    #[cfg(target_os = "macos")]
-    {
-        app.set_accels_for_action("app.quit", &["<Meta>q"]);
-        app.set_accels_for_action("window.close", &["<Meta>w"]);
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        app.set_accels_for_action("app.quit", &["<Control>q"]);
-        app.set_accels_for_action("window.close", &["<Control>w"]);
-    }
+    app.set_accels_for_action("app.quit", &["<Control>q"]);
+    app.set_accels_for_action("window.close", &["<Control>w"]);
     (app, options)
 }
 
@@ -199,15 +144,7 @@ fn connect_startup_configuration(app: &adw::Application, options: Rc<RefCell<App
     app.connect_startup(move |_| {
         configure_app_icon();
         let requested_options = options.borrow();
-        let layout = requested_options.decoration_layout.as_deref().or(
-            match requested_options.window_bar_preview {
-                Some(WindowBarPreview::Macos) => Some("close,minimize,maximize:"),
-                Some(WindowBarPreview::Windows) => Some(":minimize,maximize,close"),
-                None if cfg!(target_os = "macos") => Some("close,minimize,maximize:"),
-                None => None,
-            },
-        );
-        let Some(layout) = layout else {
+        let Some(layout) = requested_options.decoration_layout.as_deref() else {
             return;
         };
         let Some(settings) = gtk::Settings::default() else {
@@ -233,16 +170,7 @@ pub(crate) fn application_window(
     default_width: i32,
     default_height: i32,
     content: &gtk::Box,
-    header: &gtk::HeaderBar,
-    preview: Option<WindowBarPreview>,
 ) -> gtk::ApplicationWindow {
-    if let Some(platform) = platform_window_bar(preview) {
-        content.remove(header);
-        let window = gtk_application_window(app, title, default_width, default_height, content);
-        header.set_use_native_controls(platform == WindowBarPreview::Macos && preview.is_none());
-        window.set_titlebar(Some(header));
-        return window;
-    }
     adw::ApplicationWindow::builder()
         .application(app)
         .title(title)
@@ -253,58 +181,18 @@ pub(crate) fn application_window(
         .upcast()
 }
 
-pub(crate) fn platform_window_bar(preview: Option<WindowBarPreview>) -> Option<WindowBarPreview> {
-    preview.or({
-        #[cfg(target_os = "macos")]
-        {
-            Some(WindowBarPreview::Macos)
-        }
-        #[cfg(target_os = "windows")]
-        {
-            Some(WindowBarPreview::Windows)
-        }
-        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-        {
-            None
-        }
-    })
-}
-
-fn gtk_application_window(
-    app: &adw::Application,
-    title: &str,
-    default_width: i32,
-    default_height: i32,
-    content: &impl IsA<gtk::Widget>,
-) -> gtk::ApplicationWindow {
-    let window = gtk::ApplicationWindow::builder()
-        .application(app)
-        .title(title)
-        .default_width(default_width)
-        .default_height(default_height)
-        .build();
-    window.set_child(Some(content));
-    window
-}
-
-fn present_startup_error(
-    app: &adw::Application,
-    error: &str,
-    preview: Option<WindowBarPreview>,
-    storage_reset: StorageResetResult,
-) {
+fn present_startup_error(app: &adw::Application, error: &str, storage_reset: StorageResetResult) {
     let resource = crate::ui_resource::STARTUP_ERROR_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
         content: gtk::Box,
-        header: gtk::HeaderBar,
         status: adw::StatusPage,
         reset_database: gtk::Button,
     });
     status.set_icon_name(Some(STABLE_APP_ID));
     status.set_title(DISPLAY_NAME);
     status.set_description(Some(error));
-    let window = application_window(app, DISPLAY_NAME, 480, 320, &content, &header, preview);
+    let window = application_window(app, DISPLAY_NAME, 480, 320, &content);
     let resetting_window = window.downgrade();
     let app = app.downgrade();
     reset_database.connect_clicked(move |_| {
@@ -379,19 +267,6 @@ fn verify_interface_resources() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn window_bar_preview_accepts_only_named_platforms() {
-        assert_eq!(
-            WindowBarPreview::parse("macos"),
-            Ok(WindowBarPreview::Macos)
-        );
-        assert_eq!(
-            WindowBarPreview::parse("windows"),
-            Ok(WindowBarPreview::Windows)
-        );
-        assert!(WindowBarPreview::parse("linux").is_err());
-    }
 
     #[test]
     fn composed_interface_resources_are_compiled() {

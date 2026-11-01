@@ -153,17 +153,13 @@ impl TransferClients {
         let response = send_request(client, stream.uri(), resume.as_ref(), cancellation).await?;
         let status = response.status();
         if status == reqwest::StatusCode::OK {
-            return download_full(response, paths, representation, cancellation)
-                .await
-                ;
+            return download_full(response, paths, representation, cancellation).await;
         }
         if status == reqwest::StatusCode::PARTIAL_CONTENT
             && let Some((checkpoint, offset)) = resume.as_ref()
             && valid_partial(&response, checkpoint, *offset)
         {
-            return download_partial(response, paths, checkpoint, *offset, cancellation)
-                .await
-                ;
+            return download_partial(response, paths, checkpoint, *offset, cancellation).await;
         }
         if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE
             && let Some((checkpoint, offset)) = resume.as_ref()
@@ -175,10 +171,8 @@ impl TransferClients {
         if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE && resume.is_some() {
             discard_staging(paths).await?;
             let response = send_request(client, stream.uri(), None, cancellation).await?;
-                if response.status() == reqwest::StatusCode::OK {
-                return download_full(response, paths, representation, cancellation)
-                    .await
-                    ;
+            if response.status() == reqwest::StatusCode::OK {
+                return download_full(response, paths, representation, cancellation).await;
             }
             if !response.status().is_success() {
                 return response_error(response.status(), paths).await;
@@ -701,8 +695,8 @@ pub(super) fn completed_download_paths(
 ) -> Result<DownloadPaths, String> {
     let source = file.source_id.as_deref().map(SourceId::new);
     let mut paths = download_paths(root, source.as_ref(), &file.media_uri);
-    let path = library::file_media_path(&file.path)
-        .ok_or("The completed download has no local path")?;
+    let path =
+        library::file_media_path(&file.path).ok_or("The completed download has no local path")?;
     let root = if file.storage_root.is_empty() {
         path.parent().map(Path::to_owned)
     } else {
@@ -712,9 +706,7 @@ pub(super) fn completed_download_paths(
     Ok(paths)
 }
 
-pub(super) async fn finalize_download(
-    paths: &DownloadPaths,
-) -> Result<FinishedDownload, String> {
+pub(super) async fn finalize_download(paths: &DownloadPaths) -> Result<FinishedDownload, String> {
     let completed_size = tokio::fs::metadata(&paths.audio_part)
         .await
         .map_err(|error| error.to_string())?

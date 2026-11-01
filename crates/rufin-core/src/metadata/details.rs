@@ -13,7 +13,6 @@ use library::{LibraryError, LibraryResult, ReadCancellation, TrackState};
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum MediaDetailsItem {
     Track(String),
     Album(String),
@@ -34,7 +33,6 @@ impl MediaDetailsItem {
 }
 
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct MediaDetailField {
     pub label: String,
     pub value: String,
@@ -44,21 +42,18 @@ pub struct MediaDetailField {
 }
 
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct MediaDetailText {
     pub text: String,
     pub target: Option<MediaDetailsItem>,
 }
 
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct MediaDetailSection {
     pub title: String,
     pub fields: Vec<MediaDetailField>,
 }
 
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct MediaDetails {
     pub heading: String,
     pub title: String,
@@ -76,7 +71,8 @@ pub async fn media_details(
     async {
         let db = &source.shared.database;
         let cancel = ReadCancellation::new();
-        let unavailable = || LibraryError::InvalidRequest("Item is no longer available".to_string());
+        let unavailable =
+            || LibraryError::InvalidRequest("Item is no longer available".to_string());
         let mut origin = section("Source");
         let mut ids = section("MusicBrainz");
         let (mut details, source_id, object_id, state) = match &item {
@@ -190,26 +186,14 @@ pub async fn media_details(
                     add(
                         &mut playing,
                         "Transcoded",
-                        Some(String::from(if stream.transcoded {
-                            "Yes"
-                        } else {
-                            "No"
-                        })),
+                        Some(String::from(if stream.transcoded { "Yes" } else { "No" })),
                     );
                     details.sections.push(playing);
                 }
                 let mut loudness = section("ReplayGain tags");
                 for (gain, gain_title, peak_title) in [
-                    (
-                        track.metadata.source_loudness,
-                        "Track gain",
-                        "Track peak",
-                    ),
-                    (
-                        track.metadata.album_loudness,
-                        "Album gain",
-                        "Album peak",
-                    ),
+                    (track.metadata.source_loudness, "Track gain", "Track peak"),
+                    (track.metadata.album_loudness, "Album gain", "Album peak"),
                 ] {
                     if let Some(gain) = gain {
                         add(
@@ -230,11 +214,7 @@ pub async fn media_details(
                     "Source",
                     Some(track.access.source_name.clone()),
                 );
-                copy(
-                    &mut origin,
-                    "File path",
-                    track.access.source_path.clone(),
-                );
+                copy(&mut origin, "File path", track.access.source_path.clone());
                 if let Some(size) = db.media_file_size(uri).await? {
                     add(
                         &mut origin,
@@ -246,11 +226,7 @@ pub async fn media_details(
                         Some(glib::format_size(size.max(0) as u64).to_string()),
                     );
                 }
-                copy(
-                    &mut origin,
-                    "CUE file",
-                    track.access.cue_path.clone(),
-                );
+                copy(&mut origin, "CUE file", track.access.cue_path.clone());
                 if let Some(start) = track.access.cue_start_millis {
                     add(
                         &mut origin,
@@ -303,11 +279,7 @@ pub async fn media_details(
                     .await?
                     .ok_or_else(unavailable)?;
                 let mut general = section("General");
-                add(
-                    &mut general,
-                    "Title",
-                    Some(album.metadata.title.clone()),
-                );
+                add(&mut general, "Title", Some(album.metadata.title.clone()));
                 let mut artists = field_value(LibraryField::AlbumArtist, String::new());
                 artists.label = "Album artists".to_string();
                 set_links(&mut artists, album_artist_links(&album));
@@ -377,16 +349,8 @@ pub async fn media_details(
                     .await?
                     .ok_or_else(unavailable)?;
                 let mut general = section("General");
-                add(
-                    &mut general,
-                    "Name",
-                    Some(artist.metadata.name.clone()),
-                );
-                add(
-                    &mut general,
-                    "Sort name",
-                    artist.metadata.sort_text.clone(),
-                );
+                add(&mut general, "Name", Some(artist.metadata.name.clone()));
+                add(&mut general, "Sort name", artist.metadata.sort_text.clone());
                 add_summary(&mut general, &artist.summary);
                 musicbrainz(
                     &mut ids,
@@ -568,11 +532,7 @@ fn add_state(section: &mut MediaDetailSection, state: &TrackState) {
         presentation::library_field_title(LibraryField::UserRating),
         state.rating.map(|_| stored_rating(state.rating)),
     );
-    add(
-        section,
-        "Play count",
-        Some(state.play_count.to_string()),
-    );
+    add(section, "Play count", Some(state.play_count.to_string()));
     add(
         section,
         "Last played",
@@ -582,17 +542,9 @@ fn add_state(section: &mut MediaDetailSection, state: &TrackState) {
     );
 }
 fn add_summary(section: &mut MediaDetailSection, summary: &library::CollectionSummary) {
-    add(
-        section,
-        "Tracks",
-        Some(summary.track_count.to_string()),
-    );
+    add(section, "Tracks", Some(summary.track_count.to_string()));
     if summary.album_count > 0 {
-        add(
-            section,
-            "Albums",
-            Some(summary.album_count.to_string()),
-        );
+        add(section, "Albums", Some(summary.album_count.to_string()));
     }
     add(
         section,

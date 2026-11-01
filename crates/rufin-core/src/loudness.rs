@@ -65,7 +65,7 @@ impl LoudnessAnalysisOwner {
         self: &Arc<Self>,
         normalization: LoudnessNormalization,
         scope: LoudnessNormalizationScope,
-            source_owner: Option<Arc<SourceOwner>>,
+        source_owner: Option<Arc<SourceOwner>>,
     ) {
         if normalization != LoudnessNormalization::EbuR128 {
             self.cancel();
@@ -95,10 +95,10 @@ impl LoudnessAnalysisOwner {
         let cancelled = Arc::new(AtomicBool::new(false));
         {
             let mut active = self.active.lock().unwrap_or_else(|p| p.into_inner());
-            if active.as_ref().is_some_and(|current| {
-                current.source_key == source_key
-                    && current.scope == scope
-            }) {
+            if active
+                .as_ref()
+                .is_some_and(|current| current.source_key == source_key && current.scope == scope)
+            {
                 return;
             }
             if let Some(previous) = active.take() {
@@ -117,13 +117,9 @@ impl LoudnessAnalysisOwner {
         let task_cancelled = Arc::clone(&cancelled);
         let task = self.runtime.spawn(async move {
             info!(%source_key, "analyzing missing loudness data");
-            let failed = analyze_selected(
-                source_owner,
-                source_key,
-                scope,
-                Arc::clone(&task_cancelled),
-            )
-            .await;
+            let failed =
+                analyze_selected(source_owner, source_key, scope, Arc::clone(&task_cancelled))
+                    .await;
             if let Some(owner) = owner.upgrade() {
                 owner.finish(&task_cancelled, normalization, scope, failed);
             }
@@ -144,7 +140,7 @@ impl LoudnessAnalysisOwner {
         self: &Arc<Self>,
         normalization: LoudnessNormalization,
         scope: LoudnessNormalizationScope,
-            source_owner: Option<Arc<SourceOwner>>,
+        source_owner: Option<Arc<SourceOwner>>,
     ) {
         let Some(source_owner) = source_owner else {
             self.cancel();
@@ -181,7 +177,7 @@ impl LoudnessAnalysisOwner {
         cancelled: &Arc<AtomicBool>,
         normalization: LoudnessNormalization,
         scope: LoudnessNormalizationScope,
-            failed: bool,
+        failed: bool,
     ) {
         let mut active = self.active.lock().unwrap_or_else(|p| p.into_inner());
         let completed = active
@@ -230,13 +226,8 @@ async fn analyze_selected(
                 Ok(Some(work)) => {
                     let mut analyses = Vec::with_capacity(work.tracks.len());
                     for track in &work.tracks {
-                        match analyze_uri(
-                            &source_owner,
-                            &database,
-                            &track.media_uri,
-                            &cancelled,
-                        )
-                        .await
+                        match analyze_uri(&source_owner, &database, &track.media_uri, &cancelled)
+                            .await
                         {
                             Ok(analysis) => {
                                 let value = analysis.measurement();
@@ -306,37 +297,32 @@ async fn analyze_selected(
             .next_missing_track_loudness(source_key, track_after, &ReadCancellation::new())
             .await
         {
-            Ok(Some(work)) => match analyze_uri(
-                &source_owner,
-                &database,
-                &work.media_uri,
-                &cancelled,
-            )
-            .await
-            {
-                Ok(analysis) => {
-                    let value = analysis.measurement();
-                    let measurement = LoudnessMeasurement {
-                        analysis_key: work.expected_analysis_key,
-                        integrated_lufs: value.integrated_lufs,
-                        true_peak: value.true_peak,
-                        replay_gain_db: None,
-                        replay_gain_peak: None,
-                    };
-                    if let Err(error) = database
-                        .write_track_analyzed_loudness(source_key, work.track_key, &measurement)
-                        .await
-                    {
-                        warn!(%error, "could not store Track loudness");
+            Ok(Some(work)) => {
+                match analyze_uri(&source_owner, &database, &work.media_uri, &cancelled).await {
+                    Ok(analysis) => {
+                        let value = analysis.measurement();
+                        let measurement = LoudnessMeasurement {
+                            analysis_key: work.expected_analysis_key,
+                            integrated_lufs: value.integrated_lufs,
+                            true_peak: value.true_peak,
+                            replay_gain_db: None,
+                            replay_gain_peak: None,
+                        };
+                        if let Err(error) = database
+                            .write_track_analyzed_loudness(source_key, work.track_key, &measurement)
+                            .await
+                        {
+                            warn!(%error, "could not store Track loudness");
+                            return true;
+                        }
+                        track_after = Some(work.track_key);
+                    }
+                    Err(error) => {
+                        warn!(%error, track_key=%work.track_key, "could not analyze Track loudness");
                         return true;
                     }
-                    track_after = Some(work.track_key);
                 }
-                Err(error) => {
-                    warn!(%error, track_key=%work.track_key, "could not analyze Track loudness");
-                    return true;
-                }
-            },
+            }
             Ok(None) => {
                 if album_after.is_none() && track_after.is_none() {
                     return false;
@@ -363,15 +349,11 @@ async fn analyze_uri(
 ) -> Result<LoudnessAnalysis, String> {
     let request = StreamRequest::new(media_uri, StreamQuality::Original);
     let owner = Arc::clone(source_owner);
-    let stream = prepare_stream(
-        database,
-        request,
-        move |source_id| async move {
-            tokio::task::spawn_blocking(move || owner.client(&source_id))
-                .await
-                .map_err(|error| error.to_string())?
-        },
-    )
+    let stream = prepare_stream(database, request, move |source_id| async move {
+        tokio::task::spawn_blocking(move || owner.client(&source_id))
+            .await
+            .map_err(|error| error.to_string())?
+    })
     .await?;
     let cancelled = Arc::clone(cancelled);
     tokio::task::spawn_blocking(move || {

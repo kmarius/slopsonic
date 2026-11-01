@@ -1,6 +1,3 @@
-#[cfg(feature = "bindings")]
-uniffi::setup_scaffolding!();
-
 mod acoustid;
 mod cache;
 pub use acoustid::{FingerprintMatches, lookup_fingerprint};

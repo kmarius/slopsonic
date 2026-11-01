@@ -12,58 +12,13 @@ mod path_display;
 mod test_support;
 mod tray;
 
-#[cfg(target_os = "windows")]
-use tracing::warn;
-
-#[cfg(any(
-    target_os = "windows",
-    all(unix, not(any(target_os = "android", target_vendor = "apple")))
-))]
+#[cfg(unix)]
 pub(crate) use app_identity::APP_ID;
 
-#[cfg(target_os = "macos")]
-pub use folders::open_in_finder;
-pub use folders::{FolderTarget, folder_target};
+pub use folders::folder_target;
 pub use media_controls::MediaControls;
 pub use notification::{
     Notifications, now_playing_notification_can_send, now_playing_notification_should_withdraw,
 };
 pub use path_display::display_path;
 pub use tray::{Tray, TrayIntent};
-
-pub struct Platform {
-    #[cfg(target_os = "windows")]
-    _com: Option<winsafe::guard::CoUninitializeGuard>,
-}
-
-impl Platform {
-    #[cfg(target_os = "windows")]
-    pub fn attach_parent_console() {
-        let _ = winsafe::AttachConsole(winsafe::PidParent::Parent);
-    }
-
-    #[cfg(target_os = "windows")]
-    pub fn allow_foreground_activation(process_id: u32) -> Result<(), String> {
-        winsafe::AllowSetForegroundWindow(Some(process_id))
-            .map_err(|error| format!("could not pass window activation to Slopsonic: {error}"))
-    }
-
-    pub fn initialize() -> Self {
-        #[cfg(target_os = "windows")]
-        {
-            let com = winsafe::CoInitializeEx(
-                winsafe::co::COINIT::APARTMENTTHREADED | winsafe::co::COINIT::DISABLE_OLE1DDE,
-            )
-            .map_err(|error| {
-                warn!(?error, "failed to initialize Windows desktop integration");
-            })
-            .ok();
-            if let Err(error) = winsafe::SetCurrentProcessExplicitAppUserModelID(APP_ID) {
-                warn!(?error, "failed to set the Windows application identity");
-            }
-            return Self { _com: com };
-        }
-        #[cfg(not(target_os = "windows"))]
-        Self {}
-    }
-}

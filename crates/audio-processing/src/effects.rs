@@ -8,20 +8,17 @@ use std::f64::consts::PI;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum FilterKind {
     Peak,
     LowShelf,
     HighShelf,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum FilterWidth {
     Q { value: f64 },
     Hertz { value: f64 },
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum BandLayout {
     #[default]
     Classic10,
@@ -30,7 +27,6 @@ pub enum BandLayout {
     Parametric,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct Filter {
     pub kind: FilterKind,
     pub frequency_hz: f64,
@@ -39,7 +35,6 @@ pub struct Filter {
     pub enabled: bool,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct EqProfile {
     pub layout: BandLayout,
     pub bands: Vec<Filter>,
@@ -61,7 +56,6 @@ impl Default for EqProfile {
     }
 }
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct ProcessingConfig {
     pub equalizer: Option<EqProfile>,
     pub crossfeed: bool,

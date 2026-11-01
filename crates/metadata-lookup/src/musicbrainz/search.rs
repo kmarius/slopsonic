@@ -1,7 +1,6 @@
 use super::*;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum MetadataMatchKind {
     Recording,
     Release,
@@ -10,7 +9,6 @@ pub enum MetadataMatchKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct MetadataCandidate {
     pub id: String,
     pub kind: MetadataMatchKind,

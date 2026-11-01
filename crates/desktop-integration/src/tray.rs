@@ -7,7 +7,7 @@ pub enum TrayIntent {
     Quit,
 }
 
-#[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
+#[cfg(unix)]
 mod freedesktop {
     use ksni::blocking::TrayMethods;
     use std::sync::OnceLock;
@@ -295,186 +295,7 @@ mod freedesktop {
     }
 }
 
-#[cfg(target_os = "windows")]
-mod windows {
-    use std::sync::mpsc::{Receiver, Sender, channel};
-    use std::sync::{Mutex, Once, OnceLock};
-
-    use app_identity::DISPLAY_NAME;
-    use tray_icon::TrayIconEvent;
-    use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
-    use tray_icon::{MouseButton, MouseButtonState};
-    use tray_icon::{TrayIcon, TrayIconBuilder};
-
-    use super::TrayIntent;
-    use crate::APP_ID;
-
-    const APP_ICON_BYTES: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../resources/icons/hicolor/512x512/apps/io.github.kmarius.slopsonic.png"
-    ));
-    const SHOW_ID: &str = "rufin-tray-show";
-    const PLAY_PAUSE_ID: &str = "rufin-tray-play-pause";
-    const PREVIOUS_ID: &str = "rufin-tray-previous";
-    const NEXT_ID: &str = "rufin-tray-next";
-    const QUIT_ID: &str = "rufin-tray-quit";
-
-    static INSTALL_EVENT_HANDLERS: Once = Once::new();
-    static EVENT_SENDER: OnceLock<Mutex<Option<Sender<TrayIntent>>>> = OnceLock::new();
-
-    pub struct Tray {
-        icon: TrayIcon,
-    }
-
-    impl Tray {
-        pub fn start() -> Result<(Self, Receiver<TrayIntent>), String> {
-            install_event_handlers();
-            let (sender, receiver) = channel();
-            let menu = Menu::new();
-            let show = MenuItem::with_id(SHOW_ID, "Show Slopsonic".to_string(), true, None);
-            let play_pause = MenuItem::with_id(PLAY_PAUSE_ID, "Play/Pause".to_string(), true, None);
-            let previous = MenuItem::with_id(PREVIOUS_ID, "Previous Track".to_string(), true, None);
-            let next = MenuItem::with_id(NEXT_ID, "Next Track".to_string(), true, None);
-            let quit = MenuItem::with_id(QUIT_ID, "Quit".to_string(), true, None);
-            let separator_one = PredefinedMenuItem::separator();
-            let separator_two = PredefinedMenuItem::separator();
-            menu.append_items(&[
-                &show,
-                &separator_one,
-                &play_pause,
-                &previous,
-                &next,
-                &separator_two,
-                &quit,
-            ])
-            .map_err(|error| format!("failed to build the tray menu: {error}"))?;
-
-            let builder = TrayIconBuilder::new()
-                .with_id(APP_ID)
-                .with_tooltip(DISPLAY_NAME)
-                .with_menu(Box::new(menu))
-                .with_icon(build_tray_icon()?);
-            let builder = builder.with_menu_on_left_click(false);
-            let icon = builder
-                .build()
-                .map_err(|error| format!("failed to create the system tray icon: {error}"))?;
-            set_event_sender(Some(sender));
-            Ok((Self { icon }, receiver))
-        }
-
-        pub fn shutdown(self) {
-            let _ = self.icon.set_visible(false);
-            set_event_sender(None);
-        }
-    }
-
-    impl Drop for Tray {
-        fn drop(&mut self) {
-            set_event_sender(None);
-        }
-    }
-
-    fn install_event_handlers() {
-        INSTALL_EVENT_HANDLERS.call_once(|| {
-            MenuEvent::set_event_handler(Some(|event: MenuEvent| {
-                if let Some(intent) = menu_intent(event.id.as_ref()) {
-                    send_event(intent);
-                }
-            }));
-            TrayIconEvent::set_event_handler(Some(|event: TrayIconEvent| {
-                if matches!(
-                    event,
-                    TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
-                        ..
-                    }
-                ) {
-                    send_event(TrayIntent::Present);
-                }
-            }));
-        });
-    }
-
-    fn event_sender() -> &'static Mutex<Option<Sender<TrayIntent>>> {
-        EVENT_SENDER.get_or_init(|| Mutex::new(None))
-    }
-
-    fn set_event_sender(sender: Option<Sender<TrayIntent>>) {
-        if let Ok(mut current) = event_sender().lock() {
-            *current = sender;
-        }
-    }
-
-    fn send_event(intent: TrayIntent) {
-        if let Ok(current) = event_sender().lock()
-            && let Some(sender) = current.as_ref()
-        {
-            let _ = sender.send(intent);
-        }
-    }
-
-    fn menu_intent(id: &str) -> Option<TrayIntent> {
-        Some(match id {
-            SHOW_ID => TrayIntent::Present,
-            PLAY_PAUSE_ID => TrayIntent::PlayPause,
-            PREVIOUS_ID => TrayIntent::PreviousTrack,
-            NEXT_ID => TrayIntent::NextTrack,
-            QUIT_ID => TrayIntent::Quit,
-            _ => return None,
-        })
-    }
-
-    fn build_tray_icon() -> Result<tray_icon::Icon, String> {
-        let source = artwork::decode_rgba(APP_ICON_BYTES, u32::MAX)
-            .map_err(|error| format!("failed to decode the tray icon: {error}"))?;
-        let image = source
-            .resized_exact(32, 32)
-            .map_err(|error| format!("failed to resize the tray icon: {error}"))?;
-        let row_stride = usize::try_from(image.row_stride())
-            .map_err(|error| format!("invalid tray icon row stride: {error}"))?;
-        let row_bytes = usize::try_from(image.width())
-            .ok()
-            .and_then(|width| width.checked_mul(4))
-            .ok_or_else(|| "invalid tray icon width".to_string())?;
-        let mut rgba = Vec::with_capacity(row_bytes * usize::try_from(image.height()).unwrap_or(0));
-        for row in image.rgba().chunks(row_stride) {
-            rgba.extend_from_slice(
-                row.get(..row_bytes)
-                    .ok_or_else(|| "invalid tray icon pixel rows".to_string())?,
-            );
-        }
-        tray_icon::Icon::from_rgba(rgba, image.width(), image.height())
-            .map_err(|error| format!("failed to create the tray icon: {error}"))
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::menu_intent;
-        use crate::tray::TrayIntent;
-
-        #[test]
-        fn native_tray_menu_maps_every_command() {
-            assert_eq!(menu_intent("rufin-tray-show"), Some(TrayIntent::Present));
-            assert_eq!(
-                menu_intent("rufin-tray-play-pause"),
-                Some(TrayIntent::PlayPause)
-            );
-            assert_eq!(
-                menu_intent("rufin-tray-previous"),
-                Some(TrayIntent::PreviousTrack)
-            );
-            assert_eq!(menu_intent("rufin-tray-next"), Some(TrayIntent::NextTrack));
-            assert_eq!(menu_intent("rufin-tray-quit"), Some(TrayIntent::Quit));
-            assert_eq!(menu_intent("another-app"), None);
-        }
-    }
-}
-
-#[cfg(not(any(
-    target_os = "windows",
-    all(unix, not(any(target_os = "android", target_vendor = "apple")))
-)))]
+#[cfg(not(unix))]
 mod unsupported {
     use std::sync::mpsc::Receiver;
 
@@ -491,12 +312,7 @@ mod unsupported {
     }
 }
 
-#[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
+#[cfg(unix)]
 pub use freedesktop::Tray;
-#[cfg(not(any(
-    target_os = "windows",
-    all(unix, not(any(target_os = "android", target_vendor = "apple")))
-)))]
+#[cfg(not(unix))]
 pub use unsupported::Tray;
-#[cfg(target_os = "windows")]
-pub use windows::Tray;

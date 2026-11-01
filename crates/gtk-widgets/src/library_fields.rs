@@ -7,10 +7,10 @@ use artwork::ArtworkBinding;
 use gtk::glib;
 
 use crate::format_duration_units;
-use rufin_core::text::{album_count_text, track_count_text};
 use rufin_core::settings::layout::{
     LibraryField, LibraryLayout, LibraryListKey, LibraryListSettings,
 };
+use rufin_core::text::{album_count_text, track_count_text};
 
 pub trait TrackPresentation: Clone + PartialEq + Send + Sync + 'static {
     fn track_key(&self) -> Option<library::TrackKey>;

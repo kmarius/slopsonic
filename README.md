@@ -16,7 +16,6 @@ It is a stripped-down fork of [Rufin](https://github.com/screwys/Rufin) and writ
 ## 📚 Library
 
 - Drag songs from your queue or lists to playlists, or select multiple of them with your keyboard batch operations
-- Combine music from several servers in a single listening session with global playlists
 - Download tracks manually or through automatic rules, then keep using the same remote library while offline
 - Path matching between music servers and local folders, allowing local playback while keeping server activity and history
 - Automatic metadata and artwork caching; and in-app artwork search functionality
@@ -30,7 +29,7 @@ It is a stripped-down fork of [Rufin](https://github.com/screwys/Rufin) and writ
 - Server-provided artist, track, album, playlist and genre radios, including recommendations from server plugins
 - App owned smart (i.e. dynamic) playlists with custom sorting and limits; can use metadata, play/skip history or pre-defined dynamic lists
 - Dedicated Search, Folders and History pages
-- Moods browsing and mood/BPM-based smart playlists for Navidrome and Subsonic libraries
+- Moods browsing and mood/BPM-based smart playlists
 
 ## 🧩 Integrations
 
@@ -42,7 +41,6 @@ It is a stripped-down fork of [Rufin](https://github.com/screwys/Rufin) and writ
 - Fast, responsive and broadly customizable
 - Theme support including custom themes
 - Extensive keyboard shortcuts catalog
-- Easy built-in log viewing and exporting (privacy-conscious)
 - Type to search
 - Can run in the background or set to launch minimized, which uses the GNOME portal when available
 - System tray integration
@@ -56,14 +54,14 @@ git clone https://github.com/kmarius/slopsonic.git
 cd slopsonic
 ```
 
-Building Slopsonic requires Rust 1.96 or newerGTK 4.20 or newer, libadwaita 1.9 or newer, and GStreamer 1.26 or
+Building Slopsonic requires Rust 1.96 or newer, GTK 4.20 or newer, libadwaita 1.9 or newer, and GStreamer 1.26 or
 newer.
 
 **Arch Linux:**
 
 ```bash
 sudo pacman -S --needed \
-  base-devel rust cargo cmake ninja just pkgconf gettext gtk4 libadwaita \
+  base-devel rust cargo pkgconf gtk4 libadwaita \
   gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad \
   gst-plugins-ugly gst-libav
 ```
@@ -94,4 +92,4 @@ Icon is designed by [Commenter25](https://commenter.cc) and it is licensed under
 
 [LICENSE](LICENSE)
 
-[^codecs]:AAC and ALAC (including M4A/MP4), AIFF and WAV, APE, FLAC, TTA and WavPack, MP1/MP2/MP3 and Musepack, Ogg Vorbis/Opus/Speex, MKA and audio-only WebM, WMA/ASF, DSD, tracker modules such as MOD/XM/IT/S3M/MPTM, and emulated game music such as NSF/VGM. All supported packages have the required plugins. You may need additional GStreamer plugins if you are building Rufin natively; after installing them, restart Rufin and Resync the local library to retry rejected files.
+[^codecs]:AAC and ALAC (including M4A/MP4), AIFF and WAV, APE, FLAC, TTA and WavPack, MP1/MP2/MP3 and Musepack, Ogg Vorbis/Opus/Speex, MKA and audio-only WebM, WMA/ASF, DSD, tracker modules such as MOD/XM/IT/S3M/MPTM, and emulated game music such as NSF/VGM. All supported packages have the required plugins. You may need additional GStreamer plugins if you are building Slopsonic natively; after installing them, restart Slopsonic and Resync the local library to retry rejected files.

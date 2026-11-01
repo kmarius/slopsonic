@@ -4,7 +4,6 @@ pub(crate) mod lifecycle;
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::rc::Rc;
-#[cfg(not(target_os = "macos"))]
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::{TryRecvError, channel};
 use std::time::{Duration, Instant};
@@ -20,7 +19,6 @@ use crate::Settings as UiSettings;
 use crate::shell::Shell;
 use gtk_widgets::artwork::THUMB_COVER_SIZE;
 
-#[cfg(not(target_os = "macos"))]
 const TRAY_POLL_INTERVAL: Duration = Duration::from_millis(120);
 const QUIT_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const QUIT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -138,7 +136,7 @@ impl Shell {
             Err(TryRecvError::Disconnected) => {
                 if resetting {
                     storage_reset.replace(Some(Err(
-                        "Slopsonic could not finish closing its storage".into()
+                        "Slopsonic could not finish closing its storage".into(),
                     )));
                 }
                 warn!(
@@ -229,7 +227,6 @@ impl Shell {
             .map(|uri| uri.to_string())
     }
 
-    #[cfg(not(target_os = "macos"))]
     pub(crate) fn set_tray_enabled(self: &Rc<Self>, enabled: bool) {
         if self
             .settings
@@ -256,7 +253,6 @@ impl Shell {
         }
     }
 
-    #[cfg(not(target_os = "macos"))]
     pub(crate) fn set_keep_running_after_close(self: &Rc<Self>, enabled: bool) {
         if self
             .settings
@@ -333,7 +329,7 @@ impl Shell {
         });
     }
 
-    #[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
+    #[cfg(not(target_os = "linux"))]
     fn request_background_access(self: &Rc<Self>) {}
 
     #[cfg(target_os = "linux")]
@@ -344,12 +340,11 @@ impl Shell {
         )
     }
 
-    #[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
+    #[cfg(not(target_os = "linux"))]
     fn background_access_available(&self) -> bool {
         false
     }
 
-    #[cfg(not(target_os = "macos"))]
     pub(crate) fn set_start_minimized_enabled(self: &Rc<Self>, enabled: bool) {
         if self
             .settings
@@ -370,7 +365,6 @@ impl Shell {
         }
     }
 
-    #[cfg(not(target_os = "macos"))]
     fn ensure_tray(self: &Rc<Self>) -> bool {
         if self.desktop.tray.borrow().is_some() {
             return true;
@@ -396,7 +390,6 @@ impl Shell {
         }
     }
 
-    #[cfg(not(target_os = "macos"))]
     fn install_tray_command_pump(
         self: &Rc<Self>,
         receiver: Receiver<desktop_integration::TrayIntent>,
@@ -429,22 +422,18 @@ impl Shell {
         *self.desktop.tray_command_source.borrow_mut() = Some(source);
     }
 
-    #[cfg(not(target_os = "macos"))]
     fn present_from_tray(&self) {
         crate::application::present_window(&self.chrome.window);
     }
 }
 
 pub(crate) fn install_desktop_lifecycle(shell: &Rc<Shell>) {
-    #[cfg(not(target_os = "macos"))]
-    {
-        let settings = shell.settings.current.borrow().clone();
-        if settings.tray_enabled {
-            shell.ensure_tray();
-        }
-        if settings.keep_running_after_close || settings.start_minimized {
-            shell.request_background_access();
-        }
+    let settings = shell.settings.current.borrow().clone();
+    if settings.tray_enabled {
+        shell.ensure_tray();
+    }
+    if settings.keep_running_after_close || settings.start_minimized {
+        shell.request_background_access();
     }
     let close_shell = Rc::clone(shell);
     shell
@@ -453,18 +442,6 @@ pub(crate) fn install_desktop_lifecycle(shell: &Rc<Shell>) {
         .connect_close_request(move |_| close_window(&close_shell));
 }
 
-#[cfg(target_os = "macos")]
-fn close_window(shell: &Rc<Shell>) -> glib::Propagation {
-    shell.save_window_state();
-    if let Err(error) =
-        gtk::prelude::WidgetExt::activate_action(&shell.chrome.window, "gtkinternal.hide", None)
-    {
-        warn!(%error, "could not hide Slopsonic");
-    }
-    glib::Propagation::Stop
-}
-
-#[cfg(not(target_os = "macos"))]
 fn close_window(shell: &Rc<Shell>) -> glib::Propagation {
     let settings = shell.settings.current.borrow().clone();
     let tray_available = settings.tray_enabled && shell.ensure_tray();
@@ -485,7 +462,6 @@ fn close_window(shell: &Rc<Shell>) -> glib::Propagation {
     glib::Propagation::Stop
 }
 
-#[cfg(not(target_os = "macos"))]
 fn close_should_hide(
     keep_running: bool,
     tray_available: bool,
@@ -498,18 +474,17 @@ fn close_should_hide(
     if tray_available {
         return true;
     }
-    #[cfg(all(unix, not(target_os = "macos")))]
+    #[cfg(unix)]
     {
         return !sandboxed || background_access_available;
     }
-    #[cfg(not(all(unix, not(target_os = "macos"))))]
+    #[cfg(not(unix))]
     {
         let _ = (sandboxed, background_access_available);
         false
     }
 }
 
-#[cfg(not(target_os = "macos"))]
 fn host_is_sandboxed() -> bool {
     #[cfg(target_os = "linux")]
     {
@@ -519,12 +494,6 @@ fn host_is_sandboxed() -> bool {
     false
 }
 
-#[cfg(target_os = "macos")]
-pub(crate) fn present_initial_window(shell: &Rc<Shell>) {
-    crate::application::present_window(&shell.chrome.window);
-}
-
-#[cfg(not(target_os = "macos"))]
 pub(crate) fn present_initial_window(shell: &Rc<Shell>) {
     let settings = shell.settings.current.borrow().clone();
     let tray_available = settings.tray_enabled && settings.start_minimized && shell.ensure_tray();
@@ -535,7 +504,7 @@ pub(crate) fn present_initial_window(shell: &Rc<Shell>) {
     }
 }
 
-#[cfg(all(test, not(target_os = "macos")))]
+#[cfg(test)]
 mod tests {
     use super::close_should_hide;
 

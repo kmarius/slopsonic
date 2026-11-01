@@ -1,6 +1,3 @@
-#[cfg(feature = "bindings")]
-uniffi::setup_scaffolding!();
-
 mod backend;
 mod listening;
 mod settings;

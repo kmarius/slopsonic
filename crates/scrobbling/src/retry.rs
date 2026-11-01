@@ -641,14 +641,11 @@ fn current_target(
     service: DeliveryService,
     account_id: &str,
 ) -> Option<DeliveryTarget> {
-    state
-        .lock()
-        .ok()
-        .and_then(|state| {
-            targets(&state.settings, false)
-                .into_iter()
-                .find(|target| target.service == service && target.account_id == account_id)
-        })
+    state.lock().ok().and_then(|state| {
+        targets(&state.settings, false)
+            .into_iter()
+            .find(|target| target.service == service && target.account_id == account_id)
+    })
 }
 
 fn submit(
@@ -825,12 +822,8 @@ mod tests {
         let database = runtime
             .block_on(Database::open(directory.path().join("state.sqlite")))
             .unwrap();
-        let scrobbler = Scrobbler::new(
-            database,
-            runtime.handle().clone(),
-            Settings::default(),
-        )
-        .unwrap();
+        let scrobbler =
+            Scrobbler::new(database, runtime.handle().clone(), Settings::default()).unwrap();
         scrobbler
             .load_credentials(|| {
                 let mut changed = Settings::default();

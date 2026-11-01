@@ -44,7 +44,8 @@ pub(super) fn preference_source_choices(
 }
 
 pub fn configured_source_kind_display_name(kind: &str) -> String {
-    gtk_widgets::source_labels::source_kind_title(kind).map_or_else(|| kind.to_string(), String::from)
+    gtk_widgets::source_labels::source_kind_title(kind)
+        .map_or_else(|| kind.to_string(), String::from)
 }
 
 pub fn half_stars_row(

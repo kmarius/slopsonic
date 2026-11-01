@@ -26,8 +26,7 @@ CREATE TABLE IF NOT EXISTS queue_entries (
     track_key INTEGER NOT NULL REFERENCES tracks,
     provenance TEXT,
     context_key INTEGER REFERENCES queue_contexts,
-    source_rank INTEGER,
-    received_from_connect INTEGER NOT NULL DEFAULT 0
+    source_rank INTEGER
 ) STRICT;
 CREATE INDEX IF NOT EXISTS queue_entries_track_idx ON queue_entries(track_key);
 CREATE INDEX IF NOT EXISTS queue_entries_context_idx ON queue_entries(context_key) WHERE context_key IS NOT NULL;
@@ -210,13 +209,6 @@ CREATE TABLE IF NOT EXISTS queue_state (
     progress_millis INTEGER NOT NULL DEFAULT 0 CHECK (progress_millis >= 0),
     repeat_mode TEXT NOT NULL DEFAULT 'none' CHECK (repeat_mode IN ('none', 'one', 'all')),
     shuffled INTEGER NOT NULL DEFAULT 0 CHECK (shuffled IN (0, 1))
-) STRICT;
-
-CREATE TABLE IF NOT EXISTS queue_transfer_pages (
-    transfer TEXT NOT NULL,
-    page_offset INTEGER NOT NULL,
-    payload TEXT NOT NULL,
-    PRIMARY KEY (transfer, page_offset)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS connect_media_files (
@@ -880,11 +872,10 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
 
 /// Removes the full-text index and cache tables of a removed feature from older databases.
 async fn remove_legacy_search_index(connection: &mut SqliteConnection) -> LibraryResult<()> {
-    let indexed: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE name='lyrics_fts')",
-    )
-    .fetch_one(&mut *connection)
-    .await?;
+    let indexed: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE name='lyrics_fts')")
+            .fetch_one(&mut *connection)
+            .await?;
     if indexed {
         // The index uses a tokenizer that no longer exists, so SQLite cannot open it to drop it.
         sqlx::raw_sql(

@@ -6,7 +6,6 @@ use std::sync::Arc;
 use super::{SettingsOwner, StoredSettings};
 use crate::paths::Paths;
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StorageReset {
     KeepCredentials,

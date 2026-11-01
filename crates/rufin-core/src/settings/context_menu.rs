@@ -3,7 +3,6 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum ContextMenuItem {
     Play,
     PlayNext,
@@ -34,7 +33,6 @@ impl ContextMenuItem {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct ContextMenuItemSettings {
     pub item: ContextMenuItem,
     #[serde(default = "default_true")]
@@ -42,7 +40,6 @@ pub struct ContextMenuItemSettings {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct ContextMenuSettings {
     #[serde(
         default = "default_context_menu_items",
@@ -82,7 +79,9 @@ impl ContextMenuSettings {
     }
 }
 
-fn deserialize_known_items<'de, D>(deserializer: D) -> Result<Vec<ContextMenuItemSettings>, D::Error>
+fn deserialize_known_items<'de, D>(
+    deserializer: D,
+) -> Result<Vec<ContextMenuItemSettings>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {

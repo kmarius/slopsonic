@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct BackupSettings {
     pub enabled: bool,
     pub retention_count: u32,
@@ -27,7 +26,6 @@ impl Default for BackupSettings {
 }
 
 #[derive(Clone)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct BackupPreview {
     pub staged: Arc<backup::StagedBackup>,
     pub removed_sources: Vec<String>,
@@ -58,7 +56,6 @@ mod tests {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl BackupPreview {
     pub fn manifest(&self) -> backup::BackupManifest {
         self.staged.manifest.clone()

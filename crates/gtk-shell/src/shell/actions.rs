@@ -9,8 +9,6 @@ use rufin_core::playback::QueuePlacement;
 use crate::player::play_saved_random;
 use crate::preferences::present_preferences_dialog;
 use gtk_widgets::popup::present_light_dismiss_dialog;
-#[cfg(any(target_os = "macos", test))]
-use rufin_core::text::fill;
 
 use super::{Shell, layout, navigation};
 
@@ -20,7 +18,6 @@ const KEY_VOLUME_STEP: f64 = 0.05;
 pub(crate) fn connect_shell_actions(shell: &Rc<Shell>) {
     install_window_actions(shell);
     install_application_actions(shell);
-    install_platform_menu(shell);
     navigation::install_mouse_history_buttons(shell);
     layout::connect_shell_layout(shell);
 }
@@ -51,18 +48,12 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
     go_forward.connect_activate(move |_, _| go_forward_shell.go_forward());
     shell.chrome.window.add_action(&go_forward);
 
-    #[cfg(target_os = "macos")]
-    let troubleshooting_accels = &["<Alt><Meta>i"][..];
-    #[cfg(not(target_os = "macos"))]
     let troubleshooting_accels = &["<Control><Shift>i"][..];
     add_window_action(shell, "troubleshooting", troubleshooting_accels, {
         let shell = Rc::clone(shell);
         move || super::diagnostics::present_diagnostics(&shell)
     });
 
-    #[cfg(target_os = "macos")]
-    let left_sidebar_accels = &["<Alt><Meta>s"][..];
-    #[cfg(not(target_os = "macos"))]
     let left_sidebar_accels = &["<Control><Alt>s"][..];
     add_window_action(shell, "toggle-left-sidebar", left_sidebar_accels, {
         let shell = Rc::clone(shell);
@@ -72,28 +63,14 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
     let fullscreen = gio::SimpleAction::new("toggle-fullscreen", None);
     let fullscreen_shell = Rc::clone(shell);
     fullscreen.connect_activate(move |_, _| {
-        #[cfg(any(target_os = "windows", target_os = "macos"))]
-        {
-            if fullscreen_shell.chrome.window.is_maximized() {
-                fullscreen_shell.chrome.window.unmaximize();
-            } else {
-                fullscreen_shell.chrome.window.maximize();
-            }
-        }
-        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-        {
-            if fullscreen_shell.chrome.window.is_fullscreen() {
-                fullscreen_shell.chrome.window.unfullscreen();
-            } else {
-                fullscreen_shell.chrome.window.fullscreen();
-            }
+        if fullscreen_shell.chrome.window.is_fullscreen() {
+            fullscreen_shell.chrome.window.unfullscreen();
+        } else {
+            fullscreen_shell.chrome.window.fullscreen();
         }
     });
     shell.chrome.window.add_action(&fullscreen);
 
-    #[cfg(target_os = "macos")]
-    let play_pause_accels = &[][..];
-    #[cfg(not(target_os = "macos"))]
     let play_pause_accels = &["<Control>space"][..];
     add_window_action(shell, "play-pause", play_pause_accels, {
         let transport = shell.products.playback.clone();
@@ -117,82 +94,52 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
         let target = (position as u32).to_variant();
         let action_name = gio::Action::print_detailed_name("win.navigate-sidebar", Some(&target));
         let accelerator_position = position % 10;
-        #[cfg(target_os = "macos")]
-        let accelerator = format!("<Meta>{accelerator_position}");
-        #[cfg(not(target_os = "macos"))]
         let accelerator = format!("<Control>{accelerator_position}");
         shell
             .chrome
             .application
             .set_accels_for_action(&action_name, &[&accelerator]);
     }
-    #[cfg(target_os = "macos")]
-    let previous_track_accels = &["<Meta>Left"][..];
-    #[cfg(not(target_os = "macos"))]
     let previous_track_accels = &["<Control>b"][..];
     add_window_action(shell, "previous-track", previous_track_accels, {
         let transport = shell.products.playback.clone();
         move || transport.previous()
     });
-    #[cfg(target_os = "macos")]
-    let next_track_accels = &["<Meta>Right"][..];
-    #[cfg(not(target_os = "macos"))]
     let next_track_accels = &["<Control>n"][..];
     add_window_action(shell, "next-track", next_track_accels, {
         let transport = shell.products.playback.clone();
         move || transport.next()
     });
-    #[cfg(target_os = "macos")]
-    let seek_backward_accels = &["<Shift><Meta>Left"][..];
-    #[cfg(not(target_os = "macos"))]
     let seek_backward_accels = &["<Control>Left"][..];
     add_window_action(shell, "seek-backward", seek_backward_accels, {
         let shell = Rc::clone(shell);
         move || seek_by(&shell, -KEY_SEEK_SECONDS)
     });
-    #[cfg(target_os = "macos")]
-    let seek_forward_accels = &["<Shift><Meta>Right"][..];
-    #[cfg(not(target_os = "macos"))]
     let seek_forward_accels = &["<Control>Right"][..];
     add_window_action(shell, "seek-forward", seek_forward_accels, {
         let shell = Rc::clone(shell);
         move || seek_by(&shell, KEY_SEEK_SECONDS)
     });
-    #[cfg(target_os = "macos")]
-    let shuffle_accels = &["<Meta>s"][..];
-    #[cfg(not(target_os = "macos"))]
     let shuffle_accels = &["<Control>s"][..];
     add_window_action(shell, "toggle-shuffle", shuffle_accels, {
         let shell = Rc::clone(shell);
         move || toggle_shuffle_shortcut(&shell)
     });
-    #[cfg(target_os = "macos")]
-    let repeat_accels = &["<Meta>r"][..];
-    #[cfg(not(target_os = "macos"))]
     let repeat_accels = &["<Control>r"][..];
     add_window_action(shell, "cycle-repeat", repeat_accels, {
         let shell = Rc::clone(shell);
         move || cycle_repeat_shortcut(&shell)
     });
-    #[cfg(target_os = "macos")]
-    let search_accels = &["<Meta>f"][..];
-    #[cfg(not(target_os = "macos"))]
     let search_accels = &["<Control>f"][..];
     add_window_action(shell, "focus-search", search_accels, {
         let shell = Rc::clone(shell);
         move || shell.focus_current_route_search()
     });
-    #[cfg(target_os = "macos")]
-    let navigate_search_accels = &["<Meta>k"][..];
-    #[cfg(not(target_os = "macos"))]
     let navigate_search_accels = &["<Control>k"][..];
     add_window_action(shell, "navigate-search", navigate_search_accels, {
         let shell = Rc::clone(shell);
         move || shell.focus_topbar_search()
     });
-    #[cfg(target_os = "macos")]
-    let cycle_layout_accels = &["<Meta>j"][..];
-    #[cfg(not(target_os = "macos"))]
     let cycle_layout_accels = &["<Control>j"][..];
     add_window_action(shell, "cycle-layout", cycle_layout_accels, {
         let shell = Rc::clone(shell);
@@ -202,65 +149,41 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
         let shell = Rc::clone(shell);
         move || shell.cycle_current_route_tabs()
     });
-    #[cfg(target_os = "macos")]
-    let favorite_accels = &["<Meta>l"][..];
-    #[cfg(not(target_os = "macos"))]
     let favorite_accels = &["<Control>l"][..];
     add_window_action(shell, "toggle-favorite", favorite_accels, {
         let shell = Rc::clone(shell);
         move || shell.toggle_current_track_favorite()
     });
-    #[cfg(target_os = "macos")]
-    let auto_dj_accels = &["<Alt>space"][..];
-    #[cfg(not(target_os = "macos"))]
     let auto_dj_accels = &["<Control>d"][..];
     add_window_action(shell, "toggle-auto-dj", auto_dj_accels, {
         let shell = Rc::clone(shell);
         move || toggle_auto_dj_shortcut(&shell)
     });
-    #[cfg(target_os = "macos")]
-    let clear_queue_accels = &["<Meta>period"][..];
-    #[cfg(not(target_os = "macos"))]
     let clear_queue_accels = &["<Control>period"][..];
     add_window_action(shell, "clear-queue", clear_queue_accels, {
         let shell = Rc::clone(shell);
         move || shell.player_ui.clear_queue()
     });
-    #[cfg(target_os = "macos")]
-    let random_accels = &["<Alt><Meta>r"][..];
-    #[cfg(not(target_os = "macos"))]
     let random_accels = &["<Control><Shift>r"][..];
     add_window_action(shell, "play-random", random_accels, {
         let shell = Rc::clone(shell);
         move || play_saved_random(&shell, QueuePlacement::Now)
     });
-    #[cfg(target_os = "macos")]
-    let random_next_accels = &["<Alt><Meta>n"][..];
-    #[cfg(not(target_os = "macos"))]
     let random_next_accels = &["<Control><Shift>n"][..];
     add_window_action(shell, "play-random-next", random_next_accels, {
         let shell = Rc::clone(shell);
         move || play_saved_random(&shell, QueuePlacement::Next)
     });
-    #[cfg(target_os = "macos")]
-    let random_later_accels = &["<Alt><Meta>t"][..];
-    #[cfg(not(target_os = "macos"))]
     let random_later_accels = &["<Control><Shift>t"][..];
     add_window_action(shell, "play-random-later", random_later_accels, {
         let shell = Rc::clone(shell);
         move || play_saved_random(&shell, QueuePlacement::Last)
     });
-    #[cfg(target_os = "macos")]
-    let gapless_accels = &["<Alt><Meta>g"][..];
-    #[cfg(not(target_os = "macos"))]
     let gapless_accels = &["<Control><Shift>g"][..];
     add_window_action(shell, "use-gapless", gapless_accels, {
         let shell = Rc::clone(shell);
         move || set_transition_mode_shortcut(&shell, PlaybackTransitionMode::Gapless)
     });
-    #[cfg(target_os = "macos")]
-    let crossfade_accels = &["<Alt><Meta>c"][..];
-    #[cfg(not(target_os = "macos"))]
     let crossfade_accels = &["<Control><Shift>c"][..];
     add_window_action(shell, "use-crossfade", crossfade_accels, {
         let shell = Rc::clone(shell);
@@ -270,41 +193,26 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
         let shell = Rc::clone(shell);
         move || toggle_mute_shortcut(&shell)
     });
-    #[cfg(target_os = "macos")]
-    let volume_up_accels = &["<Meta>Up"][..];
-    #[cfg(not(target_os = "macos"))]
     let volume_up_accels = &["<Control>Up"][..];
     add_window_action(shell, "volume-up", volume_up_accels, {
         let shell = Rc::clone(shell);
         move || adjust_volume(&shell, KEY_VOLUME_STEP)
     });
-    #[cfg(target_os = "macos")]
-    let volume_down_accels = &["<Meta>Down"][..];
-    #[cfg(not(target_os = "macos"))]
     let volume_down_accels = &["<Control>Down"][..];
     add_window_action(shell, "volume-down", volume_down_accels, {
         let shell = Rc::clone(shell);
         move || adjust_volume(&shell, -KEY_VOLUME_STEP)
     });
-    #[cfg(target_os = "macos")]
-    let queue_accels = &["<Alt><Meta>u"][..];
-    #[cfg(not(target_os = "macos"))]
     let queue_accels = &["F9"][..];
     add_window_action(shell, "toggle-queue", queue_accels, {
         let shell = Rc::clone(shell);
         move || shell.toggle_right_panel()
     });
-    #[cfg(target_os = "macos")]
-    let refresh_library_accels = &["<Control><Meta>r"][..];
-    #[cfg(not(target_os = "macos"))]
     let refresh_library_accels = &["F5"][..];
     add_window_action(shell, "refresh-library", refresh_library_accels, {
         let shell = Rc::clone(shell);
         move || refresh_selected_library(&shell)
     });
-    #[cfg(target_os = "macos")]
-    let fullscreen_player_accels = &["<Control><Meta>f"][..];
-    #[cfg(not(target_os = "macos"))]
     let fullscreen_player_accels = &["<Shift>F11"][..];
     add_window_action(
         shell,
@@ -317,45 +225,24 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
             }
         },
     );
-    #[cfg(target_os = "macos")]
-    let primary_menu_accels = &["<Control><Meta>m"][..];
-    #[cfg(not(target_os = "macos"))]
     let primary_menu_accels = &["F10"][..];
     add_window_action(shell, "show-primary-menu", primary_menu_accels, {
         let shell = Rc::clone(shell);
         move || navigation::popup_primary_menu(&shell)
     });
 
-    #[cfg(target_os = "macos")]
-    {
-        shell
-            .chrome
-            .application
-            .set_accels_for_action("win.go-back", &["<Meta>bracketleft"]);
-        shell
-            .chrome
-            .application
-            .set_accels_for_action("win.go-forward", &["<Meta>bracketright"]);
-        shell
-            .chrome
-            .application
-            .set_accels_for_action("win.toggle-fullscreen", &["<Control><Meta>f"]);
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        shell
-            .chrome
-            .application
-            .set_accels_for_action("win.go-back", &["<Alt>Left"]);
-        shell
-            .chrome
-            .application
-            .set_accels_for_action("win.go-forward", &["<Alt>Right"]);
-        shell
-            .chrome
-            .application
-            .set_accels_for_action("win.toggle-fullscreen", &["F11"]);
-    }
+    shell
+        .chrome
+        .application
+        .set_accels_for_action("win.go-back", &["<Alt>Left"]);
+    shell
+        .chrome
+        .application
+        .set_accels_for_action("win.go-forward", &["<Alt>Right"]);
+    shell
+        .chrome
+        .application
+        .set_accels_for_action("win.toggle-fullscreen", &["F11"]);
 }
 
 fn install_application_actions(shell: &Rc<Shell>) {
@@ -386,157 +273,15 @@ fn install_application_actions(shell: &Rc<Shell>) {
     });
     shell.chrome.application.add_action(&about);
 
-    #[cfg(target_os = "macos")]
-    {
-        shell
-            .chrome
-            .application
-            .set_accels_for_action("app.preferences", &["<Meta>comma"]);
-        shell
-            .chrome
-            .application
-            .set_accels_for_action("app.show-shortcuts", &["<Meta>question"]);
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        shell
-            .chrome
-            .application
-            .set_accels_for_action("app.preferences", &["<Control>comma"]);
-        shell
-            .chrome
-            .application
-            .set_accels_for_action("app.show-shortcuts", &["<Control>question"]);
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn install_platform_menu(shell: &Shell) {
     shell
         .chrome
         .application
-        .set_menubar(Some(&macos_menu_model()));
+        .set_accels_for_action("app.preferences", &["<Control>comma"]);
+    shell
+        .chrome
+        .application
+        .set_accels_for_action("app.show-shortcuts", &["<Control>question"]);
 }
-
-#[cfg(any(target_os = "macos", test))]
-fn macos_menu_model() -> gio::Menu {
-    let menu = gio::Menu::new();
-
-    let edit = gio::Menu::new();
-    append_macos_menu_section(
-        &edit,
-        &[("Undo".to_string(), "text.undo"), ("Redo".to_string(), "text.redo")],
-    );
-    append_macos_menu_section(
-        &edit,
-        &[
-            ("Cut".to_string(), "clipboard.cut"),
-            ("Copy".to_string(), "clipboard.copy"),
-            ("Paste".to_string(), "clipboard.paste"),
-            ("Delete".to_string(), "selection.delete"),
-            ("Select All".to_string(), "selection.select-all"),
-        ],
-    );
-    menu.append_submenu(Some(&"Edit".to_string()), &edit);
-
-    let view = gio::Menu::new();
-    append_macos_menu_section(
-        &view,
-        &[
-            ("Back".to_string(), "win.go-back"),
-            ("Forward".to_string(), "win.go-forward"),
-            ("Search".to_string(), "win.focus-search"),
-            ("Navigate to Search".to_string(), "win.navigate-search"),
-            ("Switch between layouts".to_string(), "win.cycle-layout"),
-            ("Switch Search/Favorites tabs".to_string(), "win.cycle-tabs"),
-            ("Menu".to_string(), "win.show-primary-menu"),
-        ],
-    );
-
-    let sidebar_routes = gio::Menu::new();
-    for position in 1..=10 {
-        let position_label = position.to_string();
-        let label = fill(
-            "Sidebar item {position}",
-            &[("position", position_label.as_str())],
-        );
-        let target = (position as u32).to_variant();
-        let action = gio::Action::print_detailed_name("win.navigate-sidebar", Some(&target));
-        sidebar_routes.append(Some(&label), Some(action.as_str()));
-    }
-    view.append_submenu(Some(&"Sidebar Items".to_string()), &sidebar_routes);
-
-    append_macos_menu_section(
-        &view,
-        &[
-            ("Collapse/expand sidebar".to_string(), "win.toggle-left-sidebar"),
-            ("Show/hide right sidebar".to_string(), "win.toggle-queue"),
-            ("Toggle Fullscreen".to_string(), "win.toggle-fullscreen"),
-        ],
-    );
-    menu.append_submenu(Some(&"View".to_string()), &view);
-
-    let playback = gio::Menu::new();
-    append_macos_menu_section(
-        &playback,
-        &[
-            ("Play/Pause".to_string(), "win.play-pause"),
-            ("Previous Track".to_string(), "win.previous-track"),
-            ("Next Track".to_string(), "win.next-track"),
-        ],
-    );
-    append_macos_menu_section(
-        &playback,
-        &[
-            ("Seek Backward".to_string(), "win.seek-backward"),
-            ("Seek Forward".to_string(), "win.seek-forward"),
-        ],
-    );
-    append_macos_menu_section(
-        &playback,
-        &[
-            ("Shuffle".to_string(), "win.toggle-shuffle"),
-            ("Repeat".to_string(), "win.cycle-repeat"),
-            ("Favorite".to_string(), "win.toggle-favorite"),
-            ("Auto DJ".to_string(), "win.toggle-auto-dj"),
-            ("Clear queue".to_string(), "win.clear-queue"),
-        ],
-    );
-    append_macos_menu_section(
-        &playback,
-        &[
-            ("Mute".to_string(), "win.mute"),
-            ("Volume Up".to_string(), "win.volume-up"),
-            ("Volume Down".to_string(), "win.volume-down"),
-        ],
-    );
-    menu.append_submenu(Some(&"Playback".to_string()), &playback);
-
-    let window = gio::Menu::new();
-    window.append(Some(&"Close Window".to_string()), Some("window.close"));
-    let window_item = gio::MenuItem::new_submenu(Some(&"Window".to_string()), &window);
-    window_item.set_attribute_value("gtk-macos-special", Some(&"window-submenu".to_variant()));
-    menu.append_item(&window_item);
-
-    let help = gio::Menu::new();
-    help.append(Some(&"Keyboard Shortcuts".to_string()), Some("app.show-shortcuts"));
-    help.append(Some(&"Troubleshooting".to_string()), Some("win.troubleshooting"));
-    menu.append_submenu(Some(&"Help".to_string()), &help);
-
-    menu
-}
-
-#[cfg(any(target_os = "macos", test))]
-fn append_macos_menu_section(menu: &gio::Menu, actions: &[(String, &str)]) {
-    let section = gio::Menu::new();
-    for (label, action) in actions {
-        section.append(Some(label), Some(action));
-    }
-    menu.append_section(None, &section);
-}
-
-#[cfg(not(target_os = "macos"))]
-fn install_platform_menu(_shell: &Shell) {}
 
 fn add_window_action(
     shell: &Rc<Shell>,
@@ -647,7 +392,11 @@ pub(crate) fn toggle_mute_shortcut(shell: &Rc<Shell>) {
         return;
     };
     shell.player_ui.apply_user_muted(muted);
-    let title = if muted { "Muted".to_string() } else { "Unmuted".to_string() };
+    let title = if muted {
+        "Muted".to_string()
+    } else {
+        "Unmuted".to_string()
+    };
     shell.control_feedback.show_control_feedback_toast(title);
 }
 
@@ -656,21 +405,6 @@ fn show_shortcuts_dialog(shell: &Shell) {
     let builder = gtk_widgets::ui_resource::builder(resource);
     let dialog: adw::ShortcutsDialog =
         gtk_widgets::ui_resource::object(&builder, resource, "shortcuts_dialog");
-    #[cfg(target_os = "macos")]
-    let platform_accelerators = [
-        ("shortcut_play_pause", "space"),
-        ("shortcut_multi_selection", "<Meta>Pointer_Button1"),
-        ("shortcut_select_all", "<Meta>a"),
-        ("shortcut_selection_play_next", "<Meta>Return"),
-        ("shortcut_selection_play_later", "<Meta><Shift>Return"),
-        ("shortcut_add_to_playlist", "<Meta><Shift>p"),
-        ("shortcut_download", "<Meta><Shift>d"),
-        ("shortcut_back", "Back <Meta>bracketleft"),
-        ("shortcut_forward", "Forward <Meta>bracketright"),
-        ("shortcut_sidebar_position", "<Meta>1...9 <Meta>0"),
-        ("shortcut_source_position", "<Meta><Alt>1...9 <Meta><Alt>0"),
-    ];
-    #[cfg(not(target_os = "macos"))]
     let platform_accelerators = [
         ("shortcut_play_pause", "space <Control>space"),
         ("shortcut_multi_selection", "<Control>Pointer_Button1"),
@@ -762,102 +496,4 @@ fn show_about_dialog(shell: &Shell) {
     dialog.set_application_icon(APP_ID);
     dialog.set_version(env!("CARGO_PKG_VERSION"));
     present_light_dismiss_dialog(&dialog, &shell.chrome.window);
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::BTreeSet;
-
-    use adw::prelude::*;
-    use gtk::{gio, glib};
-
-    use super::macos_menu_model;
-
-    #[test]
-    fn macos_menu_exposes_shortcut_commands() {
-        let menu = macos_menu_model();
-        let mut actions = BTreeSet::new();
-        collect_actions(menu.upcast_ref(), &mut actions);
-
-        for expected in [
-            "text.undo",
-            "text.redo",
-            "clipboard.cut",
-            "clipboard.copy",
-            "clipboard.paste",
-            "selection.delete",
-            "selection.select-all",
-            "win.go-back",
-            "win.go-forward",
-            "win.focus-search",
-            "win.navigate-search",
-            "win.cycle-layout",
-            "win.cycle-tabs",
-            "win.show-primary-menu",
-            "win.navigate-sidebar",
-            "win.toggle-left-sidebar",
-            "win.toggle-queue",
-            "win.toggle-fullscreen",
-            "win.play-pause",
-            "win.previous-track",
-            "win.next-track",
-            "win.seek-backward",
-            "win.seek-forward",
-            "win.toggle-shuffle",
-            "win.cycle-repeat",
-            "win.toggle-favorite",
-            "win.toggle-auto-dj",
-            "win.clear-queue",
-            "win.mute",
-            "win.volume-up",
-            "win.volume-down",
-            "win.troubleshooting",
-            "window.close",
-            "app.show-shortcuts",
-        ] {
-            assert!(
-                actions.contains(expected),
-                "missing macOS menu action {expected}"
-            );
-        }
-    }
-
-    #[test]
-    fn macos_menu_leaves_application_and_window_ownership_to_gtk() {
-        let menu = macos_menu_model();
-        let mut actions = BTreeSet::new();
-        collect_actions(menu.upcast_ref(), &mut actions);
-
-        assert!(!actions.contains("app.about"));
-        assert!(!actions.contains("app.preferences"));
-        assert!(!actions.contains("app.quit"));
-        assert_eq!(
-            special_attribute(menu.upcast_ref(), "gtk-macos-special"),
-            Some("window-submenu".to_string())
-        );
-    }
-
-    fn collect_actions(model: &gio::MenuModel, actions: &mut BTreeSet<String>) {
-        for index in 0..model.n_items() {
-            if let Some(action) = model
-                .item_attribute_value(index, "action", Some(glib::VariantTy::STRING))
-                .and_then(|value| value.str().map(str::to_string))
-            {
-                actions.insert(action);
-            }
-            for link in ["section", "submenu"] {
-                if let Some(child) = model.item_link(index, link) {
-                    collect_actions(&child, actions);
-                }
-            }
-        }
-    }
-
-    fn special_attribute(model: &gio::MenuModel, attribute: &str) -> Option<String> {
-        (0..model.n_items()).find_map(|index| {
-            model
-                .item_attribute_value(index, attribute, Some(glib::VariantTy::STRING))
-                .and_then(|value| value.str().map(str::to_string))
-        })
-    }
 }

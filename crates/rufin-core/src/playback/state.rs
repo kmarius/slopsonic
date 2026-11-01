@@ -1029,9 +1029,7 @@ impl Player {
     }
 
     pub(super) fn hydrate_queue(&mut self) {
-        if self.pending_queue.is_some()
-            || self.pending_hydration.is_some()
-        {
+        if self.pending_queue.is_some() || self.pending_hydration.is_some() {
             return;
         }
         let Some(entries) = self.sequence.read_request() else {

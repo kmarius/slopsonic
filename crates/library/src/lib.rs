@@ -1,17 +1,7 @@
 //! Rufin's SQLite-owned music library and its concrete persistence operations.
 //! Provider acquisition, playback transport, and presentation remain outside this crate.
 
-#[cfg(feature = "bindings")]
-uniffi::setup_scaffolding!();
-
 pub type LibraryIndex = usize;
-#[cfg(feature = "bindings")]
-uniffi::custom_type!(LibraryIndex, u64, {
-    remote,
-    lower: |value| value as u64,
-    try_lift: |value| Ok(usize::try_from(value)?),
-});
-
 mod audio;
 pub use audio::*;
 mod activity;
@@ -26,9 +16,6 @@ pub use query::{
     CatalogIdentity, CatalogKind, Collection, ListKind, ListRead, MemberRead, MemberRow, Page,
     PlaylistScope,
 };
-pub mod connect;
-pub mod profile;
-pub use connect::connect_current_kind;
 mod connect_media;
 mod db;
 mod favorites;
@@ -64,8 +51,8 @@ mod tracks;
 pub use tracks::AudioProperties;
 
 pub use activity::{
-    ActivityCsvFormat, ActivityImportReport, ActivityRecord,
-    ListenDeliveryTarget, ListenWrite, PendingListenDelivery,
+    ActivityCsvFormat, ActivityImportReport, ActivityRecord, ListenDeliveryTarget, ListenWrite,
+    PendingListenDelivery,
 };
 pub use artwork::{
     AlbumCover, ArtworkCacheRetention, ArtworkCandidate, ArtworkImage, PlaylistArtworkManifest,
@@ -83,7 +70,6 @@ pub use collections::{
     AlbumReleaseCandidate, AlbumReleaseClass, AlbumReleaseResult, AlbumView, ArtistView,
     CollectionSummary, FolderChoice, FolderView, GenreChoice, GenreView, MoodView,
 };
-pub use connect::{CONNECT_PAGE_SIZE, ConnectRecord, ConnectRoot, RecordStamp, StampedRecord};
 pub use db::{Database, ReadCancellation};
 pub use favorites::{FavoriteTarget, NativeUserState, UserMediaStateWrite};
 pub use home::{
@@ -116,7 +102,7 @@ pub use playlists::{
 pub use queue::{
     QUEUE_CONTEXT_LIMIT, QueueContextTitle, QueueEntries, QueueEntry, QueueLoad, QueueOrderUpdate,
     QueuePlacement, QueueProvenance, QueueReorderTarget, QueueRepeatMode, QueueRestore, QueueRow,
-    QueueTransferPage, QueueTransferRow, QueueUpdate, shuffle_order,
+    QueueUpdate, shuffle_order,
 };
 pub use radio::{PlayedFilter, RadioSeed, RandomCriteria};
 pub use search::{SearchRequest, SearchResults};
@@ -135,8 +121,6 @@ use thiserror::Error;
 /// Failures at the Library persistence boundary.
 #[derive(Debug, Error)]
 pub enum LibraryError {
-    #[error("Connect catalog metadata is still arriving")]
-    ConnectPending,
     #[error("SQLite failed: {0}")]
     Sqlite(#[from] sqlx::Error),
     #[error("Library Store I/O failed: {0}")]

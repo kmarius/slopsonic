@@ -4,7 +4,6 @@ use thiserror::Error;
 use crate::{SourceEntityKind, SourceId};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum MetadataFieldKind {
     Text,
     Number,
@@ -14,7 +13,6 @@ pub enum MetadataFieldKind {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct MetadataField {
     pub key: String,
     pub label: String,
@@ -139,7 +137,6 @@ impl MetadataField {
 }
 
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Error))]
 pub enum SourceMetadataError {
     #[error("{0}")]
     InvalidInput(String),
@@ -183,13 +180,11 @@ impl From<crate::SourceError> for SourceMetadataError {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct ImageBytes {
     pub bytes: Vec<u8>,
     pub content_type: Option<String>,
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl ImageBytes {
     pub fn bytes(&self) -> Vec<u8> {
         self.bytes.clone()
@@ -201,7 +196,6 @@ impl ImageBytes {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum ArtworkStorage {
     Embedded,
     #[default]
@@ -216,7 +210,6 @@ pub struct ArtworkEdit {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum ArtworkChange {
     Replace(std::sync::Arc<ImageBytes>),
     Remove,

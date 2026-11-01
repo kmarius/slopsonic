@@ -22,7 +22,6 @@ pub enum RadioSeed {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum PlayedFilter {
     #[default]
     All,

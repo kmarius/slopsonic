@@ -7,7 +7,7 @@ use adw::prelude::*;
 use artwork::ArtworkBinding;
 use gtk::glib;
 use library::{PlaylistKey, PlaylistRow, ReadCancellation, SmartPlaylistKey, SmartPlaylistRow};
-use rufin_core::text::{track_count_text};
+use rufin_core::text::track_count_text;
 
 use crate::CatalogUi;
 use crate::{LibraryListKey, LibraryListSettings};
@@ -389,8 +389,7 @@ impl CatalogUi {
         ]);
         let actions = showcase_view.actions();
         actions.set_halign(gtk::Align::Start);
-        let controls =
-            detail_playback_controls(&actions, "Play playlist", None, Rc::clone(&play));
+        let controls = detail_playback_controls(&actions, "Play playlist", None, Rc::clone(&play));
         if let PlaylistDetailOwner::Saved { summary, .. } = &owner
             && summary.writable
         {

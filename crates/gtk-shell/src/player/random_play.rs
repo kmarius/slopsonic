@@ -8,7 +8,6 @@ use gtk::glib;
 use rufin_core::playback::{QueuePlacement, RandomPlayRequest};
 use tracing::warn;
 
-
 use crate::shell::Shell;
 use rufin_core::settings::{RandomPlayGenreSelection, RandomPlaySettings};
 

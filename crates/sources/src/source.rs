@@ -897,8 +897,7 @@ impl Source {
                     tracing::warn!(%error, "Navidrome change feed stopped");
                 }
             });
-            *feed.remote_task.lock().unwrap_or_else(|p| p.into_inner()) =
-                Some(task.abort_handle());
+            *feed.remote_task.lock().unwrap_or_else(|p| p.into_inner()) = Some(task.abort_handle());
         }
         feed
     }

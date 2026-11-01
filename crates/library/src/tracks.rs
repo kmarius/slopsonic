@@ -159,7 +159,6 @@ impl CatalogSort {
 }
 
 #[derive(Clone, Debug, FromRow, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct TrackArtistLink {
     pub artist_key: ArtistKey,
     pub media_uri: String,
@@ -173,7 +172,6 @@ pub(crate) const TRACK_ALBUM_ARTISTS: &str = "(SELECT json_group_array(json_obje
     FROM album_artists credit JOIN artists artist USING(artist_key) WHERE credit.album_key=track.album_key)";
 
 #[derive(Clone, Debug, FromRow, PartialEq, serde::Deserialize, serde::Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct TrackGenreLink {
     pub genre_key: GenreKey,
     pub name: String,
@@ -181,7 +179,6 @@ pub struct TrackGenreLink {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct AudioProperties {
     pub bitrate_kbps: Option<u32>,
     pub sample_rate_hz: Option<u32>,
@@ -203,15 +200,7 @@ impl<'row> sqlx::Decode<'row, Sqlite> for AudioProperties {
 }
 
 pub type LoudnessAnalysisKey = [u8; 32];
-#[cfg(feature = "bindings")]
-uniffi::custom_type!(LoudnessAnalysisKey, Vec<u8>, {
-    remote,
-    lower: |value| value.to_vec(),
-    try_lift: |value| value.try_into().map_err(|_| uniffi::deps::anyhow::anyhow!("Loudness key must contain 32 bytes"))
-});
-
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct TrackState {
     pub favorite: bool,
     pub rating: Option<i64>,
@@ -221,7 +210,6 @@ pub struct TrackState {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct TrackAccess {
     pub source_path: Option<String>,
     pub source_name: String,
@@ -234,7 +222,6 @@ pub struct TrackAccess {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct TrackLinks {
     pub album_key: Option<AlbumKey>,
     pub album_media_uri: Option<String>,
@@ -247,7 +234,6 @@ pub struct TrackLinks {
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct TrackView {
     pub track_key: TrackKey,
     pub source_key: Option<SourceKey>,
@@ -427,7 +413,6 @@ mod tests {
         schema::initialize_durable(&mut connection)
             .await
             .expect("initialize durable Store");
-        crate::connect::initialize(&mut connection).await.unwrap();
         let source = sqlx::query_scalar::<_, SourceKey>(
             "INSERT INTO sources(object_id,display_name,normalized_name,artwork_digest) VALUES ('source','Source','source',zeroblob(32)) RETURNING source_key",
         )

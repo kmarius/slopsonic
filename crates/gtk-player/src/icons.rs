@@ -4,7 +4,6 @@ use std::rc::Rc;
 use gtk::prelude::*;
 use playback::RepeatMode;
 
-
 pub const TRANSPORT_ICON_SIZE: i32 = 23;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

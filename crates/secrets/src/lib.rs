@@ -1,6 +1,3 @@
-#[cfg(feature = "bindings")]
-uniffi::setup_scaffolding!();
-
 use std::collections::HashMap;
 use std::fs;
 use std::future::Future;
@@ -20,7 +17,6 @@ static SECRET_SERVICE: Mutex<Option<(tokio::runtime::Runtime, Arc<oo7::Keyring>)
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum SecretStorageMode {
     ConfigFile,
     SystemKeyring,
@@ -618,14 +614,13 @@ impl SecretStore for SystemKeyringBackend {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::{
         CachedSecretStore, ConfigSecretStore, MemorySecretStore, SecretError, SecretKey,
         SecretResult, SecretStorageMode, SecretStore, SwitchableSecretStore,
     };
-        use super::{PROJECT_NAME, SystemKeyringStore};
+    use super::{PROJECT_NAME, SystemKeyringStore};
     use std::fs;
     use std::sync::{Arc, Mutex};
 
@@ -802,7 +797,7 @@ mod tests {
         assert!(stored.contains_key("scope:scope-1:example:session"));
     }
 
-        #[test]
+    #[test]
     fn secret_service_namespaced_attributes_preserve_shape() {
         let store = SystemKeyringStore::new("scope-1").expect("system keyring store");
         let key = example_session_key();
@@ -820,7 +815,7 @@ mod tests {
         assert_eq!(store.backend.secret_label(&key), "Rufin example session");
     }
 
-        #[test]
+    #[test]
     fn provider_attributes_preserve_current_and_legacy_lookup() {
         let store = SystemKeyringStore::new("scope-1").expect("system keyring store");
         let key = SecretKey::provider_token(SOURCE);

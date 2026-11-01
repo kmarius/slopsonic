@@ -70,12 +70,16 @@ pub fn library_field_config_row(
     let enabled = active.contains(&field);
     let row = adw::ActionRow::builder()
         .title(String::from(crate::settings::library_field_title(field)))
-        .subtitle(if enabled { "Visible".to_string() } else { "Hidden".to_string() })
+        .subtitle(if enabled {
+            "Visible".to_string()
+        } else {
+            "Hidden".to_string()
+        })
         .build();
 
     let drag = gtk::Image::from_icon_name("rufin-list-drag-handle-symbolic");
     drag.add_css_class("dim-label");
-    drag.set_tooltip_text(Some(&"Drag to reorder".to_string()));
+    drag.set_tooltip_text(Some("Drag to reorder"));
     row.add_prefix(&drag);
 
     let check = gtk::CheckButton::new();
@@ -87,14 +91,14 @@ pub fn library_field_config_row(
 
     let up = gtk::Button::from_icon_name("rufin-go-up-symbolic");
     up.add_css_class("flat");
-    up.set_tooltip_text(Some(&"Move up".to_string()));
+    up.set_tooltip_text(Some("Move up"));
     up.set_valign(gtk::Align::Center);
     up.set_sensitive(enabled);
     row.add_suffix(&up);
 
     let down = gtk::Button::from_icon_name("rufin-go-down-symbolic");
     down.add_css_class("flat");
-    down.set_tooltip_text(Some(&"Move down".to_string()));
+    down.set_tooltip_text(Some("Move down"));
     down.set_valign(gtk::Align::Center);
     down.set_sensitive(enabled);
     row.add_suffix(&down);

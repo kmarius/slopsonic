@@ -38,7 +38,6 @@ impl NativeUserState {
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum FavoriteTarget {
     Track(String),
     Album(String),
@@ -304,13 +303,13 @@ async fn cleanup_empty_state(
     connection: &mut SqliteConnection,
     media_uri: &str,
 ) -> LibraryResult<()> {
-    let deleted = sqlx::query(
+    sqlx::query(
         "DELETE FROM user_media_state WHERE media_uri=?1 AND favorite IS NULL AND rating IS NULL AND extra IS NULL",
     )
     .bind(media_uri)
     .execute(&mut *connection)
-    .await?.rows_affected() > 0;
-    crate::connect::mark_current_on(connection, "state", media_uri, deleted).await
+    .await?;
+    Ok(())
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]

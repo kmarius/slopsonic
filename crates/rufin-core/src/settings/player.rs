@@ -4,7 +4,6 @@ use playback::{
     StreamQuality, VolumeScale,
 };
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Error))]
 #[derive(Debug, thiserror::Error)]
 pub enum SettingsError {
     #[error("{reason}")]
@@ -17,7 +16,6 @@ impl From<String> for SettingsError {
     }
 }
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 #[derive(Clone, Debug)]
 pub struct PlayerPreferences {
     pub application: super::ApplicationPreferences,
@@ -26,7 +24,6 @@ pub struct PlayerPreferences {
     pub right_panel: super::right_panel::RightPanelSettings,
 }
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct PlayerPreferenceOptions {
     pub min_crossfade_seconds: u8,
     pub max_crossfade_seconds: u8,
@@ -36,7 +33,6 @@ pub struct PlayerPreferenceOptions {
     pub max_auto_dj_refill_threshold: u8,
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SettingsOwner {
     pub fn player_preferences(&self) -> PlayerPreferences {
         let stored = self
@@ -81,7 +77,6 @@ macro_rules! preference_target {
 macro_rules! native_preference_setters {
     ([$ui:ident $path:tt $after:block]
         $( $(#[$attribute:meta])* $field:ident: $ty:ty = $default:expr $(=> $setter:ident)?; )*) => {
-        #[cfg_attr(feature = "bindings", uniffi::export)]
         impl SettingsOwner {
             $($(pub fn $setter(&self, value: $ty) -> Result<(), SettingsError> {
                 self.update_preferences(move |$ui| {

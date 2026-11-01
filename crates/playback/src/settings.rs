@@ -11,7 +11,6 @@ pub const MAX_AUTO_DJ_REFILL_THRESHOLD: u8 = 10;
 const PERCEPTUAL_DB_RANGE: f64 = 50.0;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum StreamQuality {
     #[default]
     Original,
@@ -28,7 +27,6 @@ impl StreamQuality {
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum PlaybackTransitionMode {
     #[default]
     #[serde(alias = "Default")]
@@ -37,7 +35,6 @@ pub enum PlaybackTransitionMode {
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum LoudnessNormalization {
     Off,
     #[default]
@@ -46,7 +43,6 @@ pub enum LoudnessNormalization {
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum LoudnessNormalizationScope {
     Track,
     #[default]
@@ -54,7 +50,6 @@ pub enum LoudnessNormalizationScope {
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum VolumeScale {
     #[default]
     Perceptual,
@@ -120,7 +115,6 @@ macro_rules! define_playback_preferences {
     ([] direct { $( $(#[$attribute:meta])* $field:ident: $ty:ty = $default:expr $(=> $setter:ident)?; )* }
         migrated { $( $legacy:ident: $legacy_ty:ty = $legacy_default:expr $(=> $legacy_setter:ident)?; )* }) => {
         #[derive(Clone, Debug, PartialEq, Serialize)]
-        #[cfg_attr(feature = "bindings", derive(uniffi::Record))]
         pub struct PlaybackSettings {
             $($(#[$attribute])* pub $field: $ty,)*
             $(pub $legacy: $legacy_ty,)*

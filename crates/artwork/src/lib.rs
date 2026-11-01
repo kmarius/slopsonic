@@ -916,5 +916,4 @@ mod tests {
         assert!(matches!(pending.finish().await, ArtworkOutcome::Missing));
         assert_eq!(resolutions.load(Ordering::Relaxed), 0);
     }
-
 }

@@ -5,7 +5,6 @@ use sqlx::{AssertSqlSafe, FromRow};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum SidebarPin {
     Album {
         source_id: SourceId,

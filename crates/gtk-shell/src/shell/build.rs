@@ -1,5 +1,5 @@
-use gtk_player::right_panel::build_right_panel;
 use gtk_player::right_panel::apply_sidebar_queue_visibility;
+use gtk_player::right_panel::build_right_panel;
 use gtk_player::{
     PlayerDesktopWidgets,
     bottom::{BOTTOM_PLAYER_HEIGHT, build_bottom_player},
@@ -52,7 +52,6 @@ pub async fn build(
     bootstrap: impl std::future::Future<Output = Result<RuntimeInputs, String>>,
     quitting: Rc<Cell<bool>>,
     storage_reset: crate::application::StorageResetResult,
-    window_bar_preview: Option<crate::application::WindowBarPreview>,
 ) -> Result<(), String> {
     let appearance = Rc::new(gtk_preferences::appearance::ApplicationAppearance::install());
 
@@ -103,8 +102,6 @@ pub async fn build(
         window_width,
         window_height,
         &topbar.window_content,
-        &topbar.header,
-        window_bar_preview,
     );
 
     startup_loading_host.set_visible(true);
@@ -113,10 +110,7 @@ pub async fn build(
         closing_app.quit();
         gtk::glib::Propagation::Proceed
     });
-    if cfg!(target_os = "macos")
-        || !settings.tray_enabled
-        || !settings.start_minimized
-    {
+    if !settings.tray_enabled || !settings.start_minimized {
         crate::application::present_window(&window);
     }
     let inputs = match bootstrap.await {
@@ -495,7 +489,7 @@ pub async fn build(
     apply_sidebar_queue_visibility(&shell.player_ui);
     install_product_event_receivers(&shell, receivers);
     let weak_shell = Rc::downgrade(&shell);
-    #[cfg(all(unix, not(any(target_os = "android", target_vendor = "apple"))))]
+    #[cfg(unix)]
     {
         let body: gtk::Label = gtk_widgets::ui_resource::object(
             &shell_root_builder,
@@ -586,9 +580,7 @@ pub async fn build(
 pub(crate) fn connect_transient_entry_focus_dismissal(shell: &Shell) {
     install_focus_dismissal(
         &shell.chrome.window,
-        vec![
-            shell.player_ui.right_panel.queue_search.clone().upcast(),
-        ],
+        vec![shell.player_ui.right_panel.queue_search.clone().upcast()],
     );
 }
 

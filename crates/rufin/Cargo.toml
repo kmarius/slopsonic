@@ -11,7 +11,6 @@ readme.workspace = true
 publish.workspace = true
 keywords = ["navidrome", "subsonic"]
 categories = ["multimedia::audio", "gui"]
-build = "build.rs"
 
 [features]
 development = ["app-identity/development"]
@@ -24,7 +23,6 @@ path = "src/main.rs"
 process-memory.workspace = true
 rufin-core.workspace = true
 app-identity.workspace = true
-desktop-integration.workspace = true
 playback.workspace = true
 playback-gstreamer.workspace = true
 tracing.workspace = true

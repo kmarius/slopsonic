@@ -5,7 +5,6 @@ pub const DOWNLOAD_BITRATES: &[u32] = &[
     64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240, 256, 272, 288, 304, 320,
 ];
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 pub fn download_bitrates() -> Vec<u32> {
     DOWNLOAD_BITRATES.to_vec()
 }

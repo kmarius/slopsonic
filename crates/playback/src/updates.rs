@@ -118,8 +118,8 @@ impl PlaybackSubscription {
 mod tests {
     use super::*;
     use crate::{
-        ControlsView, PlaybackNotice, QueueSummaryView, RepeatMode, RunId,
-        TransportStatus, TransportView,
+        ControlsView, PlaybackNotice, QueueSummaryView, RepeatMode, RunId, TransportStatus,
+        TransportView,
     };
 
     #[tokio::test]

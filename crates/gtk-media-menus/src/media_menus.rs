@@ -278,12 +278,7 @@ fn install_track_navigation(
         album_media_uri,
     );
     if submenu.n_items() > 0 {
-        surface.append_configurable_submenu(
-            ContextMenuItem::GoTo,
-            "Go to",
-            &submenu,
-            GO_TO_ICON,
-        );
+        surface.append_configurable_submenu(ContextMenuItem::GoTo, "Go to", &submenu, GO_TO_ICON);
     }
     let album_artist = track_artists.is_empty();
     for (index, artist) in artists.iter().enumerate() {
@@ -387,11 +382,7 @@ pub fn present_playlist_entry_menu(
     );
     surface.append_play_actions(&menus.settings.current.borrow().application.context_menu);
     if removal.as_ref().is_some_and(|selection| selection.writable) {
-        surface.append_fixed_action(
-            "Remove from Playlist",
-            "remove-from-playlist",
-            REMOVE_ICON,
-        );
+        surface.append_fixed_action("Remove from Playlist", "remove-from-playlist", REMOVE_ICON);
     }
     install_track_navigation(&surface, menus, "playlist-entry", &row.track);
     install_download_actions(
@@ -634,11 +625,7 @@ pub fn present_playlist_entry_selection_menu(
 ) {
     let surface = ContextMenuSurface::new(target, "playlist-entry-selection", position);
     if selection.writable {
-        surface.append_fixed_action(
-            "Remove from Playlist",
-            "remove-from-playlist",
-            REMOVE_ICON,
-        );
+        surface.append_fixed_action("Remove from Playlist", "remove-from-playlist", REMOVE_ICON);
     }
     append_playlist_entry_selection_actions(&surface, menus, selection.clone());
     let remove_menus = Rc::clone(menus);
@@ -909,12 +896,7 @@ pub fn present_album_context_menu(
         None,
     );
     if submenu.n_items() > 0 {
-        surface.append_configurable_submenu(
-            ContextMenuItem::GoTo,
-            "Go to",
-            &submenu,
-            GO_TO_ICON,
-        );
+        surface.append_configurable_submenu(ContextMenuItem::GoTo, "Go to", &submenu, GO_TO_ICON);
     }
     install_download_actions(
         &surface,
@@ -1050,12 +1032,7 @@ pub fn present_artist_context_menu(
         None,
         None,
     );
-    surface.append_configurable_submenu(
-        ContextMenuItem::GoTo,
-        "Go to",
-        &submenu,
-        GO_TO_ICON,
-    );
+    surface.append_configurable_submenu(ContextMenuItem::GoTo, "Go to", &submenu, GO_TO_ICON);
     let playback = if album_artist {
         gtk_widgets::selection::artist_play_request(&artist, true)
     } else {

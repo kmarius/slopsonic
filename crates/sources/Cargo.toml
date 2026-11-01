@@ -11,12 +11,8 @@ repository.workspace = true
 readme.workspace = true
 publish.workspace = true
 
-[features]
-bindings = ["dep:uniffi", "library/bindings"]
-
 [dependencies]
 audio-processing.workspace = true
-uniffi = { workspace = true, optional = true }
 async-channel.workspace = true
 blake3.workspace = true
 bytes.workspace = true

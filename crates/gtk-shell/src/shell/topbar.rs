@@ -77,12 +77,7 @@ impl Topbar {
     }
 
     pub fn bind(&self, shell: &Rc<Shell>) {
-        self.search_shortcut
-            .set_accelerator(if cfg!(target_os = "macos") {
-                "<Meta>k"
-            } else {
-                "<Control>k"
-            });
+        self.search_shortcut.set_accelerator("<Control>k");
         self.search_popup
             .replace(Some(super::topbar_search::SearchPopup::new(
                 shell,

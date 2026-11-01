@@ -2,13 +2,6 @@ mod player;
 mod preferences;
 pub type PreferenceIndex = usize;
 
-#[cfg(feature = "bindings")]
-uniffi::custom_type!(PreferenceIndex, u64, {
-    remote,
-    lower: |value| value as u64,
-    try_lift: |value| Ok(usize::try_from(value)?),
-});
-
 pub use app::{AppearancePreferences, ApplicationPreferences, PlayerDisplayPreferences};
 pub use player::{PlayerPreferenceOptions, PlayerPreferences, SettingsError};
 pub mod app;
@@ -541,7 +534,6 @@ impl StoredSettings {
     }
 }
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 #[derive(Clone)]
 pub struct SettingsOwner {
     file: SettingsFile,
@@ -687,7 +679,6 @@ impl SettingsOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SettingsOwner {
     pub fn set_download_location(
         &self,
@@ -704,7 +695,6 @@ impl SettingsOwner {
 
 impl SettingsOwner {}
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SettingsOwner {
     pub fn set_download_rule(
         &self,
@@ -722,7 +712,6 @@ impl SettingsOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SettingsOwner {
     pub fn set_download_quality(
         &self,
@@ -737,7 +726,6 @@ impl SettingsOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SettingsOwner {
     pub fn clear_download_rules(&self, source_id: SourceId) -> Result<(), SettingsError> {
         self.update_preferences(move |ui| {
@@ -1597,14 +1585,12 @@ mod tests {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SettingsOwner {
     pub fn download_settings(&self, source_id: SourceId) -> downloads::SourceDownloadSettings {
         self.load().download_settings(&source_id)
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SettingsOwner {
     pub fn set_theme_accent(&self, theme: String, accent: String) -> Result<(), SettingsError> {
         self.update_preferences(move |ui| {

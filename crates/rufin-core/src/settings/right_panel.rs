@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct RightPanelSettings {
     pub queue_visible: bool,
 }

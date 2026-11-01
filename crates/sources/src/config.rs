@@ -17,7 +17,6 @@ pub struct SourceConfiguration {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct CredentialInput {
     pub source_name: Option<String>,
     pub server_url: String,
@@ -37,7 +36,6 @@ pub enum SourceSetup {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct CredentialPreset {
     pub source_name: String,
     pub server_url: String,

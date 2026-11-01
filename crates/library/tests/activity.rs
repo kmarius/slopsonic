@@ -1,6 +1,4 @@
-use library::{
-    ListenDeliveryTarget, ListenWrite, ReadCancellation, SourceId,
-};
+use library::{ListenDeliveryTarget, ListenWrite, ReadCancellation, SourceId};
 
 use super::support::{connection, fixture};
 

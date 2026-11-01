@@ -9,9 +9,7 @@ use super::{
     queue::{Sequence, SequenceError},
     state::{ClockSample, Command, Player},
 };
-use playback::{
-    PlaybackBackend, PlaybackProjection, PlaybackSettings,
-};
+use playback::{PlaybackBackend, PlaybackProjection, PlaybackSettings};
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum PlaybackError {

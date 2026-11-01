@@ -1,7 +1,7 @@
 use adw::prelude::*;
 use gtk::glib;
-use rufin_core::text::{fill_plural};
 use rufin_core::runtime::source::{LocalAccessStatus, SourceHandle, SourceLocalAccess};
+use rufin_core::text::fill_plural;
 use sources::SourceId;
 use std::{
     cell::RefCell,

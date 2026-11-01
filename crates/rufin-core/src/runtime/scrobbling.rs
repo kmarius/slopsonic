@@ -3,7 +3,6 @@ use std::sync::Arc;
 use async_channel::Sender;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct LastFmPreferences {
     pub enabled: bool,
     pub api_key: String,
@@ -27,7 +26,6 @@ impl Default for LastFmPreferences {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct LibreFmPreferences {
     pub enabled: bool,
     pub username: String,
@@ -47,7 +45,6 @@ impl Default for LibreFmPreferences {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct ListenBrainzPreferences {
     pub enabled: bool,
     pub username: String,
@@ -67,7 +64,6 @@ impl Default for ListenBrainzPreferences {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct ScrobblingPreferences {
     pub lastfm: LastFmPreferences,
     pub librefm: LibreFmPreferences,
@@ -75,13 +71,11 @@ pub struct ScrobblingPreferences {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum ScrobblingConnection {
     LastFm { api_key: String, api_secret: String },
     LibreFm,
 }
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum ScrobblingConnectionEvent {
     OpenUrl {
         url: String,
@@ -96,17 +90,13 @@ pub enum ScrobblingConnectionEvent {
 
 pub type ScrobblingHandle = Arc<crate::scrobbling::ScrobblingOwner>;
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct BrowserOpening(pub(crate) Sender<Result<(), String>>);
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl BrowserOpening {
     pub async fn complete(&self, failure: Option<String>) {
         let _ = self.0.send(failure.map_or(Ok(()), Err)).await;
     }
 }
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct ScrobblingSession(pub(crate) async_channel::Receiver<ScrobblingConnectionEvent>);
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl ScrobblingSession {
     pub async fn next(&self) -> Result<ScrobblingConnectionEvent, crate::settings::SettingsError> {
         self.0

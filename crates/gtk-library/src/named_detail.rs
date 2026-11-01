@@ -7,8 +7,8 @@ use std::{
 use adw::prelude::*;
 use artwork::ArtworkBinding;
 use library::{GenreKey, GenreView, MoodKey, MoodView, RadioSeed, ReadCancellation};
-use rufin_core::text::{track_count_text};
 use rufin_core::playback::RadioPlayRequest;
+use rufin_core::text::track_count_text;
 
 use crate::CatalogUi;
 use crate::LibraryListKey;

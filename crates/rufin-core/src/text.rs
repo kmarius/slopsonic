@@ -37,7 +37,10 @@ mod tests {
 
     #[test]
     fn placeholders_keep_named_values() {
-        assert_eq!(fill("Found {count} items", &[("count", "3")]), "Found 3 items");
+        assert_eq!(
+            fill("Found {count} items", &[("count", "3")]),
+            "Found 3 items"
+        );
     }
 
     #[test]

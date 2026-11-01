@@ -3,7 +3,6 @@ use crate::{Database, LibraryError, LibraryResult, PlaylistKey, PlaylistPathMode
 use sqlx::{Connection, Row, SqliteConnection};
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct PlaylistFileLink {
     pub playlist: PlaylistKey,
     pub source_id: Option<SourceId>,
@@ -750,22 +749,9 @@ impl Database {
             .ok_or(LibraryError::WriterUnavailable)?
             .begin()
             .await?;
-        let mut changed = std::collections::BTreeMap::<i64, Vec<String>>::new();
         for (path, playlist) in files {
-            let row: Option<(i64, String)> = sqlx::query_as("WITH target AS(SELECT json_array(source.object_id,playlist.object_id) identity FROM playlists playlist LEFT JOIN sources source USING(source_key) WHERE playlist.playlist_key=?3 AND playlist.owner='rufin' AND playlist.name IS NOT NULL) UPDATE local_files SET playlist_identity=(SELECT identity FROM target) WHERE local_file_key=(SELECT file.local_file_key FROM observed_local_files file JOIN sources source USING(source_key) WHERE source.object_id=?1 AND file.path=?2) AND EXISTS(SELECT 1 FROM target) AND playlist_identity IS NOT(SELECT identity FROM target) RETURNING source_key,path")
+            sqlx::query_as::<_, (i64, String)>("WITH target AS(SELECT json_array(source.object_id,playlist.object_id) identity FROM playlists playlist LEFT JOIN sources source USING(source_key) WHERE playlist.playlist_key=?3 AND playlist.owner='rufin' AND playlist.name IS NOT NULL) UPDATE local_files SET playlist_identity=(SELECT identity FROM target) WHERE local_file_key=(SELECT file.local_file_key FROM observed_local_files file JOIN sources source USING(source_key) WHERE source.object_id=?1 AND file.path=?2) AND EXISTS(SELECT 1 FROM target) AND playlist_identity IS NOT(SELECT identity FROM target) RETURNING source_key,path")
                 .bind(source.as_str()).bind(path).bind(playlist).fetch_optional(&mut *transaction).await?;
-            if let Some((source, path)) = row {
-                changed.entry(source).or_default().push(path);
-            }
-        }
-        for (source, paths) in changed {
-            crate::connect::catalog::mark_files_on(
-                &mut transaction,
-                source,
-                &paths.iter().map(String::as_str).collect::<Vec<_>>(),
-                false,
-            )
-            .await?;
         }
         transaction.commit().await?;
         Ok(())

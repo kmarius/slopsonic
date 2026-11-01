@@ -4,8 +4,8 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 use adw::prelude::*;
 use artwork::ArtworkBinding;
 use library::{ArtistKey, ArtistView, RadioSeed};
-use rufin_core::text::{album_count_text, track_count_text};
 use rufin_core::playback::RadioPlayRequest;
+use rufin_core::text::{album_count_text, track_count_text};
 
 use crate::CatalogUi;
 use crate::{LibraryListKey, LibraryListSettings};
@@ -623,8 +623,7 @@ impl ArtistDetailHeaderProjection {
         );
         self.showcase
             .replace_external_links(super::detail_showcase::artist_external_links(
-                shell,
-                &artist,
+                shell, &artist,
             ));
         shell.update_visible_favorite_buttons(
             &library::FavoriteTarget::Artist(artist.media_uri.clone()),
@@ -747,10 +746,7 @@ fn artist_detail_header_restored(
             position,
         );
     });
-    showcase.replace_external_links(super::detail_showcase::artist_external_links(
-        shell,
-        artist,
-    ));
+    showcase.replace_external_links(super::detail_showcase::artist_external_links(shell, artist));
     let root = detail_showcase_frame(media_showcase(MediaShowcase {
         view: showcase.clone(),
         initial_width: width,

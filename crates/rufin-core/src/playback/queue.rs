@@ -626,7 +626,6 @@ impl Sequence {
                 position,
                 track: item,
                 provenance: entry.provenance.clone(),
-                received_from_connect: entry.received_from_connect,
             }));
         }
         self.trim_rows();
@@ -730,7 +729,6 @@ mod tests {
     fn page(start: usize, count: usize) -> super::super::commands::QueueBatch {
         let entries = (start..start + count)
             .map(|i| library::QueueEntry {
-                received_from_connect: false,
                 track_key: library::TrackKey::from_raw((i / 2 + 1) as i64),
                 provenance: Provenance::Manual,
             })
@@ -743,7 +741,6 @@ mod tests {
                 Arc::new(QueueRow {
                     occurrence_id: None,
                     position: i,
-                    received_from_connect: false,
                     provenance: e.provenance.clone(),
                     track: {
                         let reference = TrackReference::direct(

@@ -30,7 +30,7 @@ pub(super) fn present_diagnostics(shell: &Rc<Shell>) {
     debug.set_active(shell.diagnostics.debug_enabled());
 
     let log: gtk::TextView = gtk_widgets::ui_resource::object(&builder, resource, "log");
-    log.update_property(&[gtk::accessible::Property::Label(&"Diagnostic log".to_string())]);
+    log.update_property(&[gtk::accessible::Property::Label("Diagnostic log")]);
     let scroller: gtk::ScrolledWindow =
         gtk_widgets::ui_resource::object(&builder, resource, "log_scroller");
     let copy: gtk::Button = gtk_widgets::ui_resource::object(&builder, resource, "copy");
@@ -103,7 +103,7 @@ pub(super) fn present_diagnostics(shell: &Rc<Shell>) {
         let contents = buffer.text(&buffer.start_iter(), &buffer.end_iter(), true);
         button.display().clipboard().set_text(&contents);
         copy_status.remove_css_class("error");
-        copy_status.set_text(&"Logs are copied".to_string());
+        copy_status.set_text("Logs are copied");
     });
 
     let save_window = shell.chrome.window.clone();
@@ -136,13 +136,13 @@ pub(super) fn present_diagnostics(shell: &Rc<Shell>) {
             {
                 Ok(_) => {
                     status.remove_css_class("error");
-                    status.set_text(&"Diagnostic log saved".to_string());
+                    status.set_text("Diagnostic log saved");
                     status.set_visible(true);
                 }
                 Err((_, error)) => {
                     warn!(%error, "could not save diagnostic log");
                     status.add_css_class("error");
-                    status.set_text(&format!("{}: {error}", "Could not save diagnostic log".to_string()));
+                    status.set_text(&format!("Could not save diagnostic log: {error}"));
                     status.set_visible(true);
                 }
             }

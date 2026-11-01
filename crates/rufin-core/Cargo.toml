@@ -10,11 +10,7 @@ repository.workspace = true
 readme.workspace = true
 publish.workspace = true
 
-[features]
-bindings = ["dep:uniffi", "playback/bindings", "sources/bindings", "metadata-lookup/bindings", "library/bindings", "backup/bindings", "secrets/bindings", "downloads/bindings"]
-
 [dependencies]
-uniffi = { workspace = true, optional = true }
 age.workspace = true
 # Bundle age error translations in development packages too.
 image.workspace = true

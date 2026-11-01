@@ -90,21 +90,7 @@ pub(crate) async fn write_images(
         .build_query_scalar::<String>()
         .fetch_all(&mut *connection)
         .await?;
-    crate::connect::catalog::mark_artwork_on(
-        connection,
-        source,
-        kind,
-        &ids.iter().map(String::as_str).collect::<Vec<_>>(),
-    )
-    .await?;
-    if kind == "track" {
-        crate::connect::mark_saved_references_on(
-            connection,
-            source,
-            &ids.iter().map(String::as_str).collect::<Vec<_>>(),
-        )
-        .await?;
-    }
+    if kind == "track" {}
     Ok(!ids.is_empty())
 }
 

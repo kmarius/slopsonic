@@ -680,7 +680,6 @@ impl SubsonicSource {
             })
             .unwrap_or_default())
     }
-
 }
 
 impl SubsonicSource {

@@ -35,7 +35,6 @@ pub struct GenreChoice {
 }
 
 #[derive(Clone, Debug, FromRow, PartialEq, serde::Deserialize, serde::Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct AlbumArtistLink {
     pub artist_key: ArtistKey,
     pub media_uri: String,
@@ -43,14 +42,12 @@ pub struct AlbumArtistLink {
 }
 
 #[derive(Clone, Debug, FromRow, PartialEq, serde::Deserialize, serde::Serialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct AlbumGenreLink {
     pub genre_key: GenreKey,
     pub name: String,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum AlbumReleaseClass {
     Album,
     Ep,
@@ -60,7 +57,6 @@ pub enum AlbumReleaseClass {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct CollectionSummary {
     pub album_count: i64,
     pub track_count: i64,
@@ -69,7 +65,6 @@ pub struct CollectionSummary {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct AlbumLinks {
     #[sqlx(json)]
     pub album_artists: Vec<AlbumArtistLink>,
@@ -78,7 +73,6 @@ pub struct AlbumLinks {
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct AlbumView {
     pub album_key: AlbumKey,
     pub source_key: SourceKey,
@@ -97,7 +91,6 @@ pub struct AlbumView {
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct ArtistView {
     pub artist_key: ArtistKey,
     pub source_key: SourceKey,
@@ -113,7 +106,6 @@ pub struct ArtistView {
 }
 
 #[derive(Clone, Debug, PartialEq, FromRow)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct GenreView {
     pub genre_key: GenreKey,
     pub source_key: SourceKey,
@@ -129,7 +121,6 @@ pub struct GenreView {
 }
 
 #[derive(Clone, Debug, PartialEq, FromRow)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct MoodView {
     pub mood_key: MoodKey,
     pub source_key: SourceKey,
@@ -149,7 +140,6 @@ pub struct FolderChoice {
 }
 
 #[derive(Clone, Debug, FromRow, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct FolderView {
     pub folder_key: FolderKey,
     pub source_key: SourceKey,

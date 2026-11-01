@@ -3,8 +3,7 @@ pub(crate) mod actor;
 mod commands;
 pub mod equalizer;
 pub use equalizer::{
-    EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView,
-    EqualizerPreferences,
+    EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView, EqualizerPreferences,
 };
 mod queue;
 pub(crate) mod state;
@@ -37,7 +36,6 @@ use crate::loudness::LoudnessAnalysisOwner;
 use crate::settings::SettingsFile;
 use crate::source::SourceOwner;
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct PlaybackOwner {
     database: Arc<Database>,
     settings: SettingsFile,
@@ -263,10 +261,9 @@ impl PlaybackOwner {
     }
 
     fn persist_output(&self, volume: f64, muted: bool) {
-        let _ = self.store_sender.try_send(PlaybackStoreWork::Output {
-            volume,
-            muted,
-        });
+        let _ = self
+            .store_sender
+            .try_send(PlaybackStoreWork::Output { volume, muted });
     }
 
     async fn consume_store(
@@ -292,10 +289,7 @@ impl PlaybackOwner {
                 }
                 let _ = reply.send(());
             }
-            PlaybackStoreWork::Output {
-                volume,
-                muted,
-            } => {
+            PlaybackStoreWork::Output { volume, muted } => {
                 let _ = self.settings.update(|stored| {
                     stored.ui.playback.volume = volume;
                     stored.ui.playback.muted = muted;
@@ -389,19 +383,15 @@ impl PlaybackOwner {
         self.runtime.spawn(async move {
             let loudness =
                 cached_loudness(&database, &occurrence.track.media_uri, normalization).await;
-            let result = prepare_stream(
-                &database,
-                request,
-                move |source_id| async move {
-                    tokio::task::spawn_blocking(move || {
-                        source_owner
-                            .ok_or_else(crate::source::source_access_unavailable)?
-                            .client(&source_id)
-                    })
-                    .await
-                    .map_err(string_error)?
-                },
-            )
+            let result = prepare_stream(&database, request, move |source_id| async move {
+                tokio::task::spawn_blocking(move || {
+                    source_owner
+                        .ok_or_else(crate::source::source_access_unavailable)?
+                        .client(&source_id)
+                })
+                .await
+                .map_err(string_error)?
+            })
             .await;
             let result = match result {
                 Ok(stream) if !local_stream_available(stream.uri()).await => {
@@ -551,7 +541,6 @@ impl PlaybackOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl PlaybackOwner {
     pub fn remove(&self, position: usize) {
         self.send(Command::Remove(position));
@@ -615,7 +604,6 @@ impl PlaybackOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl PlaybackOwner {
     pub fn play_pause(&self) {
         self.send(Command::PlayPause)
@@ -819,13 +807,11 @@ where
         .await
         .map_err(string_error)?;
     if let Some((start, end)) = window.filter(|_| access_uri.is_some() || cue.is_some()) {
-        return Ok(
-            audio_processing::ResolvedStream::new(
-                access_uri.unwrap_or_else(|| file_uri.to_owned()),
-            )
-            .with_content_type(content_type)
-                .with_window(start, end),
-        );
+        return Ok(audio_processing::ResolvedStream::new(
+            access_uri.unwrap_or_else(|| file_uri.to_owned()),
+        )
+        .with_content_type(content_type)
+        .with_window(start, end));
     }
     if let Some(uri) = access_uri.or_else(|| library::normalize_direct_media_uri(file_uri)) {
         return Ok(audio_processing::ResolvedStream::new(uri).with_content_type(content_type));
@@ -984,7 +970,6 @@ mod tests {
         playback::QueueRow {
             occurrence_id: None,
             position: 0,
-            received_from_connect: false,
             provenance: playback::Provenance::Manual,
             track: {
                 let reference = test_media(source_format);
@@ -1003,7 +988,6 @@ mod tests {
             },
         }
     }
-
 
     #[test]
     fn prepared_original_stream_keeps_format() {
@@ -1093,15 +1077,12 @@ mod tests {
     }
 }
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Error))]
-#[cfg_attr(feature = "bindings", uniffi(flat_error))]
 #[derive(Debug, thiserror::Error)]
 pub enum PlaybackError {
     #[error("{0}")]
     Message(String),
 }
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct PreparedQueuePage {
     pub revision: u64,
     pub rows: Vec<Arc<library::QueueRow>>,
@@ -1109,7 +1090,6 @@ pub struct PreparedQueuePage {
     pub window_offset: u64,
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl PlaybackOwner {
     pub async fn selection(
         self: Arc<Self>,

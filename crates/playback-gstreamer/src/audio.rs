@@ -6,8 +6,7 @@ use gstreamer_audio::gst_base::{BaseTransform, prelude::BaseTransformExt};
 use gstreamer_controller::{self as controller, prelude::*};
 use playback::TrackLoudness;
 use playback::{
-    BackendAudioSettings, LoudnessNormalization,
-    LoudnessNormalizationScope, ProcessingRequest,
+    BackendAudioSettings, LoudnessNormalization, LoudnessNormalizationScope, ProcessingRequest,
 };
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -401,10 +400,7 @@ impl AudioGraph {
         state.apply_loudness();
     }
 
-    pub(super) fn reconfigure(
-        &mut self,
-        settings: &BackendAudioSettings,
-    ) -> Result<bool, String> {
+    pub(super) fn reconfigure(&mut self, settings: &BackendAudioSettings) -> Result<bool, String> {
         let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
         let mut available = state.effects.clone();
         if let Some((_, pending)) = state.pending.as_ref() {
@@ -655,12 +651,6 @@ pub(super) fn make_audio_output(factory: Option<&str>) -> Result<gst::Element, S
     }
 }
 
-#[cfg(target_os = "macos")]
-fn default_audio_output_factory() -> &'static str {
-    "osxaudiosink"
-}
-
-#[cfg(not(target_os = "macos"))]
 fn default_audio_output_factory() -> &'static str {
     "autoaudiosink"
 }
@@ -754,8 +744,7 @@ mod tests {
             loudness_normalization: LoudnessNormalization::Off,
             ..BackendAudioSettings::default()
         };
-        let graph =
-            test_graph(&settings, empty_stream()).expect("audio graph");
+        let graph = test_graph(&settings, empty_stream()).expect("audio graph");
         let sink = graph.output.clone().downcast::<gst_app::AppSink>().unwrap();
         let mut caps = sink.caps().unwrap();
         caps.truncate();
@@ -896,8 +885,7 @@ mod tests {
             ..BackendAudioSettings::default()
         };
         let stream = Arc::new(Mutex::new(None));
-        let mut graph =
-            test_graph(&settings, stream.clone()).expect("audio graph");
+        let mut graph = test_graph(&settings, stream.clone()).expect("audio graph");
         let bin = graph.root.downcast_ref::<gst::Bin>().unwrap();
         let volume = bin.by_name("rufin-loudness-normalization").unwrap();
         assert_eq!(volume.property::<f64>("volume"), 1.0);
@@ -937,8 +925,8 @@ mod tests {
             track: Some(Box::new(measurement(-21.0, Some(0.4)))),
             album: Some(Box::new(measurement(-23.0, Some(0.8)))),
         };
-        let graph = test_graph(&settings, test_stream(loudness))
-            .expect("album normalization graph");
+        let graph =
+            test_graph(&settings, test_stream(loudness)).expect("album normalization graph");
         let bin = graph.root.downcast_ref::<gst::Bin>().expect("audio bin");
         let volume = bin
             .by_name("rufin-loudness-normalization")
@@ -1020,8 +1008,7 @@ mod tests {
             track: Some(Box::new(measurement(-28.0, Some(0.1)))),
             album: None,
         });
-        let graph = test_graph(&settings, Arc::clone(&stream))
-            .expect("normalization graph");
+        let graph = test_graph(&settings, Arc::clone(&stream)).expect("normalization graph");
         let next = TrackLoudness {
             track: Some(Box::new(measurement(-18.0, Some(1.0)))),
             album: None,
@@ -1054,8 +1041,7 @@ mod tests {
             track: Some(Box::new(measurement(-28.0, Some(0.1)))),
             album: None,
         });
-        let graph = test_graph(&settings, Arc::clone(&stream))
-            .expect("normalization graph");
+        let graph = test_graph(&settings, Arc::clone(&stream)).expect("normalization graph");
         *stream.lock().expect("prepared loudness") = Some(TrackLoudness {
             track: Some(Box::new(measurement(-18.0, Some(1.0)))),
             album: None,

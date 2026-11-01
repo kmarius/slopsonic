@@ -767,19 +767,6 @@ impl Database {
                     .bind(next)
                     .execute(&mut *transaction)
                     .await?;
-                    if table == "smart_playlists" {
-                        crate::smart_playlists::sync_smart_on(
-                            &mut transaction,
-                            crate::SmartPlaylistKey::from_raw(key),
-                        )
-                        .await?;
-                    } else {
-                        crate::playlists::sync_playlist_header_on(
-                            &mut transaction,
-                            crate::PlaylistKey::from_raw(key),
-                        )
-                        .await?;
-                    }
                     transaction.commit().await?;
                     self.cache_written();
                 }
@@ -970,21 +957,6 @@ impl Database {
                 );
                 let changed = sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE {table} SET artwork_binding=CAST(CASE WHEN {path} IS NULL THEN json_insert(coalesce(artwork_binding,'[]'),'$[#]',json(?1)) ELSE json_set(artwork_binding,{path},json(?1)) END AS BLOB) WHERE rowid=?2 AND (SELECT json(value) FROM json_each(artwork_binding) WHERE {automatic} LIMIT 1) IS json(?3)")))
                     .bind(serde_json::to_string(&selected)?).bind(key).bind(previous).execute(&mut *transaction).await?.rows_affected()>0;
-                if changed {
-                    if smart {
-                        crate::smart_playlists::sync_smart_on(
-                            &mut transaction,
-                            crate::SmartPlaylistKey::from_raw(key),
-                        )
-                        .await?;
-                    } else {
-                        crate::playlists::sync_playlist_header_on(
-                            &mut transaction,
-                            crate::PlaylistKey::from_raw(key),
-                        )
-                        .await?;
-                    }
-                }
                 transaction.commit().await?;
                 if changed {
                     self.cache_written();

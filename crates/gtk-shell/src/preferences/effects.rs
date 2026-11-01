@@ -15,11 +15,8 @@ impl Shell {
             Effect::PlaylistPickerChanged => {
                 crate::shell::playlist_picker::refresh_context_playlist_picker(self)
             }
-            #[cfg(not(target_os = "macos"))]
             Effect::TrayEnabled(enabled) => self.set_tray_enabled(enabled),
-            #[cfg(not(target_os = "macos"))]
             Effect::KeepRunningAfterClose(enabled) => self.set_keep_running_after_close(enabled),
-            #[cfg(not(target_os = "macos"))]
             Effect::StartMinimized(enabled) => self.set_start_minimized_enabled(enabled),
             Effect::Quit(reason) => self.request_quit(reason),
             Effect::ResetStorage(request) => {

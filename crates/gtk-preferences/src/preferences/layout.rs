@@ -157,8 +157,12 @@ pub fn insert_home_block_in_order(
     blocks.insert(insert_at, block);
 }
 pub fn visibility_position_subtitle(visible: bool, position: usize) -> String {
-    let visibility = if visible { "Visible".to_string() } else { "Hidden".to_string() };
-    format!("{visibility} · {} {}", "Position".to_string(), position + 1)
+    let visibility = if visible {
+        "Visible".to_string()
+    } else {
+        "Hidden".to_string()
+    };
+    format!("{visibility} · Position {}", position + 1)
 }
 pub fn reorder_home_blocks(
     blocks: &mut Vec<HomeBlockKind>,
@@ -206,7 +210,11 @@ where
 {
     selection_row(
         title,
-        &["Full".to_string(), "Compact".to_string(), "Hidden".to_string()],
+        &[
+            "Full".to_string(),
+            "Compact".to_string(),
+            "Hidden".to_string(),
+        ],
         left_sidebar_mode_index(mode),
         on_selected,
     )

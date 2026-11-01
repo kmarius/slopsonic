@@ -4,7 +4,6 @@ use library::FavoriteTarget;
 use tokio::sync::watch;
 
 /// Projects the latest user intent while favorite requests are being delivered.
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct FavoriteIntents {
     pending: Mutex<HashMap<FavoriteTarget, bool>>,
     revision: watch::Sender<u64>,
@@ -19,7 +18,6 @@ impl Default for FavoriteIntents {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl FavoriteIntents {
     pub fn projected_item_favorite(&self, item: &FavoriteTarget, fallback: bool) -> bool {
         self.pending

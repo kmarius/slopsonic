@@ -463,7 +463,7 @@ pub fn detail_radio_button() -> gtk::Button {
     button.add_css_class("detail-kind-radio-button");
     button.set_halign(gtk::Align::Start);
     button.set_valign(gtk::Align::Center);
-    button.set_tooltip_text(Some(&"Play radio".to_string()));
+    button.set_tooltip_text(Some("Play radio"));
     let icon = gtk::Image::from_icon_name(RADIO_ICON);
     icon.set_pixel_size(16);
     button.set_child(Some(&icon));
@@ -689,10 +689,7 @@ pub fn album_external_links(shell: &Rc<CatalogUi>, album: &AlbumView) -> Option<
     )
 }
 
-pub fn artist_external_links(
-    shell: &Rc<CatalogUi>,
-    artist: &ArtistView,
-) -> Option<gtk::Widget> {
+pub fn artist_external_links(shell: &Rc<CatalogUi>, artist: &ArtistView) -> Option<gtk::Widget> {
     let settings = shell.settings.current.borrow();
     let source = library::source_entity_parts(&artist.media_uri)
         .and_then(|(source_id, _, _)| shell.source.configuration(&source_id));
@@ -788,4 +785,3 @@ fn detail_link_button(icon_name: &str, label: &str) -> gtk::Button {
     button.set_child(Some(&image));
     button
 }
-

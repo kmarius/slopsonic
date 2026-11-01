@@ -11,7 +11,6 @@ use std::sync::Arc;
 pub const MAX_ARTWORK_BYTES: usize = 32 * 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Enum))]
 pub enum MetadataItemId {
     Track(String),
     Album(String),

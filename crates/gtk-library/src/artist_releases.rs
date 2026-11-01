@@ -449,7 +449,7 @@ impl ArtistAlbumProjection {
     ) -> Rc<Self> {
         let search = gtk::SearchEntry::new();
         gtk_widgets::controls::configure_search_entry(&search);
-        search.set_placeholder_text(Some(&"Search".to_string()));
+        search.set_placeholder_text(Some("Search"));
         search.set_hexpand(true);
         let toolbar =
             shell.library_toolbar_projection(LibraryListKey::ArtistAlbums, search.clone());

@@ -1,10 +1,9 @@
 use library::{
     ListenDeliveryTarget, ListenWrite, LocalAccessWrite, LocalFileKind, LocalFileState,
-    LocalFileWrite, LoudnessMeasurement, QueueProvenance, QueueRepeatMode, QueueTransferRow,
-    ReadCancellation,
+    LocalFileWrite, LoudnessMeasurement, QueueProvenance, QueueRepeatMode, ReadCancellation,
 };
 
-use super::support::{connection, fixture, persist_queue};
+use super::support::{QueueItem, connection, fixture, persist_queue};
 
 #[tokio::test]
 async fn loudness_forward_passes_revisit_invalidated_earlier_keys() {
@@ -1244,8 +1243,7 @@ async fn source_removal_preserves_listens_and_pending_delivery_only() {
         .remove(0);
     persist_queue(
         &fixture.database,
-        &[QueueTransferRow {
-            received_from_connect: false,
+        &[QueueItem {
             item: queue_media,
             position: 0,
             provenance: QueueProvenance::Manual,

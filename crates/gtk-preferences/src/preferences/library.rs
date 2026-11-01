@@ -6,16 +6,13 @@ use adw::prelude::*;
 use downloads::{DownloadQueueState, DownloadRule};
 use gtk::gio;
 
-use rufin_core::text::{fill_plural};
+use rufin_core::text::fill_plural;
 
-use super::{
-    PreferencesNavigationControls,
-    source::configured_source_kind_display_name,
-};
+use super::{PreferencesNavigationControls, source::configured_source_kind_display_name};
 use crate::Preferences;
 use gtk_widgets::source_labels::configured_source_display_name;
-use rufin_core::text::{album_count_text, track_count_text};
 use rufin_core::runtime::source::{LocalAccessStatus, SourceLocalAccessSummary, SourceSummary};
+use rufin_core::text::{album_count_text, track_count_text};
 
 const DOWNLOAD_JOB_DRAG_PREFIX: &str = "rufin-download-job:";
 const DEFAULT_DOWNLOAD_DIRECTORY_SUBTITLE: &str = "Default";
@@ -29,7 +26,7 @@ pub(super) fn library_page(
     navigation_controls.set_navigation(&navigation);
     navigation_controls.set_nested_page_visible(false);
     let page = library_sources_page(shell, dialog, &navigation, navigation_controls);
-    let root = adw::NavigationPage::new(&page, &"Library".to_string());
+    let root = adw::NavigationPage::new(&page, "Library");
     navigation.push(&root);
     let shell_for_pop = Rc::clone(shell);
     navigation.connect_popped(move |_, _| {
@@ -437,14 +434,14 @@ fn add_download_rules(
         more.set_icon_name("rufin-view-more-symbolic");
         more.add_css_class("flat");
         more.set_valign(gtk::Align::Center);
-        more.set_tooltip_text(Some(&"Rule actions".to_string()));
+        more.set_tooltip_text(Some("Rule actions"));
         let menu = gio::Menu::new();
         menu.append(
-            Some(&"Remove Rule, Keep Downloads".to_string()),
+            Some("Remove Rule, Keep Downloads"),
             Some("download-rule.remove"),
         );
         menu.append(
-            Some(&"Remove Rule and Delete Downloads".to_string()),
+            Some("Remove Rule and Delete Downloads"),
             Some("download-rule.delete"),
         );
         let popover = gtk::PopoverMenu::from_model(Some(&menu));
@@ -529,7 +526,7 @@ fn add_download_rules(
     add.add_css_class("flat");
     add.set_halign(gtk::Align::Fill);
     add.set_hexpand(true);
-    add.set_tooltip_text(Some(&"New download rule".to_string()));
+    add.set_tooltip_text(Some("New download rule"));
     add.insert_action_group("download-rules", Some(&actions));
     add.set_popover(Some(&gtk::PopoverMenu::from_model(Some(&menu))));
     add
@@ -568,10 +565,13 @@ fn confirm_remove_download_rule(
 ) {
     let dialog = adw::AlertDialog::builder()
         .heading("Remove Rule and Downloads".to_string())
-        .body("Only downloads from this rule will be deleted. Shared and manual downloads stay".to_string())
+        .body(
+            "Only downloads from this rule will be deleted. Shared and manual downloads stay"
+                .to_string(),
+        )
         .build();
-    dialog.add_response("cancel", &"Cancel".to_string());
-    dialog.add_response("remove", &"Remove and Delete".to_string());
+    dialog.add_response("cancel", "Cancel");
+    dialog.add_response("remove", "Remove and Delete");
     dialog.set_default_response(Some("cancel"));
     dialog.set_close_response("cancel");
     dialog.set_response_appearance("remove", adw::ResponseAppearance::Destructive);
@@ -599,9 +599,7 @@ pub(super) fn download_rule_title(rule: DownloadRule) -> &'static str {
 pub(super) fn download_rule_subtitle(rule: DownloadRule) -> &'static str {
     match rule {
         DownloadRule::EntireLibrary => "Everything, including new tracks",
-        DownloadRule::Favorites => {
-            "Favorite tracks, plus tracks from favorite albums and artists"
-        }
+        DownloadRule::Favorites => "Favorite tracks, plus tracks from favorite albums and artists",
         DownloadRule::AllPlaylists => "Tracks from every playlist",
         DownloadRule::LatestFiveAlbums => "Tracks from your five latest albums",
     }
@@ -853,7 +851,10 @@ fn add_download_queue(
             .map_or(0, |queue| queue.total_jobs as usize);
         pause.set_visible(count > 0);
         let (icon, label) = if state.paused {
-            ("rufin-media-playback-start-symbolic", "Continue".to_string())
+            (
+                "rufin-media-playback-start-symbolic",
+                "Continue".to_string(),
+            )
         } else {
             ("rufin-media-playback-pause-symbolic", "Pause".to_string())
         };
@@ -928,10 +929,13 @@ fn confirm_remove_all_downloads(
 ) {
     let dialog = adw::AlertDialog::builder()
         .heading("Remove All Downloads".to_string())
-        .body("Downloads from this source will be removed, and automatic rules will be turned off".to_string())
+        .body(
+            "Downloads from this source will be removed, and automatic rules will be turned off"
+                .to_string(),
+        )
         .build();
-    dialog.add_response("cancel", &"Cancel".to_string());
-    dialog.add_response("remove", &"Remove".to_string());
+    dialog.add_response("cancel", "Cancel");
+    dialog.add_response("remove", "Remove");
     dialog.set_default_response(Some("cancel"));
     dialog.set_close_response("cancel");
     dialog.set_response_appearance("remove", adw::ResponseAppearance::Destructive);
@@ -982,11 +986,11 @@ fn source_summary_subtitle(
     let mapping = local_mapping_status(summary, status);
     let account = username
         .filter(|username| !username.trim().is_empty())
-        .map(|username| format!("{}: {}", "User".to_string(), username))
+        .map(|username| format!("User: {username}"))
         .unwrap_or_default();
     let cache = summary.map(source_cache_line).unwrap_or_default();
     let provider_line = metadata_line([configured_source_kind_display_name(&server.kind), address]);
-    let folder_line = metadata_line([account, format!("{}: {}", "Music Folder".to_string(), folder)]);
+    let folder_line = metadata_line([account, format!("Music Folder: {folder}")]);
     let cache_line = metadata_line([cache, mapping]);
     [provider_line, folder_line, cache_line]
         .into_iter()
@@ -1005,8 +1009,7 @@ fn metadata_line(parts: impl IntoIterator<Item = String>) -> String {
 
 fn source_cache_line(summary: &SourceLocalAccessSummary) -> String {
     format!(
-        "{}: {}, {}",
-        "Cached".to_string(),
+        "Cached: {}, {}",
         album_count_text(summary.album_count as u64),
         track_count_text(summary.track_count as u64)
     )

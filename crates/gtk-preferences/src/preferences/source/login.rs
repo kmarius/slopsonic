@@ -4,9 +4,7 @@ use std::rc::Rc;
 use adw::prelude::*;
 use rufin_core::runtime::source::{EditableSource, SourceHandle, SourceOperation};
 
-use sources::{
-    CredentialInput, CredentialPreset, SubsonicAuthentication, SubsonicFlavor,
-};
+use sources::{CredentialInput, CredentialPreset, SubsonicAuthentication, SubsonicFlavor};
 
 use crate::Preferences;
 use gtk_widgets::controls::text_button;
@@ -236,7 +234,7 @@ impl Preferences {
         let context = self.setup_view_context(Some(preferences_dialog.clone()), flow, false);
         mount_setup_flow(self, &context);
         *self.source.add_server.borrow_mut() = Some(SourceSetupViewHandle::new(context.clone()));
-        adw::NavigationPage::new(&context.content, &"Add Source".to_string())
+        adw::NavigationPage::new(&context.content, "Add Source")
     }
 
     pub fn update_add_server_dialog(self: &Rc<Self>) {
@@ -361,8 +359,6 @@ impl Preferences {
         source_operation_text(&self.source.operation.borrow())
             .unwrap_or_else(|| "Preparing library...".to_string())
     }
-
-
 }
 
 fn subsonic_setup_flow_for(
@@ -419,14 +415,13 @@ fn subsonic_settings_group_for(
     let snapshot = credential_draft(Some(saved.credentials.clone()));
     let authentication = authentication.map(|value| Rc::new(Cell::new(value)));
     let host = credential_host_view(&snapshot, true, authentication);
-    host.fields_group.set_title(&"Server Settings".to_string());
-    host.fields_group
-        .set_description(Some(&String::from(gtk_widgets::source_labels::source_kind_title(
-            presentation.kind,
-        )
-        .expect("registered source presentation"))));
+    host.fields_group.set_title("Server Settings");
+    host.fields_group.set_description(Some(&String::from(
+        gtk_widgets::source_labels::source_kind_title(presentation.kind)
+            .expect("registered source presentation"),
+    )));
     host.cert_verify
-        .set_subtitle(&"Off only for a server you control".to_string());
+        .set_subtitle("Off only for a server you control");
 
     let save = &host.save;
     save.set_visible(true);
@@ -499,7 +494,7 @@ fn complete_source_save(
         match result {
             Ok(()) => {
                 if let Some(button) = button.upgrade() {
-                    button.set_label(&"Saved...".to_string());
+                    button.set_label("Saved...");
                 }
                 gtk::glib::timeout_future(std::time::Duration::from_secs(2)).await;
             }
@@ -510,7 +505,7 @@ fn complete_source_save(
             }
         }
         if let Some(button) = button.upgrade() {
-            button.set_label(&"Save".to_string());
+            button.set_label("Save");
             button.set_sensitive(true);
         }
     });
@@ -571,10 +566,10 @@ fn setup_scaffold(
         gtk_widgets::source_labels::source_kind_icon_name(registration.kind)
             .expect("registered source presentation"),
     ));
-    source_title.set_label(&String::from(gtk_widgets::source_labels::source_kind_title(
-        registration.kind,
-    )
-    .expect("registered source presentation")));
+    source_title.set_label(&String::from(
+        gtk_widgets::source_labels::source_kind_title(registration.kind)
+            .expect("registered source presentation"),
+    ));
     let weak = Rc::downgrade(shell);
     change_source.connect_clicked(move |_| {
         let Some(shell) = weak.upgrade() else { return };
@@ -612,16 +607,18 @@ fn source_choice_selector(shell: &Rc<Preferences>, context: &SetupViewContext) -
         gtk_widgets::objects!(builder, resource, {
             row: adw::ActionRow, icon: gtk::Image,
         });
-        row.set_title(&String::from(gtk_widgets::source_labels::source_kind_title(
-            presentation.kind,
-        )
-        .expect("registered source presentation")));
+        row.set_title(&String::from(
+            gtk_widgets::source_labels::source_kind_title(presentation.kind)
+                .expect("registered source presentation"),
+        ));
         icon.set_icon_name(Some(
             gtk_widgets::source_labels::source_kind_icon_name(presentation.kind)
                 .expect("registered source presentation"),
         ));
-        row.update_property(&[gtk::accessible::Property::Label(&String::from(gtk_widgets::source_labels::source_kind_title(presentation.kind)
-                .expect("registered source presentation")))]);
+        row.update_property(&[gtk::accessible::Property::Label(&String::from(
+            gtk_widgets::source_labels::source_kind_title(presentation.kind)
+                .expect("registered source presentation"),
+        ))]);
         let weak = Rc::downgrade(shell);
         row.connect_activated(move |_| {
             let Some(shell) = weak.upgrade() else { return };
@@ -804,7 +801,7 @@ fn credential_host_view(
     fields.append(&compact_field_row_group(&url));
     let fields = install_compact_field_row_responsiveness_at(&fields, 440);
     if !compact {
-        fields_group.set_title(&"Server".to_string());
+        fields_group.set_title("Server");
     }
     fields_group.add(&fields);
 

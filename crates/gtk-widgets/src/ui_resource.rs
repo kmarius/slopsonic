@@ -184,4 +184,3 @@ mod resource_tests {
         super::verify_icons().expect("compiled icon resources");
     }
 }
-

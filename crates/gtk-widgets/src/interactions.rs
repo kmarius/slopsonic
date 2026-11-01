@@ -4,7 +4,6 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::{gio, glib};
 
-
 use crate::controls::{PLAY_ICON, PLAY_LATER_ICON, PLAY_NEXT_ICON};
 use rufin_core::settings::context_menu::{ContextMenuItem, ContextMenuSettings};
 
@@ -206,7 +205,9 @@ impl ContextMenuSurface {
         let item = gio::MenuItem::from_model(&play_menu, 0);
         item.set_icon(&gio::ThemedIcon::new(PLAY_ICON));
         if settings.is_visible(ContextMenuItem::Play) {
-            self.submenu_actions.borrow_mut().push(("Play".to_string(), "play"));
+            self.submenu_actions
+                .borrow_mut()
+                .push(("Play".to_string(), "play"));
         }
         self.entries
             .borrow_mut()

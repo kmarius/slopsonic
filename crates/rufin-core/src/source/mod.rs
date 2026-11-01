@@ -12,8 +12,8 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::runtime::source::{
-    ConfiguredSources, EditableSource, LocalAccessStatus, SourceLocalAccess, SourceLocalAccessSummary, SourceOperation, SourceProgress,
-    SourceProgressStage, SourceSummary,
+    ConfiguredSources, EditableSource, LocalAccessStatus, SourceLocalAccess,
+    SourceLocalAccessSummary, SourceOperation, SourceProgress, SourceProgressStage, SourceSummary,
 };
 use crate::runtime::{
     CatalogChange, CatalogPublication, CatalogRevision, FavoriteSettlement, SelectedLibrary,
@@ -27,8 +27,8 @@ use library::{
 };
 use secrets::{SecretStorageMode, SwitchableSecretStore};
 use sources::{
-    LiveFolderPage, SelectedFeed, Source, SourceConfiguration, SourceEntityKind,
-    SourceError, SourceId, SourceReadProgress, SourceReadStage, SourceSettingsChange, SourceSetup,
+    LiveFolderPage, SelectedFeed, Source, SourceConfiguration, SourceEntityKind, SourceError,
+    SourceId, SourceReadProgress, SourceReadStage, SourceSettingsChange, SourceSetup,
 };
 use tracing::{info, warn};
 
@@ -46,7 +46,6 @@ pub(crate) struct SourceOutputs {
 }
 
 #[derive(Clone)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct SourceOwner {
     pub(crate) shared: Arc<Shared>,
 }
@@ -257,14 +256,9 @@ impl Shared {
                 .iter()
                 .filter(|(id, cached)| {
                     (credentials_replaced && cached.credential.is_some())
-                        || !current
-                            .sources
-                            .configured
-                            .iter()
-                            .any(|configured| {
-                                &configured.configuration.source_id == *id
-                                    && cached.matches(configured)
-                            })
+                        || !current.sources.configured.iter().any(|configured| {
+                            &configured.configuration.source_id == *id && cached.matches(configured)
+                        })
                 })
                 .map(|(id, _)| id.clone())
                 .collect::<Vec<_>>();
@@ -445,7 +439,7 @@ impl SourceOwner {
             settings,
             secrets,
             clients: Mutex::new(HashMap::new()),
-                        runtime,
+            runtime,
             outputs,
             operation: tokio::sync::watch::channel(operation).0,
             selected: Mutex::new(None),
@@ -1216,13 +1210,9 @@ impl SourceOwner {
             .map(|reference| load_provider_secret(self.shared.secrets.as_ref(), reference))
             .transpose()?
             .flatten();
-        let edit = Source::edit(
-            configured.configuration.clone(),
-            credential,
-            input,
-        )
-        .await
-        .map_err(string_error)?;
+        let edit = Source::edit(configured.configuration.clone(), credential, input)
+            .await
+            .map_err(string_error)?;
         match edit {
             sources::SourceEditResult::Unchanged => return Ok(()),
             sources::SourceEditResult::ConfigurationOnly(configuration) => {
@@ -1436,7 +1426,6 @@ impl SourceOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceOwner {
     pub fn list_sources(&self) -> ConfiguredSources {
         self.shared
@@ -1495,7 +1484,6 @@ impl SourceOwner {
     pub fn selected_library(&self) -> Option<SelectedLibrary> {
         self.shared.selected()
     }
-
 }
 
 impl SourceOwner {
@@ -1605,7 +1593,6 @@ impl SourceOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceOwner {
     pub fn set_half_stars(&self, source_id: SourceId, enabled: bool) {
         let owner = self.clone();
@@ -1635,7 +1622,6 @@ impl SourceOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceOwner {
     /// Completes when the source's stored catalog is selected. Connection and refresh
     /// continue in the background, including while credentials are being unlocked.
@@ -1682,7 +1668,6 @@ impl SourceOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceOwner {
     pub async fn change_secret_storage(
         &self,
@@ -1720,11 +1705,7 @@ impl SourceOwner {
                         }
                         stored.scrobbling_secrets_present = false;
                         stored.scrobbling_credentials.clear();
-                        for source in stored
-                            .sources
-                            .configured
-                            .iter_mut()
-                        {
+                        for source in stored.sources.configured.iter_mut() {
                             source.credential = None;
                         }
                         Ok(())
@@ -1766,7 +1747,6 @@ impl SourceOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceOwner {
     pub async fn refresh_source(
         &self,
@@ -1783,7 +1763,6 @@ impl SourceOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceOwner {
     pub async fn local_access_status(
         &self,
@@ -1941,7 +1920,6 @@ impl SourceOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceOwner {
     pub fn clear_local_access(&self, source_id: SourceId) {
         let owner = self.clone();
@@ -1987,7 +1965,6 @@ impl SourceOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceOwner {
     pub async fn forget_source(&self, source_id: SourceId) -> sources::SourceResult<()> {
         let selected = self
@@ -2083,7 +2060,6 @@ impl SourceOwner {
 }
 
 impl SourceOwner {
-
     pub fn download_media(&self, subject: downloads::DownloadSubject, media_uris: Vec<String>) {
         let owner = self.clone();
         self.shared.runtime.spawn(async move {
@@ -2116,12 +2092,7 @@ impl SourceOwner {
                 if let Err(error) = owner
                     .shared
                     .downloads
-                    .attach(
-                        source_id.clone(),
-                        source_key,
-                        Some(source),
-                        None,
-                    )
+                    .attach(source_id.clone(), source_key, Some(source), None)
                     .await
                 {
                     owner.shared.warn_nonfatal(&error);
@@ -2139,7 +2110,6 @@ impl SourceOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceOwner {
     pub async fn set_favorite_with_result(
         &self,
@@ -2163,7 +2133,6 @@ impl SourceOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceOwner {
     pub fn set_rating(&self, target: FavoriteTarget, rating: Option<u8>) {
         let owner = self.clone();
@@ -2263,10 +2232,7 @@ impl SourceOwner {
         Ok((source, publication.source))
     }
 
-    async fn favorite_source(
-        &self,
-        target: &FavoriteTarget,
-    ) -> Option<(SourceId, SourceKey)> {
+    async fn favorite_source(&self, target: &FavoriteTarget) -> Option<(SourceId, SourceKey)> {
         let source_id = match library::source_entity_parts(target.media_uri()) {
             Some((source_id, kind, _)) if kind == target.kind() => source_id,
             _ => match target {
@@ -2787,10 +2753,7 @@ fn unix_seconds() -> i64 {
 
 #[cfg(test)]
 mod source_tests {
-    fn subsonic_configuration(
-        source_id: SourceId,
-        name: impl Into<String>,
-    ) -> SourceConfiguration {
+    fn subsonic_configuration(source_id: SourceId, name: impl Into<String>) -> SourceConfiguration {
         SourceConfiguration {
             source_id,
             kind: "subsonic".into(),
@@ -2845,15 +2808,12 @@ mod source_tests {
                 secrets::MemorySecretStore::new(),
             ))),
             runtime,
-            SourceOutputs {
-                events,
-            },
+            SourceOutputs { events },
         );
 
         let music = directory.path().join("music");
         std::fs::create_dir(&music).unwrap();
-        let configuration =
-            subsonic_configuration(source_id.clone(), "Test");
+        let configuration = subsonic_configuration(source_id.clone(), "Test");
         let configured = ConfiguredSource {
             configuration: configuration.clone(),
             credential: None,
@@ -2879,8 +2839,7 @@ mod source_tests {
             .await
             .unwrap();
         let mut other = configured.clone();
-        other.configuration =
-            subsonic_configuration(other_id.clone(), "Other");
+        other.configuration = subsonic_configuration(other_id.clone(), "Other");
         owner
             .shared
             .settings
@@ -3249,9 +3208,7 @@ mod source_tests {
                 settings,
                 secrets,
                 runtime,
-                SourceOutputs {
-                    events,
-                    },
+                SourceOutputs { events },
             );
             owner.shared.load_source_counts().await.unwrap();
             assert_eq!(
@@ -3591,9 +3548,7 @@ mod source_tests {
                     secrets::MemorySecretStore::new(),
                 ))),
                 runtime,
-                SourceOutputs {
-                    events,
-                    },
+                SourceOutputs { events },
             );
             assert_eq!(owner.list_sources().sources.len(), 2);
             assert!(owner.selected_library().is_none());
@@ -3690,17 +3645,14 @@ mod source_tests {
     }
 }
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct SourceSubscription {
     source: SourceOwner,
     changes: tokio::sync::Mutex<tokio::sync::watch::Receiver<()>>,
 }
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct SourceOperationSubscription {
     changes: tokio::sync::Mutex<tokio::sync::watch::Receiver<SourceOperation>>,
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceOwner {
     pub fn subscribe(&self) -> Arc<SourceSubscription> {
         let mut changes = self.configuration_changes();
@@ -3750,7 +3702,6 @@ impl SourceOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceSubscription {
     pub async fn next(&self) -> sources::SourceResult<ConfiguredSources> {
         self.changes
@@ -3762,7 +3713,6 @@ impl SourceSubscription {
         Ok(self.source.list_sources())
     }
 }
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceOperationSubscription {
     pub async fn next(&self) -> sources::SourceResult<SourceOperation> {
         let mut changes = self.changes.lock().await;
@@ -3773,7 +3723,6 @@ impl SourceOperationSubscription {
         Ok(changes.borrow_and_update().clone())
     }
 }
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceOwner {
     pub fn editable(&self, source_id: SourceId) -> sources::SourceResult<Option<EditableSource>> {
         let stored = self.shared.settings.load();
@@ -3787,11 +3736,9 @@ impl SourceOwner {
     }
 }
 
-#[cfg_attr(feature = "bindings", derive(uniffi::Object))]
 pub struct SourceCatalogSubscription {
     changes: tokio::sync::Mutex<tokio::sync::watch::Receiver<CatalogRevision>>,
 }
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceOwner {
     pub fn subscribe_catalog(&self) -> Arc<SourceCatalogSubscription> {
         let mut changes = self.catalog_changes();
@@ -3801,7 +3748,6 @@ impl SourceOwner {
         })
     }
 }
-#[cfg_attr(feature = "bindings", uniffi::export)]
 impl SourceCatalogSubscription {
     pub async fn next(&self) -> sources::SourceResult<CatalogRevision> {
         let mut changes = self.changes.lock().await;

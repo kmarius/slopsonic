@@ -588,9 +588,8 @@ impl SearchPopup {
         let loading = !query.is_empty() && status == "loading";
         self.list
             .update_state(&[gtk::accessible::State::Busy(loading)]);
-        self.error.set_visible(
-            !query.is_empty() && (status == "error" || status == "initial"),
-        );
+        self.error
+            .set_visible(!query.is_empty() && (status == "error" || status == "initial"));
         self.empty_results.set_visible(false);
         self.history_heading
             .set_visible(query.is_empty() && !history.is_empty());

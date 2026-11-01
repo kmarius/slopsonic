@@ -1,6 +1,5 @@
 use ::library::AlbumView;
 
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AlbumReleaseKind {
     Album,

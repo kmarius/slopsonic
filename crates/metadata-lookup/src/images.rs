@@ -21,7 +21,6 @@ pub enum ArtworkQuery {
 }
 
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "bindings", derive(uniffi::Record))]
 pub struct ArtworkResult {
     pub title: String,
     pub detail: String,

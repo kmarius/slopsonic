@@ -451,11 +451,6 @@ pub(crate) async fn write_listen(
                 )
             })?
     };
-    if changed {
-        let identity: String = sqlx::query_scalar("SELECT coalesce(external_id,'legacy-'||media_uri||'-'||started_at||'-'||listen_key) FROM listens WHERE listen_key=?1")
-            .bind(key).fetch_one(&mut *connection).await?;
-        crate::connect::mark_current_on(connection, "listen", &identity, false).await?;
-    }
     Ok((key, changed))
 }
 
@@ -648,14 +643,7 @@ pub(crate) async fn write_legacy_activity(
     if changed == 0 {
         return Ok(());
     }
-    let identity = serde_json::json!([
-        record.source_id,
-        record.period,
-        record.item_kind,
-        record.track_object_id
-    ])
-    .to_string();
-    crate::connect::mark_current_on(connection, "legacy_activity", &identity, false).await
+    Ok(())
 }
 
 pub(crate) fn history_query(

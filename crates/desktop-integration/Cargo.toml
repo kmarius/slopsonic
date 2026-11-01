@@ -29,7 +29,5 @@ features = ["blocking"]
 [dependencies.mpris-server]
 workspace = true
 
-[dev-dependencies]
-
 [lints]
 workspace = true

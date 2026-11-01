@@ -10,12 +10,6 @@ use percent_encoding::{NON_ALPHANUMERIC, percent_decode_str, utf8_percent_encode
 #[serde(transparent)]
 pub struct SourceId(String);
 
-#[cfg(feature = "bindings")]
-uniffi::custom_type!(SourceId, String, {
-    lower: |value| value.to_string(),
-    try_lift: |value| Ok(SourceId::new(value)),
-});
-
 impl SourceId {
     pub fn new(value: impl Into<String>) -> Self {
         let value = value.into();
@@ -103,7 +97,6 @@ pub fn normalize_direct_media_uri(uri: &str) -> Option<String> {
         return Some(uri.to_owned());
     }
     let mut parsed = url::Url::parse(uri).ok()?;
-    // Android providers own the complete document identity, including user/profile routing.
     if parsed.scheme() == "content" {
         return Some(uri.to_owned());
     }
@@ -188,12 +181,6 @@ macro_rules! integer_key {
         #[repr(transparent)]
         #[sqlx(transparent)]
         pub struct $name(i64);
-
-        #[cfg(feature = "bindings")]
-        uniffi::custom_type!($name, i64, {
-            lower: |value| value.raw(),
-            try_lift: |value| Ok($name::from_raw(value)),
-        });
 
         impl $name {
             pub const fn from_raw(value: i64) -> Self {
@@ -284,7 +271,6 @@ mod tests {
     }
 }
 
-#[cfg_attr(feature = "bindings", uniffi::export)]
 pub fn source_id_for_uri(uri: String) -> Option<SourceId> {
     source_entity_parts(&uri).map(|(source, _, _)| source)
 }
