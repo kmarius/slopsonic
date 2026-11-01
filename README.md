@@ -1,48 +1,8 @@
 # Slopsonic (working title)
 
-Slopsonic is a native music player for Navidrome.
-It is a stripped-down fork of [Rufin](https://github.com/screwys/Rufin) and written entirely by LLMs.
+Slopsonic is a native desktop music player for Navidrome and other OpenSubsonic-compatible servers. It manages a single remote library and currently targets Linux only.
 
-## 🎵 Playback
-
-- True gapless playback and configurable equal-power crossfade mode
-- ReplayGain/EBU R128 analysis and true-peak measurement
-- 10-band equalizer with presets, perceptual/linear volume scale preference and fade on play/pause
-- Auto DJ that keeps the queue filled; server recommendations when available with a smart local fallback
-- Random play with filters for track count, year range, genre and played/unplayed status
-- Fullscreen player
-- Broad codec support [^codecs]
-
-## 📚 Library
-
-- Drag songs from your queue or lists to playlists, or select multiple of them with your keyboard batch operations
-- Download tracks manually or through automatic rules, then keep using the same remote library while offline
-- Path matching between music servers and local folders, allowing local playback while keeping server activity and history
-- Automatic metadata and artwork caching; and in-app artwork search functionality
-- Rating support, with an option to enable visual-only partial stars for OpenSubsonic
-- Virtualized, smooth to scroll pages
-- Listening activity can be exported as Last.fm/ListenBrainz compatible `.csv` files
-
-## 🌍️ Discovery
-
-- Server-provided artist, track, album, playlist and genre radios, including recommendations from server plugins
-- App owned smart (i.e. dynamic) playlists with custom sorting and limits; can use metadata, play/skip history or pre-defined dynamic lists
-- Dedicated Search, Folders and History pages
-- Moods browsing and mood/BPM-based smart playlists
-
-## 🧩 Integrations
-
-- Last.fm, Libre.fm and ListenBrainz scrobbling, with offline storage and automatic retries
-- Secure storage for server credentials and API secrets by default
-
-## 🖥️ Interface
-
-- Fast, responsive and broadly customizable
-- Theme support including custom themes
-- Extensive keyboard shortcuts catalog
-- Type to search
-- Can run in the background or set to launch minimized, which uses the GNOME portal when available
-- System tray integration
+It is a stripped-down fork of [Rufin](https://github.com/screwys/Rufin) and is currently written entirely by LLMs. The main goal right now is to make it maintainable by shedding features, restructuring it and then polishing the core functionality.
 
 ## Building locally
 
@@ -90,5 +50,3 @@ Icon is designed by [Commenter25](https://commenter.cc) and it is licensed under
 # License
 
 [LICENSE](LICENSE)
-
-[^codecs]:MP3, AAC/M4A, FLAC, Ogg Vorbis/Opus, ALAC, WAV and AIFF. Playback goes through GStreamer, so other formats work if the matching plugins are installed.
