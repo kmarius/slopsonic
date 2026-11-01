@@ -136,7 +136,7 @@ pub const MANAGE_SERVER_RESOURCE: &str =
 pub fn verify_icons() -> Result<(), String> {
     crate::register_resources()?;
     for relative_path in [
-        "scalable/apps/io.github.screwys.Rufin.svg",
+        "scalable/apps/io.github.kmarius.slopsonic.svg",
         "scalable/actions/rufin-drive-harddisk-symbolic.svg",
         "scalable/actions/rufin-edit-clear-symbolic.svg",
         "scalable/actions/rufin-go-last-symbolic.svg",
@@ -159,7 +159,7 @@ pub fn verify_icons() -> Result<(), String> {
         "scalable/actions/rufin-search-symbolic.svg",
         "scalable/actions/rufin-tag-outline-symbolic.svg",
         "scalable/actions/rufin-x-office-calendar-symbolic.svg",
-        "symbolic/apps/io.github.screwys.Rufin-symbolic.svg",
+        "symbolic/apps/io.github.kmarius.slopsonic-symbolic.svg",
     ] {
         let path = format!("/io/github/screwys/Rufin/icons/hicolor/{relative_path}");
         gtk::gio::resources_lookup_data(&path, gtk::gio::ResourceLookupFlags::NONE)

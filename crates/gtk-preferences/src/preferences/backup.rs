@@ -272,10 +272,10 @@ pub(super) fn group(
             .is_some()
         {
             if let Some(row) = folder.upgrade() {
-                row.set_subtitle(&"Rufin data folder".to_string());
+                row.set_subtitle(&"Slopsonic data folder".to_string());
             }
             if let Some(row) = summary.upgrade() {
-                row.set_subtitle(&"Rufin data folder".to_string());
+                row.set_subtitle(&"Slopsonic data folder".to_string());
             }
             button.set_visible(false);
         }

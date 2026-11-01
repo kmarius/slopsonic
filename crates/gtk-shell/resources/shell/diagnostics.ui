@@ -29,7 +29,7 @@
                 <child>
                   <object class="AdwSwitchRow" id="debug">
                     <property name="title" translatable="yes">Debug logging</property>
-                    <property name="subtitle" translatable="yes">Include detailed Rufin diagnostics in this session</property>
+                    <property name="subtitle" translatable="yes">Include detailed Slopsonic diagnostics in this session</property>
                   </object>
                 </child>
               </object>

@@ -94,7 +94,7 @@ where
             )
             .await
             {
-                error!(%error, "failed to start Rufin");
+                error!(%error, "failed to start Slopsonic");
                 present_startup_error(&app, &error, window_bar_preview, storage_reset);
             }
         });

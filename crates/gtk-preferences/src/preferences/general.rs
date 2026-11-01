@@ -629,7 +629,7 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
             guard.set(false);
             let confirm = adw::AlertDialog::builder()
                 .heading("Enable EBU R128 Analysis?".to_string())
-                .body("Rufin will calculate the missing EBU R128 metadata for the whole library. This can use significant CPU, battery, and network bandwidth for a long time.".to_string())
+                .body("Slopsonic will calculate the missing EBU R128 metadata for the whole library. This can use significant CPU, battery, and network bandwidth for a long time.".to_string())
                 .build();
             confirm.add_response("cancel", &"Cancel".to_string());
             confirm.add_response("enable", &"Enable".to_string());

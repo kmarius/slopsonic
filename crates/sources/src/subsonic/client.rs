@@ -1086,7 +1086,7 @@ pub(super) fn endpoint(base_url: &Url, method: &str) -> SourceResult<Url> {
     Ok(url)
 }
 
-const CLIENT_NAME: &str = "Rufin";
+const CLIENT_NAME: &str = "Slopsonic";
 const API_VERSION: &str = "1.16.1";
 const SALT_BYTES: usize = 12;
 

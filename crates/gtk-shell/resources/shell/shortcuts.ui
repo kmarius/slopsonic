@@ -46,7 +46,7 @@
         </child>
         <child>
           <object class="AdwShortcutsItem" id="shortcut_quit">
-            <property name="title" translatable="yes">Quit Rufin</property>
+            <property name="title" translatable="yes">Quit Slopsonic</property>
             <property name="action-name">app.quit</property>
           </object>
         </child>

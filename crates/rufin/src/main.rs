@@ -26,7 +26,7 @@ fn main() -> ExitCode {
     let settings = app::startup_settings(&paths::roots());
     let (diagnostics, _stderr_guard) = diagnostics::Diagnostics::install(paths::state_dir());
     let _desktop_platform = desktop_integration::Platform::initialize();
-    info!("starting Rufin native shell");
+    info!("starting Slopsonic native shell");
 
     let initial_settings = settings.load().ui.clone();
     let bootstrap = move || async move {
@@ -121,11 +121,11 @@ fn restart_in_macos_bundle() -> Option<ExitCode> {
                 use std::os::unix::process::CommandExt as _;
 
                 let error = command.exec();
-                let _ = writeln!(io::stderr().lock(), "Could not start Rufin: {error}");
+                let _ = writeln!(io::stderr().lock(), "Could not start Slopsonic: {error}");
                 ExitCode::FAILURE
             }
             Err(error) => {
-                let _ = writeln!(io::stderr().lock(), "Could not prepare Rufin: {error}");
+                let _ = writeln!(io::stderr().lock(), "Could not prepare Slopsonic: {error}");
                 ExitCode::FAILURE
             }
         },

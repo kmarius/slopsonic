@@ -297,7 +297,7 @@ where
 
 pub fn startup_settings(paths: &Paths) -> SettingsFile {
     if let Err(error) = paths.prepare() {
-        warn!(%error, "could not prepare every Rufin data directory");
+        warn!(%error, "could not prepare every Slopsonic data directory");
     }
     SettingsFile::open(paths.settings_file()).unwrap_or_else(|error| {
         warn!(%error, "could not use saved settings; startup will continue with defaults");

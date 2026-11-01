@@ -53,7 +53,7 @@ const NOTIFICATION_ARTWORK_SIZE: u32 = 96;
 #[cfg(target_os = "windows")]
 const WINDOWS_NOTIFICATION_TAG: &str = "now-playing";
 #[cfg(target_os = "windows")]
-const WINDOWS_NOTIFICATION_GROUP: &str = "rufin";
+const WINDOWS_NOTIFICATION_GROUP: &str = "slopsonic";
 
 #[cfg(not(target_os = "windows"))]
 fn notification_icon_path(path: &Path) -> Option<Vec<u8>> {
@@ -529,7 +529,7 @@ mod tests {
     fn notification_artwork_is_square_and_thumbnail_sized() {
         let cover = include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../resources/icons/hicolor/512x512/apps/io.github.screwys.Rufin.png"
+            "/../../resources/icons/hicolor/512x512/apps/io.github.kmarius.slopsonic.png"
         ));
         let bytes = notification_icon_bytes(cover).expect("notification bytes");
         let icon = artwork::decode_rgba(&bytes, u32::MAX).expect("notification image");

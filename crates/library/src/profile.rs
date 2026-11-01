@@ -27,7 +27,7 @@ mod history_tests;
 const FORMAT: u32 = 1;
 const CURRENT_FORMAT: u32 = 4;
 pub const INCOMPATIBLE_PROFILE: &str =
-    "Devices using Rufin Connect are no longer compatible. Please update Rufin.";
+    "Devices using Slopsonic Connect are no longer compatible. Please update Slopsonic.";
 const PROJECTION_ORDER: &str = "CASE kind WHEN 'source' THEN 0 WHEN 'integration' THEN 0 WHEN 'playlist' THEN 1 WHEN 'native_playlist' THEN 1 WHEN 'album' THEN 2 WHEN 'artist' THEN 2 WHEN 'genre' THEN 2 WHEN 'mood' THEN 2 WHEN 'folder' THEN 2 WHEN 'file' THEN 2 WHEN 'track' THEN 3 WHEN 'reference' THEN 3 WHEN 'home' THEN 6 WHEN 'entry' THEN 5 WHEN 'native_entry' THEN 5 WHEN 'playlist_order' THEN 7 WHEN 'smart_order' THEN 7 WHEN 'album_artists' THEN 6 WHEN 'album_genres' THEN 6 WHEN 'track_artists' THEN 6 WHEN 'track_genres' THEN 6 WHEN 'track_moods' THEN 6 WHEN 'track_folders' THEN 6 ELSE 4 END,CASE WHEN kind IN ('entry','native_entry') THEN json_extract(payload,'$.playlist') END,CASE WHEN kind IN ('entry','native_entry','playlist_order','smart_order') THEN json_extract(payload,'$.position') END,object_key";
 
 pub struct ProfileStore {

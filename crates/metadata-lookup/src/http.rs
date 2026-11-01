@@ -9,9 +9,9 @@ use serde_json::Value;
 use tracing::debug;
 
 const USER_AGENT: &str = concat!(
-    "Rufin/",
+    "Slopsonic/",
     env!("CARGO_PKG_VERSION"),
-    " (https://github.com/screwys/Rufin)"
+    " (https://github.com/kmarius/slopsonic)"
 );
 
 pub(crate) const IMAGE_MAX_BYTES: usize = 32 * 1024 * 1024;

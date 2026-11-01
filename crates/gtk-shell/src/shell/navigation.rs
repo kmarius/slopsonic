@@ -483,7 +483,7 @@ fn replace_primary_menu_model(menu: &gio::Menu, shell: &Rc<Shell>) {
     );
     append_menu_action(
         &information,
-        &"About Rufin".to_string(),
+        &"About Slopsonic".to_string(),
         "app.about",
         "rufin-help-about-symbolic",
     );

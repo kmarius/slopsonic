@@ -116,7 +116,7 @@ pub(super) fn present_diagnostics(shell: &Rc<Shell>) {
         glib::spawn_future_local(async move {
             let chooser = gtk::FileDialog::builder()
                 .title("Save Diagnostic Log".to_string())
-                .initial_name("rufin-debug.log")
+                .initial_name("slopsonic-debug.log")
                 .build();
             let Ok(file) = chooser.save_future(Some(&window)).await else {
                 return;

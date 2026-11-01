@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
   <gresource prefix="/io/github/screwys/Rufin/icons">
-    <file>hicolor/512x512/apps/io.github.screwys.Rufin.png</file>
-    <file>hicolor/64x64/apps/io.github.screwys.Rufin.external.lastfm.png</file>
-    <file>hicolor/64x64/apps/io.github.screwys.Rufin.external.musicbrainz.png</file>
-    <file>hicolor/64x64/apps/io.github.screwys.Rufin.source.navidrome.png</file>
-    <file>hicolor/64x64/apps/io.github.screwys.Rufin.source.opensubsonic.png</file>
+    <file>hicolor/512x512/apps/io.github.kmarius.slopsonic.png</file>
+    <file>hicolor/64x64/apps/io.github.kmarius.slopsonic.external.lastfm.png</file>
+    <file>hicolor/64x64/apps/io.github.kmarius.slopsonic.external.musicbrainz.png</file>
+    <file>hicolor/64x64/apps/io.github.kmarius.slopsonic.source.navidrome.png</file>
+    <file>hicolor/64x64/apps/io.github.kmarius.slopsonic.source.opensubsonic.png</file>
     <file>hicolor/scalable/actions/rufin-shuffle-symbolic.svg</file>
     <file>hicolor/scalable/actions/rufin-keyboard-enter-symbolic.svg</file>
     <file>hicolor/scalable/actions/rufin-repeat-symbolic.svg</file>
@@ -111,8 +111,8 @@
     <file>hicolor/scalable/actions/rufin-view-refresh-symbolic.svg</file>
     <file>hicolor/scalable/actions/rufin-window-close-symbolic.svg</file>
     <file>hicolor/scalable/actions/rufin-x-office-calendar-symbolic.svg</file>
-    <file>hicolor/scalable/apps/io.github.screwys.Rufin.svg</file>
-    <file>hicolor/symbolic/apps/io.github.screwys.Rufin-symbolic.svg</file>
+    <file>hicolor/scalable/apps/io.github.kmarius.slopsonic.svg</file>
+    <file>hicolor/symbolic/apps/io.github.kmarius.slopsonic-symbolic.svg</file>
     <file>hicolor/scalable/actions/rufin-sliders-vertical-symbolic.svg</file>
     <file>hicolor/scalable/actions/rufin-spring-graph-symbolic.svg</file>
     <file>hicolor/scalable/actions/rufin-sound-symbolic.svg</file>

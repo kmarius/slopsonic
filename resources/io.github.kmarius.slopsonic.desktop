@@ -1,8 +1,8 @@
 [Desktop Entry]
-Name=Rufin (Development)
-Comment=Rufin development build
-Exec=false
-Icon=io.github.screwys.Rufin.Devel
+Name=Slopsonic
+Comment=Native music player
+Exec=slopsonic
+Icon=io.github.kmarius.slopsonic
 Terminal=false
 Type=Application
 Categories=AudioVideo;Audio;Music;Player;

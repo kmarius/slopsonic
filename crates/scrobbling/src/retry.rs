@@ -19,7 +19,7 @@ const DELIVERY_BATCH_SIZE: usize = 50;
 const NOW_PLAYING_STABLE_DELAY: Duration = Duration::from_secs(1);
 const RETRY_POLL: Duration = Duration::from_secs(30);
 pub(crate) const USER_AGENT: &str = concat!(
-    "Rufin/",
+    "Slopsonic/",
     env!("CARGO_PKG_VERSION"),
     " (",
     env!("CARGO_PKG_REPOSITORY"),

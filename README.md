@@ -1,6 +1,7 @@
-# Rufin
+# Slopsonic (working title)
 
-Rufin is a powerful, fast and easy to use native music player for Navidrome.
+Slopsonic is a native music player for Navidrome.
+It is a stripped-down fork of [Rufin](https://github.com/screwys/Rufin) and written entirely by LLMs.
 
 ## 🎵 Playback
 
@@ -51,11 +52,11 @@ Rufin is a powerful, fast and easy to use native music player for Navidrome.
 Start by cloning the repository.
 
 ```bash
-git clone https://github.com/kmarius/Rufin.git
-cd Rufin
+git clone https://github.com/kmarius/slopsonic.git
+cd slopsonic
 ```
 
-Building Rufin requires Rust 1.96 or newerGTK 4.20 or newer, libadwaita 1.9 or newer, and GStreamer 1.26 or
+Building Slopsonic requires Rust 1.96 or newerGTK 4.20 or newer, libadwaita 1.9 or newer, and GStreamer 1.26 or
 newer.
 
 **Arch Linux:**
@@ -76,14 +77,14 @@ cargo build
 cargo run
 ```
 
-Local builds are shown as `Rufin (Development)` and use the isolated `Rufin.Devel` application
+Local builds are shown as `Slopsonic (Development)` and use the isolated `slopsonic.devel` application
 identity.
 
 # Credits
 
 Built with [GTK 4](https://www.gtk.org/), [libadwaita](https://gitlab.gnome.org/GNOME/libadwaita/), [gtk-rs](https://gtk-rs.org/) and [GStreamer](https://gstreamer.freedesktop.org/)
 
-Rufin is greatly influenced by [Feishin](https://github.com/jeffvli/feishin), and a lot of design decisions are directly borrowed; as much we can achieve natively.
+Slopsonic is a fork of [Rufin](https://github.com/screwys/Rufin) and greatly influenced by [Feishin](https://github.com/jeffvli/feishin), and a lot of design decisions are directly borrowed; as much we can achieve natively.
 
 Player backend design and Smart Playlists are inspired from [Strawberry](https://github.com/strawberrymusicplayer/strawberry) (fork of [Clementine](https://github.com/clementine-player/Clementine)).
 

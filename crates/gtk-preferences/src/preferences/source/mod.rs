@@ -56,7 +56,7 @@ pub fn half_stars_row(
     }
     let row = adw::SwitchRow::builder()
         .title("Enable partial star ratings".to_string())
-        .subtitle("This is not supported natively by this source, but Rufin can show partial stars and then round them up for the source".to_string())
+        .subtitle("This is not supported natively by this source, but Slopsonic can show partial stars and then round them up for the source".to_string())
         .active(source.half_stars_enabled)
         .build();
     let source_handle = shell.products.source.clone();

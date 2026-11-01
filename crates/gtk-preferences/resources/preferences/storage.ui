@@ -370,7 +370,7 @@
   </object>
   <object class="AdwAlertDialog" id="clear_cache_confirmation">
     <property name="heading" translatable="yes">Clear all cache?</property>
-    <property name="body" translatable="yes">Remove all Rufin data and settings except saved connections and credentials? Rufin will restart after clearing the data.</property>
+    <property name="body" translatable="yes">Remove all Slopsonic data and settings except saved connections and credentials? Slopsonic will restart after clearing the data.</property>
     <property name="default-response">cancel</property>
     <property name="close-response">cancel</property>
     <responses>
@@ -380,7 +380,7 @@
   </object>
   <object class="AdwAlertDialog" id="clear_data_confirmation">
     <property name="heading" translatable="yes">Clear all data?</property>
-    <property name="body" translatable="yes">Remove all Rufin data, settings and saved logins? Rufin will restart after clearing the data.</property>
+    <property name="body" translatable="yes">Remove all Slopsonic data, settings and saved logins? Slopsonic will restart after clearing the data.</property>
     <property name="default-response">cancel</property>
     <property name="close-response">cancel</property>
     <responses>

@@ -140,7 +140,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "app-identity"
-version = "0.16.6"
+version = "0.0.1"
 
 [[package]]
 name = "append-only-bytes"
@@ -186,7 +186,7 @@ checksum = "2ccd462b64c3c72f1be8305905a85d85403d768e8690c9b8bd3b9009a5761679"
 
 [[package]]
 name = "artwork"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "blurhash",
  "fast_image_resize",
@@ -446,7 +446,7 @@ checksum = "21e4227379beff4205943696e6c3e0cd809bacdf3f0edd6e3dd153e2269571a4"
 
 [[package]]
 name = "audio-processing"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "ebur128",
  "gstreamer",
@@ -492,7 +492,7 @@ dependencies = [
 
 [[package]]
 name = "backup"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "age",
  "blake3",
@@ -1165,7 +1165,7 @@ dependencies = [
 
 [[package]]
 name = "desktop-integration"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "app-identity",
  "artwork",
@@ -1258,7 +1258,7 @@ checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
 
 [[package]]
 name = "downloads"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "artwork",
  "async-channel",
@@ -2228,7 +2228,7 @@ dependencies = [
 
 [[package]]
 name = "gtk-editors"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "artwork",
  "async-channel",
@@ -2243,7 +2243,7 @@ dependencies = [
 
 [[package]]
 name = "gtk-library"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "artwork",
  "downloads",
@@ -2263,7 +2263,7 @@ dependencies = [
 
 [[package]]
 name = "gtk-media-menus"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "downloads",
  "glib-build-tools",
@@ -2279,7 +2279,7 @@ dependencies = [
 
 [[package]]
 name = "gtk-player"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "app-identity",
  "artwork",
@@ -2297,7 +2297,7 @@ dependencies = [
 
 [[package]]
 name = "gtk-preferences"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "backup",
  "desktop-integration",
@@ -2319,7 +2319,7 @@ dependencies = [
 
 [[package]]
 name = "gtk-shell"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "app-identity",
  "artwork",
@@ -2347,7 +2347,7 @@ dependencies = [
 
 [[package]]
 name = "gtk-widgets"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "app-identity",
  "artwork",
@@ -3283,7 +3283,7 @@ checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "library"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "age",
  "anyhow",
@@ -3610,7 +3610,7 @@ dependencies = [
 
 [[package]]
 name = "metadata-lookup"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "blake3",
  "library",
@@ -4127,7 +4127,7 @@ checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 
 [[package]]
 name = "playback"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "audio-processing",
  "library",
@@ -4140,7 +4140,7 @@ dependencies = [
 
 [[package]]
 name = "playback-gstreamer"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "audio-processing",
  "gstreamer",
@@ -4306,7 +4306,7 @@ dependencies = [
 
 [[package]]
 name = "process-memory"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "libc",
  "tracing",
@@ -4660,7 +4660,7 @@ dependencies = [
 
 [[package]]
 name = "rufin"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "app-identity",
  "desktop-integration",
@@ -4674,7 +4674,7 @@ dependencies = [
 
 [[package]]
 name = "rufin-core"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "age",
  "app-identity",
@@ -4924,7 +4924,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scrobbling"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "library",
  "md-5 0.10.6",
@@ -4991,7 +4991,7 @@ dependencies = [
 
 [[package]]
 name = "secrets"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "app-identity",
  "base64 0.23.1",
@@ -5303,7 +5303,7 @@ dependencies = [
 
 [[package]]
 name = "sources"
-version = "0.16.6"
+version = "0.0.1"
 dependencies = [
  "async-channel",
  "audio-processing",

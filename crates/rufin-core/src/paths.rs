@@ -5,7 +5,7 @@ use app_identity::PROJECT_NAME;
 use directories::ProjectDirs;
 
 fn project_dirs() -> Option<ProjectDirs> {
-    ProjectDirs::from("io.github", "screwys", PROJECT_NAME)
+    ProjectDirs::from("io.github", "kmarius", PROJECT_NAME)
 }
 
 pub fn project_cache_dir() -> Option<PathBuf> {

@@ -5,7 +5,7 @@
 
   <object class="AdwAlertDialog" id="secret_storage_fallback_dialog">
     <property name="heading" translatable="yes">Secret storage</property>
-    <property name="body" translatable="yes">No secret service found. Rufin will use a file to store its credentials. Cancelling will not save credentials at all.</property>
+    <property name="body" translatable="yes">No secret service found. Slopsonic will use a file to store its credentials. Cancelling will not save credentials at all.</property>
     <property name="default-response">cancel</property>
     <property name="close-response">cancel</property>
     <responses>
@@ -15,7 +15,7 @@
   </object>
 
   <object class="GtkLabel" id="secret_storage_portal_body">
-    <property name="label" translatable="yes">No secret service found. You might have a secret service but the portal can be broken, you can check {link_start}this issue{link_end} to fix it, otherwise Rufin will use a file to store its credentials. Cancelling will not save credentials at all.</property>
+    <property name="label" translatable="yes">No secret service found. You might have a secret service but the portal can be broken, you can check {link_start}this issue{link_end} to fix it, otherwise Slopsonic will use a file to store its credentials. Cancelling will not save credentials at all.</property>
   </object>
 
   <object class="GtkStack" id="root_stack">
@@ -40,7 +40,7 @@
                 <style><class name="app-root"/></style>
                 <child>
                   <object class="AdwBanner" id="temporary_storage_banner">
-                    <property name="title" translatable="yes">Temporary library storage is in use. Changes may be lost when Rufin closes.</property>
+                    <property name="title" translatable="yes">Temporary library storage is in use. Changes may be lost when Slopsonic closes.</property>
                     <property name="revealed">false</property>
                   </object>
                 </child>

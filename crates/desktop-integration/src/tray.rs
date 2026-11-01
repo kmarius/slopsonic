@@ -21,7 +21,7 @@ mod freedesktop {
     const TRAY_ICON_SIZES: [i32; 5] = [16, 22, 24, 32, 48];
     const APP_ICON_BYTES: &[u8] = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../resources/icons/hicolor/512x512/apps/io.github.screwys.Rufin.png"
+        "/../../resources/icons/hicolor/512x512/apps/io.github.kmarius.slopsonic.png"
     ));
 
     pub struct Tray {
@@ -42,7 +42,7 @@ mod freedesktop {
         fn new(sender: Sender<TrayIntent>) -> Self {
             Self {
                 sender,
-                show_label: "Show Rufin".to_string(),
+                show_label: "Show Slopsonic".to_string(),
                 play_pause_label: "Play/Pause".to_string(),
                 previous_label: "Previous Track".to_string(),
                 next_label: "Next Track".to_string(),
@@ -223,7 +223,7 @@ mod freedesktop {
             assert_eq!(
                 labels,
                 vec![
-                    "Show Rufin",
+                    "Show Slopsonic",
                     "Play/Pause",
                     "Previous Track",
                     "Next Track",
@@ -311,7 +311,7 @@ mod windows {
 
     const APP_ICON_BYTES: &[u8] = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../resources/icons/hicolor/512x512/apps/io.github.screwys.Rufin.png"
+        "/../../resources/icons/hicolor/512x512/apps/io.github.kmarius.slopsonic.png"
     ));
     const SHOW_ID: &str = "rufin-tray-show";
     const PLAY_PAUSE_ID: &str = "rufin-tray-play-pause";
@@ -331,7 +331,7 @@ mod windows {
             install_event_handlers();
             let (sender, receiver) = channel();
             let menu = Menu::new();
-            let show = MenuItem::with_id(SHOW_ID, "Show Rufin".to_string(), true, None);
+            let show = MenuItem::with_id(SHOW_ID, "Show Slopsonic".to_string(), true, None);
             let play_pause = MenuItem::with_id(PLAY_PAUSE_ID, "Play/Pause".to_string(), true, None);
             let previous = MenuItem::with_id(PREVIOUS_ID, "Previous Track".to_string(), true, None);
             let next = MenuItem::with_id(NEXT_ID, "Next Track".to_string(), true, None);

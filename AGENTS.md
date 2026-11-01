@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Rufin is a native Linux desktop client for [Navidrome](https://www.navidrome.org/), a self-hosted music streaming server. The codebase is a Rust workspace with a GTK frontend.
+Slopsonic is a native Linux desktop client for [Navidrome](https://www.navidrome.org/), a self-hosted music streaming server. The codebase is a Rust workspace with a GTK frontend.
 
 ## Scope
 
@@ -15,7 +15,7 @@ Do not implement or expand:
 - **Other server backends** — Navidrome/Subsonic only, no Jellyfin/Plex/etc.
 - **Metadata editing** — Read-only client; editing belongs in the server or dedicated tools
 - **File management** — No local library scanning, file organization, or downloads
-- **Rufin Connect / sync / casting** — No cross-device sync, remote control, or UPnP/Chromecast casting
+- **Slopsonic Connect / sync / casting** — No cross-device sync, remote control, or UPnP/Chromecast casting
 - **Headless/controller mode** — This is a desktop GUI application
 - **Windows/macOS/Android builds** — Linux only; ignore existing cross-platform code
 - **Lyrics, visualizer, waveform seekbar**

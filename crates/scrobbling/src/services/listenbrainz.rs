@@ -114,7 +114,7 @@ fn listen(track: &SubmissionTrack) -> Value {
             "track_name": track.title.as_str(),
             "additional_info": {
                 "duration_ms": track.duration_millis,
-                "submission_client": "Rufin",
+                "submission_client": "Slopsonic",
             },
         },
     });

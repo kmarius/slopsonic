@@ -45,7 +45,7 @@ pub fn configure_ownership_toggle(
                 &[("source", source_name.as_deref().unwrap_or(DISPLAY_NAME))],
             )
         } else {
-            "This is owned by Rufin. It can include entries from all configured sources but it is not synced to remotes.".to_string()
+            "This is owned by Slopsonic. It can include entries from all configured sources but it is not synced to remotes.".to_string()
         };
         button.set_tooltip_text(Some(&tooltip));
     };

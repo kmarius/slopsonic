@@ -372,7 +372,7 @@ impl PlaybackOwner {
             .await
         {
             Ok(_) => self.scrobbler.listen_recorded(deliveries.len()),
-            Err(error) => warn!(%error, "could not record Rufin Activity"),
+            Err(error) => warn!(%error, "could not record Slopsonic Activity"),
         }
     }
 

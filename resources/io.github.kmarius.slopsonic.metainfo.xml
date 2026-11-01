@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>io.github.screwys.Rufin</id>
-  <name>Rufin</name>
+  <id>io.github.kmarius.slopsonic</id>
+  <name>Slopsonic</name>
   <summary>Feel at home with your music</summary>
-  <developer id="io.github.screwys">
+  <developer id="io.github.kmarius">
     <name>screwy</name>
   </developer>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
-  <url type="homepage">https://github.com/screwys/Rufin</url>
-  <url type="bugtracker">https://github.com/screwys/Rufin/issues</url>
+  <url type="homepage">https://github.com/kmarius/slopsonic</url>
+  <url type="bugtracker">https://github.com/kmarius/slopsonic/issues</url>
   <url type="donation">https://buymeacoffee.com/screwy</url>
-  <url type="vcs-browser">https://github.com/screwys/Rufin</url>
+  <url type="vcs-browser">https://github.com/kmarius/slopsonic</url>
   <url type="translate">https://hosted.weblate.org/projects/rufin</url>
   <branding>
     <color type="primary" scheme_preference="light">#8ecad6</color>
@@ -21,7 +21,7 @@
     <p>Enjoy your Navidrome or Subsonic music server with a powerful native music player.</p>
     <ul>
       <li>Supports Navidrome and Subsonic servers.</li>
-      <li>Control the player from its Web UI or custom scripts, additionally enable Rufin Connect for cross-device synchronization</li>
+      <li>Control the player from its Web UI or custom scripts, additionally enable Slopsonic Connect for cross-device synchronization</li>
       <li>Powerful transition and loudness normalization implementation</li>
       <li>Auto DJ with server or app-matched recommendations and random play filters</li>
       <li>Built-in Last.fm, Libre.fm, ListenBrainz integrations</li>
@@ -68,7 +68,7 @@
       <image type="source" width="1000" height="700">https://raw.githubusercontent.com/screwys/Rufin/v0.16.6/resources/screenshots/playlist_settings.png</image>
     </screenshot>
   </screenshots>
-  <launchable type="desktop-id">io.github.screwys.Rufin.desktop</launchable>
+  <launchable type="desktop-id">io.github.kmarius.slopsonic.desktop</launchable>
   <content_rating type="oars-1.1" />
   <supports>
     <control>keyboard</control>
@@ -127,7 +127,7 @@
           <li>Streaming manifests, such as HLS, are recognized separately from ordinary local .m3u/.m3u8 playlists.</li>
         </ul>
         <ul>
-          <li>Several fixes for Rufin Connect, mostly related to reducing the amount of resources the feature uses.</li>
+          <li>Several fixes for Slopsonic Connect, mostly related to reducing the amount of resources the feature uses.</li>
         </ul>
         <ul>
           <li>Fixed an issue with the Customize button not applying new column settings to routes.</li>
@@ -145,9 +145,9 @@
     </release>
     <release version="0.16.0" date="2026-09-22">
       <description>
-        <p>This release brings significant UI changes with the new topbar and new fullscreen player, and it also introduces a preview version of &quot;Rufin Connect&quot;, which is a cross-device sync engine that will be used for... our upcoming Android version! The Android version will become a native player just like the desktop version is; it will be a standalone app. Rufin Connect will let you sync logins and local folders and continue the music. I intend to keep the feature parity close by reusing existing Rust code (with UniFFI Kotling bindings) and make this ready by the next major release. There is also a Matrix chat for Rufin now, you can drop in to say hi!</p>
+        <p>This release brings significant UI changes with the new topbar and new fullscreen player, and it also introduces a preview version of &quot;Slopsonic Connect&quot;, which is a cross-device sync engine that will be used for... our upcoming Android version! The Android version will become a native player just like the desktop version is; it will be a standalone app. Rufin Connect will let you sync logins and local folders and continue the music. I intend to keep the feature parity close by reusing existing Rust code (with UniFFI Kotling bindings) and make this ready by the next major release. There is also a Matrix chat for Rufin now, you can drop in to say hi!</p>
         <ul>
-          <li>Rufin Connect works by reading and writing to a profile folder. The communication is end-to-end encrypted, and you confirm that both devices encrypt and decrypt by confirming the emojis shown on both devices match during pairing. You have multiple options to configure sync between these devices. By default, Rufin can discover a device on the local network and connect to it; these folders become stored locally. If you want persistent synchronization, you can configure WebDAV/Samba directly from inside the app (or reuse existing configuration if you have it as a source); you can point something like SyncThing to this folder, or you can use an Iroh relay/self-host a personal one. I could only test this myself so much; so I would appreciate any issues with this getting reported. In the future, I intend to use p2panda so that any kind of p2p relay works (i2p, onion network, etc.).</li>
+          <li>Slopsonic Connect works by reading and writing to a profile folder. The communication is end-to-end encrypted, and you confirm that both devices encrypt and decrypt by confirming the emojis shown on both devices match during pairing. You have multiple options to configure sync between these devices. By default, Rufin can discover a device on the local network and connect to it; these folders become stored locally. If you want persistent synchronization, you can configure WebDAV/Samba directly from inside the app (or reuse existing configuration if you have it as a source); you can point something like SyncThing to this folder, or you can use an Iroh relay/self-host a personal one. I could only test this myself so much; so I would appreciate any issues with this getting reported. In the future, I intend to use p2panda so that any kind of p2p relay works (i2p, onion network, etc.).</li>
         </ul>
         <ul>
           <li>This also becomes the official release of Controller with more fixes and an updated web UI interface, including removing the JS requirement; so the site becomes usable with JS disabled as well.</li>

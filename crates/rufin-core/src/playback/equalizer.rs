@@ -1202,7 +1202,7 @@ fn export_apo(profile: &EqProfile, rate: u32) -> Result<String, String> {
     let mut text = format!("# Reference sample rate: {rate} Hz\nPreamp: {preamp:.4} dB\n");
     for (i, filter) in bands.iter().enumerate() {
         let q = audio_processing::effects::filter_q(filter, rate)
-            .ok_or("This filter cannot be exported at the current sample rate; use Rufin JSON")?;
+            .ok_or("This filter cannot be exported at the current sample rate; use Slopsonic JSON")?;
         let kind = match filter.kind {
             FilterKind::Peak => "PK",
             FilterKind::LowShelf => "LSC",

@@ -150,7 +150,7 @@ fn retained_connections(previous: StoredSettings) -> StoredSettings {
 
 fn validate_root(root: &Path) -> Result<(), String> {
     if !root.is_absolute() || root.parent().is_none() {
-        return Err("Rufin's application data directory is unavailable".into());
+        return Err("Slopsonic's application data directory is unavailable".into());
     }
     Ok(())
 }

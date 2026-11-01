@@ -13,7 +13,7 @@ const LASTFM_API_URL: &str = "https://ws.audioscrobbler.com/2.0/";
 const LIBREFM_API_URL: &str = "https://libre.fm/2.0/";
 const LASTFM_AUTH_URL: &str = "https://www.last.fm/api/auth/";
 const LIBREFM_AUTH_URL: &str = "https://libre.fm/api/auth/";
-const USER_AGENT: &str = concat!("Rufin/", env!("CARGO_PKG_VERSION"));
+const USER_AGENT: &str = concat!("Slopsonic/", env!("CARGO_PKG_VERSION"));
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Service {

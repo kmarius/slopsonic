@@ -7,7 +7,7 @@
     <child>
       <object class="AdwActionRow" id="automatic_row">
         <property name="title" translatable="yes">Automatic Backups</property>
-        <property name="subtitle" translatable="yes">Rufin data folder</property>
+        <property name="subtitle" translatable="yes">Slopsonic data folder</property>
         <property name="activatable">true</property>
         <child type="suffix">
           <object class="GtkImage">
@@ -70,11 +70,11 @@
             <child>
               <object class="AdwActionRow" id="folder_row">
                 <property name="title" translatable="yes">Backup Folder</property>
-                <property name="subtitle" translatable="yes">Rufin data folder</property>
+                <property name="subtitle" translatable="yes">Slopsonic data folder</property>
                 <child type="suffix">
                   <object class="GtkButton" id="reset_folder">
                     <property name="icon-name">rufin-view-refresh-symbolic</property>
-                    <property name="tooltip-text" translatable="yes">Use Rufin data folder</property>
+                    <property name="tooltip-text" translatable="yes">Use Slopsonic data folder</property>
                     <property name="valign">center</property>
                     <style>
                       <class name="flat" />

@@ -55,7 +55,7 @@ pub fn album_external_links(
     {
         links.push(DetailLink {
             title: "Open on Last.fm",
-            icon_name: "io.github.screwys.Rufin.external.lastfm",
+            icon_name: "io.github.kmarius.slopsonic.external.lastfm",
             url,
         });
     }
@@ -64,7 +64,7 @@ pub fn album_external_links(
     {
         links.push(DetailLink {
             title: "Open on MusicBrainz",
-            icon_name: "io.github.screwys.Rufin.external.musicbrainz",
+            icon_name: "io.github.kmarius.slopsonic.external.musicbrainz",
             url,
         });
     }
@@ -91,7 +91,7 @@ pub fn artist_external_links(
     {
         links.push(DetailLink {
             title: "Open on Last.fm",
-            icon_name: "io.github.screwys.Rufin.external.lastfm",
+            icon_name: "io.github.kmarius.slopsonic.external.lastfm",
             url,
         });
     }
@@ -100,7 +100,7 @@ pub fn artist_external_links(
     {
         links.push(DetailLink {
             title: "Open on MusicBrainz",
-            icon_name: "io.github.screwys.Rufin.external.musicbrainz",
+            icon_name: "io.github.kmarius.slopsonic.external.musicbrainz",
             url,
         });
     }

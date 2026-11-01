@@ -86,7 +86,7 @@ impl Shell {
         if self.quitting.replace(true) {
             return;
         }
-        info!(reason, "stopping Rufin");
+        info!(reason, "stopping Slopsonic");
         self.save_window_state();
         self.chrome.window.set_visible(false);
         self.shutdown_tray();
@@ -138,7 +138,7 @@ impl Shell {
             Err(TryRecvError::Disconnected) => {
                 if resetting {
                     storage_reset.replace(Some(Err(
-                        "Rufin could not finish closing its storage".into()
+                        "Slopsonic could not finish closing its storage".into()
                     )));
                 }
                 warn!(
@@ -297,7 +297,7 @@ impl Shell {
             .set(BackgroundAccess::Pending);
         let shell = Rc::downgrade(self);
         glib::MainContext::default().spawn_local(async move {
-            let reason = "Keep Rufin running after closing the window".to_string();
+            let reason = "Keep Slopsonic running after closing the window".to_string();
             let access = match Background::request()
                 .reason(reason.as_str())
                 .auto_start(false)
@@ -459,7 +459,7 @@ fn close_window(shell: &Rc<Shell>) -> glib::Propagation {
     if let Err(error) =
         gtk::prelude::WidgetExt::activate_action(&shell.chrome.window, "gtkinternal.hide", None)
     {
-        warn!(%error, "could not hide Rufin");
+        warn!(%error, "could not hide Slopsonic");
     }
     glib::Propagation::Stop
 }

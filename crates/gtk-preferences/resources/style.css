@@ -1430,7 +1430,7 @@ dialog.alert.playlist-delete-dialog .message-area {
 .cover-tile.cover-fallback {
   color: #deddda;
   background-color: #77767b;
-  background-image: -gtk-icontheme("io.github.screwys.Rufin-symbolic");
+  background-image: -gtk-icontheme("io.github.kmarius.slopsonic-symbolic");
   background-position: center;
   background-repeat: no-repeat;
   background-size: 75% 75%;

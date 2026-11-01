@@ -122,8 +122,8 @@ const OMITTED_RECORDS: &str =
     "WARN rufin::diagnostics: older log records omitted while the file writer was busy\n";
 const LOG_SEGMENT_MAX_BYTES: u64 = 2 * 1024 * 1024;
 const LOG_SEGMENTS: usize = 3;
-const LOG_FILE: &str = "rufin.log";
-const PANIC_FILE: &str = "rufin-panic.log";
+const LOG_FILE: &str = "slopsonic.log";
+const PANIC_FILE: &str = "slopsonic-panic.log";
 
 const NORMAL_FILTER: &str = concat!(
     "warn,",
@@ -399,7 +399,7 @@ fn import_previous_panic_report(log_dir: &Path, output: &mut DiagnosticOutput) {
         return;
     };
     output.append(format!(
-        "Previous Rufin crash report:\n{}\n",
+        "Previous Slopsonic crash report:\n{}\n",
         sanitize_free_text(&report)
     ));
     let _ = fs::remove_file(path);
@@ -871,7 +871,7 @@ fn panic_report(panic: &std::panic::PanicHookInfo<'_>) -> String {
         .or_else(|| panic.payload().downcast_ref::<String>().map(String::as_str))
         .unwrap_or("non-string panic payload");
     let mut report = sanitize_free_text(&format!(
-        "Rufin {}\nthread: {thread_name}\nlocation: {location}\nmessage: {message}\n\n{:?}\n",
+        "Slopsonic {}\nthread: {thread_name}\nlocation: {location}\nmessage: {message}\n\n{:?}\n",
         env!("CARGO_PKG_VERSION"),
         Backtrace::force_capture()
     ));
@@ -921,7 +921,7 @@ mod tests {
         drop(guard);
         let snapshot = output.output.lock().unwrap().updates(0).text;
         let mut persisted = String::new();
-        for name in ["rufin.log.2", "rufin.log.1", LOG_FILE] {
+        for name in ["slopsonic.log.2", "slopsonic.log.1", LOG_FILE] {
             if let Ok(contents) = fs::read_to_string(directory.path().join(name)) {
                 persisted.push_str(&contents);
             }
@@ -943,7 +943,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let (output, guard) = DiagnosticState::new(directory.path());
         // A directory at the rotation destination makes rotation fail on all platforms.
-        fs::create_dir(directory.path().join("rufin.log.2")).unwrap();
+        fs::create_dir(directory.path().join("slopsonic.log.2")).unwrap();
         output.append("x".repeat(BUFFER_MAX_BYTES));
         output.flush();
         output.append("rotation triggers here\n".into());
@@ -1166,7 +1166,7 @@ mod tests {
         import_previous_panic_report(directory.path(), &mut output);
 
         let snapshot = output.updates(0).text;
-        assert!(snapshot.contains("Previous Rufin crash report"));
+        assert!(snapshot.contains("Previous Slopsonic crash report"));
         assert!(snapshot.contains("<local>/main.rs:20"));
         assert!(!panic_path.exists());
     }

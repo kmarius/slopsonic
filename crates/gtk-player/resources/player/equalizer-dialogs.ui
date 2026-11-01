@@ -65,7 +65,7 @@
                     <style><class name="linked" /></style>
                     <child>
                       <object class="GtkToggleButton" id="import_json">
-                        <property name="label" translatable="yes">Rufin JSON</property>
+                        <property name="label" translatable="yes">Slopsonic JSON</property>
                         <property name="active">true</property>
                         <property name="hexpand">true</property>
                       </object>
@@ -164,7 +164,7 @@
                     <style><class name="linked" /></style>
                     <child>
                       <object class="GtkToggleButton" id="export_json">
-                        <property name="label" translatable="yes">Rufin JSON</property>
+                        <property name="label" translatable="yes">Slopsonic JSON</property>
                         <property name="active">true</property>
                         <property name="hexpand">true</property>
                       </object>

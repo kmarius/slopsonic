@@ -17,7 +17,7 @@ build = "build.rs"
 development = ["app-identity/development"]
 
 [[bin]]
-name = "rufin"
+name = "slopsonic"
 path = "src/main.rs"
 
 [dependencies]

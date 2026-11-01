@@ -49,7 +49,7 @@ fn compile_windows_resource(icon_path: &Path) -> BuildResult<()> {
     }
 
     println!(
-        "cargo:rustc-link-arg-bin=rufin={}",
+        "cargo:rustc-link-arg-bin=slopsonic={}",
         compiled_resource_path.display()
     );
     Ok(())
@@ -58,9 +58,9 @@ fn compile_windows_resource(icon_path: &Path) -> BuildResult<()> {
 fn windows_resource_script() -> BuildResult<String> {
     let package_version = env::var("CARGO_PKG_VERSION")?;
     let display_name = if env::var_os("CARGO_FEATURE_DEVELOPMENT").is_some() {
-        "Rufin (Development)"
+        "Slopsonic (Development)"
     } else {
-        "Rufin"
+        "Slopsonic"
     };
     let [major, minor, patch, build] = windows_version_numbers(&package_version);
 
@@ -86,8 +86,8 @@ BEGIN
         BEGIN
             VALUE "FileDescription", "{display_name}\0"
             VALUE "FileVersion", VER_FILEVERSION_STR
-            VALUE "InternalName", "rufin\0"
-            VALUE "OriginalFilename", "rufin.exe\0"
+            VALUE "InternalName", "slopsonic\0"
+            VALUE "OriginalFilename", "slopsonic.exe\0"
             VALUE "ProductName", "{display_name}\0"
             VALUE "ProductVersion", VER_FILEVERSION_STR
         END

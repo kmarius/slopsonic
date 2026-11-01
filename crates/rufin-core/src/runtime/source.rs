@@ -240,8 +240,8 @@ pub fn source_kind_title(kind: &str) -> Option<&'static str> {
 
 pub fn source_kind_icon_name(kind: &str) -> Option<&'static str> {
     Some(match kind {
-        "navidrome" => "io.github.screwys.Rufin.source.navidrome",
-        "subsonic" => "io.github.screwys.Rufin.source.opensubsonic",
+        "navidrome" => "io.github.kmarius.slopsonic.source.navidrome",
+        "subsonic" => "io.github.kmarius.slopsonic.source.opensubsonic",
         _ => return None,
     })
 }
