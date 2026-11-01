@@ -2245,92 +2245,6 @@ impl SourceOwner {
             Ok(())
         })
     }
-
-    pub fn set_music_folder(
-        &self,
-        source_id: SourceId,
-        folder_object_id: Option<String>,
-    ) -> Receiver<Result<(), String>> {
-        let (sender, receiver) = async_channel::bounded(1);
-        let owner = self.clone();
-        self.shared.runtime.spawn(async move {
-            let result = async {
-                let source_key = owner
-                    .shared
-                    .database
-                    .source_identity_key(&source_id)
-                    .await
-                    .map_err(string_error)?
-                    .ok_or_else(source_access_unavailable)?;
-                let key = match folder_object_id.as_deref() {
-                    Some(id) => owner
-                        .shared
-                        .database
-                        .folder_identity_key(source_key, id)
-                        .await
-                        .map_err(string_error)?,
-                    None => None,
-                };
-                if folder_object_id.is_some() && key.is_none() {
-                    return Ok(());
-                }
-                owner.shared.settings.update(|stored| {
-                    if let Some(item) = stored
-                        .sources
-                        .configured
-                        .iter_mut()
-                        .find(|item| item.configuration.source_id == source_id)
-                    {
-                        item.music_folder_id = folder_object_id.clone();
-                    }
-                    Ok(())
-                })?;
-                if let Some(current) = owner
-                    .shared
-                    .selected
-                    .lock()
-                    .unwrap_or_else(|p| p.into_inner())
-                    .as_mut()
-                    .filter(|selected| selected.source_key == source_key)
-                {
-                    current.music_folder_key = key;
-                    current.music_folder_object_id = folder_object_id;
-                }
-                owner
-                    .shared
-                    .send(SourceEvent::Configured(owner.list_sources()))
-                    .await;
-                owner
-                    .shared
-                    .send(SourceEvent::CatalogPublished(CatalogPublication {
-                        source_key: Some(source_key),
-                        favorite: None,
-                        change: CatalogChange::Scope,
-                    }))
-                    .await;
-                let downloads_owner = owner.clone();
-                owner.shared.runtime.spawn(async move {
-                    if let Err(error) = downloads_owner
-                        .shared
-                        .downloads
-                        .attach(
-                            source_id.clone(),
-                            source_key,
-                            downloads_owner.cached_client(&source_id),
-                            key,
-                        )
-                        .await
-                    {
-                        downloads_owner.shared.warn_nonfatal(&error);
-                    }
-                });
-                Ok(())
-            }
-            .await;
-            let _ = sender.try_send(result);
-        });
-        receiver
-    }
 }
 
 impl SourceOwner {
@@ -3368,20 +3282,6 @@ mod source_tests {
             assert_eq!(published.source_id, source_id);
             assert_eq!(published.source_key, source_key);
             assert_eq!(published.music_folders[0].name, "New Folder");
-            tokio::time::timeout(
-                Duration::from_secs(2),
-                owner
-                    .set_music_folder(source_id.clone(), Some("new-folder".into()))
-                    .recv(),
-            )
-            .await
-            .expect("an empty cached folder can be selected while credentials are held")
-            .unwrap()
-            .unwrap();
-            assert_eq!(
-                owner.selected_library().unwrap().music_folder_key,
-                Some(published.music_folders[0].folder_key)
-            );
             tokio::time::timeout(Duration::from_secs(2), started_receiver.recv())
                 .await
                 .unwrap()

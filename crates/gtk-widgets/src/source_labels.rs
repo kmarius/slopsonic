@@ -5,7 +5,6 @@ use app_identity::{DISPLAY_NAME, STABLE_APP_ID};
 use gtk::gio;
 use rufin_core::text::{fill};
 use rufin_core::runtime::source::SourceSummary;
-use sources::SourceId;
 use std::rc::Rc;
 
 pub fn configured_source_display_name(source: &SourceSummary) -> String {
@@ -54,12 +53,6 @@ pub fn configure_ownership_toggle(
     button.connect_toggled(update);
 }
 
-pub fn source_menu_item(label: &str, action: &str, icon_name: &str) -> gio::MenuItem {
-    let item = gio::MenuItem::new(Some(label), Some(action));
-    item.set_icon(&gio::ThemedIcon::new(icon_name));
-    item
-}
-
 pub fn choice_action(name: &str, active: bool, select: impl Fn() + 'static) -> gio::SimpleAction {
     let action = gio::SimpleAction::new_stateful(name, None, &active.to_variant());
     action.connect_activate(move |action, _| {
@@ -67,22 +60,6 @@ pub fn choice_action(name: &str, active: bool, select: impl Fn() + 'static) -> g
         select();
     });
     action
-}
-
-pub fn source_order(sources: &[SourceSummary], selected: Option<&SourceId>) -> Vec<usize> {
-    let mut order = Vec::with_capacity(sources.len());
-    if let Some(selected) = selected
-        && let Some(index) = sources.iter().position(|source| &source.id == selected)
-    {
-        order.push(index);
-    }
-    order.extend(
-        sources
-            .iter()
-            .enumerate()
-            .filter_map(|(index, source)| (Some(&source.id) != selected).then_some(index)),
-    );
-    order
 }
 
 pub fn bind_source_picker(

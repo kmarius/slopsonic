@@ -62,17 +62,6 @@
             <property name="action-name">win.refresh-library</property>
           </object>
         </child>
-        <child>
-          <object class="AdwShortcutsItem" id="shortcut_next_source">
-            <property name="title" translatable="yes">Next source</property>
-            <property name="action-name">win.next-source</property>
-          </object>
-        </child>
-        <child>
-          <object class="AdwShortcutsItem" id="shortcut_source_position">
-            <property name="title" translatable="yes">Source by position</property>
-          </object>
-        </child>
       </object>
     </child>
 

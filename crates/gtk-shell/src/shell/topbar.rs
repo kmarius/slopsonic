@@ -14,7 +14,6 @@ pub(crate) struct Topbar {
     search_shortcut: adw::ShortcutLabel,
     pub menu: gtk::MenuButton,
     sidebar: gtk::Button,
-    source: gtk::MenuButton,
 }
 
 impl Topbar {
@@ -62,7 +61,6 @@ impl Topbar {
             search_shortcut: adw::ShortcutLabel,
             menu: gtk::MenuButton,
             sidebar: gtk::Button,
-            source: gtk::MenuButton,
         });
         gtk_widgets::controls::configure_search_entry(&search);
         Self {
@@ -75,7 +73,6 @@ impl Topbar {
             search_shortcut,
             menu,
             sidebar,
-            source,
         }
     }
 
@@ -92,18 +89,6 @@ impl Topbar {
                 &self.search_host,
             )));
         super::navigation::install_primary_menu(&self.menu, shell);
-        let weak = Rc::downgrade(shell);
-        self.source.set_create_popup_func(move |button| {
-            if let Some(shell) = weak.upgrade() {
-                let (_, model) = crate::preferences::source::selector::source_submenu(&shell);
-                let popover = gtk::PopoverMenu::from_model(Some(&model));
-                popover.connect_show(gtk_widgets::interactions::align_topbar_popup);
-                button.set_popover(Some(&popover));
-                gtk_widgets::interactions::show_native_menu_icons(&popover);
-                gtk_widgets::interactions::replace_native_menu_checkmarks(&popover);
-            }
-        });
-
         let weak = Rc::downgrade(shell);
         self.sidebar.connect_clicked(move |_| {
             if let Some(shell) = weak.upgrade() {

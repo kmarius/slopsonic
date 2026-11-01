@@ -60,9 +60,6 @@ impl PreferencesState {
 pub fn present_preferences_dialog(shell: &Rc<Preferences>) {
     present_preferences_dialog_with_page(shell, PreferencesPageKind::General, false, false);
 }
-pub fn present_library_preferences_dialog(shell: &Rc<Preferences>) {
-    present_preferences_dialog_with_page(shell, PreferencesPageKind::Library, false, false);
-}
 pub fn present_add_server_preferences_dialog(shell: &Rc<Preferences>) {
     if shell.source.configured.borrow().sources.is_empty() {
         shell.present_onboarding();

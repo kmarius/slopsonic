@@ -8,7 +8,6 @@ use rufin_core::playback::QueuePlacement;
 
 use crate::player::play_saved_random;
 use crate::preferences::present_preferences_dialog;
-use crate::preferences::source::selector::install_source_menu_actions;
 use gtk_widgets::popup::present_light_dismiss_dialog;
 #[cfg(any(target_os = "macos", test))]
 use rufin_core::text::fill;
@@ -27,7 +26,6 @@ pub(crate) fn connect_shell_actions(shell: &Rc<Shell>) {
 }
 
 pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
-    install_source_menu_actions(shell);
     add_window_action(shell, "new-playlist-folder", &[], {
         let shell = Rc::clone(shell);
         move || shell.new_playlist_folder_dialog()
