@@ -470,28 +470,6 @@ fn show_about_dialog(shell: &Shell) {
     let resource = crate::ui_resource::ABOUT_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
     let dialog: adw::AboutDialog = gtk_widgets::ui_resource::object(&builder, resource, "dialog");
-    let sponsor: gtk::LinkButton = gtk_widgets::ui_resource::object(&builder, resource, "sponsor");
-    let sponsor_uri = sponsor.uri();
-    dialog.set_support_url(&sponsor_uri);
-    // AboutDialog exposes the URL but not the label of its main-page support action.
-    let mut pending = vec![dialog.child().expect("AboutDialog content")];
-    let mut support = None;
-    while let Some(widget) = pending.pop() {
-        if let Some(row) = widget.downcast_ref::<adw::ActionRow>()
-            && row.tooltip_text().as_deref() == Some(sponsor_uri.as_str())
-        {
-            support = Some(row.clone());
-            break;
-        }
-        let mut child = widget.first_child();
-        while let Some(widget) = child {
-            child = widget.next_sibling();
-            pending.push(widget);
-        }
-    }
-    support
-        .expect("AboutDialog support action")
-        .set_title(&sponsor.label().expect("sponsor link label"));
     dialog.set_application_name(DISPLAY_NAME);
     dialog.set_application_icon(APP_ID);
     dialog.set_version(env!("CARGO_PKG_VERSION"));
