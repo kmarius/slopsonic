@@ -273,7 +273,6 @@ impl PreparedRun {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum IncomingPhase {
     Prerolling,
-    Seeking,
     Ready,
 }
 
@@ -605,7 +604,7 @@ impl GstEngine {
             }
             let should_prepare = match next.transition {
                 NextTransition::Crossfade { .. } => true,
-                NextTransition::Gapless => gapless_uses_separate_pipeline(current, next),
+                NextTransition::Gapless => false,
             };
             should_prepare.then(|| {
                 (
@@ -662,38 +661,6 @@ impl GstEngine {
         if self.pipeline_for_slot(slot).seek_in_progress() {
             return;
         }
-        let time_reopened = self
-            .pipeline_for_slot(slot)
-            .stream()
-            .is_some_and(|stream| stream.time_offset_millis().is_some());
-        let restart = self
-            .incoming()
-            .filter(|incoming| {
-                incoming.slot == slot
-                    && incoming.id == id
-                    && incoming.phase == IncomingPhase::Prerolling
-                    && incoming.item.stream.end_millis().is_some()
-                    && incoming.item.stream.time_seekable()
-                    && !time_reopened
-                    && self.pipeline_for_slot(slot).native_seekable() == Some(false)
-            })
-            .map(|incoming| incoming.item.clone());
-        if let Some(mut next) = restart {
-            let planned = next.clone();
-            match next.stream.reopened_at(0) {
-                Ok(stream) => *next.stream.stream = stream,
-                Err(error) => {
-                    self.fail_incoming(slot, id, error.to_string().into());
-                    return;
-                }
-            }
-            self.clear_incoming();
-            self.prepare_incoming(&next);
-            if let Some(incoming) = self.incoming_mut() {
-                incoming.item = planned;
-            }
-            return;
-        }
         let Some(incoming) = self
             .incoming_mut()
             .filter(|incoming| incoming.slot == slot && incoming.id == id)
@@ -701,19 +668,7 @@ impl GstEngine {
             return;
         };
         match incoming.phase {
-            IncomingPhase::Prerolling
-                if incoming.item.stream.end_millis().is_some() && !time_reopened =>
-            {
-                incoming.phase = IncomingPhase::Seeking;
-                if let Err(error) = self.pipeline_for_slot(slot).seek_millis(0) {
-                    self.fail_incoming(slot, id, error);
-                } else if !self.pipeline_for_slot(slot).seek_in_progress()
-                    && let Some(incoming) = self.incoming_mut()
-                {
-                    incoming.phase = IncomingPhase::Ready;
-                }
-            }
-            IncomingPhase::Prerolling | IncomingPhase::Seeking => {
+            IncomingPhase::Prerolling => {
                 incoming.phase = IncomingPhase::Ready;
             }
             IncomingPhase::Ready => {}
@@ -1154,7 +1109,7 @@ impl GstEngine {
         }
         self.push_state(BackendState::Buffering);
         let pipeline_started_at = Instant::now();
-        let needs_preroll_seek = start_millis > 0 || item.stream.end_millis().is_some();
+        let needs_preroll_seek = start_millis > 0;
         let startup_state = if needs_preroll_seek {
             gst::State::Paused
         } else {
@@ -1173,7 +1128,6 @@ impl GstEngine {
         info!(
             run = %item.run,
             uri_scheme = %stream_uri_scheme(item.stream.uri()),
-            stream_windowed = item.stream.end_millis().is_some(),
             start_millis,
             audio_output = self.primary.audio_output_factory().as_deref().unwrap_or("unknown"),
             elapsed_ms = command_started_at.elapsed().as_millis(),
@@ -1181,9 +1135,6 @@ impl GstEngine {
             "queued GStreamer playback item"
         );
         self.session_started(start_millis, needs_preroll_seek, gst::State::Playing);
-        if let Some(duration) = self.primary.fixed_duration() {
-            self.push_duration(duration);
-        }
         if let Some(next) = incoming_next.as_ref() {
             self.prepare_incoming(next);
         }
@@ -1265,16 +1216,6 @@ impl GstEngine {
         if let Some(current) = current_after_gapless_cancel
             .or_else(|| (millis == 0).then(|| self.current_item().ok()).flatten())
         {
-            // Reopening a bounded source at its end asks for no audio; the track is finished.
-            if current.stream.time_seekable()
-                && current
-                    .stream
-                    .end_millis()
-                    .is_some_and(|end| current.stream.start_millis().saturating_add(millis) >= end)
-            {
-                self.emit_ended_once(current.run);
-                return Ok(());
-            }
             let bitstream = self.active_pipeline().bitstream_format();
             self.start_item_session_at_millis(current, millis, target_state, bitstream)?;
             self.push_logical_position(millis);
@@ -1397,8 +1338,7 @@ impl GstEngine {
         let start_millis = SourceClock::from_stream(&item.stream).physical_seek(position_millis);
         let run = item.run;
         let active = bitstream.is_some();
-        let needs_preroll_seek = start_millis > 0
-            || (item.stream.end_millis().is_some() && item.stream.time_offset_millis().is_none());
+        let needs_preroll_seek = start_millis > 0;
         let startup_state = if needs_preroll_seek {
             gst::State::Paused
         } else {
@@ -1761,9 +1701,6 @@ impl GstEngine {
                     buffering.buffering_stats().0,
                 );
                 return;
-            }
-            MessageView::SegmentDone(_) => {
-                self.pipeline_for_slot(slot).segment_done(message.seqnum())
             }
             MessageView::NewClock(clock) => {
                 debug!(?slot, clock = ?clock.clock().map(|clock| clock.name()), "GStreamer playback clock selected");
@@ -2461,15 +2398,6 @@ impl GstEngine {
             self.start_passthrough(format);
         }
         self.sync_processing_taps();
-        if self.desired_playing
-            && self.active_pipeline().is_playing()
-            && !self.active_pipeline().is_buffering()
-            && !self.seek_busy()
-            && !self.active_pipeline().has_pending_gapless()
-            && self.active_pipeline().take_segment_done()
-        {
-            self.continue_segment();
-        }
         if self.active_pipeline().gapless().is_some_and(|gapless| {
             let gapless = lock_recover(gapless);
             gapless.about_to_finish_pending && gapless.pending.is_none()
@@ -2595,42 +2523,6 @@ impl GstEngine {
                 self.fail_incoming(slot, id, error);
                 false
             }
-        }
-    }
-
-    fn continue_segment(&mut self) {
-        let bitstream = self.active_pipeline().is_bitstream();
-        let next = {
-            let shared = lock_recover(&self.shared);
-            let Some(gapless) = self.pipeline_for_slot(shared.active).gapless() else {
-                return;
-            };
-            let next = shared
-                .next
-                .as_ref()
-                .filter(|next| {
-                    (next.transition == NextTransition::Gapless || bitstream)
-                        && next.stream.allows_preloading
-                        && shared.current.as_ref().is_some_and(|current| {
-                            current.stream.allows_preloading
-                                && current.stream.uri() == next.stream.uri()
-                        })
-                })
-                .cloned();
-            if let Some(next) = next.as_ref() {
-                lock_recover(gapless).pending = Some(next.clone());
-            }
-            next
-        };
-        if let Err(error) = self
-            .active_pipeline()
-            .continue_segment(next.as_ref().map(|next| &next.stream))
-        {
-            if let Some(next) = next {
-                self.cancel_gapless_pending();
-                self.report_next_preparation_failure(next.run, error);
-            }
-            self.handle_end(self.active_slot());
         }
     }
 
@@ -3067,8 +2959,7 @@ pub(super) fn about_to_finish_action(
         return AboutToFinishAction::Ignore;
     }
 
-    if next.stream.end_millis().is_some() || !gapless_preload_source_is_supported(next.stream.uri())
-    {
+    if !gapless_preload_source_is_supported(next.stream.uri()) {
         debug!(
             next_run = %next.run,
             uri = %next.stream.redacted_uri(),
@@ -3094,8 +2985,6 @@ fn gapless_preload_should_run(
     (next.transition == NextTransition::Gapless || bitstream)
         && next.stream.allows_preloading
         && current.stream.allows_preloading
-        && current.stream.window().is_none()
-        && !gapless_uses_separate_pipeline(current, next)
 }
 
 pub(super) fn gapless_preload_source_is_supported(uri: &str) -> bool {
@@ -3106,11 +2995,6 @@ fn inactive_slot(slot: Slot) -> Slot {
         Slot::Primary => Slot::Secondary,
         Slot::Secondary => Slot::Primary,
     }
-}
-
-fn gapless_uses_separate_pipeline(current: &PreparedRun, next: &PreparedNext) -> bool {
-    (current.stream.window().is_some() || next.stream.window().is_some())
-        && (current.stream.window().is_none() || current.stream.uri() != next.stream.uri())
 }
 
 pub(super) fn push_event(events: &Arc<Mutex<EventMailbox>>, event: BackendEvent) {
@@ -3132,8 +3016,6 @@ mod tests {
     use std::fs::File;
     use std::io::Write;
 
-    use library::LoudnessMeasurement;
-
     use super::*;
 
     const ACTIVE_PIPELINE: PipelineId = PipelineId(7);
@@ -3153,17 +3035,10 @@ mod tests {
             let mut engine = GstEngine::new(Arc::clone(&events));
             let old_run = RunId::new(1);
             let next_run = RunId::new(2);
-            let (current_stream, next_stream) = if transition == NextTransition::Gapless {
-                (
-                    ResolvedStream::new("file:///music/current.flac").with_window(0, 30_000),
-                    ResolvedStream::new("file:///music/next.flac").with_window(30_000, 60_000),
-                )
-            } else {
-                (
-                    ResolvedStream::new("file:///music/current.flac"),
-                    ResolvedStream::new("file:///music/next.flac"),
-                )
-            };
+            let (current_stream, next_stream) = (
+                ResolvedStream::new("file:///music/current.flac"),
+                ResolvedStream::new("file:///music/next.flac"),
+            );
             let next = PreparedNext::new(next_run, next_stream, transition);
             {
                 let mut shared = lock_recover(&engine.shared);
@@ -3212,43 +3087,6 @@ mod tests {
     }
 
     #[test]
-    fn gapless_normalization_can_share_the_audio_graph() {
-        let direct_loudness = TrackLoudness {
-            track: Some(Box::new(LoudnessMeasurement {
-                analysis_key: [1; 32],
-                integrated_lufs: None,
-                true_peak: None,
-                replay_gain_db: Some(-4.0),
-                replay_gain_peak: Some(0.8),
-            })),
-            album: None,
-        };
-        let current = PreparedRun {
-            run: RunId::new(1),
-            stream: PreparedStream::new(
-                ResolvedStream::new("file:///music/current.flac"),
-                Some(direct_loudness.clone()),
-            ),
-        };
-        let direct_next = PreparedNext::new(
-            RunId::new(2),
-            PreparedStream::new(
-                ResolvedStream::new("file:///music/direct-next.flac"),
-                Some(direct_loudness),
-            ),
-            NextTransition::Gapless,
-        );
-        let native_next = PreparedNext::new(
-            RunId::new(3),
-            PreparedStream::from(ResolvedStream::new("file:///music/native-next.flac")),
-            NextTransition::Gapless,
-        );
-
-        assert!(!gapless_uses_separate_pipeline(&current, &direct_next));
-        assert!(!gapless_uses_separate_pipeline(&current, &native_next));
-    }
-
-    #[test]
     fn repeated_stream_is_preloaded_on_the_current_pipeline() {
         let mut gapless = GaplessPlayback::default();
         let pipeline = PipelineId(5);
@@ -3264,19 +3102,6 @@ mod tests {
         shared.next = Some(next.clone());
         shared.set_pipeline_id(Slot::Primary, Some(pipeline));
 
-        assert!(!gapless_uses_separate_pipeline(
-            shared.current.as_ref().expect("current stream"),
-            &next,
-        ));
-        let distinct = PreparedNext::new(
-            RunId::new(12),
-            ResolvedStream::new("file:///music/distinct.flac"),
-            NextTransition::Gapless,
-        );
-        assert!(!gapless_uses_separate_pipeline(
-            shared.current.as_ref().expect("current stream"),
-            &distinct,
-        ));
         assert_eq!(
             about_to_finish_action_for_pipeline(
                 &mut shared,
@@ -3760,7 +3585,7 @@ mod tests {
     }
 
     #[test]
-    fn repeats_and_cue_windows_preserve_samples_on_one_pipeline() {
+    fn repeats_preserve_samples_on_one_pipeline() {
         ensure_gstreamer_initialized().unwrap();
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("segments.wav");
@@ -3774,17 +3599,8 @@ mod tests {
         }
         std::fs::write(&path, wav).unwrap();
         let uri = gst::glib::filename_to_uri(&path, None).unwrap();
-        for (first, second) in [
-            (None, None),
-            (Some((250, 750)), Some((250, 750))),
-            (Some((250, 750)), Some((750, 1250))),
-        ] {
-            let stream = |window: Option<(u64, u64)>| {
-                let stream = ResolvedStream::new(uri.as_str());
-                window.map_or(stream.clone(), |(start, end)| {
-                    stream.with_window(start, end)
-                })
-            };
+        {
+            let stream = || ResolvedStream::new(uri.as_str());
             let events = Arc::new(Mutex::new(EventMailbox::default()));
             let mut engine = GstEngine::new(Arc::clone(&events));
             engine.handle_command(BackendCommand::ConfigureAudio(BackendAudioSettings {
@@ -3794,10 +3610,10 @@ mod tests {
             }));
             engine.handle_command(BackendCommand::Start {
                 run: RunId::new(1),
-                current: stream(first).into(),
+                current: stream().into(),
                 next: Some(PreparedNext::new(
                     RunId::new(2),
-                    stream(second),
+                    stream(),
                     NextTransition::Gapless,
                 )),
                 start_position_millis: 0,
@@ -3841,28 +3657,18 @@ mod tests {
                 std::thread::sleep(Duration::from_millis(1));
             }
             engine.shutdown();
-            assert!(ended, "no EOS for {first:?} -> {second:?}");
+            assert!(ended, "no EOS");
             assert_eq!(transitions, 1);
-            let expected = [first, second]
-                .into_iter()
-                .flat_map(|window| {
-                    let (start, end) = window.unwrap_or((0, 2000));
-                    source[start as usize * 8..end as usize * 8]
-                        .iter()
-                        .map(|sample| f32::from(*sample) / 32768.0)
-                })
+            let expected = (0..2)
+                .flat_map(|_| source.iter().map(|sample| f32::from(*sample) / 32768.0))
                 .collect::<Vec<_>>();
-            assert_eq!(
-                samples.len(),
-                expected.len(),
-                "sample count for {first:?} -> {second:?}"
-            );
+            assert_eq!(samples.len(), expected.len(), "sample count");
             assert!(
                 samples
                     .iter()
                     .zip(&expected)
                     .all(|(actual, expected)| (actual - expected).abs() < 0.00001),
-                "samples changed at {first:?} -> {second:?}"
+                "samples changed"
             );
         }
     }
@@ -4737,19 +4543,6 @@ mod tests {
                 ));
             }
         }
-    }
-
-    #[test]
-    fn source_clock_maps_one_cue_window_everywhere() {
-        let stream = ResolvedStream::new("file:///music/cue.flac").with_window(60_000, 90_000);
-        let clock = SourceClock::from_stream(&stream);
-
-        assert_eq!(clock.physical_seek(12_345), 72_345);
-        assert_eq!(clock.physical_seek(40_000), 90_000);
-        assert_eq!(clock.logical_position(72_345), 12_345);
-        assert_eq!(clock.logical_position(95_000), 30_000);
-        assert_eq!(clock.logical_duration(180_000), 30_000);
-        assert_eq!(clock.remaining(72_345, 180_000), 17_655);
     }
 
     #[test]

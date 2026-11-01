@@ -40,10 +40,7 @@ impl ResolvedDownload {
     }
     pub(crate) fn encode(stream: ResolvedStream, quality: DownloadQuality) -> Self {
         match quality.encoding() {
-            Some(encoding) => Self::Encode {
-                stream: stream.without_window(),
-                encoding,
-            },
+            Some(encoding) => Self::Encode { stream, encoding },
             None => Self::ready(stream, None),
         }
     }

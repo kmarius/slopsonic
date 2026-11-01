@@ -8,7 +8,7 @@ mod decode;
 pub mod effects;
 mod loudness;
 mod media_input;
-pub use media_input::{ResolvedStream, StreamWindow};
+pub use media_input::ResolvedStream;
 mod spectrum;
 mod transcode;
 

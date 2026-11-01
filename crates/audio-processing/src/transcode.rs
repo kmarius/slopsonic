@@ -51,13 +51,8 @@ impl TranscodePipeline {
     ) -> Result<Self, String> {
         ensure_gstreamer_initialized()?;
         let encoding = options.encoding;
-        let start = stream
-            .start_millis()
-            .saturating_add(options.start_offset_millis);
-        let end = stream.end_millis();
-        let duration = end
-            .map(|end| end.saturating_sub(start))
-            .or(options.duration_millis);
+        let start = options.start_offset_millis;
+        let duration = options.duration_millis;
         let bitrate = encoding
             .bitrate_kbps
             .map(|value| value.saturating_mul(1000));
@@ -160,7 +155,7 @@ impl TranscodePipeline {
             .static_pad("sink")
             .ok_or("Audio encoder has no input pad")?;
         let (ready, first_buffer) = std::sync::mpsc::sync_channel(1);
-        let hold = (start > 0 || end.is_some()).then(|| {
+        let hold = (start > 0).then(|| {
             boundary
                 .add_probe(
                     gst::PadProbeType::BLOCK | gst::PadProbeType::BUFFER,
@@ -266,12 +261,8 @@ impl TranscodePipeline {
                     gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
                     gst::SeekType::Set,
                     gst::ClockTime::from_mseconds(start),
-                    if end.is_some() {
-                        gst::SeekType::Set
-                    } else {
-                        gst::SeekType::None
-                    },
-                    end.map(gst::ClockTime::from_mseconds),
+                    gst::SeekType::None,
+                    gst::ClockTime::NONE,
                 )
                 .map_err(|error| error.to_string())?;
             boundary.remove_probe(hold);
@@ -556,54 +547,6 @@ mod tests {
                         .is_some_and(|message| matches!(message.view(), gst::MessageView::Eos(_))),
                     "decode {codec:?}"
                 );
-            }
-        }
-    }
-
-    #[test]
-    fn reader_encodes_only_the_requested_source_window() {
-        let directory = tempfile::tempdir().expect("transcode directory");
-        let path = directory.path().join("cue-source.wav");
-        write_silence_wave(&path);
-        let uri = gst::glib::filename_to_uri(&path, None).expect("wave URI");
-        let stream = ResolvedStream::new(uri.as_str()).with_window(20, 80);
-        for codec in [AudioCodec::Mp3, AudioCodec::Flac] {
-            let mut reader = TranscodedAudioReader::new(
-                &stream,
-                TranscodeOptions {
-                    encoding: AudioEncoding {
-                        codec,
-                        ..AudioEncoding::mp3()
-                    },
-                    processing: Some(ProcessingConfig {
-                        equalizer: Some(crate::effects::EqProfile {
-                            bass_db: 3.0,
-                            ..Default::default()
-                        }),
-                        ..Default::default()
-                    }),
-                    start_offset_millis: 10,
-                    duration_millis: None,
-                },
-                || false,
-            )
-            .expect("start windowed transcode");
-            let mut encoded = Vec::new();
-            reader
-                .read_to_end(&mut encoded)
-                .expect("read encoded stream");
-            assert!(encoded.len() > 50);
-            assert_eq!(reader.source_seekable(), Some(true), "{codec:?}");
-            assert_eq!(
-                reader.applied_processing().map(|(_, rate, _)| *rate),
-                Some(8000)
-            );
-            assert!(!reader.encoding_peak_db().is_empty());
-            if codec == AudioCodec::Flac {
-                assert_eq!(&encoded[..4], b"fLaC");
-                let packed =
-                    u64::from_be_bytes(encoded[18..26].try_into().expect("FLAC stream info"));
-                assert_eq!(packed & 0xfffffffff, 400);
             }
         }
     }

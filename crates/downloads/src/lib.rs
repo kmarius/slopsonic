@@ -2045,14 +2045,9 @@ impl Actor {
                             let encoding = quality
                                 .encoding()
                                 .expect("encoded downloads have a profile");
-                            encode_download(
-                                original.without_window(),
-                                encoding,
-                                &task_paths,
-                                &mut cancelled,
-                            )
-                            .await
-                            .map_err(download_source_failure)?;
+                            encode_download(original, encoding, &task_paths, &mut cancelled)
+                                .await
+                                .map_err(download_source_failure)?;
                         }
                     }
                 }

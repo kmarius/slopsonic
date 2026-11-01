@@ -11,38 +11,26 @@ use std::sync::atomic::AtomicU64;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) struct SourceClock {
-    origin_millis: u64,
     time_offset_millis: u64,
-    end_millis: Option<u64>,
 }
 
 impl SourceClock {
     pub(super) fn from_stream(stream: &ResolvedStream) -> Self {
         Self {
-            origin_millis: stream.start_millis(),
             time_offset_millis: stream.time_offset_millis().unwrap_or_default(),
-            end_millis: stream.end_millis(),
         }
     }
 
     pub(super) fn physical_seek(self, logical_millis: u64) -> u64 {
-        let physical = self.origin_millis.saturating_add(logical_millis);
-        self.end_millis
-            .map_or(physical, |end_millis| physical.min(end_millis))
-            .saturating_sub(self.time_offset_millis)
+        logical_millis.saturating_sub(self.time_offset_millis)
     }
 
     pub(super) fn logical_position(self, physical_millis: u64) -> u64 {
-        let logical = physical_millis
-            .saturating_add(self.time_offset_millis)
-            .saturating_sub(self.origin_millis);
-        self.fixed_duration()
-            .map_or(logical, |duration| logical.min(duration))
+        physical_millis.saturating_add(self.time_offset_millis)
     }
 
     pub(super) fn logical_duration(self, physical_duration_millis: u64) -> u64 {
-        self.fixed_duration()
-            .unwrap_or_else(|| physical_duration_millis.saturating_add(self.time_offset_millis))
+        physical_duration_millis.saturating_add(self.time_offset_millis)
     }
 
     pub(super) fn remaining(
@@ -52,16 +40,6 @@ impl SourceClock {
     ) -> u64 {
         self.logical_duration(physical_duration_millis)
             .saturating_sub(self.logical_position(physical_position_millis))
-    }
-
-    pub(super) fn end_millis(self) -> Option<u64> {
-        self.end_millis
-            .map(|end| end.saturating_sub(self.time_offset_millis))
-    }
-
-    pub(super) fn fixed_duration(self) -> Option<u64> {
-        self.end_millis
-            .map(|end_millis| end_millis.saturating_sub(self.origin_millis))
     }
 }
 pub(super) struct PlayerPipeline {
@@ -105,9 +83,6 @@ pub(super) enum AboutToFinishAction {
 
 #[derive(Default)]
 struct SegmentPlayback {
-    seek: Option<gst::Seqnum>,
-    done: bool,
-    starts_stream: bool,
     progress: SeekProgress,
 }
 
@@ -334,44 +309,6 @@ impl PlayerPipeline {
         name == prefix || name.starts_with(&format!("{prefix}-"))
     }
 
-    pub(super) fn segment_done(&self, seqnum: gst::Seqnum) {
-        let mut segment = self.segment.lock().unwrap_or_else(|p| p.into_inner());
-        // Some parsers use a fresh sequence number for SEGMENT_DONE.
-        if segment.seek.is_some_and(|seek| seqnum >= seek) {
-            segment.done = true;
-        }
-    }
-
-    pub(super) fn take_segment_done(&self) -> bool {
-        std::mem::take(&mut self.segment.lock().unwrap_or_else(|p| p.into_inner()).done)
-    }
-
-    pub(super) fn continue_segment(
-        &self,
-        next: Option<&PreparedStream>,
-    ) -> Result<(), BackendFailure> {
-        let (start, end, flags) = if let Some(next) = next {
-            *self
-                .queued_loudness
-                .lock()
-                .unwrap_or_else(|p| p.into_inner()) = next.loudness.clone();
-            let flags = if next.end_millis().is_some() {
-                gst::SeekFlags::ACCURATE | gst::SeekFlags::SEGMENT
-            } else {
-                gst::SeekFlags::ACCURATE
-            };
-            (next.start_millis(), next.end_millis(), flags)
-        } else {
-            // An empty non-segment seek drains the tail and delivers EOS.
-            let end = self
-                .clock()
-                .end_millis()
-                .ok_or("No bounded segment to finish")?;
-            (end, Some(end), gst::SeekFlags::ACCURATE)
-        };
-        self.seek_segment(start, end, flags, next.is_some())
-    }
-
     pub(super) fn physical_seek_target(&self, millis: u64) -> u64 {
         self.clock().physical_seek(millis)
     }
@@ -383,9 +320,6 @@ impl PlayerPipeline {
     }
     pub(super) fn logical_remaining(&self, position: u64, duration: u64) -> u64 {
         self.clock().remaining(position, duration)
-    }
-    pub(super) fn fixed_duration(&self) -> Option<u64> {
-        self.clock().fixed_duration()
     }
 
     pub(super) fn activate_stream(&mut self, stream: &PreparedStream) {
@@ -776,7 +710,6 @@ impl PlayerPipeline {
     /// Watches streams entering the output path: the audio graph for decoded sessions,
     /// the output for passed-through ones.
     fn watch_stream_boundaries(&self, pad: &gst::Pad, output: &gst::Element) {
-        let segment = Arc::clone(&self.segment);
         let shared = Arc::clone(&self.shared);
         let gapless = Arc::clone(&self.gapless);
         let request = Arc::clone(&self.bitstream_request);
@@ -863,32 +796,6 @@ impl PlayerPipeline {
                         }
                     });
                     let _ = inputs.send(WorkerInput::Wake);
-                }
-            }
-            if matches!(event.view(), gst::EventView::Segment(_)) {
-                let starts_stream = {
-                    let mut segment = segment.lock().unwrap_or_else(|p| p.into_inner());
-                    segment.seek == Some(event.seqnum())
-                        && std::mem::take(&mut segment.starts_stream)
-                };
-                if starts_stream {
-                    // A non-flushing segment seek keeps the decoder and sink. Mark
-                    // the logical track boundary for gain, tags, and playback events.
-                    let mut tags = Vec::new();
-                    while let Some(tag) = pad.sticky_event::<gst::event::Tag>(tags.len() as u32) {
-                        tags.push(tag);
-                    }
-                    pad.send_event(
-                        gst::event::StreamStart::builder(&format!(
-                            "rufin-segment-{:?}",
-                            event.seqnum()
-                        ))
-                        .group_id(gst::GroupId::next())
-                        .build(),
-                    );
-                    for tag in tags {
-                        pad.send_event(tag);
-                    }
                 }
             }
             gst::PadProbeReturn::Ok
@@ -988,11 +895,7 @@ impl PlayerPipeline {
 
     /// Fades out over the crossfade duration, ending with this stream's audio.
     pub(super) fn fade_transition_out(&self, duration: Duration) {
-        let end = self
-            .clock()
-            .end_millis()
-            .map(gst::ClockTime::from_mseconds)
-            .or_else(|| self.duration());
+        let end = self.duration();
         if let Some(graph) = &self.audio_graph {
             graph.fade_transition(false, duration, end);
         }
@@ -1150,85 +1053,39 @@ impl PlayerPipeline {
         }
     }
 
-    pub(super) fn seek_millis(&self, millis: u64) -> Result<(), BackendFailure> {
-        self.seek_physical_millis(self.clock().physical_seek(millis))
-    }
-
     pub(super) fn seek_physical_millis(&self, millis: u64) -> Result<(), BackendFailure> {
-        let mut flags = gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE;
-        let end = self
-            .current_stream
-            .as_ref()
-            .filter(|stream| stream.time_offset_millis().is_none())
-            .and_then(|_| self.clock().end_millis());
-        if end.is_some() {
-            flags |= gst::SeekFlags::SEGMENT;
-        }
-        self.seek_segment(millis, end, flags, false)
-    }
-
-    fn seek_segment(
-        &self,
-        millis: u64,
-        end: Option<u64>,
-        flags: gst::SeekFlags,
-        starts_stream: bool,
-    ) -> Result<(), BackendFailure> {
-        let start = gst::ClockTime::try_from(Duration::from_millis(
-            end.map_or(millis, |end| millis.min(end)),
-        ))
-        .map_err(|_| "Seek position exceeds the GStreamer clock range".to_string())?;
-        let end = end
-            .map(|millis| gst::ClockTime::try_from(Duration::from_millis(millis)))
-            .transpose()
-            .map_err(|_| "Segment end exceeds the GStreamer clock range".to_string())?;
+        let flags = gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE;
+        let start = gst::ClockTime::try_from(Duration::from_millis(millis))
+            .map_err(|_| "Seek position exceeds the GStreamer clock range".to_string())?;
         let event = gst::event::Seek::new(
             1.0,
             flags,
             gst::SeekType::Set,
             start,
-            if end.is_some() {
-                gst::SeekType::Set
-            } else {
-                gst::SeekType::None
-            },
-            end,
+            gst::SeekType::None,
+            gst::ClockTime::NONE,
         );
         *self.segment.lock().unwrap_or_else(|p| p.into_inner()) = SegmentPlayback {
-            seek: Some(event.seqnum()),
-            done: false,
-            starts_stream,
-            progress: if flags.contains(gst::SeekFlags::FLUSH) {
-                SeekProgress::Pausing(event.clone())
-            } else {
-                SeekProgress::Ready
-            },
+            progress: SeekProgress::Pausing(event),
         };
-        if flags.contains(gst::SeekFlags::FLUSH) {
-            let result = self
-                .native()?
-                .0
-                .set_state(gst::State::Paused)
-                .map_err(|error| error.to_string());
-            match result {
-                Ok(gst::StateChangeSuccess::NoPreroll) => self.live.set(true),
-                Err(error) => {
-                    self.segment
-                        .lock()
-                        .unwrap_or_else(|p| p.into_inner())
-                        .progress = SeekProgress::Ready;
-                    return Err(error.into());
-                }
-                _ => {}
-            }
-            self.complete_seek()?;
-            return Ok(());
-        }
-        self.native()?
+        let result = self
+            .native()?
             .0
-            .send_event(event)
-            .then_some(())
-            .ok_or_else(|| "GStreamer segment seek failed".into())
+            .set_state(gst::State::Paused)
+            .map_err(|error| error.to_string());
+        match result {
+            Ok(gst::StateChangeSuccess::NoPreroll) => self.live.set(true),
+            Err(error) => {
+                self.segment
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner())
+                    .progress = SeekProgress::Ready;
+                return Err(error.into());
+            }
+            _ => {}
+        }
+        self.complete_seek()?;
+        Ok(())
     }
 
     pub(super) fn seek_in_progress(&self) -> bool {
@@ -1291,10 +1148,6 @@ impl PlayerPipeline {
             self.apply_requested_state()?;
         }
         Ok(())
-    }
-
-    pub(super) fn stream(&self) -> Option<&PreparedStream> {
-        self.current_stream.as_ref()
     }
 
     pub(super) fn position(&self) -> Option<gst::ClockTime> {
@@ -1421,7 +1274,7 @@ mod tests {
         );
         assert_eq!(player.seekable(), Some(true));
         assert!(player.duration().is_some());
-        player.seek_millis(1_000).unwrap();
+        player.seek_physical_millis(1_000).unwrap();
         let deadline = Instant::now() + Duration::from_secs(5);
         while player.seek_in_progress() && Instant::now() < deadline {
             player.complete_seek().unwrap();

@@ -1,11 +1,5 @@
 use std::fmt;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct StreamWindow {
-    pub start_millis: u64,
-    pub end_millis: u64,
-}
-
 #[derive(Clone)]
 pub struct ResolvedStream {
     pub local_input: bool,
@@ -14,7 +8,6 @@ pub struct ResolvedStream {
     uri: String,
     redacted_uri: String,
     trust_invalid_certificate: bool,
-    window: Option<StreamWindow>,
     time_seek: bool,
     time_offset_millis: Option<u64>,
     resource: Option<std::sync::Arc<dyn Send + Sync>>,
@@ -27,7 +20,6 @@ impl PartialEq for ResolvedStream {
             && self.transcoded == other.transcoded
             && self.redacted_uri == other.redacted_uri
             && self.trust_invalid_certificate == other.trust_invalid_certificate
-            && self.window == other.window
             && self.time_seek == other.time_seek
             && self.time_offset_millis == other.time_offset_millis
             && self.content_type == other.content_type
@@ -45,7 +37,6 @@ impl ResolvedStream {
             transcoded: false,
             uri,
             trust_invalid_certificate: false,
-            window: None,
             time_seek: false,
             time_offset_millis: None,
             resource: None,
@@ -61,7 +52,6 @@ impl ResolvedStream {
             uri,
             redacted_uri: redacted_uri.into(),
             trust_invalid_certificate: false,
-            window: None,
             time_seek: false,
             time_offset_millis: None,
             resource: None,
@@ -95,21 +85,6 @@ impl ResolvedStream {
         self
     }
 
-    pub fn with_window(mut self, start_millis: u64, end_millis: u64) -> Self {
-        if end_millis > start_millis {
-            self.window = Some(StreamWindow {
-                start_millis,
-                end_millis,
-            });
-        }
-        self
-    }
-
-    pub fn without_window(mut self) -> Self {
-        self.window = None;
-        self
-    }
-
     /// The HTTP input accepts source-time start_ms and optional end_ms bounds.
     pub fn with_time_seek(mut self) -> Self {
         self.time_seek = true;
@@ -128,8 +103,7 @@ impl ResolvedStream {
         if !self.time_seek {
             return Ok(stream);
         }
-        let start = self.start_millis().saturating_add(logical_millis);
-        let start = self.end_millis().map_or(start, |end| start.min(end));
+        let start = logical_millis;
         let mut uri = url::Url::parse(self.uri())?;
         let pairs = uri
             .query_pairs()
@@ -140,10 +114,6 @@ impl ResolvedStream {
         uri.query_pairs_mut()
             .extend_pairs(pairs)
             .append_pair("start_ms", &start.to_string());
-        if let Some(end) = self.end_millis() {
-            uri.query_pairs_mut()
-                .append_pair("end_ms", &end.to_string());
-        }
         stream.uri = uri.into();
         stream.redacted_uri = redact_sensitive_uri(&stream.uri);
         stream.time_offset_millis = Some(start);
@@ -159,15 +129,6 @@ impl ResolvedStream {
     pub fn trust_invalid_certificate(&self) -> bool {
         self.trust_invalid_certificate
     }
-    pub fn start_millis(&self) -> u64 {
-        self.window.as_ref().map_or(0, |window| window.start_millis)
-    }
-    pub fn end_millis(&self) -> Option<u64> {
-        self.window.as_ref().map(|window| window.end_millis)
-    }
-    pub fn window(&self) -> Option<&StreamWindow> {
-        self.window.as_ref()
-    }
 }
 
 impl fmt::Debug for ResolvedStream {
@@ -175,7 +136,6 @@ impl fmt::Debug for ResolvedStream {
         formatter
             .debug_struct("ResolvedStream")
             .field("uri", &self.redacted_uri)
-            .field("window", &self.window)
             .finish()
     }
 }

@@ -208,33 +208,6 @@ mod tests {
     use std::io::Write;
 
     #[test]
-    fn analysis_is_bounded_to_the_prepared_stream_window() {
-        let directory = tempfile::tempdir().expect("loudness fixture directory");
-        let path = directory.path().join("window.wav");
-        for amplitude in [0.03, 0.0, 0.0001] {
-            write_stereo_wave(&path, &[0.8, amplitude]);
-            let uri = gst::glib::filename_to_uri(&path, None).expect("loudness fixture URI");
-            let stream = ResolvedStream::new(uri.as_str()).with_window(1_000, 2_000);
-
-            let result = analyze_loudness_cancellable(&stream, || false)
-                .expect("analyze prepared stream window");
-
-            assert!(result.measurement.true_peak.is_some_and(|peak| peak < 0.05));
-            assert_eq!(
-                result.measurement.integrated_lufs.is_some(),
-                amplitude == 0.03
-            );
-        }
-        write_stereo_wave(&path, &[0.8, 0.8]);
-        let uri = gst::glib::filename_to_uri(&path, None).expect("loudness fixture URI");
-        let stream = ResolvedStream::new(uri.as_str()).with_window(1_000, 1_100);
-        let result = analyze_loudness_cancellable(&stream, || false)
-            .expect("analyze audio shorter than the loudness gate");
-        assert!(result.measurement.true_peak.is_some_and(|peak| peak > 0.5));
-        assert_eq!(result.measurement.integrated_lufs, None);
-    }
-
-    #[test]
     fn album_loudness_uses_combined_gating_history_and_maximum_peak() {
         let directory = tempfile::tempdir().expect("loudness fixture directory");
         let quiet_path = directory.path().join("quiet.wav");

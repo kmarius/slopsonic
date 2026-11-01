@@ -9,7 +9,6 @@ pub(crate) struct DecodePipeline {
     pub pipeline: gst::Element,
     pub bus: gst::Bus,
     pub sink: gst::Element,
-    window: Option<crate::StreamWindow>,
 }
 
 impl Drop for DecodePipeline {
@@ -38,51 +37,14 @@ impl DecodePipeline {
             pipeline,
             bus,
             sink,
-            window: stream.window().cloned(),
         })
     }
 
     pub fn start(&self, check: impl Fn() -> Result<(), String>) -> Result<(), String> {
         check()?;
         self.pipeline
-            .set_state(if self.window.is_some() {
-                gst::State::Paused
-            } else {
-                gst::State::Playing
-            })
+            .set_state(gst::State::Playing)
             .map_err(|error| error.to_string())?;
-        if let Some(window) = &self.window {
-            loop {
-                check()?;
-                let Some(message) = self.bus.timed_pop(SAMPLE_POLL) else {
-                    continue;
-                };
-                match message.view() {
-                    gst::MessageView::AsyncDone(..) => break,
-                    gst::MessageView::Error(error) => return Err(error.error().to_string()),
-                    gst::MessageView::Eos(..) => {
-                        return Err("audio source ended before its requested window".into());
-                    }
-                    _ => {}
-                }
-            }
-            if let Some(sink) = self.sink.downcast_ref::<AppSink>() {
-                let _ = sink.try_pull_preroll(gst::ClockTime::ZERO);
-            }
-            self.pipeline
-                .seek(
-                    1.0,
-                    gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
-                    gst::SeekType::Set,
-                    gst::ClockTime::from_mseconds(window.start_millis),
-                    gst::SeekType::Set,
-                    gst::ClockTime::from_mseconds(window.end_millis),
-                )
-                .map_err(|error| error.to_string())?;
-            self.pipeline
-                .set_state(gst::State::Playing)
-                .map_err(|error| error.to_string())?;
-        }
         Ok(())
     }
 
