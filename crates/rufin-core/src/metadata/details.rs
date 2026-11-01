@@ -215,21 +215,6 @@ pub async fn media_details(
                     Some(track.access.source_name.clone()),
                 );
                 copy(&mut origin, "File path", track.access.source_path.clone());
-                copy(&mut origin, "CUE file", track.access.cue_path.clone());
-                if let Some(start) = track.access.cue_start_millis {
-                    add(
-                        &mut origin,
-                        "Segment start",
-                        Some(format_duration_units((start.max(0) / 1000) as u32)),
-                    );
-                }
-                if let Some(end) = track.access.cue_end_millis {
-                    add(
-                        &mut origin,
-                        "Segment end",
-                        Some(format_duration_units((end.max(0) / 1000) as u32)),
-                    );
-                }
                 musicbrainz(
                     &mut ids,
                     "MusicBrainz recording ID",

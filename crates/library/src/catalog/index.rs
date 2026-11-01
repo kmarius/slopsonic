@@ -46,7 +46,7 @@ pub(crate) async fn albums(
                 FROM albums album JOIN json_each(album.input_metadata,'$.{array}') item
                 JOIN {target}s credit ON credit.source_key=album.source_key AND credit.object_id=json_extract(item.value,'$.object_id')
                 WHERE album.album_key IN(SELECT value FROM json_each(?1)) AND album.input_metadata IS NOT NULL
-                UNION ALL SELECT track.album_key,credit.{target}_key,coalesce(track.cue_path,track.source_path),track.disc_number,track.track_number,track.object_id,credit.position
+                UNION ALL SELECT track.album_key,credit.{target}_key,track.source_path,track.disc_number,track.track_number,track.object_id,credit.position
                 FROM tracks track INDEXED BY tracks_album_order_idx JOIN {edge} credit USING(track_key) JOIN albums album USING(album_key)
                 WHERE track.album_key IN(SELECT value FROM json_each(?1)) AND track.indexed=1 AND album.input_metadata IS NULL
             )) WHERE first_credit=1");
@@ -61,7 +61,7 @@ pub(crate) async fn albums(
     }
     let first = |field: &str| {
         format!(
-            "(SELECT json_extract(member.metadata,'$.{field}') FROM tracks member INDEXED BY tracks_album_metadata_order_idx WHERE member.album_key=album.album_key AND member.indexed=1 AND json_extract(member.metadata,'$.{field}') IS NOT NULL AND json_extract(member.metadata,'$.{field}')<>'' ORDER BY coalesce(member.cue_path,member.source_path),member.disc_number,member.track_number,member.object_id LIMIT 1)"
+            "(SELECT json_extract(member.metadata,'$.{field}') FROM tracks member INDEXED BY tracks_album_metadata_order_idx WHERE member.album_key=album.album_key AND member.indexed=1 AND json_extract(member.metadata,'$.{field}') IS NOT NULL AND json_extract(member.metadata,'$.{field}')<>'' ORDER BY member.source_path,member.disc_number,member.track_number,member.object_id LIMIT 1)"
         )
     };
     let field = |native: &str, local: &str| {
@@ -72,7 +72,7 @@ pub(crate) async fn albums(
     };
     let raw_id = |native: &str, local: &str| {
         format!(
-            "CASE WHEN album.input_metadata IS NOT NULL THEN json_extract(album.input_metadata,'$.{native}') ELSE (SELECT json_extract(member.metadata,'$.{local}') FROM tracks member INDEXED BY tracks_album_metadata_order_idx WHERE member.album_key=album.album_key AND member.indexed=1 AND json_extract(member.metadata,'$.{local}') IS NOT NULL ORDER BY coalesce(member.cue_path,member.source_path),member.disc_number,member.track_number,member.object_id LIMIT 1) END"
+            "CASE WHEN album.input_metadata IS NOT NULL THEN json_extract(album.input_metadata,'$.{native}') ELSE (SELECT json_extract(member.metadata,'$.{local}') FROM tracks member INDEXED BY tracks_album_metadata_order_idx WHERE member.album_key=album.album_key AND member.indexed=1 AND json_extract(member.metadata,'$.{local}') IS NOT NULL ORDER BY member.source_path,member.disc_number,member.track_number,member.object_id LIMIT 1) END"
         )
     };
     let group = raw_id(
@@ -90,7 +90,7 @@ pub(crate) async fn albums(
             SELECT album.album_key,item.value release_type,NULL path,0 disc,0 number,'' object_id,CAST(item.key AS INTEGER) ordinal,1 native
             FROM albums album JOIN json_each(coalesce((SELECT release_types FROM album_release_observations accepted WHERE accepted.album_key=album.album_key AND accepted.lookup_identity=album.release_lookup_identity),json_extract(album.input_metadata,'$.release_types'))) item
             WHERE album.album_key IN(SELECT value FROM json_each(?1)) AND (album.input_metadata IS NOT NULL OR EXISTS(SELECT 1 FROM album_release_observations accepted WHERE accepted.album_key=album.album_key AND accepted.lookup_identity=album.release_lookup_identity))
-            UNION ALL SELECT track.album_key,item.value,coalesce(track.cue_path,track.source_path),track.disc_number,track.track_number,track.object_id,CAST(item.key AS INTEGER),0
+            UNION ALL SELECT track.album_key,item.value,track.source_path,track.disc_number,track.track_number,track.object_id,CAST(item.key AS INTEGER),0
             FROM tracks track INDEXED BY tracks_album_order_idx JOIN albums album USING(album_key) JOIN json_each(track.metadata,'$.album_tags.release_types') item
             WHERE track.album_key IN(SELECT value FROM json_each(?1)) AND track.indexed=1 AND album.input_metadata IS NULL
               AND NOT EXISTS(SELECT 1 FROM album_release_observations accepted WHERE accepted.album_key=album.album_key AND accepted.lookup_identity=album.release_lookup_identity)
@@ -104,8 +104,8 @@ pub(crate) async fn albums(
     )
     .await?;
     let artist = "(SELECT group_concat(artist.name,', ' ORDER BY credit.position) FROM album_artists credit JOIN artists artist USING(artist_key) WHERE credit.album_key=album.album_key ORDER BY credit.position)";
-    let added = "coalesce(unixepoch(json_extract(album.input_metadata,'$.date_added')),album.first_seen_at,(SELECT coalesce(unixepoch(member.date_added),member.first_seen_at) FROM tracks member INDEXED BY tracks_album_metadata_order_idx WHERE member.album_key=album.album_key AND member.indexed=1 ORDER BY coalesce(member.cue_path,member.source_path),member.disc_number,member.track_number,member.object_id LIMIT 1))";
-    let title = "coalesce(json_extract(album.input_metadata,'$.sort_text'),(SELECT coalesce(json_extract(member.metadata,'$.album_tags.sort_text'),member.display_album,'') FROM tracks member INDEXED BY tracks_album_metadata_order_idx WHERE member.album_key=album.album_key AND member.indexed=1 ORDER BY coalesce(member.cue_path,member.source_path),member.disc_number,member.track_number,member.object_id LIMIT 1),'')";
+    let added = "coalesce(unixepoch(json_extract(album.input_metadata,'$.date_added')),album.first_seen_at,(SELECT coalesce(unixepoch(member.date_added),member.first_seen_at) FROM tracks member INDEXED BY tracks_album_metadata_order_idx WHERE member.album_key=album.album_key AND member.indexed=1 ORDER BY member.source_path,member.disc_number,member.track_number,member.object_id LIMIT 1))";
+    let title = "coalesce(json_extract(album.input_metadata,'$.sort_text'),(SELECT coalesce(json_extract(member.metadata,'$.album_tags.sort_text'),member.display_album,'') FROM tracks member INDEXED BY tracks_album_metadata_order_idx WHERE member.album_key=album.album_key AND member.indexed=1 ORDER BY member.source_path,member.disc_number,member.track_number,member.object_id LIMIT 1),'')";
     let mut changed:Vec<i64>=sqlx::query_scalar(sqlx::AssertSqlSafe(format!("WITH ordering AS MATERIALIZED(
         SELECT album.album_key,{title} title_sort,(SELECT artist.sort_text FROM album_artists credit JOIN artists artist USING(artist_key) WHERE credit.album_key=album.album_key ORDER BY credit.position LIMIT 1) album_artist_sort,{} year_sort,{} release_sort,{added} added_sort FROM albums album WHERE album_key IN(SELECT value FROM json_each(?1)))
         UPDATE albums SET title_sort=ordering.title_sort,album_artist_sort=ordering.album_artist_sort,year_sort=ordering.year_sort,release_sort=ordering.release_sort,added_sort=ordering.added_sort FROM ordering WHERE albums.album_key=ordering.album_key AND (albums.title_sort,albums.album_artist_sort,albums.year_sort,albums.release_sort,albums.added_sort) IS NOT (ordering.title_sort,ordering.album_artist_sort,ordering.year_sort,ordering.release_sort,ordering.added_sort) RETURNING album_key",field("year","year"),field("release_date","release_date"))))
@@ -127,7 +127,7 @@ pub(crate) async fn albums(
     let metadata_changed:Vec<i64>=sqlx::query_scalar(sqlx::AssertSqlSafe(format!("UPDATE albums AS album SET metadata={metadata} WHERE album_key IN(SELECT value FROM json_each(?1)) AND metadata IS NOT ({metadata}) RETURNING album_key")))
         .bind(&input).fetch_all(&mut *connection).await?;
     changed.extend(metadata_changed);
-    let captions:Vec<(i64,String,String)>=sqlx::query_as("SELECT album.album_key,coalesce(album.title,''),CASE WHEN album.input_metadata IS NOT NULL THEN coalesce(json_extract(album.input_metadata,'$.artist'),'') ELSE coalesce((SELECT coalesce(nullif(json_extract(member.metadata,'$.album_display_artist'),''),member.display_artist) FROM tracks member INDEXED BY tracks_album_metadata_order_idx WHERE member.album_key=album.album_key AND member.indexed=1 ORDER BY coalesce(member.cue_path,member.source_path),member.disc_number,member.track_number,member.object_id LIMIT 1),'') END FROM albums album WHERE album_key IN(SELECT value FROM json_each(?1))")
+    let captions:Vec<(i64,String,String)>=sqlx::query_as("SELECT album.album_key,coalesce(album.title,''),CASE WHEN album.input_metadata IS NOT NULL THEN coalesce(json_extract(album.input_metadata,'$.artist'),'') ELSE coalesce((SELECT coalesce(nullif(json_extract(member.metadata,'$.album_display_artist'),''),member.display_artist) FROM tracks member INDEXED BY tracks_album_metadata_order_idx WHERE member.album_key=album.album_key AND member.indexed=1 ORDER BY member.source_path,member.disc_number,member.track_number,member.object_id LIMIT 1),'') END FROM albums album WHERE album_key IN(SELECT value FROM json_each(?1))")
         .bind(&input).fetch_all(&mut *connection).await?;
     if captions.is_empty() {
         return Ok(changed);
@@ -700,7 +700,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS collection_totals_scope ON collection_totals(k
 CREATE INDEX IF NOT EXISTS collection_totals_folder ON collection_totals(kind,role,coalesce(folder_key,''),entity_key);
 CREATE INDEX IF NOT EXISTS tracks_album_activity ON tracks(album_key,indexed,displayed_last_played DESC);
 CREATE INDEX IF NOT EXISTS tracks_album_artwork ON tracks(album_key,indexed,media_uri,track_key);
-CREATE INDEX IF NOT EXISTS tracks_album_metadata_order_idx ON tracks(album_key,coalesce(cue_path,source_path),disc_number,track_number,object_id) WHERE indexed=1;
+CREATE INDEX IF NOT EXISTS tracks_album_metadata_order_idx ON tracks(album_key,source_path,disc_number,track_number,object_id) WHERE indexed=1;
 CREATE INDEX IF NOT EXISTS tracks_album_title_window ON tracks(source_key,indexed,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
 CREATE INDEX IF NOT EXISTS tracks_album_title_desc_window ON tracks(source_key,indexed,album_title_sort DESC,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
 CREATE INDEX IF NOT EXISTS tracks_album_artist_window ON tracks(source_key,indexed,(album_artist_sort IS NULL),album_artist_sort,(album_year_sort IS NULL),album_year_sort,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);

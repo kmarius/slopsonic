@@ -709,9 +709,6 @@ async fn write_track(
                     object_id: object_id.to_owned(),
                     album_object_id: Some("album-one".into()),
                     media_uri: Some(media_uri),
-                    cue_path: Some("/music/album.cue".into()),
-                    cue_start_millis: Some(1_000),
-                    cue_end_millis: Some(181_000),
                     artwork_binding: Some(
                         serde_json::to_vec(&[library::ArtworkCandidate::new(
                             library::ArtworkImage::Native {
@@ -865,14 +862,10 @@ async fn canonical_publication_preserves_identity_and_user_overrides() {
                 i64,
                 String,
                 String,
-                String,
-                i64,
-                i64
             ),
         >(
             "SELECT normalized_search, date_added, source_format,json_extract(metadata,'$.comment'),bpm,
-                    json_extract(metadata,'$.musicbrainz_recording_id'),json_extract(metadata,'$.musicbrainz_release_track_id'),
-                    cue_path, cue_start_millis, cue_end_millis
+                    json_extract(metadata,'$.musicbrainz_recording_id'),json_extract(metadata,'$.musicbrainz_release_track_id')
              FROM tracks WHERE object_id='track-one'",
         )
         .fetch_one(&mut outside)
@@ -886,9 +879,6 @@ async fn canonical_publication_preserves_identity_and_user_overrides() {
             120,
             "recording-one".to_string(),
             "release-track-one".to_string(),
-            "/music/album.cue".to_string(),
-            1000,
-            181000,
         )
     );
     assert_eq!(
@@ -981,18 +971,8 @@ async fn artwork_publication_keeps_one_effective_binding_per_entity() {
             let rows = database
                 .tracks_by_uris(
                     &([
-                        library::cue_media_uri(
-                            "track-one",
-                            "file:///music/track-one.flac",
-                            1000,
-                            181000,
-                        ),
-                        library::cue_media_uri(
-                            "track-two",
-                            "file:///music/track-two.flac",
-                            1000,
-                            181000,
-                        ),
+                        "file:///music/track-one.flac".to_string(),
+                        "file:///music/track-two.flac".to_string(),
                     ]),
                     &ReadCancellation::new(),
                 )
@@ -1048,18 +1028,8 @@ async fn artwork_publication_keeps_one_effective_binding_per_entity() {
             let rows = database
                 .tracks_by_uris(
                     &([
-                        library::cue_media_uri(
-                            "track-one",
-                            "file:///music/track-one.flac",
-                            1000,
-                            181000,
-                        ),
-                        library::cue_media_uri(
-                            "track-two",
-                            "file:///music/track-two.flac",
-                            1000,
-                            181000,
-                        ),
+                        "file:///music/track-one.flac".to_string(),
+                        "file:///music/track-two.flac".to_string(),
                     ]),
                     &ReadCancellation::new(),
                 )

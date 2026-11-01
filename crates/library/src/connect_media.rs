@@ -32,118 +32,6 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn cue_receipts_share_the_backing_index_after_reopen() {
-        let root = tempfile::tempdir().unwrap();
-        let path = root.path().join("library.sqlite");
-        let database = Database::open(&path).await.unwrap();
-        let backing = url::Url::from_file_path(root.path().join("album.flac"))
-            .unwrap()
-            .to_string();
-        std::fs::write(root.path().join("album.flac"), b"original").unwrap();
-        let source_id = crate::SourceId::new("local");
-        database
-            .reconcile_source(&source_id, "local", "Local")
-            .await
-            .unwrap();
-        for index in 0..130 {
-            let uri = crate::cue_media_uri(
-                &index.to_string(),
-                &backing,
-                index * 1000,
-                (index + 1) * 1000,
-            );
-            if index == 0 {
-                database
-                    .catalog(source_id.as_str(), None)
-                    .await
-                    .unwrap()
-                    .apply_catalog(
-                        &crate::CatalogBatch {
-                            tracks: vec![crate::TrackObservation {
-                                object_id: "track".into(),
-                                media_uri: Some(uri.clone()),
-                                ..Default::default()
-                            }],
-                            ..Default::default()
-                        },
-                        true,
-                    )
-                    .await
-                    .unwrap();
-                database
-                    .write_local_access(
-                        None,
-                        &[&crate::LocalAccessWrite {
-                            media_uri: uri.clone(),
-                            origin: crate::LocalAccessOrigin::Download,
-                            path: root
-                                .path()
-                                .join("album.flac")
-                                .to_string_lossy()
-                                .into_owned(),
-                            root: root.path().to_string_lossy().into_owned(),
-                            relative_path: "album.flac".into(),
-                            access_uri: backing.clone(),
-                            size_bytes: 8,
-                            mtime_ns: 0,
-                            device_id: None,
-                            inode: None,
-                            parser_version: 1,
-                            loudness_analysis_key: None,
-                        }],
-                    )
-                    .await
-                    .unwrap();
-            }
-            database
-                .connect_save_media_file(&ConnectMediaFile {
-                    media_uri: uri,
-                    encoding: "original".into(),
-                    revision: "v1".into(),
-                    path: backing.clone(),
-                    managed: true,
-                    ..Default::default()
-                })
-                .await
-                .unwrap();
-        }
-        assert_eq!(database.downloaded_count(None).await.unwrap(), 1);
-        database.close().await.unwrap();
-        let database = Database::open(&path).await.unwrap();
-        assert_eq!(
-            database
-                .downloaded_count(Some(source_id.as_str()))
-                .await
-                .unwrap(),
-            1
-        );
-        assert_eq!(database.downloaded_count(None).await.unwrap(), 0);
-        let records = database
-            .download_files_page(
-                Some(source_id.as_str()),
-                &(String::new(), String::new()),
-                None,
-            )
-            .await
-            .unwrap();
-        assert_eq!(records.len(), 1);
-        assert_eq!(records[0].path, backing);
-        assert_eq!(
-            std::fs::read(root.path().join("album.flac")).unwrap(),
-            b"original"
-        );
-        let mut reader = database.acquire_reader().await.unwrap();
-        let count: i64 =
-            sqlx::query_scalar("SELECT count(*) FROM connect_media_files WHERE backing_uri=?1")
-                .bind(&backing)
-                .fetch_one(&mut *reader)
-                .await
-                .unwrap();
-        assert_eq!(count, 130);
-        drop(reader);
-    }
-
-    #[tokio::test]
     async fn download_receipt_removal_preserves_original_and_borrowed_access() {
         let root = tempfile::tempdir().unwrap();
         let database = Database::open(root.path().join("library.sqlite"))
@@ -305,7 +193,7 @@ impl Database {
     }
 
     pub async fn connect_save_media_file(&self, file: &ConnectMediaFile) -> LibraryResult<()> {
-        let backing = backing_id(&file.media_uri);
+        let backing = file.media_uri.clone();
         let mut writer = self.writer().await?;
         save_download_on(
             writer.as_mut().ok_or(LibraryError::WriterUnavailable)?,
@@ -321,7 +209,7 @@ impl Database {
         source: Option<crate::SourceKey>,
         access: &crate::LocalAccessWrite,
     ) -> LibraryResult<()> {
-        let backing = backing_id(&file.media_uri);
+        let backing = file.media_uri.clone();
         let mut writer = self.writer().await?;
         let mut transaction = writer
             .as_mut()
@@ -344,12 +232,6 @@ impl Database {
         Ok(sqlx::query_as("SELECT * FROM connect_media_files WHERE source_id IS ?1 AND (media_uri,encoding)>(?2,?3) AND (?4 IS NULL OR EXISTS(SELECT 1 FROM json_each(owners) WHERE value=json_extract(?4,'$'))) ORDER BY media_uri,encoding LIMIT 128")
             .bind(source).bind(&after.0).bind(&after.1).bind(owner).fetch_all(&mut *reader).await?)
     }
-}
-
-fn backing_id(uri: &str) -> String {
-    crate::cue_media_parts(uri)
-        .map(|(_, backing, _, _)| backing)
-        .unwrap_or_else(|| uri.to_string())
 }
 
 async fn save_download_on(

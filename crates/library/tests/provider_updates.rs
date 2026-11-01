@@ -633,7 +633,7 @@ async fn growing_and_reordering_a_playlist_preserves_occurrence_keys() {
 async fn unchanged_point_reads_do_not_rewrite_tracks_or_albums() {
     let (directory, database) = fixture().await;
     let mut raw = super::support::connection(&directory.path().join("library.sqlite3")).await;
-    sqlx::raw_sql("CREATE TRIGGER no_track_rewrite BEFORE UPDATE OF metadata,native_artwork,source_path,cue_path,cue_start_millis,cue_end_millis ON tracks BEGIN SELECT RAISE(FAIL,'unchanged track rewritten'); END;
+    sqlx::raw_sql("CREATE TRIGGER no_track_rewrite BEFORE UPDATE OF metadata,native_artwork,source_path ON tracks BEGIN SELECT RAISE(FAIL,'unchanged track rewritten'); END;
         CREATE TRIGGER no_album_rewrite BEFORE UPDATE OF metadata,native_artwork ON albums BEGIN SELECT RAISE(FAIL,'unchanged album rewritten'); END;")
         .execute(&mut raw).await.unwrap();
 

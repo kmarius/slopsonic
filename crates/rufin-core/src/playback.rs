@@ -772,10 +772,6 @@ where
         .await
         .ok()
         .flatten();
-    let cue = library::cue_media_parts(&request.media_uri);
-    let file_uri = cue
-        .as_ref()
-        .map_or(request.media_uri.as_str(), |(_, uri, _, _)| uri);
     if let Some((uri, library::LocalAccessOrigin::Download)) = access.as_ref()
         && !local_access_available(uri).await?
     {
@@ -794,18 +790,9 @@ where
         None
     };
     let access_uri = access.map(|(uri, _)| uri);
-    let window = database
-        .playback_window(&request.media_uri)
-        .await
-        .map_err(string_error)?;
-    if let Some((start, end)) = window.filter(|_| access_uri.is_some() || cue.is_some()) {
-        return Ok(audio_processing::ResolvedStream::new(
-            access_uri.unwrap_or_else(|| file_uri.to_owned()),
-        )
-        .with_content_type(content_type)
-        .with_window(start, end));
-    }
-    if let Some(uri) = access_uri.or_else(|| library::normalize_direct_media_uri(file_uri)) {
+    if let Some(uri) =
+        access_uri.or_else(|| library::normalize_direct_media_uri(&request.media_uri))
+    {
         return Ok(audio_processing::ResolvedStream::new(uri).with_content_type(content_type));
     }
     let (source_id, kind, _) = library::source_entity_parts(&request.media_uri)

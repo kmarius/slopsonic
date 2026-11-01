@@ -444,29 +444,19 @@ pub(super) async fn tracks(
             continue;
         }
         let mut query = QueryBuilder::<Sqlite>::new(
-            "WITH input(object_id,media_uri,album_id,metadata,source_path,cue_path,cue_start,cue_end,first_seen,audio_key,normalized_search) AS(",
+            "WITH input(object_id,media_uri,album_id,metadata,source_path,first_seen,audio_key,normalized_search) AS(",
         );
         let uris = page
             .iter()
             .map(|row| {
                 let direct = row.media_uri.as_deref().and_then(|uri| {
-                    if crate::cue_media_parts(uri).is_some()
-                        || crate::source_entity_parts(uri).is_some()
-                    {
+                    if crate::source_entity_parts(uri).is_some() {
                         Some(uri.to_owned())
                     } else {
                         crate::normalize_direct_media_uri(uri)
                     }
                 });
                 match direct {
-                    Some(uri) if crate::cue_media_parts(&uri).is_none() => {
-                        match (row.cue_start_millis, row.cue_end_millis) {
-                            (Some(start), Some(end)) => {
-                                crate::cue_media_uri(&row.object_id, &uri, start, end)
-                            }
-                            _ => uri,
-                        }
-                    }
                     Some(uri) => uri,
                     None => {
                         crate::source_entity_uri(&SourceId::new(source_id), "track", &row.object_id)
@@ -545,15 +535,12 @@ pub(super) async fn tracks(
                 }
                 value
                     .push_bind(&row.source_path)
-                    .push_bind(&row.cue_path)
-                    .push_bind(row.cue_start_millis)
-                    .push_bind(row.cue_end_millis)
                     .push_bind(row.first_seen_at)
                     .push_bind(row.loudness_analysis_key.as_slice())
                     .push_bind(track_search(&row.metadata));
             },
         );
-        query.push(") INSERT INTO tracks(source_key,object_id,media_uri,album_key,metadata,source_path,cue_path,cue_start_millis,cue_end_millis,first_seen_at,source_loudness_analysis_key,loudness_analysis_key,normalized_search,indexed,native_metadata) SELECT ")
+        query.push(") INSERT INTO tracks(source_key,object_id,media_uri,album_key,metadata,source_path,first_seen_at,source_loudness_analysis_key,loudness_analysis_key,normalized_search,indexed,native_metadata) SELECT ")
             .push_bind(source).push(",input.object_id,input.media_uri,album.album_key,");
         if authoritative {
             query.push("jsonb(input.metadata)");
@@ -563,11 +550,11 @@ pub(super) async fn tracks(
                 .push_bind(sqlx::types::Json(crate::TrackMetadata::default()))
                 .push(",input.metadata)");
         }
-        query.push(",input.source_path,input.cue_path,input.cue_start,input.cue_end,input.first_seen,input.audio_key,coalesce((SELECT loudness_analysis_key FROM local_access_files WHERE media_uri=input.media_uri ORDER BY local_access_file_key LIMIT 1),input.audio_key),input.normalized_search,")
+        query.push(",input.source_path,input.first_seen,input.audio_key,coalesce((SELECT loudness_analysis_key FROM local_access_files WHERE media_uri=input.media_uri ORDER BY local_access_file_key LIMIT 1),input.audio_key),input.normalized_search,")
             .push_bind(admit).push(",").push_bind(authoritative).push(" FROM input LEFT JOIN albums album ON album.source_key=").push_bind(source)
             .push(" AND album.object_id=input.album_id WHERE NOT EXISTS(SELECT 1 FROM tracks known WHERE known.source_key=").push_bind(source).push(" AND known.object_id=input.object_id AND(known.observed_stamp>").push_bind(observed.unwrap_or(i64::MAX)).push(if authoritative{")"}else{" OR known.native_metadata=1)"}).push(") ON CONFLICT(media_uri) DO UPDATE SET source_key=excluded.source_key,object_id=excluded.object_id,album_key=excluded.album_key,metadata=")
-            .push(&metadata).push(",normalized_search=excluded.normalized_search,native_metadata=max(tracks.native_metadata,excluded.native_metadata),observed_stamp=CASE WHEN tracks.source_key IS excluded.source_key THEN tracks.observed_stamp ELSE 0 END,source_path=excluded.source_path,cue_path=excluded.cue_path,cue_start_millis=excluded.cue_start_millis,cue_end_millis=excluded.cue_end_millis,first_seen_at=coalesce(tracks.first_seen_at,excluded.first_seen_at),source_loudness_analysis_key=excluded.source_loudness_analysis_key,loudness_analysis_key=excluded.loudness_analysis_key,indexed=max(tracks.indexed,excluded.indexed) WHERE ")
-            .push(if authoritative{"1"}else{"tracks.native_metadata=0"}).push(" AND (tracks.source_key IS NOT excluded.source_key OR tracks.observed_stamp<=").push_bind(observed.unwrap_or(i64::MAX)).push(") AND (tracks.source_key,tracks.object_id,tracks.album_key,tracks.metadata,tracks.source_path,tracks.cue_path,tracks.cue_start_millis,tracks.cue_end_millis,tracks.source_loudness_analysis_key,tracks.loudness_analysis_key,tracks.indexed,tracks.native_metadata) IS NOT(excluded.source_key,excluded.object_id,excluded.album_key,").push(&metadata).push(",excluded.source_path,excluded.cue_path,excluded.cue_start_millis,excluded.cue_end_millis,excluded.source_loudness_analysis_key,excluded.loudness_analysis_key,max(tracks.indexed,excluded.indexed),max(tracks.native_metadata,excluded.native_metadata)) RETURNING object_id");
+            .push(&metadata).push(",normalized_search=excluded.normalized_search,native_metadata=max(tracks.native_metadata,excluded.native_metadata),observed_stamp=CASE WHEN tracks.source_key IS excluded.source_key THEN tracks.observed_stamp ELSE 0 END,source_path=excluded.source_path,first_seen_at=coalesce(tracks.first_seen_at,excluded.first_seen_at),source_loudness_analysis_key=excluded.source_loudness_analysis_key,loudness_analysis_key=excluded.loudness_analysis_key,indexed=max(tracks.indexed,excluded.indexed) WHERE ")
+            .push(if authoritative{"1"}else{"tracks.native_metadata=0"}).push(" AND (tracks.source_key IS NOT excluded.source_key OR tracks.observed_stamp<=").push_bind(observed.unwrap_or(i64::MAX)).push(") AND (tracks.source_key,tracks.object_id,tracks.album_key,tracks.metadata,tracks.source_path,tracks.source_loudness_analysis_key,tracks.loudness_analysis_key,tracks.indexed,tracks.native_metadata) IS NOT(excluded.source_key,excluded.object_id,excluded.album_key,").push(&metadata).push(",excluded.source_path,excluded.source_loudness_analysis_key,excluded.loudness_analysis_key,max(tracks.indexed,excluded.indexed),max(tracks.native_metadata,excluded.native_metadata)) RETURNING object_id");
         let accepted = query
             .build_query_scalar::<String>()
             .fetch_all(&mut *connection)

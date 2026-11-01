@@ -298,7 +298,6 @@ CREATE TABLE IF NOT EXISTS tracks (
     metadata BLOB NOT NULL DEFAULT (jsonb('{}')),
     native_metadata INTEGER NOT NULL DEFAULT 0,
     source_path TEXT,
-    cue_path TEXT, cue_start_millis INTEGER, cue_end_millis INTEGER,
     first_seen_at INTEGER,
     native_artwork BLOB,
     artwork_kind INTEGER NOT NULL DEFAULT 0, artwork_artist_key INTEGER,
@@ -331,7 +330,6 @@ CREATE INDEX IF NOT EXISTS tracks_duration_idx ON tracks(track_key,duration_mill
 CREATE INDEX IF NOT EXISTS tracks_duration_order_idx ON tracks(source_key,indexed,duration_millis,sort_text,track_key);
 CREATE INDEX IF NOT EXISTS tracks_duration_desc_order_idx ON tracks(source_key,indexed,duration_millis DESC,sort_text,track_key);
 CREATE INDEX IF NOT EXISTS tracks_source_path_idx ON tracks(source_key,source_path,album_key);
-CREATE INDEX IF NOT EXISTS tracks_source_cue_idx ON tracks(source_key,cue_path,object_id) WHERE cue_path IS NOT NULL;
 CREATE INDEX IF NOT EXISTS tracks_album_order_idx ON tracks(album_key,disc_number,track_number,sort_text,track_key);
 CREATE INDEX IF NOT EXISTS tracks_artist_order_idx ON tracks(source_key,indexed,display_artist,(album_year_sort IS NULL),album_year_sort,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
 CREATE INDEX IF NOT EXISTS tracks_artist_desc_order_idx ON tracks(source_key,indexed,display_artist DESC,(album_year_sort IS NULL),album_year_sort,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
@@ -339,8 +337,8 @@ CREATE INDEX IF NOT EXISTS tracks_year_idx ON tracks(source_key,indexed,year,sor
 CREATE INDEX IF NOT EXISTS tracks_release_idx ON tracks(source_key,indexed,release_date,sort_text,track_key);
 CREATE INDEX IF NOT EXISTS tracks_added_idx ON tracks(source_key,indexed,(COALESCE(unixepoch(date_added),first_seen_at) IS NULL),COALESCE(unixepoch(date_added),first_seen_at),sort_text,track_key);
 CREATE INDEX IF NOT EXISTS tracks_added_desc_idx ON tracks(source_key,indexed,(COALESCE(unixepoch(date_added),first_seen_at) IS NULL),COALESCE(unixepoch(date_added),first_seen_at) DESC,sort_text,track_key);
-CREATE INDEX IF NOT EXISTS tracks_raw_album_year_idx ON tracks(album_key,coalesce(cue_path,source_path),disc_number,track_number,object_id) WHERE indexed=1 AND year IS NOT NULL;
-CREATE INDEX IF NOT EXISTS tracks_raw_album_release_idx ON tracks(album_key,coalesce(cue_path,source_path),disc_number,track_number,object_id) WHERE indexed=1 AND release_date IS NOT NULL;
+CREATE INDEX IF NOT EXISTS tracks_raw_album_year_idx ON tracks(album_key,source_path,disc_number,track_number,object_id) WHERE indexed=1 AND year IS NOT NULL;
+CREATE INDEX IF NOT EXISTS tracks_raw_album_release_idx ON tracks(album_key,source_path,disc_number,track_number,object_id) WHERE indexed=1 AND release_date IS NOT NULL;
 CREATE INDEX IF NOT EXISTS tracks_local_play_order_idx ON tracks(source_key,indexed,local_play_count DESC,sort_text,media_uri);
 CREATE INDEX IF NOT EXISTS tracks_global_play_order_idx ON tracks(indexed,local_play_count DESC,sort_text,media_uri);
 CREATE INDEX IF NOT EXISTS tracks_local_shuffle_idx ON tracks(source_key,local_play_count,((track_key*1103515245)%2147483647),media_uri);
@@ -578,6 +576,10 @@ CREATE TABLE IF NOT EXISTS native_playlist_pending (
 const MIGRATE_58: &str = "
 DROP INDEX IF EXISTS local_locators_precedence_idx;
 DROP INDEX IF EXISTS tracks_local_file_idx;
+DROP INDEX IF EXISTS tracks_source_cue_idx;
+DROP INDEX IF EXISTS tracks_raw_album_year_idx;
+DROP INDEX IF EXISTS tracks_raw_album_release_idx;
+DROP INDEX IF EXISTS tracks_album_metadata_order_idx;
 DROP VIEW IF EXISTS observed_file_dependencies;
 DROP VIEW IF EXISTS local_track_access;
 DROP VIEW IF EXISTS observed_local_files;
@@ -585,10 +587,14 @@ DROP TABLE IF EXISTS local_file_dependencies;
 DROP TABLE IF EXISTS local_file_observations;
 DROP TABLE IF EXISTS local_file_access_roots;
 ALTER TABLE tracks DROP COLUMN local_file_key;
+ALTER TABLE tracks DROP COLUMN cue_path;
+ALTER TABLE tracks DROP COLUMN cue_start_millis;
+ALTER TABLE tracks DROP COLUMN cue_end_millis;
 DROP TABLE IF EXISTS local_files;
 DROP TABLE IF EXISTS playlist_file_links;
 DROP TABLE IF EXISTS playlist_file_ignored;
 DROP TABLE IF EXISTS playlist_file_settings;
+CREATE INDEX tracks_album_metadata_order_idx ON tracks(album_key,source_path,disc_number,track_number,object_id) WHERE indexed=1;
 DELETE FROM local_locators WHERE origin<>'download';
 DELETE FROM local_access_metadata WHERE access_uri NOT IN (SELECT access_uri FROM local_locators);
 ";

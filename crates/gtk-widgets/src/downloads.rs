@@ -15,7 +15,7 @@ struct DownloadBadgeBinding {
 }
 
 pub fn media_download_badge(media_uri: &str, downloaded: bool) -> bool {
-    downloaded && !media_uri.starts_with("file:") && !media_uri.starts_with("rufin:cue/")
+    downloaded && !media_uri.starts_with("file:")
 }
 
 pub enum OperationFeedbackKind {

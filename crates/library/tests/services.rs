@@ -301,9 +301,6 @@ async fn loudness_selects_one_unit_and_source_facts_win() {
     );
 
     let mut scan_catalog = fixture.database.catalog("source", None).await.unwrap();
-    input.cue_path = Some("/music/changed.cue".into());
-    input.cue_start_millis = Some(1_000);
-    input.cue_end_millis = Some(181_000);
     input.loudness_analysis_key = [99; 32];
     input.metadata.source_loudness = None;
     input.metadata.artists = vec![library::ArtistCredit {

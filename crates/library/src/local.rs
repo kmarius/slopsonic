@@ -7,13 +7,6 @@ use crate::{
     Database, LibraryError, LibraryResult, LocalAccessFileKey, ReadCancellation, SourceKey,
 };
 
-pub(crate) fn whole_file_cue_sql(alias: &str) -> String {
-    format!("{alias}.indexed=1 AND {alias}.cue_path IS NOT NULL AND {alias}.source_path IS NOT NULL AND {alias}.cue_start_millis=0
-        AND NOT EXISTS(SELECT 1 FROM tracks sibling INDEXED BY tracks_source_path_idx
-            WHERE sibling.source_key={alias}.source_key AND sibling.source_path={alias}.source_path
-              AND sibling.cue_path={alias}.cue_path AND sibling.indexed=1 AND sibling.track_key<>{alias}.track_key)")
-}
-
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct DownloadStatus {
     pub total: u64,
@@ -133,22 +126,6 @@ impl Database {
             WHERE EXISTS(SELECT 1 FROM main.sources WHERE object_id=json_extract(requested.value,'$[1]') AND catalog_complete=1)
               AND NOT EXISTS(SELECT 1 FROM main.tracks WHERE media_uri=json_extract(requested.value,'$[0]') AND indexed=1)")
             .bind(serde_json::to_string(media)?).fetch_all(&mut *connection).await?)
-    }
-
-    pub async fn playback_window(&self, uri: &str) -> LibraryResult<Option<(u64, u64)>> {
-        let mut connection = self.acquire_reader().await?;
-        let whole_file = whole_file_cue_sql("track");
-        let window: Option<(Option<i64>, Option<i64>)> = sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT track.cue_start_millis,CASE WHEN {whole_file} THEN NULL ELSE track.cue_end_millis END FROM tracks track WHERE media_uri=?1")))
-            .bind(uri).fetch_optional(&mut *connection).await?;
-        if let Some((Some(start), end)) = window {
-            if start == 0 && end.is_none() {
-                return Ok(None);
-            }
-            if let Some(end) = end.filter(|end| start >= 0 && *end > start) {
-                return Ok(Some((start as u64, end as u64)));
-            }
-        }
-        Ok(crate::cue_media_parts(uri).map(|(_, _, start, end)| (start as u64, end as u64)))
     }
 
     pub async fn source_counts(

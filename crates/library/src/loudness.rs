@@ -327,6 +327,6 @@ pub(crate) async fn invalidate_album_audio(
 
 fn native_album_sql(owner: &str) -> String {
     format!(
-        "CASE WHEN {owner}.album_source_token={owner}.album_token THEN coalesce((SELECT json_extract(member.metadata,'$.album_loudness') FROM tracks member WHERE member.album_key={owner}.album_key AND member.indexed=1 AND json_type(member.metadata,'$.album_loudness')='object' AND(json_extract(member.metadata,'$.album_loudness.integrated_lufs') IS NOT NULL OR json_extract(member.metadata,'$.album_loudness.replay_gain_db') IS NOT NULL) ORDER BY coalesce(member.cue_path,member.source_path),member.disc_number,member.track_number,member.object_id LIMIT 1),CASE WHEN json_extract({owner}.accepted_audio,'$.token')=hex({owner}.album_source_token) THEN json_extract({owner}.accepted_audio,'$.gain') END) END"
+        "CASE WHEN {owner}.album_source_token={owner}.album_token THEN coalesce((SELECT json_extract(member.metadata,'$.album_loudness') FROM tracks member WHERE member.album_key={owner}.album_key AND member.indexed=1 AND json_type(member.metadata,'$.album_loudness')='object' AND(json_extract(member.metadata,'$.album_loudness.integrated_lufs') IS NOT NULL OR json_extract(member.metadata,'$.album_loudness.replay_gain_db') IS NOT NULL) ORDER BY member.source_path,member.disc_number,member.track_number,member.object_id LIMIT 1),CASE WHEN json_extract({owner}.accepted_audio,'$.token')=hex({owner}.album_source_token) THEN json_extract({owner}.accepted_audio,'$.gain') END) END"
     )
 }

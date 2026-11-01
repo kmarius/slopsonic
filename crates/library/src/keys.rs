@@ -62,36 +62,6 @@ pub fn source_entity_parts(uri: &str) -> Option<(SourceId, String, String)> {
     Some((SourceId::new(source), kind.to_string(), object))
 }
 
-pub fn cue_media_uri(
-    cue_identity: &str,
-    file_uri: &str,
-    start_millis: i64,
-    end_millis: i64,
-) -> String {
-    format!(
-        "rufin:cue/{}/{}/{start_millis}/{end_millis}",
-        encode(cue_identity),
-        encode(file_uri),
-    )
-}
-
-pub fn cue_media_parts(uri: &str) -> Option<(String, String, i64, i64)> {
-    let mut parts = uri.strip_prefix("rufin:cue/")?.split('/');
-    let cue_identity = decode(parts.next()?)?;
-    let file_uri = decode(parts.next()?)?;
-    let start = parts.next()?.parse().ok()?;
-    let end = parts.next()?.parse().ok()?;
-    if cue_identity.is_empty()
-        || file_uri.is_empty()
-        || start < 0
-        || end <= start
-        || parts.next().is_some()
-    {
-        return None;
-    }
-    Some((cue_identity, file_uri, start, end))
-}
-
 pub fn normalize_direct_media_uri(uri: &str) -> Option<String> {
     if document_media_id(uri).is_some() {
         return Some(uri.to_owned());
@@ -227,20 +197,6 @@ mod tests {
         assert_eq!(
             source_entity_parts(&uri),
             Some((source, "track".to_string(), "opaque:/track%id".to_string()))
-        );
-    }
-
-    #[test]
-    fn split_cue_identity_keeps_segment_and_backing_file() {
-        let uri = cue_media_uri("cue/track:1", "file:///Music/disc.flac", 1_500, 52_000);
-        assert_eq!(
-            cue_media_parts(&uri),
-            Some((
-                "cue/track:1".to_string(),
-                "file:///Music/disc.flac".to_string(),
-                1_500,
-                52_000
-            ))
         );
     }
 

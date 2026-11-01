@@ -2096,12 +2096,7 @@ impl Actor {
                 }
                 let media_uri = job.remaining.iter().find(|media_uri| {
                     !active.iter().any(|download| {
-                        download.source_id == *source_id
-                            && library::cue_media_parts(&download.media_uri).map_or_else(
-                                || download.media_uri.clone(),
-                                |(_, backing, _, _)| backing,
-                            ) == library::cue_media_parts(media_uri)
-                                .map_or_else(|| (*media_uri).clone(), |(_, backing, _, _)| backing)
+                        download.source_id == *source_id && download.media_uri == **media_uri
                     })
                 });
                 if let Some(media_uri) = media_uri {

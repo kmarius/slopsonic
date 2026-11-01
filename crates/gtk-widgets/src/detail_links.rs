@@ -263,9 +263,6 @@ mod tests {
             access: library::TrackAccess {
                 source_name: String::new(),
                 source_path: None,
-                cue_path: None,
-                cue_start_millis: None,
-                cue_end_millis: None,
                 loudness_analysis_key: [0; 32],
                 is_downloaded: false,
                 ..Default::default()

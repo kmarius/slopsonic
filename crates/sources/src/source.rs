@@ -571,13 +571,9 @@ impl Source {
         media_uri: &str,
         quality: DownloadQuality,
     ) -> SourceResult<ResolvedDownload> {
-        let cue = library::cue_media_parts(media_uri);
-        let backing = cue
-            .as_ref()
-            .map_or(media_uri, |(_, uri, _, _)| uri.as_str());
-        if library::file_media_path(backing).is_some() {
+        if library::file_media_path(media_uri).is_some() {
             return Ok(ResolvedDownload::encode(
-                ResolvedStream::new(backing),
+                ResolvedStream::new(media_uri),
                 quality,
             ));
         }
@@ -898,28 +894,14 @@ async fn direct_stream(
     database: &Database,
     media_uri: &str,
 ) -> SourceResult<Option<ResolvedStream>> {
-    let cue = library::cue_media_parts(media_uri);
-    let backing = cue
-        .as_ref()
-        .map_or(media_uri, |(_, uri, _, _)| uri.as_str());
-    let Some(uri) = library::normalize_direct_media_uri(backing) else {
+    let Some(uri) = library::normalize_direct_media_uri(media_uri) else {
         return Ok(None);
     };
-    let mut access = database.playback_access(media_uri).await?;
-    if access.is_none() && cue.is_some() {
-        access = database.playback_access(backing).await?;
-    }
-    let uri = match access {
+    let uri = match database.playback_access(media_uri).await? {
         Some((uri, _)) => uri,
         None => uri,
     };
-    let stream = ResolvedStream::new(uri);
-    if cue.is_some()
-        && let Some((start, end)) = database.playback_window(media_uri).await?
-    {
-        return Ok(Some(stream.with_window(start, end)));
-    }
-    Ok(Some(stream))
+    Ok(Some(ResolvedStream::new(uri)))
 }
 
 pub(crate) fn require_source_edit(
