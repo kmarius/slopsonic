@@ -18,7 +18,6 @@ publish = false
 app-identity = { path = "crates/app-identity" }
 artwork = { path = "crates/artwork" }
 audio-processing = { path = "crates/audio-processing" }
-backup = { path = "crates/backup" }
 desktop-integration = { path = "crates/desktop-integration" }
 downloads = { path = "crates/downloads" }
 gtk-editors = { path = "crates/gtk-editors" }
@@ -128,9 +127,6 @@ opt-level = 0
 
 [profile.test]
 debug = "line-tables-only"
-
-[profile.dev.package.libsqlite3-sys]
-opt-level = 3
 
 [profile.test.package.libsqlite3-sys]
 opt-level = 3

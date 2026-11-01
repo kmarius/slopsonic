@@ -334,24 +334,6 @@ impl Database {
     }
 }
 
-pub(crate) async fn export_user_media_state_jsonl_on(
-    connection: &mut SqliteConnection,
-    mut output: impl std::io::Write,
-) -> LibraryResult<u64> {
-    use futures_util::TryStreamExt;
-    output.write_all(b"{\"version\":1}\n")?;
-    let mut rows = sqlx::query_as::<_, UserMediaStateWrite>(
-        "SELECT media_uri,favorite,rating FROM user_media_state ORDER BY media_uri",
-    )
-    .fetch(connection);
-    let mut count = 0;
-    while let Some(row) = rows.try_next().await? {
-        serde_json::to_writer(&mut output, &row)?;
-        output.write_all(b"\n")?;
-        count += 1;
-    }
-    Ok(count)
-}
 pub(crate) async fn import_user_media_state_jsonl_on(
     connection: &mut SqliteConnection,
     input: impl std::io::BufRead,

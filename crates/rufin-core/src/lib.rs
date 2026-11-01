@@ -1,7 +1,6 @@
 //! Rufin application composition and concrete product operations.
 mod album_release;
 pub mod app;
-pub mod backup;
 pub mod browse;
 pub mod detail_links;
 pub mod diagnostics;

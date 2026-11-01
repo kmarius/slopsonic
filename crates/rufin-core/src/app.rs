@@ -233,17 +233,6 @@ where
         },
     );
 
-    let backup = crate::backup::BackupOwner::new(
-        Arc::clone(&library),
-        settings.clone(),
-        settings_handle.as_ref().clone(),
-        Arc::clone(&secrets),
-        Arc::clone(&source),
-        Arc::clone(&playback),
-        runtime.clone(),
-        paths.data_dir().join("backups"),
-    );
-    backup.start();
     let stored = settings.load();
 
     for configured in &stored.sources.configured {
@@ -272,7 +261,6 @@ where
                 &paths.config_dir().join("themes"),
             ))
             .0,
-            backup,
             library,
             runtime,
             source: source_handle,

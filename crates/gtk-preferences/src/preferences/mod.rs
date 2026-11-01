@@ -2,7 +2,6 @@ pub const DEFAULT_LEFT_TITLE: &str = "Default left sidebar";
 pub const DEFAULT_RIGHT_TITLE: &str = "Default right sidebar";
 pub const NARROW_LEFT_TITLE: &str = "Narrow left sidebar";
 pub const NARROW_RIGHT_TITLE: &str = "Narrow right sidebar";
-pub mod backup;
 use crate::Preferences;
 use crate::{
     MAX_NARROW_LAYOUT_THRESHOLD, MIN_NARROW_LAYOUT_THRESHOLD, SidebarRouteItem,

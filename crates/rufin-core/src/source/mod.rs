@@ -548,62 +548,6 @@ impl SourceOwner {
             .clear();
     }
 
-    pub(crate) async fn restore_user_state<F, Work, T>(
-        &self,
-        setup: bool,
-        credentials_replaced: bool,
-        restore: F,
-    ) -> Result<T, String>
-    where
-        F: FnOnce() -> Work,
-        Work: Future<Output = Result<T, String>>,
-    {
-        let _lane = self.shared.lane.lock().await;
-        if setup {
-            self.release_selected().await;
-        }
-        let result = restore().await;
-        if setup
-            && let Err(error) = self
-                .shared
-                .retire_changed_clients(credentials_replaced)
-                .await
-        {
-            self.shared.warn_nonfatal(&error);
-        }
-        if result.is_ok()
-            && let Err(error) = self.shared.load_source_counts().await
-        {
-            self.shared.warn_nonfatal(&error);
-        }
-        if setup && self.shared.started.load(Ordering::Acquire) {
-            let current = self.shared.settings.load();
-            if let Some(source) = current.sources.selected_source_id.filter(|id| {
-                current
-                    .sources
-                    .configured
-                    .iter()
-                    .any(|source| source.configuration.source_id == *id)
-            }) {
-                let owner = self.clone();
-                self.shared.runtime.spawn(async move {
-                    let _ = owner.select_source(source).await;
-                });
-            }
-        }
-        self.shared
-            .send(SourceEvent::Configured(
-                self.shared
-                    .configured_sources(self.shared.selected().as_ref()),
-            ))
-            .await;
-        self.publish_operation(SourceOperation::Idle).await;
-        if result.is_ok() {
-            self.request_asset_downloads();
-        }
-        result
-    }
-
     async fn remove_source_resources(
         &self,
         source_id: &SourceId,
@@ -1685,12 +1629,11 @@ impl SourceOwner {
                 let settings = owner.shared.settings.clone();
                 let secrets = Arc::clone(&owner.shared.secrets);
                 tokio::task::spawn_blocking(move || {
-                    for name in ["secrets.json", "backup-password.json"] {
-                        if let Err(error) = std::fs::remove_file(settings.config_dir().join(name))
-                            && error.kind() != std::io::ErrorKind::NotFound
-                        {
-                            warn!(%error, "could not remove old credential file");
-                        }
+                    if let Err(error) =
+                        std::fs::remove_file(settings.config_dir().join("secrets.json"))
+                        && error.kind() != std::io::ErrorKind::NotFound
+                    {
+                        warn!(%error, "could not remove old credential file");
                     }
                     let scope = fresh_source_id()?.to_string();
                     settings.update(|stored| {

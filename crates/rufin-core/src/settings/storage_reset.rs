@@ -84,17 +84,12 @@ impl StorageResetRequest {
         // Keep connection records until deletion succeeds so an I/O error does not lose them.
         let mut keep = vec![paths.settings_file()];
         if reset == StorageReset::KeepCredentials {
-            keep.extend(
-                ["secrets.json", "backup-password.json"].map(|name| paths.config_dir().join(name)),
-            );
+            keep.push(paths.config_dir().join("secrets.json"));
         }
         let retained = if reset == StorageReset::KeepCredentials {
             retained_connections(*stored)
         } else {
-            let mut keys = vec![
-                super::settings_encryption_key(),
-                super::backup_password_key(),
-            ];
+            let mut keys = vec![super::settings_encryption_key()];
             keys.extend(
                 stored
                     .sources

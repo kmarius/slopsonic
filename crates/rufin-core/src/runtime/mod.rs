@@ -4,14 +4,12 @@
 
 use std::sync::Arc;
 
-mod backup;
 mod diagnostics;
 mod events;
 mod inputs;
 pub mod scrobbling;
 pub mod source;
 mod storage;
-pub use backup::{BackupHandle, BackupPreview, BackupSettings};
 pub use diagnostics::DiagnosticsHandle;
 pub use downloads::{DownloadEvent, DownloadQueueItem, DownloadQueueState, DownloadSubject};
 pub use events::ProductReceivers;
@@ -30,7 +28,6 @@ pub use storage::{CacheKind, CacheSummary, CacheUsage, StorageSummary};
 pub struct ProductHandles {
     pub settings: crate::SettingsHandle,
     pub appearance: tokio::sync::watch::Sender<std::collections::BTreeMap<String, String>>,
-    pub backup: BackupHandle,
     pub library: Arc<library::Database>,
     pub runtime: tokio::runtime::Handle,
     pub source: SourceHandle,

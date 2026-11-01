@@ -4,7 +4,6 @@ pub const DOWNLOAD_QUEUE_ROW_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/download_queue_row.ui";
 pub const DOWNLOAD_QUALITY_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/download_quality.ui";
-pub const BACKUP_PREFERENCES_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/backup.ui";
 pub const PLAYBACK_PREFERENCES_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/playback.ui";
 pub const PREFERENCES_REORDER_ROW_RESOURCE: &str =
@@ -20,8 +19,8 @@ pub const PRIVACY_PREFERENCES_RESOURCE: &str = "/io/github/screwys/Rufin/ui/pref
 pub const STORAGE_PREFERENCES_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/storage.ui";
 pub const THEME_ACCENT_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/theme_accent.ui";
 pub const THEME_TILE_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/theme_tile.ui";
-pub const BACKUP_DIALOG_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/dialogs/backup.ui";
+pub const EXPORT_DIALOG_RESOURCE: &str =
+    "/io/github/screwys/Rufin/ui/preferences/dialogs/export.ui";
 pub const SOURCE_CHOICE_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/source/choice.ui";
 pub const SOURCE_CHOICE_SELECTOR_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/source/choice_selector.ui";
@@ -41,7 +40,6 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     DOWNLOAD_QUEUE_RESOURCE,
     DOWNLOAD_QUEUE_ROW_RESOURCE,
     DOWNLOAD_QUALITY_RESOURCE,
-    BACKUP_PREFERENCES_RESOURCE,
     PLAYBACK_PREFERENCES_RESOURCE,
     PREFERENCES_REORDER_ROW_RESOURCE,
     LIBRARY_PREFERENCES_RESOURCE,
@@ -54,7 +52,7 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     PRIVACY_PREFERENCES_RESOURCE,
     THEME_ACCENT_RESOURCE,
     THEME_TILE_RESOURCE,
-    BACKUP_DIALOG_RESOURCE,
+    EXPORT_DIALOG_RESOURCE,
     SOURCE_CHOICE_RESOURCE,
     SOURCE_CHOICE_SELECTOR_RESOURCE,
     CONNECTION_PROGRESS_RESOURCE,

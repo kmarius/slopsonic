@@ -165,8 +165,6 @@ preference_group!(ApplicationPreferences, application, {
     home_blocks: Vec<HomeBlockKind> = default_home_blocks() => set_home_blocks;
     #[serde(default)]
     context_menu: ContextMenuSettings = ContextMenuSettings::default() => set_context_menu;
-    #[serde(default)]
-    backup: crate::runtime::BackupSettings = crate::runtime::BackupSettings::default();
     #[serde(default = "legacy_secret_storage_mode")]
     secret_storage_mode: SecretStorageMode = SecretStorageMode::default();
 });

@@ -16,7 +16,6 @@ age.workspace = true
 image.workspace = true
 base64.workspace = true
 thiserror.workspace = true
-backup.workspace = true
 audio-processing.workspace = true
 app-identity.workspace = true
 metadata-lookup.workspace = true

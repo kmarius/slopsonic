@@ -2598,15 +2598,6 @@ modelbutton.rufin-menu-selected:dir(rtl) {
   padding-right: 42px;
 }
 
-preferencespage.backup-settings > scrolledwindow > viewport > clamp > box {
-  margin-top: 12px;
-  margin-bottom: 12px;
-}
-
-preferencespage.backup-settings row:not(.entry):not(.spin) > box.header {
-  min-height: 40px;
-}
-
 button.connect-relay-link, button.connect-relay-link:visited { color: inherit; }
 
 .connect-device-online .subtitle { color: var(--success-color); }

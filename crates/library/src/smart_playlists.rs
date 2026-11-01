@@ -1,7 +1,6 @@
 //! Owns Smart Playlist definitions and direct SQL URI-result, row, and list queries.
 //! One shared policy implements rule, Activity-window, limit, and ordering semantics.
 
-use futures_util::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use sqlx::{AssertSqlSafe, Connection, FromRow, Row, SqliteConnection};
 
@@ -1324,44 +1323,6 @@ pub struct SmartPlaylistWrite {
     pub name: String,
     pub definition_json: String,
     pub position: i64,
-}
-
-pub(crate) async fn export_smart_playlists_jsonl_on(
-    connection: &mut SqliteConnection,
-    mut output: impl std::io::Write,
-) -> LibraryResult<u64> {
-    output.write_all(b"{\"version\":1}\n")?;
-    let mut rows = sqlx::query_as::<_, SmartPlaylistWrite>(
-        "SELECT object_id,name,definition_json,position,artwork_bytes,artwork_binding FROM smart_playlists ORDER BY position",
-    )
-    .fetch(connection);
-    let mut count = 0;
-    while let Some(row) = rows.try_next().await? {
-        serde_json::to_writer(&mut output, &row)?;
-        output.write_all(b"\n")?;
-        count += 1;
-    }
-    Ok(count)
-}
-pub(crate) async fn import_smart_playlists_jsonl_on(
-    connection: &mut SqliteConnection,
-    input: impl std::io::BufRead,
-) -> LibraryResult<u64> {
-    let mut lines = input.lines();
-    let header: serde_json::Value =
-        serde_json::from_str(&lines.next().transpose()?.unwrap_or_default())?;
-    if header.get("version").and_then(serde_json::Value::as_u64) != Some(1) {
-        return Err(crate::LibraryError::InvalidRequest(
-            "unsupported Smart playlist version".into(),
-        ));
-    }
-    let mut count = 0;
-    for line in lines {
-        let record = serde_json::from_str::<SmartPlaylistWrite>(&line?)?;
-        write_smart_playlist(connection, &record).await?;
-        count += 1;
-    }
-    Ok(count)
 }
 
 pub(crate) async fn write_smart_playlist(

@@ -1071,33 +1071,11 @@ pub(crate) async fn write_local_locator(
         .bind(source).bind(&locator.media_uri).bind(&locator.origin).bind(&locator.path).bind(&locator.root).bind(&locator.relative_path).bind(&locator.access_uri).fetch_one(connection).await?)
 }
 
-pub(crate) async fn export_local_locators_jsonl_on(
-    connection: &mut sqlx::SqliteConnection,
-    mut output: impl std::io::Write,
-) -> LibraryResult<u64> {
-    use futures_util::TryStreamExt;
-    output.write_all(b"{\"version\":1}\n")?;
-    let mut rows = sqlx::query_as::<_, LocalLocatorWrite>("SELECT source.object_id source_id,locator.media_uri,locator.origin,locator.path,locator.root,locator.relative_path,locator.access_uri FROM main.local_locators locator LEFT JOIN main.sources source USING(source_key) WHERE locator.origin<>'download' ORDER BY locator.local_access_file_key").fetch(&mut *connection);
-    let mut count = 0;
-    while let Some(row) = rows.try_next().await? {
-        serde_json::to_writer(&mut output, &row)?;
-        output.write_all(b"\n")?;
-        count += 1;
-    }
-    Ok(count)
-}
 pub(crate) async fn import_local_locators_jsonl_on(
     connection: &mut sqlx::SqliteConnection,
     input: impl std::io::BufRead,
 ) -> LibraryResult<u64> {
     read_local_locators(connection, input, false).await
-}
-
-pub(crate) async fn import_local_locators_jsonl_preserving_downloads_on(
-    connection: &mut sqlx::SqliteConnection,
-    input: impl std::io::BufRead,
-) -> LibraryResult<u64> {
-    read_local_locators(connection, input, true).await
 }
 
 async fn read_local_locators(

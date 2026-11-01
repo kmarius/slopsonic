@@ -512,43 +512,6 @@ pub(crate) struct LegacyActivityRecord {
     pub(crate) last_played_at: Option<i64>,
 }
 
-pub(crate) async fn import_legacy_activity_jsonl_on(
-    connection: &mut SqliteConnection,
-    input: impl BufRead,
-) -> LibraryResult<ActivityImportReport> {
-    let mut lines = input.lines();
-    let header = lines.next().transpose()?.ok_or_else(|| {
-        LibraryError::InvalidRequest("missing historical Activity version".into())
-    })?;
-    if serde_json::from_str::<serde_json::Value>(&header)?["version"] != 1 {
-        return Err(LibraryError::InvalidRequest(
-            "unsupported historical Activity version".into(),
-        ));
-    }
-    let mut report = ActivityImportReport::default();
-    for line in lines {
-        let line = line?;
-        let record: LegacyActivityRecord = match serde_json::from_str(&line) {
-            Ok(record) => record,
-            Err(_) => {
-                report.skipped += 1;
-                continue;
-            }
-        };
-        if record.source_id.is_empty()
-            || record.track_object_id.is_empty()
-            || record.play_count < 0
-            || record.skip_count < 0
-        {
-            report.skipped += 1;
-            continue;
-        }
-        write_legacy_activity(connection, &record).await?;
-        report.accepted += 1;
-    }
-    Ok(report)
-}
-
 fn activity_export_query(source_id: Option<&SourceId>) -> sqlx::QueryBuilder<sqlx::Sqlite> {
     let mut query = sqlx::QueryBuilder::new(ACTIVITY_EXPORT_SELECT);
     // Use the source index rather than an optional predicate over every listen.
@@ -582,24 +545,6 @@ pub(crate) async fn export_activity_jsonl_on(
                 listen: row.listen,
             },
         )?;
-        output.write_all(b"\n")?;
-        count += 1;
-    }
-    Ok(count)
-}
-
-pub(crate) async fn export_legacy_activity_jsonl_on(
-    connection: &mut SqliteConnection,
-    mut output: impl Write,
-) -> LibraryResult<u64> {
-    output.write_all(b"{\"version\":1}\n")?;
-    let mut rows = sqlx::query_as::<_, LegacyActivityRecord>(
-        "SELECT * FROM legacy_activity ORDER BY source_id,period,item_kind,track_object_id",
-    )
-    .fetch(&mut *connection);
-    let mut count = 0;
-    while let Some(row) = rows.try_next().await? {
-        serde_json::to_writer(&mut output, &row)?;
         output.write_all(b"\n")?;
         count += 1;
     }

@@ -21,7 +21,6 @@ It is a stripped-down fork of [Rufin](https://github.com/screwys/Rufin) and writ
 - Automatic metadata and artwork caching; and in-app artwork search functionality
 - Rating support, with an option to enable visual-only partial stars for OpenSubsonic
 - Virtualized, smooth to scroll pages
-- Granular import/export backup options including credentials, automatic backups with password protection are available
 - Listening activity can be exported as Last.fm/ListenBrainz compatible `.csv` files
 
 ## 🌍️ Discovery

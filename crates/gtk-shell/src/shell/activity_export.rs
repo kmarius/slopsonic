@@ -15,7 +15,7 @@ impl Shell {
     ) {
         let shell = Rc::clone(self);
         glib::spawn_future_local(async move {
-            let resource = gtk_preferences::ui_resource::BACKUP_DIALOG_RESOURCE;
+            let resource = gtk_preferences::ui_resource::EXPORT_DIALOG_RESOURCE;
             let dialog: gtk::FileDialog = gtk_widgets::ui_resource::object(
                 &gtk_widgets::ui_resource::builder(resource),
                 resource,

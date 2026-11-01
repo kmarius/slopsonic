@@ -598,7 +598,7 @@ fn source_choice_selector(shell: &Rc<Preferences>, context: &SetupViewContext) -
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
         wrapper: gtk::ScrolledWindow,
-        server_sources: adw::PreferencesGroup, import_backup: gtk::Button,
+        server_sources: adw::PreferencesGroup,
         privacy: adw::PreferencesGroup, external_metadata: adw::SwitchRow,
     });
     for &presentation in source_presentations() {
@@ -642,14 +642,6 @@ fn source_choice_selector(shell: &Rc<Preferences>, context: &SetupViewContext) -
         }
     });
 
-    import_backup.set_visible(context.onboarding);
-
-    let weak = Rc::downgrade(shell);
-    import_backup.connect_clicked(move |_| {
-        if let Some(shell) = weak.upgrade() {
-            crate::preferences::backup::import_dialog(&shell);
-        }
-    });
     wrapper.upcast()
 }
 

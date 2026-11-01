@@ -388,24 +388,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "backup"
-version = "0.0.1"
-dependencies = [
- "age",
- "blake3",
- "chrono",
- "flate2",
- "library",
- "serde",
- "serde_json",
- "tar",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "toml 1.1.3+spec-1.1.0",
-]
-
-[[package]]
 name = "base16ct"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1247,16 +1229,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "filetime"
-version = "0.2.29"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c287a33c7f0a620c38e641e7f60827713987b3c0f26e8ddc9462cc69cf75759"
-dependencies = [
- "cfg-if",
- "libc",
-]
-
-[[package]]
 name = "find-crate"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1977,7 +1949,6 @@ dependencies = [
 name = "gtk-preferences"
 version = "0.0.1"
 dependencies = [
- "backup",
  "desktop-integration",
  "downloads",
  "glib-build-tools",
@@ -3962,7 +3933,6 @@ dependencies = [
  "artwork",
  "async-channel",
  "audio-processing",
- "backup",
  "base64 0.23.1",
  "directories",
  "downloads",
@@ -4843,17 +4813,6 @@ dependencies = [
  "pkg-config",
  "toml 1.1.3+spec-1.1.0",
  "version-compare",
-]
-
-[[package]]
-name = "tar"
-version = "0.4.46"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f6221d9a6003c78398e3b239969f352578258df48c8eb051caadae0015bc840"
-dependencies = [
- "filetime",
- "libc",
- "xattr",
 ]
 
 [[package]]
@@ -5817,16 +5776,6 @@ dependencies = [
  "rand_core 0.6.4",
  "serde",
  "zeroize",
-]
-
-[[package]]
-name = "xattr"
-version = "1.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32e45ad4206f6d2479085147f02bc2ef834ac85886624a23575ae137c8aa8156"
-dependencies = [
- "libc",
- "rustix",
 ]
 
 [[package]]

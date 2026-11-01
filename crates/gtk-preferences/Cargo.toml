@@ -14,7 +14,6 @@ publish.workspace = true
 desktop-integration.workspace = true
 tempfile.workspace = true
 secrets.workspace = true
-backup.workspace = true
 gtk-player.workspace = true
 gtk-widgets.workspace = true
 rufin-core.workspace = true

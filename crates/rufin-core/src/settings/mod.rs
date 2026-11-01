@@ -518,18 +518,6 @@ fn merge_preference_edits<T: Serialize + serde::de::DeserializeOwned + PartialEq
 impl StoredSettings {
     fn prepare(&mut self) -> Result<(), String> {
         self.ui.sanitize();
-        let backup = &mut self.ui.application.backup;
-        if backup.enabled && backup.schedule.frequency == backup::BackupFrequency::Off {
-            backup.schedule.frequency = backup::BackupFrequency::Daily;
-        }
-        if backup.schedule.frequency != backup::BackupFrequency::Off
-            && backup.schedule.schedule_id.is_empty()
-        {
-            backup.schedule.schedule_id = random_identity("schedule-")?;
-        }
-        backup.schedule.retention = 2;
-        backup.schedule.hour = backup.schedule.hour.min(23);
-        backup.schedule.weekday = backup.schedule.weekday.min(6);
         Ok(())
     }
 }
@@ -761,23 +749,6 @@ fn system_keyring_secret_store(scope_id: &str) -> Arc<dyn SecretStore> {
 
 pub(crate) fn provider_secret_key(reference: &Credential) -> SecretKey {
     SecretKey::provider_token(reference.as_str())
-}
-
-pub(crate) fn backup_password_key() -> SecretKey {
-    SecretKey::namespaced("backup", "password", "Rufin scheduled backup password")
-}
-
-pub(crate) fn backup_password_store(
-    settings: &StoredSettings,
-    config_dir: &Path,
-) -> Arc<dyn SecretStore> {
-    match settings.ui.application.secret_storage_mode {
-        SecretStorageMode::ConfigFile => Arc::new(ConfigSecretStore::with_scope(
-            config_dir.join("backup-password.json"),
-            settings.secret_scope_id.clone(),
-        )),
-        SecretStorageMode::SystemKeyring => system_keyring_secret_store(&settings.secret_scope_id),
-    }
 }
 
 fn settings_encryption_key() -> SecretKey {
@@ -1425,34 +1396,18 @@ mod tests {
     }
 
     #[test]
-    fn backup_schedule_identity_and_private_settings_survive_replacement() {
+    fn settings_and_secret_files_are_private_and_replaced_atomically() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("settings.toml");
         let file = SettingsFile {
             path: Some(path.clone()),
             ..SettingsFile::memory_at(directory.path().to_path_buf())
         };
-        assert!(!file.load().ui.application.backup.enabled);
         file.update(|stored| {
-            stored.ui.application.backup.schedule.frequency = backup::BackupFrequency::Daily;
+            stored.ui.application.secret_storage_mode = SecretStorageMode::ConfigFile;
             Ok(())
         })
         .unwrap();
-        let identity = file.load().ui.application.backup.schedule.schedule_id;
-        assert!(!identity.is_empty());
-        file.update(|stored| {
-            stored.ui.application.backup.contents.saved_logins = true;
-            stored.ui.application.backup.schedule.retention = 0;
-            Ok(())
-        })
-        .unwrap();
-        let restored = read_startup_settings(&path).unwrap().0;
-        assert_eq!(
-            restored.ui.application.backup.schedule.schedule_id,
-            identity
-        );
-        assert_eq!(restored.ui.application.backup.schedule.retention, 2);
-        assert!(restored.ui.application.backup.contents.saved_logins);
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

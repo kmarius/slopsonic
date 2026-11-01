@@ -11,19 +11,6 @@ impl SettingsOwner {
             .clone()
     }
 
-    pub fn set_backup_preferences(
-        &self,
-        mut value: crate::runtime::BackupSettings,
-    ) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            value.schedule.schedule_id = ui.application.backup.schedule.schedule_id.clone();
-            value.schedule.last_successful_at = ui.application.backup.schedule.last_successful_at;
-            ui.application.backup = value;
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-
     pub fn random_preferences(&self) -> super::RandomPlaySettings {
         self.load().random_play
     }

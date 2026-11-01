@@ -6,7 +6,6 @@ mod audio;
 pub use audio::*;
 mod activity;
 mod artwork;
-mod backup;
 mod metadata;
 mod metadata_lookup;
 mod query;
@@ -59,7 +58,7 @@ pub use artwork::{
     RepresentativeArtworkScope, authored_playlist_artwork, automatic_playlist_artwork,
     merge_playlist_artwork, normalize_artwork_binding,
 };
-pub use backup::{BackupRestoreReport, StateGroups};
+
 pub use catalog::{
     AlbumObservation, ArtistObservation, CachedSource, Catalog, CatalogBatch, CatalogUpdate,
     FolderObservation, Freshness, GenreObservation, LocalArtworkCandidate, MoodObservation,

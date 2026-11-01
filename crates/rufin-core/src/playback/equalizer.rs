@@ -1020,21 +1020,6 @@ impl PlaybackOwner {
             .map_err(|_| error("Equalizer save stopped"))?;
         Ok(done)
     }
-    pub(crate) async fn restore_equalizer(
-        &self,
-        preferences: EqualizerPreferences,
-    ) -> Result<(), PlaybackError> {
-        preferences.validate().map_err(error)?;
-        let done = {
-            let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-            state.preferences = preferences;
-            let output = state.current_output.clone();
-            state.submit(&output, false);
-            state.publish(&self.settings);
-            self.queue_equalizer_write(&mut state)?
-        };
-        await_write(done).await
-    }
     pub(super) fn processing_receiver(&self) -> watch::Receiver<ProcessingRequest> {
         let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
         let id = local_id(state.observed_route.as_deref());
