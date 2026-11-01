@@ -49,7 +49,6 @@ pub struct SecretKey {
     kind: String,
     label: String,
     attribute: Option<(String, String)>,
-    legacy_attribute_name: Option<String>,
 }
 
 impl SecretKey {
@@ -66,7 +65,6 @@ impl SecretKey {
             kind,
             label: label.into(),
             attribute: None,
-            legacy_attribute_name: None,
         }
     }
 
@@ -77,7 +75,6 @@ impl SecretKey {
             kind: "provider-token".to_string(),
             label: format!("Rufin provider token {source_namespace}"),
             attribute: Some(("source_id".to_string(), source_namespace.to_string())),
-            legacy_attribute_name: Some("server_id".to_string()),
         }
     }
 
@@ -482,18 +479,6 @@ impl SystemKeyringBackend {
         attributes
     }
 
-    fn legacy_secret_attributes(&self, key: &SecretKey) -> Option<Vec<(String, String)>> {
-        let legacy_attribute_name = key.legacy_attribute_name.as_ref()?;
-        let (_, attribute_value) = key.attribute.as_ref()?;
-        Some(vec![
-            ("application".to_string(), self.application.clone()),
-            ("scope".to_string(), self.scope_id.clone()),
-            ("namespace".to_string(), key.namespace.clone()),
-            ("kind".to_string(), key.kind.clone()),
-            (legacy_attribute_name.clone(), attribute_value.clone()),
-        ])
-    }
-
     fn secret_label(&self, key: &SecretKey) -> String {
         key.label.clone()
     }
@@ -577,15 +562,8 @@ impl SecretStore for SystemKeyringBackend {
 
     fn load_secret(&self, key: &SecretKey) -> SecretResult<Option<String>> {
         let attributes = self.secret_attributes(key);
-        let legacy_attributes = self.legacy_secret_attributes(key);
         let secret = self.run_with_keyring(move |keyring| async move {
-            if let Some(secret) = load_item_secret(&keyring, &attributes).await? {
-                return Ok(Some(secret));
-            }
-            let Some(legacy_attributes) = legacy_attributes else {
-                return Ok(None);
-            };
-            load_item_secret(&keyring, &legacy_attributes).await
+            load_item_secret(&keyring, &attributes).await
         })?;
 
         secret
@@ -596,15 +574,8 @@ impl SecretStore for SystemKeyringBackend {
 
     fn delete_secret(&self, key: &SecretKey) -> SecretResult<()> {
         let attributes = self.secret_attributes(key);
-        let legacy_attributes = self.legacy_secret_attributes(key);
 
-        self.run_with_keyring(move |keyring| async move {
-            keyring.delete(&attributes).await?;
-            if let Some(legacy_attributes) = legacy_attributes {
-                keyring.delete(&legacy_attributes).await?;
-            }
-            Ok(())
-        })
+        self.run_with_keyring(move |keyring| async move { keyring.delete(&attributes).await })
     }
 }
 
@@ -804,12 +775,11 @@ mod tests {
                 ("kind".to_string(), "session".to_string()),
             ]
         );
-        assert_eq!(store.backend.legacy_secret_attributes(&key), None);
         assert_eq!(store.backend.secret_label(&key), "Rufin example session");
     }
 
     #[test]
-    fn provider_attributes_preserve_current_and_legacy_lookup() {
+    fn provider_attributes_preserve_shape() {
         let store = SystemKeyringStore::new("scope-1").expect("system keyring store");
         let key = SecretKey::provider_token(SOURCE);
 
@@ -822,16 +792,6 @@ mod tests {
                 ("kind".to_string(), "provider-token".to_string()),
                 ("source_id".to_string(), SOURCE.to_string()),
             ]
-        );
-        assert_eq!(
-            store.backend.legacy_secret_attributes(&key),
-            Some(vec![
-                ("application".to_string(), PROJECT_NAME.to_string()),
-                ("scope".to_string(), "scope-1".to_string()),
-                ("namespace".to_string(), "provider".to_string()),
-                ("kind".to_string(), "provider-token".to_string()),
-                ("server_id".to_string(), SOURCE.to_string()),
-            ])
         );
         assert_eq!(
             store.backend.secret_label(&key),
