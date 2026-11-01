@@ -1146,7 +1146,6 @@ mod playback_refresh_tests {
                 desired_playing: true,
                 position_millis,
                 position_observed_at_millis: 0,
-                playback_rate: 1.0,
                 duration_millis: 180_000,
                 can_seek: true,
                 buffering_percent: None,

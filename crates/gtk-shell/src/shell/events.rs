@@ -852,7 +852,6 @@ mod tests {
                 desired_playing: false,
                 position_millis: 0,
                 position_observed_at_millis: 0,
-                playback_rate: 1.0,
                 duration_millis: 0,
                 can_seek: false,
                 buffering_percent: None,

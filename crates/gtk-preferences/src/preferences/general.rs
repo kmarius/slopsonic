@@ -4,10 +4,7 @@ pub const VOLUME_SCALE_TITLE: &str = "Volume scale";
 pub const STREAM_QUALITY_TITLE: &str = "Stream quality";
 use gtk_player::equalizer::EqualizerSurface;
 use gtk_player::outputs::audio_output_dropdown;
-use gtk_player::playback_settings::{
-    playback_rate_row, preserve_pitch_row, transition_rows, volume_scale_from_index,
-    volume_scale_index,
-};
+use gtk_player::playback_settings::{transition_rows, volume_scale_from_index, volume_scale_index};
 use gtk_widgets::forms::{controlled_selection_row, quality_selection_row, selection_row};
 use gtk_widgets::scale::{install_scale_scroll_forwarding, install_sliding_value_bubble};
 use std::{
@@ -499,12 +496,6 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
     let (transition_row, crossfade_options) = transition_rows(&shell.player_ui, &settings, 220);
     transition_group.add(&transition_row);
     transition_group.add(&crossfade_options);
-
-    let speed_row = playback_rate_row(&shell.player_ui, settings.playback_rate, 220);
-    transition_group.add(&speed_row);
-
-    let pitch_row = preserve_pitch_row(&shell.player_ui, settings.preserve_pitch);
-    transition_group.add(&pitch_row);
 
     audio_fade_row.set_active(settings.audio_fade_on_status_change);
     let audio_fade_shell = Rc::clone(shell);

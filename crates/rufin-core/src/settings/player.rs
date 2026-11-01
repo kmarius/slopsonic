@@ -30,8 +30,6 @@ pub struct PlayerPreferences {
 pub struct PlayerPreferenceOptions {
     pub min_crossfade_seconds: u8,
     pub max_crossfade_seconds: u8,
-    pub min_playback_rate: f64,
-    pub max_playback_rate: f64,
     pub min_ebu_r128_target_lufs: f64,
     pub max_ebu_r128_target_lufs: f64,
     pub min_auto_dj_refill_threshold: u8,
@@ -60,8 +58,6 @@ impl SettingsOwner {
         PlayerPreferenceOptions {
             min_crossfade_seconds: playback::MIN_CROSSFADE_SECONDS,
             max_crossfade_seconds: playback::MAX_CROSSFADE_SECONDS,
-            min_playback_rate: playback::MIN_PLAYBACK_RATE,
-            max_playback_rate: playback::MAX_PLAYBACK_RATE,
             min_ebu_r128_target_lufs: playback::MIN_EBU_R128_TARGET_LUFS,
             max_ebu_r128_target_lufs: playback::MAX_EBU_R128_TARGET_LUFS,
             min_auto_dj_refill_threshold: playback::MIN_AUTO_DJ_REFILL_THRESHOLD,

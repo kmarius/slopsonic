@@ -7,7 +7,7 @@ use gstreamer_audio::gst_base::{BaseTransform, prelude::BaseTransformExt};
 use gstreamer_controller::{self as controller, prelude::*};
 use playback::TrackLoudness;
 use playback::{
-    AudioOutput, BackendAudioSettings, DEFAULT_PLAYBACK_RATE, LoudnessNormalization,
+    AudioOutput, BackendAudioSettings, LoudnessNormalization,
     LoudnessNormalizationScope, ProcessingRequest,
 };
 use std::collections::HashSet;
@@ -21,7 +21,7 @@ pub(super) type SharedQueuedLoudness = Arc<Mutex<Option<TrackLoudness>>>;
 pub(super) struct AudioGraph {
     root: gst::Element,
     input: gst::Element,
-    effect_bins: [gst::Element; 2],
+    effect_bins: [gst::Element; 1],
     pub(super) processing: EffectsBin,
     output: gst::Element,
     sink: gst::Element,
@@ -39,12 +39,11 @@ pub(super) struct AudioGraph {
 #[derive(Clone, Default)]
 struct AudioEffects {
     volume: Option<gst::Element>,
-    tempo: Option<gst::Element>,
 }
 
 impl AudioEffects {
-    fn stages(&self) -> [Option<&gst::Element>; 2] {
-        [self.volume.as_ref(), self.tempo.as_ref()]
+    fn stages(&self) -> [Option<&gst::Element>; 1] {
+        [self.volume.as_ref()]
     }
 }
 
@@ -79,7 +78,6 @@ impl AudioGraphState {
 impl AudioGraph {
     pub(super) fn new(
         settings: &BackendAudioSettings,
-        playback_rate: f64,
         current_loudness: Option<TrackLoudness>,
         queued_loudness: SharedQueuedLoudness,
     ) -> Result<Self, String> {
@@ -119,13 +117,11 @@ impl AudioGraph {
         let (gain, gain_curve) = controlled_volume("rufin-output-gain")?;
         let (transition, transition_curve) = controlled_volume("rufin-transition-gain")?;
         let processing = EffectsBin::new(&ProcessingConfig::default())?;
-        let tempo_bin = make_element("insertbin", "rufin-tempo-bin")?;
         let sink = gst::Bin::new();
         sink.add_many([
             processing.element(),
             gain.upcast_ref::<gst::Element>(),
             transition.upcast_ref::<gst::Element>(),
-            &tempo_bin,
             &resample,
             &convert_out,
             &output,
@@ -135,7 +131,6 @@ impl AudioGraph {
             processing.element(),
             gain.upcast_ref::<gst::Element>(),
             transition.upcast_ref::<gst::Element>(),
-            &tempo_bin,
             &resample,
             &convert_out,
             &output,
@@ -193,11 +188,8 @@ impl AudioGraph {
                 gst::PadProbeReturn::Ok
             },
         );
-        let effects = prepare_effects(settings, playback_rate, &AudioEffects::default())?;
-        let effect_bins = [
-            make_element("insertbin", "rufin-normalization-bin")?,
-            tempo_bin,
-        ];
+        let effects = prepare_effects(settings, &AudioEffects::default())?;
+        let effect_bins = [make_element("insertbin", "rufin-normalization-bin")?];
         apply_effects(&effect_bins, &AudioEffects::default(), &effects);
         let floating = make_element("capsfilter", "rufin-normalization-floating")?;
         floating.set_property(
@@ -350,21 +342,6 @@ impl AudioGraph {
         })
     }
 
-    pub(super) fn fade_at(&self, position: gst::ClockTime) -> Option<(f64, f64, Duration)> {
-        if !self.gain.has_active_control_bindings() {
-            return None;
-        }
-        let points = self.gain_curve.list_control_points();
-        let first = points.first()?;
-        let end = points.last()?;
-        let position = position.max(first.timestamp());
-        Some((
-            ControlSourceExt::value(&self.gain_curve, position)?,
-            end.value(),
-            Duration::from_nanos(end.timestamp().saturating_sub(position).nseconds()),
-        ))
-    }
-
     /// Starts an equal-power fade at the next processed sample, in stream time,
     /// finishing no later than `end`.
     pub(super) fn fade_transition(
@@ -430,15 +407,13 @@ impl AudioGraph {
     pub(super) fn reconfigure(
         &mut self,
         settings: &BackendAudioSettings,
-        playback_rate: f64,
     ) -> Result<bool, String> {
         let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
         let mut available = state.effects.clone();
         if let Some((_, pending)) = state.pending.as_ref() {
             available.volume = available.volume.or_else(|| pending.volume.clone());
-            available.tempo = available.tempo.or_else(|| pending.tempo.clone());
         }
-        let effects = prepare_effects(settings, playback_rate, &available)?;
+        let effects = prepare_effects(settings, &available)?;
         if self.audio_output != settings.audio_output
             && !set_output_target(
                 &self.output,
@@ -500,7 +475,6 @@ impl AudioGraph {
 
 fn prepare_effects(
     settings: &BackendAudioSettings,
-    playback_rate: f64,
     available: &AudioEffects,
 ) -> Result<AudioEffects, String> {
     let volume = if settings.loudness_normalization != LoudnessNormalization::Off {
@@ -511,18 +485,10 @@ fn prepare_effects(
     } else {
         None
     };
-    let tempo = if tempo_enabled(settings, playback_rate) {
-        Some(match available.tempo.as_ref() {
-            Some(element) => element.clone(),
-            None => make_element("scaletempo", "rufin-playback-rate")?,
-        })
-    } else {
-        None
-    };
-    Ok(AudioEffects { volume, tempo })
+    Ok(AudioEffects { volume })
 }
 
-fn apply_effects(bins: &[gst::Element; 2], before: &AudioEffects, after: &AudioEffects) {
+fn apply_effects(bins: &[gst::Element; 1], before: &AudioEffects, after: &AudioEffects) {
     let no_callback = std::ptr::null_mut::<std::ffi::c_void>();
     for ((bin, old), new) in bins.iter().zip(before.stages()).zip(after.stages()) {
         if old == new {
@@ -647,7 +613,6 @@ fn selected_loudness(
 pub(super) fn passthrough_allowed(
     format: &gst::CapsRef,
     settings: &BackendAudioSettings,
-    playback_rate: f64,
     processing: Option<&ProcessingRequest>,
     loudness: Option<&TrackLoudness>,
 ) -> bool {
@@ -655,7 +620,6 @@ pub(super) fn passthrough_allowed(
         ["audio/x-ac3", "audio/x-eac3", "audio/x-dts"].contains(&format.name().as_str())
     }) && settings.output_gain() >= 1.0
         && !settings.muted
-        && (playback_rate - DEFAULT_PLAYBACK_RATE).abs() <= f64::EPSILON
         && processing.is_none_or(|request| {
             request.config.is_neutral() || request.local_device != settings.audio_output
         })
@@ -669,10 +633,6 @@ fn clipping_safe_gain_db(gain_db: f64, peak: Option<f64>) -> f64 {
         .filter(|peak| peak.is_finite() && *peak > 0.0)
         .map_or(1.0, |peak| peak.min(1.0));
     gain_db.min(-20.0 * peak.log10())
-}
-
-fn tempo_enabled(settings: &BackendAudioSettings, playback_rate: f64) -> bool {
-    settings.preserve_pitch && (playback_rate - DEFAULT_PLAYBACK_RATE).abs() > f64::EPSILON
 }
 
 #[cfg(test)]
@@ -963,14 +923,13 @@ mod tests {
 
     fn test_graph(
         settings: &BackendAudioSettings,
-        playback_rate: f64,
         stream: SharedQueuedLoudness,
     ) -> Result<AudioGraph, String> {
         let current_loudness = stream
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone();
-        AudioGraph::new(settings, playback_rate, current_loudness, stream)
+        AudioGraph::new(settings, current_loudness, stream)
     }
 
     #[test]
@@ -982,7 +941,7 @@ mod tests {
             ..BackendAudioSettings::default()
         };
         let graph =
-            test_graph(&settings, DEFAULT_PLAYBACK_RATE, empty_stream()).expect("audio graph");
+            test_graph(&settings, empty_stream()).expect("audio graph");
         let sink = graph.output.clone().downcast::<gst_app::AppSink>().unwrap();
         let mut caps = sink.caps().unwrap();
         caps.truncate();
@@ -1122,14 +1081,14 @@ mod tests {
             audio_output: Some("pulsesink".to_string()),
             ..BackendAudioSettings::default()
         };
-        let mut graph = test_graph(&settings, DEFAULT_PLAYBACK_RATE, empty_stream())
+        let mut graph = test_graph(&settings, empty_stream())
             .expect("Pulse output graph");
         let mut changed = settings;
         changed.audio_output = Some(audio_output_device_id("alsa_output.selected"));
 
         assert!(
             graph
-                .reconfigure(&changed, DEFAULT_PLAYBACK_RATE)
+                .reconfigure(&changed)
                 .expect("retarget output")
         );
         assert_eq!(
@@ -1153,7 +1112,7 @@ mod tests {
             audio_output: Some("fakesink".into()),
             ..Default::default()
         };
-        let mut graph = test_graph(&settings, DEFAULT_PLAYBACK_RATE, empty_stream()).unwrap();
+        let mut graph = test_graph(&settings, empty_stream()).unwrap();
         let profile = EqProfile {
             bands: vec![Filter {
                 kind: FilterKind::Peak,
@@ -1193,7 +1152,7 @@ mod tests {
         };
         let stream = Arc::new(Mutex::new(None));
         let mut graph =
-            test_graph(&settings, DEFAULT_PLAYBACK_RATE, stream.clone()).expect("audio graph");
+            test_graph(&settings, stream.clone()).expect("audio graph");
         let bin = graph.root.downcast_ref::<gst::Bin>().unwrap();
         let volume = bin.by_name("rufin-loudness-normalization").unwrap();
         assert_eq!(volume.property::<f64>("volume"), 1.0);
@@ -1209,45 +1168,14 @@ mod tests {
             loudness_normalization_scope: LoudnessNormalizationScope::Album,
             ..settings.clone()
         };
-        assert!(graph.reconfigure(&album, DEFAULT_PLAYBACK_RATE).unwrap());
+        assert!(graph.reconfigure(&album).unwrap());
         assert!((volume.property::<f64>("volume") - 10_f64.powf(10.0 / 20.0)).abs() < 0.001);
 
         let target = BackendAudioSettings {
             ebu_r128_target_lufs: -18.0,
             ..settings
         };
-        assert!(graph.reconfigure(&target, DEFAULT_PLAYBACK_RATE).unwrap());
-    }
-
-    #[test]
-    fn preserve_pitch_controls_the_scaletempo_stage() {
-        initialize_gstreamer();
-        let enabled = BackendAudioSettings {
-            audio_output: Some("fakesink".to_string()),
-            preserve_pitch: true,
-            ..BackendAudioSettings::default()
-        };
-        let graph = test_graph(&enabled, DEFAULT_PLAYBACK_RATE, empty_stream())
-            .expect("normal-speed audio graph");
-        let bin = graph.sink.downcast_ref::<gst::Bin>().expect("audio bin");
-        assert!(bin.by_name("rufin-playback-rate").is_none());
-
-        let mut graph =
-            test_graph(&enabled, 1.25, empty_stream()).expect("pitch-preserving audio graph");
-        let bin = graph.sink.downcast_ref::<gst::Bin>().expect("audio bin");
-        assert!(bin.by_name("rufin-playback-rate").is_some());
-
-        let disabled = BackendAudioSettings {
-            preserve_pitch: false,
-            ..enabled
-        };
-        assert!(
-            graph
-                .reconfigure(&disabled, 1.25)
-                .expect("pitch preservation configuration change")
-        );
-        let bin = graph.sink.downcast_ref::<gst::Bin>().expect("audio bin");
-        assert!(bin.by_name("rufin-playback-rate").is_none());
+        assert!(graph.reconfigure(&target).unwrap());
     }
 
     #[test]
@@ -1264,7 +1192,7 @@ mod tests {
             track: Some(Box::new(measurement(-21.0, Some(0.4)))),
             album: Some(Box::new(measurement(-23.0, Some(0.8)))),
         };
-        let graph = test_graph(&settings, DEFAULT_PLAYBACK_RATE, test_stream(loudness))
+        let graph = test_graph(&settings, test_stream(loudness))
             .expect("album normalization graph");
         let bin = graph.root.downcast_ref::<gst::Bin>().expect("audio bin");
         let volume = bin
@@ -1289,7 +1217,6 @@ mod tests {
         };
         let graph = test_graph(
             &settings,
-            DEFAULT_PLAYBACK_RATE,
             test_stream(TrackLoudness {
                 track: Some(Box::new(LoudnessMeasurement {
                     analysis_key: [1; 32],
@@ -1325,7 +1252,6 @@ mod tests {
         };
         let graph = test_graph(
             &settings,
-            DEFAULT_PLAYBACK_RATE,
             test_stream(TrackLoudness {
                 track: Some(Box::new(measurement(-28.0, Some(0.1)))),
                 album: None,
@@ -1349,7 +1275,7 @@ mod tests {
             track: Some(Box::new(measurement(-28.0, Some(0.1)))),
             album: None,
         });
-        let graph = test_graph(&settings, DEFAULT_PLAYBACK_RATE, Arc::clone(&stream))
+        let graph = test_graph(&settings, Arc::clone(&stream))
             .expect("normalization graph");
         let next = TrackLoudness {
             track: Some(Box::new(measurement(-18.0, Some(1.0)))),
@@ -1383,7 +1309,7 @@ mod tests {
             track: Some(Box::new(measurement(-28.0, Some(0.1)))),
             album: None,
         });
-        let graph = test_graph(&settings, DEFAULT_PLAYBACK_RATE, Arc::clone(&stream))
+        let graph = test_graph(&settings, Arc::clone(&stream))
             .expect("normalization graph");
         *stream.lock().expect("prepared loudness") = Some(TrackLoudness {
             track: Some(Box::new(measurement(-18.0, Some(1.0)))),
@@ -1471,7 +1397,7 @@ mod tests {
             audio_output: Some("appsink".into()),
             ..BackendAudioSettings::default()
         };
-        let graph = test_graph(&settings, DEFAULT_PLAYBACK_RATE, Arc::clone(&stream)).unwrap();
+        let graph = test_graph(&settings, Arc::clone(&stream)).unwrap();
         let source = gst::ElementFactory::make("audiotestsrc")
             .property("num-buffers", 4_i32)
             .property("samplesperbuffer", 800_i32)

@@ -71,7 +71,6 @@ pub struct TransportView {
     pub desired_playing: bool,
     pub position_millis: u64,
     pub position_observed_at_millis: u64,
-    pub playback_rate: f64,
     pub duration_millis: u64,
     pub can_seek: bool,
     pub buffering_percent: Option<u8>,

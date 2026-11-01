@@ -110,8 +110,6 @@ pub(super) fn items(shell: &Preferences) -> Vec<PreferencesSearchItem> {
         super::general::VOLUME_SCALE_TITLE,
         super::general::STREAM_QUALITY_TITLE,
         gtk_player::playback_settings::CROSSFADE_DURATION_TITLE,
-        gtk_player::playback_settings::PLAYBACK_SPEED_TITLE,
-        gtk_player::playback_settings::PRESERVE_PITCH_TITLE,
     ] {
         add(&mut items, Page::Playback, String::from(title), "", "", None);
     }

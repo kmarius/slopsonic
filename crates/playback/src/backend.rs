@@ -146,7 +146,6 @@ pub struct BackendAudioSettings {
     pub loudness_normalization_scope: LoudnessNormalizationScope,
     pub ebu_r128_target_lufs: f64,
     pub audio_output: Option<String>,
-    pub preserve_pitch: bool,
     pub volume: f64,
     pub volume_scale: VolumeScale,
     pub muted: bool,
@@ -173,7 +172,6 @@ impl From<PlaybackSettings> for BackendAudioSettings {
             loudness_normalization_scope: settings.loudness_normalization_scope,
             ebu_r128_target_lufs: settings.ebu_r128_target_lufs,
             audio_output: settings.audio_output,
-            preserve_pitch: settings.preserve_pitch,
             volume: settings.volume,
             volume_scale: settings.volume_scale,
             muted: settings.muted,
@@ -217,7 +215,6 @@ pub enum BackendCommand {
         current: PreparedStream,
         next: Option<PreparedNext>,
         start_position_millis: u64,
-        playback_rate: f64,
     },
     PrepareNext {
         current_run: RunId,
@@ -246,7 +243,6 @@ pub enum BackendCommand {
         run: RunId,
         loudness: TrackLoudness,
     },
-    SetPlaybackRate(f64),
 }
 
 impl BackendCommand {
@@ -259,9 +255,7 @@ impl BackendCommand {
             | Self::Seek { run, .. }
             | Self::UpdateLoudness { run, .. } => Some(*run),
             Self::PrepareNext { current_run, .. } => Some(*current_run),
-            Self::SetOutputVolume { .. }
-            | Self::ConfigureAudio(_)
-            | Self::SetPlaybackRate(_) => None,
+            Self::SetOutputVolume { .. } | Self::ConfigureAudio(_) => None,
         }
     }
 }

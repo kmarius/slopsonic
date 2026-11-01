@@ -1411,7 +1411,6 @@ impl Player {
                             current: stream,
                             next,
                             start_position_millis: self.sequence.progress_millis(),
-                            playback_rate: self.settings.playback_rate,
                         });
 
                         self.dirty = true;
@@ -1648,8 +1647,6 @@ impl Player {
         let normalization_enabled = self.settings.loudness_normalization
             == playback::LoudnessNormalization::Off
             && settings.loudness_normalization != playback::LoudnessNormalization::Off;
-        let playback_rate_changed = settings.playback_rate != self.settings.playback_rate;
-        let playback_rate = settings.playback_rate;
         let output_changed = settings.volume != self.settings.volume
             || settings.volume_scale != self.settings.volume_scale
             || settings.muted != self.settings.muted;
@@ -1658,7 +1655,6 @@ impl Player {
             || settings.loudness_normalization_scope != self.settings.loudness_normalization_scope
             || settings.ebu_r128_target_lufs != self.settings.ebu_r128_target_lufs
             || settings.audio_output != self.settings.audio_output
-            || settings.preserve_pitch != self.settings.preserve_pitch
             || settings.audio_fade_on_status_change != self.settings.audio_fade_on_status_change;
         self.settings = settings.clone();
         self.dirty = true;
@@ -1682,9 +1678,6 @@ impl Player {
                 volume_scale: settings.volume_scale,
                 muted: settings.muted,
             });
-        }
-        if playback_rate_changed {
-            self.send_backend(BackendCommand::SetPlaybackRate(playback_rate));
         }
         if stream_changed || normalization_enabled {
             self.replan_next(true);
@@ -1723,7 +1716,6 @@ impl Player {
             current: stream,
             next,
             start_position_millis: self.sequence.progress_millis(),
-            playback_rate: self.settings.playback_rate,
         });
 
         self.dirty = true;
@@ -1958,7 +1950,6 @@ impl Player {
                     current: stream,
                     next: None,
                     start_position_millis: self.sequence.progress_millis(),
-                    playback_rate: self.settings.playback_rate,
                 });
             }
             NextResolution::Ready(stream) => {
@@ -2217,7 +2208,6 @@ impl Player {
             phase,
             started_at_unix_seconds: current.started_at_unix_seconds.unwrap_or_default(),
             position_millis: self.sequence.progress_millis(),
-            playback_rate: self.settings.playback_rate,
             duration_millis: (current.duration_millis > 0).then_some(current.duration_millis),
             paused: !current.desired_playing,
             muted: self.settings.muted,
@@ -2321,7 +2311,6 @@ impl Player {
                 desired_playing: self.desired_playing(),
                 position_millis: self.position_millis(),
                 position_observed_at_millis: self.position_observed_at_millis(),
-                playback_rate: settings.playback_rate,
                 duration_millis: self.duration_millis(),
                 can_seek: self.can_seek(),
                 buffering_percent: self.buffering_percent(),
@@ -2447,8 +2436,7 @@ impl Player {
                 && (state_changed
                     || position_millis != view.transport.position_millis
                     || previous.as_ref().is_none_or(|previous| {
-                        previous.transport.playback_rate != view.transport.playback_rate
-                            || previous.controls != view.controls
+                        previous.controls != view.controls
                             || previous.transport.position_millis / 10_000
                                 != view.transport.position_millis / 10_000
                     }))

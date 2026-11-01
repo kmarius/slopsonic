@@ -19,7 +19,6 @@ pub struct SourceReportFact {
     pub phase: SourceReportPhase,
     pub started_at_unix_seconds: i64,
     pub position_millis: u64,
-    pub playback_rate: f64,
     pub duration_millis: Option<u64>,
     pub paused: bool,
     pub muted: bool,
@@ -48,7 +47,6 @@ pub struct ContinuationHeader {
     pub shuffled: bool,
     pub auto_dj: bool,
     pub auto_dj_refill_threshold: usize,
-    pub playback_rate: f64,
     #[serde(default = "continuation_playing")]
     pub desired_playing: bool,
     pub listen: Option<ContinuedListen>,

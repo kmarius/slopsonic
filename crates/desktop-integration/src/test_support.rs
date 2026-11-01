@@ -90,7 +90,6 @@ pub(crate) fn test_view(
             ),
             position_millis,
             position_observed_at_millis: 0,
-            playback_rate: 1.0,
             duration_millis: 42_500,
             can_seek: true,
             buffering_percent: None,

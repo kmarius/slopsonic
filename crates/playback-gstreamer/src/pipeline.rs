@@ -83,7 +83,6 @@ pub(super) struct PlayerPipeline {
     current_stream: Option<PreparedStream>,
     queued_loudness: SharedQueuedLoudness,
     gapless: Arc<Mutex<GaplessPlayback>>,
-    playback_rate: f64,
     segment: Arc<Mutex<SegmentPlayback>>,
     requested_state: Cell<gst::State>,
     buffering_percent: Cell<Option<u8>>,
@@ -109,7 +108,6 @@ struct SegmentPlayback {
     seek: Option<gst::Seqnum>,
     done: bool,
     starts_stream: bool,
-    time_reopened: bool,
     progress: SeekProgress,
 }
 
@@ -146,7 +144,6 @@ impl PlayerPipeline {
             current_stream: None,
             queued_loudness: Arc::new(Mutex::new(None)),
             gapless: Arc::new(Mutex::new(GaplessPlayback::default())),
-            playback_rate: DEFAULT_PLAYBACK_RATE,
             segment: Arc::new(Mutex::new(SegmentPlayback::default())),
             requested_state: Cell::new(gst::State::Null),
             buffering_percent: Cell::new(None),
@@ -180,7 +177,6 @@ impl PlayerPipeline {
         settings: &BackendAudioSettings,
         volume: f64,
         muted: bool,
-        playback_rate: f64,
         startup_state: gst::State,
         fade_in: Option<Duration>,
         bitstream: Option<gst::Caps>,
@@ -204,7 +200,6 @@ impl PlayerPipeline {
                 settings,
                 volume,
                 muted,
-                playback_rate,
                 startup_state,
                 fade_in,
                 bitstream,
@@ -219,8 +214,6 @@ impl PlayerPipeline {
         self.id = Some(id);
         self.session.store(id.0, Ordering::Release);
         self.current_stream = Some(item.stream.clone());
-        self.playback_rate = sanitize_playback_rate(playback_rate);
-        lock_recover(&self.segment).time_reopened = item.stream.time_offset_millis().is_some();
         self.connect_about_to_finish(id, slot, Arc::clone(&self.shared));
         let result = (|| {
             self.configure_audio(settings)?;
@@ -228,7 +221,7 @@ impl PlayerPipeline {
             self.set_output_volume(volume, muted);
             // Installed before preroll so the first samples already follow the curve.
             if let (Some(duration), Some(graph)) = (fade_in, self.audio_graph.as_ref()) {
-                graph.fade_transition(true, duration.mul_f64(self.playback_rate), None);
+                graph.fade_transition(true, duration, None);
             }
             self.set_state(startup_state)?;
             self.set_output_volume(volume, muted);
@@ -687,7 +680,7 @@ impl PlayerPipeline {
         }
         let detached = self.bitstream_output.take().is_some();
         if let Some(graph) = self.audio_graph.as_mut()
-            && graph.reconfigure(settings, self.playback_rate)?
+            && graph.reconfigure(settings)?
         {
             let request = lock_recover(&self.shared).processing.clone();
             if let Some(request) = request {
@@ -701,7 +694,6 @@ impl PlayerPipeline {
         self.set_processing_tap(None);
         let mut graph = AudioGraph::new(
             settings,
-            self.playback_rate,
             self.current_stream
                 .as_ref()
                 .and_then(|stream| stream.loudness.clone()),
@@ -832,7 +824,6 @@ impl PlayerPipeline {
                             passthrough_allowed(
                                 format,
                                 &shared.settings,
-                                shared.playback_rate,
                                 shared.processing.as_ref(),
                                 loudness.as_ref(),
                             )
@@ -875,24 +866,11 @@ impl PlayerPipeline {
                 }
             }
             if matches!(event.view(), gst::EventView::Segment(_)) {
-                let (starts_stream, time_reopened) = {
+                let starts_stream = {
                     let mut segment = segment.lock().unwrap_or_else(|p| p.into_inner());
-                    (
-                        segment.seek == Some(event.seqnum())
-                            && std::mem::take(&mut segment.starts_stream),
-                        segment.time_reopened,
-                    )
+                    segment.seek == Some(event.seqnum())
+                        && std::mem::take(&mut segment.starts_stream)
                 };
-                if time_reopened
-                    && let gst::EventView::Segment(current) = event.view()
-                    && let Some(current) = current.segment().downcast_ref::<gst::ClockTime>()
-                {
-                    let mut current = current.clone();
-                    current.set_rate(lock_recover(&shared).playback_rate);
-                    *event = gst::event::Segment::builder(&current)
-                        .seqnum(event.seqnum())
-                        .build();
-                }
                 if starts_stream {
                     // A non-flushing segment seek keeps the decoder and sink. Mark
                     // the logical track boundary for gain, tags, and playback events.
@@ -922,7 +900,7 @@ impl PlayerPipeline {
         settings: &BackendAudioSettings,
     ) -> Result<bool, BackendFailure> {
         let changed = self.audio_graph.as_mut().map_or(Ok(false), |graph| {
-            graph.reconfigure(settings, self.playback_rate)
+            graph.reconfigure(settings)
         })?;
         if changed {
             let request = lock_recover(&self.shared).processing.clone();
@@ -1007,7 +985,7 @@ impl PlayerPipeline {
 
     pub(super) fn fade_output(&self, start: Option<f64>, target: f64, duration: Duration) {
         if let Some(graph) = &self.audio_graph {
-            graph.fade_output(start, target, duration.mul_f64(self.playback_rate));
+            graph.fade_output(start, target, duration);
         }
     }
 
@@ -1032,7 +1010,7 @@ impl PlayerPipeline {
             .map(gst::ClockTime::from_mseconds)
             .or_else(|| self.duration());
         if let Some(graph) = &self.audio_graph {
-            graph.fade_transition(false, duration.mul_f64(self.playback_rate), end);
+            graph.fade_transition(false, duration, end);
         }
     }
 
@@ -1221,7 +1199,7 @@ impl PlayerPipeline {
             .transpose()
             .map_err(|_| "Segment end exceeds the GStreamer clock range".to_string())?;
         let event = gst::event::Seek::new(
-            self.playback_rate,
+            1.0,
             flags,
             gst::SeekType::Set,
             start,
@@ -1236,10 +1214,6 @@ impl PlayerPipeline {
             seek: Some(event.seqnum()),
             done: false,
             starts_stream,
-            time_reopened: self
-                .current_stream
-                .as_ref()
-                .is_some_and(|stream| stream.time_offset_millis().is_some()),
             progress: if flags.contains(gst::SeekFlags::FLUSH) {
                 SeekProgress::Pausing(event.clone())
             } else {
@@ -1333,45 +1307,6 @@ impl PlayerPipeline {
             self.apply_requested_state()?;
         }
         Ok(())
-    }
-
-    pub(super) fn set_playback_rate(
-        &mut self,
-        rate: f64,
-        seek_position_millis: Option<u64>,
-        settings: &BackendAudioSettings,
-    ) -> Result<bool, BackendFailure> {
-        let previous_rate = self.playback_rate;
-        let fade = seek_position_millis
-            .and_then(|_| self.position())
-            .and_then(|position| self.audio_graph.as_ref()?.fade_at(position))
-            .map(|(start, target, duration)| (start, target, duration.div_f64(previous_rate)));
-        self.playback_rate = sanitize_playback_rate(rate);
-        let result = (|| {
-            self.configure_audio(settings)?;
-            if let Some((start, target, duration)) = fade {
-                self.fade_output(Some(start), target, duration);
-            }
-            match seek_position_millis {
-                Some(position) => self.seek_physical_millis(position).map(|()| true),
-                None => Ok(false),
-            }
-        })();
-        if result.is_err() {
-            self.playback_rate = previous_rate;
-            let _ = self.configure_audio(settings);
-            if let Some((start, target, duration)) = fade {
-                self.fade_output(Some(start), target, duration);
-            }
-        }
-        result
-    }
-
-    pub(super) fn needs_initial_rate_seek(&self) -> bool {
-        self.current_stream
-            .as_ref()
-            .is_none_or(|stream| stream.time_offset_millis().is_none())
-            && (self.playback_rate - DEFAULT_PLAYBACK_RATE).abs() > f64::EPSILON
     }
 
     pub(super) fn stream(&self) -> Option<&PreparedStream> {
@@ -1480,7 +1415,6 @@ mod tests {
                 &settings,
                 1.0,
                 false,
-                1.0,
                 gst::State::Paused,
                 None,
                 None,
@@ -1600,7 +1534,6 @@ mod tests {
                     &settings,
                     1.0,
                     false,
-                    1.0,
                     gst::State::Playing,
                     None,
                     None,

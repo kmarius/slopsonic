@@ -1,21 +1,12 @@
 pub const CROSSFADE_DURATION_TITLE: &str = "Crossfade duration";
-pub const PLAYBACK_SPEED_TITLE: &str = "Playback speed";
-pub const PRESERVE_PITCH_TITLE: &str = "Preserve pitch";
 use gtk_widgets::scale::{install_scale_scroll_forwarding, install_sliding_value_bubble};
-use std::cell::RefCell;
 use std::rc::Rc;
-use std::time::Duration;
 
 use adw::prelude::*;
-use gtk::glib;
-use playback::{
-    MAX_CROSSFADE_SECONDS, MAX_PLAYBACK_RATE, MIN_CROSSFADE_SECONDS, MIN_PLAYBACK_RATE,
-    PlaybackTransitionMode,
-};
+use playback::{MAX_CROSSFADE_SECONDS, MIN_CROSSFADE_SECONDS, PlaybackTransitionMode};
 
 use crate::PlayerUi;
 
-const PLAYBACK_RATE_COMMIT_DELAY: Duration = Duration::from_millis(200);
 const PLAYBACK_SETTINGS_SCALE_WIDTH: i32 = 180;
 
 pub fn configure_playback_settings_popover(button: &gtk::MenuButton, shell: &Rc<PlayerUi>) {
@@ -45,11 +36,6 @@ fn playback_settings_popover(shell: &Rc<PlayerUi>) -> gtk::Popover {
         transition_rows(shell, &playback, PLAYBACK_SETTINGS_SCALE_WIDTH);
     settings_group.add(&transition_row);
     settings_group.add(&crossfade_options);
-    let playback_rate =
-        playback_rate_row(shell, playback.playback_rate, PLAYBACK_SETTINGS_SCALE_WIDTH);
-    settings_group.add(&playback_rate);
-    let preserve_pitch = preserve_pitch_row(shell, playback.preserve_pitch);
-    settings_group.add(&preserve_pitch);
 
     queue.set_active(settings.right_panel.queue_visible);
     let queue_shell = Rc::downgrade(shell);
@@ -164,92 +150,6 @@ fn crossfade_duration_row(
     row.add_suffix(&scale);
     row.set_activatable_widget(Some(&scale));
     row
-}
-
-pub fn playback_rate_row(
-    shell: &Rc<PlayerUi>,
-    initial_rate: f64,
-    scale_width: i32,
-) -> adw::ActionRow {
-    let title_text = String::from(PLAYBACK_SPEED_TITLE);
-    let row = adw::ActionRow::builder().title(&title_text).build();
-    let scale = gtk::Scale::with_range(
-        gtk::Orientation::Horizontal,
-        MIN_PLAYBACK_RATE,
-        MAX_PLAYBACK_RATE,
-        0.05,
-    );
-    scale.add_css_class("playback-setting-scale");
-    install_scale_scroll_forwarding(&scale);
-    scale.set_width_request(scale_width);
-    install_sliding_value_bubble(&scale, playback_rate_value);
-    scale.add_mark(0.5, gtk::PositionType::Bottom, Some("0.5"));
-    scale.add_mark(0.75, gtk::PositionType::Bottom, Some("0.75"));
-    scale.add_mark(1.0, gtk::PositionType::Bottom, Some("1"));
-    scale.add_mark(1.25, gtk::PositionType::Bottom, Some("1.25"));
-    scale.add_mark(1.5, gtk::PositionType::Bottom, Some("1.5"));
-    scale.add_mark(1.75, gtk::PositionType::Bottom, Some("1.75"));
-    scale.add_mark(2.0, gtk::PositionType::Bottom, Some("2"));
-    scale.set_value(initial_rate);
-    scale.update_property(&[gtk::accessible::Property::Label(&title_text)]);
-    row.add_suffix(&scale);
-    row.set_activatable_widget(Some(&scale));
-
-    let pending_rate = Rc::new(RefCell::new(None::<glib::SourceId>));
-    let speed_shell = Rc::clone(shell);
-    let pending_rate_for_change = Rc::clone(&pending_rate);
-    scale.connect_value_changed(move |scale| {
-        let rate = scale.value();
-        if let Some(source) = pending_rate_for_change.borrow_mut().take() {
-            source.remove();
-        }
-        let commit_shell = Rc::clone(&speed_shell);
-        let commit_source = Rc::clone(&pending_rate_for_change);
-        let source = glib::timeout_add_local_once(PLAYBACK_RATE_COMMIT_DELAY, move || {
-            commit_source.borrow_mut().take();
-            commit_shell.update_playback_settings(|settings| settings.playback_rate = rate);
-        });
-        pending_rate_for_change.borrow_mut().replace(source);
-    });
-    row
-}
-
-pub fn preserve_pitch_row(shell: &Rc<PlayerUi>, active: bool) -> adw::SwitchRow {
-    let row = adw::SwitchRow::builder()
-        .title(String::from(PRESERVE_PITCH_TITLE))
-        .active(active)
-        .build();
-    let pitch_shell = Rc::clone(shell);
-    row.connect_active_notify(move |row| {
-        pitch_shell.update_playback_settings(|settings| {
-            settings.preserve_pitch = row.is_active();
-        });
-    });
-    row
-}
-
-fn playback_rate_value(rate: f64) -> String {
-    let mut value = format!("{rate:.2}");
-    while value.ends_with('0') {
-        value.pop();
-    }
-    if value.ends_with('.') {
-        value.push('0');
-    }
-    format!("{value} x")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::playback_rate_value;
-
-    #[test]
-    fn playback_rate_value_keeps_a_clear_multiplier() {
-        assert_eq!(playback_rate_value(0.5), "0.5 x");
-        assert_eq!(playback_rate_value(1.0), "1.0 x");
-        assert_eq!(playback_rate_value(1.25), "1.25 x");
-        assert_eq!(playback_rate_value(2.0), "2.0 x");
-    }
 }
 
 use playback::VolumeScale;

@@ -5,9 +5,6 @@ pub const MIN_EBU_R128_TARGET_LUFS: f64 = -48.0;
 pub const MAX_EBU_R128_TARGET_LUFS: f64 = 0.0;
 pub const MIN_CROSSFADE_SECONDS: u8 = 1;
 pub const MAX_CROSSFADE_SECONDS: u8 = 30;
-pub const MIN_PLAYBACK_RATE: f64 = 0.5;
-pub const MAX_PLAYBACK_RATE: f64 = 2.0;
-pub const DEFAULT_PLAYBACK_RATE: f64 = 1.0;
 pub const DEFAULT_AUTO_DJ_REFILL_THRESHOLD: u8 = 1;
 pub const MIN_AUTO_DJ_REFILL_THRESHOLD: u8 = 1;
 pub const MAX_AUTO_DJ_REFILL_THRESHOLD: u8 = 10;
@@ -107,10 +104,6 @@ macro_rules! playback_preference_fields {
                 stream_quality: StreamQuality = StreamQuality::Original => set_stream_quality;
                 #[serde(default, skip_serializing_if = "Option::is_none")]
                 audio_output: Option<String> = None;
-                #[serde(default = "default_playback_rate")]
-                playback_rate: f64 = DEFAULT_PLAYBACK_RATE => set_playback_rate;
-                #[serde(default = "default_true")]
-                preserve_pitch: bool = true => set_preserve_pitch;
                 #[serde(default)]
                 muted: bool = false;
             }
@@ -202,7 +195,6 @@ impl PlaybackSettings {
         self.crossfade_seconds = self
             .crossfade_seconds
             .clamp(MIN_CROSSFADE_SECONDS, MAX_CROSSFADE_SECONDS);
-        self.playback_rate = sanitize_playback_rate(self.playback_rate);
         self.ebu_r128_target_lufs = sanitize_ebu_r128_target(self.ebu_r128_target_lufs);
         self.volume = sanitize_volume(self.volume);
         if self.audio_output.as_deref().is_some_and(|output| {
@@ -271,18 +263,6 @@ fn default_volume() -> f64 {
     1.0
 }
 
-fn default_playback_rate() -> f64 {
-    DEFAULT_PLAYBACK_RATE
-}
-
-pub fn sanitize_playback_rate(rate: f64) -> f64 {
-    if rate.is_finite() {
-        rate.clamp(MIN_PLAYBACK_RATE, MAX_PLAYBACK_RATE)
-    } else {
-        DEFAULT_PLAYBACK_RATE
-    }
-}
-
 fn sanitize_volume(volume: f64) -> f64 {
     if volume.is_finite() {
         volume.clamp(0.0, 1.0)
@@ -330,24 +310,6 @@ mod tests {
     }
 
     #[test]
-    fn playback_settings_sanitize_playback_rate() {
-        let mut settings = PlaybackSettings {
-            playback_rate: 0.25,
-            ..PlaybackSettings::default()
-        };
-        settings.sanitize();
-        assert_eq!(settings.playback_rate, MIN_PLAYBACK_RATE);
-
-        settings.playback_rate = 4.0;
-        settings.sanitize();
-        assert_eq!(settings.playback_rate, MAX_PLAYBACK_RATE);
-
-        settings.playback_rate = f64::NAN;
-        settings.sanitize();
-        assert_eq!(settings.playback_rate, DEFAULT_PLAYBACK_RATE);
-    }
-
-    #[test]
     fn playback_settings_migrate_backend_factories_to_system_default() {
         for output in [
             "autoaudiosink",
@@ -368,31 +330,6 @@ mod tests {
 
             assert_eq!(settings.audio_output, None, "legacy output {output}");
         }
-    }
-
-    #[test]
-    fn missing_playback_rate_restores_normal_speed() {
-        let restored = serde_json::from_str::<PlaybackSettings>("{}")
-            .expect("restore playback settings without a playback rate");
-
-        assert_eq!(restored.playback_rate, DEFAULT_PLAYBACK_RATE);
-    }
-
-    #[test]
-    fn pitch_preservation_defaults_round_trip() {
-        let restored = serde_json::from_str::<PlaybackSettings>("{}")
-            .expect("restore playback settings without pitch preservation");
-        assert!(restored.preserve_pitch);
-
-        let settings = PlaybackSettings {
-            preserve_pitch: false,
-            ..PlaybackSettings::default()
-        };
-        let restored = serde_json::from_value::<PlaybackSettings>(
-            serde_json::to_value(settings).expect("serialize pitch preservation"),
-        )
-        .expect("restore pitch preservation");
-        assert!(!restored.preserve_pitch);
     }
 
     #[test]
