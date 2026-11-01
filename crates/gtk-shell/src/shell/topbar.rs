@@ -77,6 +77,7 @@ impl Topbar {
     }
 
     pub fn bind(&self, shell: &Rc<Shell>) {
+        hide_window_icon(&self.header);
         self.search_shortcut.set_accelerator("<Control>k");
         self.search_popup
             .replace(Some(super::topbar_search::SearchPopup::new(
@@ -112,4 +113,32 @@ impl Topbar {
         self.sidebar
             .update_property(&[gtk::accessible::Property::Label(&label)]);
     }
+}
+
+fn hide_window_icon(header: &gtk::HeaderBar) {
+    let Some(settings) = gtk::Settings::default() else {
+        return;
+    };
+    let update = {
+        let header = header.downgrade();
+        move |settings: &gtk::Settings| {
+            let Some(header) = header.upgrade() else {
+                return;
+            };
+            let layout = settings.gtk_decoration_layout().unwrap_or_default();
+            let layout = layout
+                .split(':')
+                .map(|side| {
+                    side.split(',')
+                        .filter(|token| *token != "icon")
+                        .collect::<Vec<_>>()
+                        .join(",")
+                })
+                .collect::<Vec<_>>()
+                .join(":");
+            header.set_decoration_layout(Some(&layout));
+        }
+    };
+    update(&settings);
+    settings.connect_gtk_decoration_layout_notify(update);
 }
