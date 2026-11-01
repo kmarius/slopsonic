@@ -30,6 +30,7 @@ impl AlbumCover {
         let button = gtk::Button::new();
         button.add_css_class("album-cover-button");
         button.add_css_class("flat");
+        button.set_cursor_from_name(Some("pointer"));
         button.set_overflow(gtk::Overflow::Hidden);
         let tile = ArtworkTile::new_sized(1, 1);
         button.set_child(Some(&tile.widget()));

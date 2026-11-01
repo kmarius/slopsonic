@@ -862,6 +862,10 @@ row.artist-search-result button.search-preview-play {
 }
 
 .track-table row:hover,
+.title-link-hover {
+  text-decoration-line: underline;
+}
+
 .album-grid > child:hover,
 .album-grid > flowboxchild:hover {
   background-color: color-mix(in srgb, currentColor 8%, transparent);

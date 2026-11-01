@@ -826,7 +826,7 @@ pub fn dynamic_collection_table<T, M>(
     fixed_columns: Vec<(gtk::ColumnViewColumn, i32)>,
     column_for_field: impl Fn(LibraryField) -> gtk::ColumnViewColumn + 'static,
     width_for_field: impl Fn(LibraryField) -> i32 + 'static,
-    _single_click_activate: bool,
+    single_click_activate: bool,
     activate: Option<Box<dyn Fn(u32, T)>>,
     selection: Option<gtk::SelectionModel>,
     initial_width: i32,
@@ -848,8 +848,14 @@ where
             .iter()
             .map(|(field, column)| (column.clone(), width_for_field(*field))),
     );
-    let (table, width_fit, navigation) =
-        collection_table_with_width(model, active, initial_width, false, activate, selection);
+    let (table, width_fit, navigation) = collection_table_with_width(
+        model,
+        active,
+        initial_width,
+        single_click_activate,
+        activate,
+        selection,
+    );
     table.add_css_class("external-header");
     let projection = CollectionTableProjection {
         table,
@@ -876,7 +882,7 @@ fn collection_table_with_width<T, M>(
     model: M,
     columns: Vec<(gtk::ColumnViewColumn, i32)>,
     initial_width: i32,
-    _single_click_activate: bool,
+    single_click_activate: bool,
     activate: Option<Box<dyn Fn(u32, T)>>,
     selection: Option<gtk::SelectionModel>,
 ) -> (
@@ -900,7 +906,7 @@ where
     });
     let table = gtk::ColumnView::new(Some(selection.clone()));
     table.add_css_class("track-table");
-    table.set_single_click_activate(false);
+    table.set_single_click_activate(single_click_activate);
     let row_factory = gtk::SignalListItemFactory::new();
     row_factory.connect_setup(|_, row| {
         if let Some(row) = row.downcast_ref::<gtk::ColumnViewRow>() {

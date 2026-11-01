@@ -122,6 +122,13 @@ pub mod artwork_imp {
 
         fn size_allocate(&self, width: i32, height: i32, baseline: i32) {
             self.area.allocate(width, height, baseline, None);
+            let mut child = self.area.next_sibling();
+            while let Some(widget) = child {
+                child = widget.next_sibling();
+                if let Some(popover) = widget.downcast_ref::<gtk::Popover>() {
+                    popover.present();
+                }
+            }
         }
 
         fn snapshot(&self, snapshot: &gtk::Snapshot) {

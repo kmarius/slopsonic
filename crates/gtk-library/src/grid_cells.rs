@@ -321,7 +321,7 @@ where
     row.set_min_children_per_line(maximum_columns);
     row.set_max_children_per_line(maximum_columns);
     row.set_selection_mode(gtk::SelectionMode::None);
-    row.set_activate_on_single_click(false);
+    row.set_activate_on_single_click(true);
     row.set_hexpand(true);
     row.set_vexpand(false);
     row.set_halign(gtk::Align::Fill);
@@ -564,7 +564,7 @@ where
     // smallest cache bound; the allocation owner raises this to the number of
     // cards in the allocated width before the first allocation.
     grid.set_max_columns(1);
-    grid.set_single_click_activate(false);
+    grid.set_single_click_activate(true);
     grid.set_hexpand(true);
     grid.set_vexpand(true);
     grid.connect_activate(move |_, position| {
@@ -818,12 +818,12 @@ impl AlbumGridCell {
         click.set_button(1);
         let shell = self.shell.clone();
         let current = Rc::clone(&self.current);
-        click.connect_pressed(move |gesture, presses, _, _| {
+        click.connect_released(move |gesture, presses, _, _| {
             let uri = current
                 .borrow()
                 .as_ref()
                 .map(|album| album.media_uri.clone());
-            if presses == 2
+            if presses == 1
                 && let Some(shell) = shell.upgrade()
                 && let Some(uri) = uri
             {
@@ -1167,6 +1167,19 @@ impl MediaPlayingBinding {
     }
 }
 
+pub(super) fn install_title_link_hover(title: &gtk::Label, cover: Option<&gtk::Widget>) {
+    title.set_cursor_from_name(Some("pointer"));
+    if let Some(cover) = cover {
+        cover.set_cursor_from_name(Some("pointer"));
+    }
+    let motion = gtk::EventControllerMotion::new();
+    let enter_title = title.clone();
+    motion.connect_enter(move |_, _, _| enter_title.add_css_class("title-link-hover"));
+    let leave_title = title.clone();
+    motion.connect_leave(move |_| leave_title.remove_css_class("title-link-hover"));
+    title.add_controller(motion);
+}
+
 pub struct CollectionGridCardCell {
     pub card: CollectionGridCardView,
     pub title: gtk::Label,
@@ -1182,6 +1195,7 @@ impl CollectionGridCardCell {
         let card = CollectionGridCardView::new();
         card.prepend(&cover);
         let title = card.imp().title.get();
+        install_title_link_hover(&title, Some(&cover));
         connect_label_tooltip(&title);
         let title_row = card.imp().title_row.get();
         gtk_widgets::recycled_cells::install_playing_indicator(&title, &title_row);

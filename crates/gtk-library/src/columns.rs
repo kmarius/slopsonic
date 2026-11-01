@@ -392,6 +392,23 @@ impl AlbumTableCell {
             AlbumCellView::Text(view) if field == LibraryField::Title => Some(view.label()),
             _ => None,
         };
+        match &view {
+            AlbumCellView::Merged(view) => {
+                super::grid_cells::install_title_link_hover(
+                    &view.title(),
+                    Some(view.cover().widget().upcast_ref()),
+                );
+            }
+            AlbumCellView::Text(view) if field == LibraryField::Title => {
+                super::grid_cells::install_title_link_hover(&view.label(), None);
+            }
+            AlbumCellView::Image(view) => {
+                view.artwork()
+                    .widget()
+                    .set_cursor_from_name(Some("pointer"));
+            }
+            _ => {}
+        }
         if let Some(title) = title {
             cell.imp()
                 .title_playing
@@ -1050,6 +1067,9 @@ pub fn artist_image_column(shell: &Rc<CatalogUi>, album_artist: bool) -> gtk::Co
             return;
         };
         let cell = RecycledArtworkCell::new(48);
+        cell.artwork()
+            .widget()
+            .set_cursor_from_name(Some("pointer"));
         install_artist_list_item_context_menu(&cell, &setup_shell, item, album_artist);
         item.set_child(Some(&cell));
     });
@@ -1116,6 +1136,9 @@ where
         };
         let cell = RecycledBadgedTextCell::with_downloads(&setup_shell.downloads);
         add_field_skeleton_class(&cell, field);
+        if matches!(field, LibraryField::Title | LibraryField::TitleMerged) {
+            super::grid_cells::install_title_link_hover(&cell.label(), None);
+        }
         install_artist_list_item_context_menu(&cell, &setup_shell, item, album_artist);
         item.set_child(Some(&cell));
     });

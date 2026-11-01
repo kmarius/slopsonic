@@ -1196,6 +1196,7 @@ struct AlbumSidePanel {
     item: RefCell<Option<SparseObjectItem>>,
     skeleton: gtk::Box,
     title: gtk::Label,
+    uri: Rc<RefCell<Option<String>>>,
     artist: gtk_widgets::detail_links::DetailLinkBinding,
     artist_label: gtk::Label,
     release: gtk::Label,
@@ -1225,6 +1226,23 @@ impl AlbumSidePanel {
         cover_host.add_named(&cover.widget, Some("cover"));
         cover_host.set_visible_child_name("pending");
         root.set_sensitive(false);
+        super::grid_cells::install_title_link_hover(&title, None);
+        let uri = Rc::new(RefCell::new(None::<String>));
+        let click = gtk::GestureClick::new();
+        click.set_button(1);
+        let click_uri = Rc::clone(&uri);
+        let click_shell = Rc::downgrade(shell);
+        click.connect_released(move |gesture, presses, _, _| {
+            let target = click_uri.borrow().clone();
+            if presses == 1
+                && let Some(shell) = click_shell.upgrade()
+                && let Some(target) = target
+            {
+                gesture.set_state(gtk::EventSequenceState::Claimed);
+                shell.navigate(gtk_widgets::route::Route::AlbumDetail(target));
+            }
+        });
+        title.add_controller(click);
         let artist_label = artist.clone();
         let artist =
             gtk_widgets::detail_links::DetailLinkBinding::new(&artist, shell.route_navigation());
@@ -1236,6 +1254,7 @@ impl AlbumSidePanel {
             item: RefCell::new(None),
             skeleton,
             title,
+            uri,
             artist,
             artist_label,
             release,
@@ -1275,6 +1294,7 @@ impl AlbumSidePanel {
             .set_visible_child_name(if album.is_some() { "cover" } else { "pending" });
         if let Some(album) = album {
             self.title.set_text(&album.metadata.title);
+            self.uri.replace(Some(album.media_uri.clone()));
             self.artist
                 .bind(gtk_widgets::detail_links::album_artist_links(album));
             self.release.set_text(
@@ -1302,6 +1322,7 @@ impl AlbumSidePanel {
             );
         } else {
             self.title.set_text("");
+            self.uri.replace(None);
             self.artist.clear();
             self.release.set_text("");
             self.facts.set_text("");
