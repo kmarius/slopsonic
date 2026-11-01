@@ -75,16 +75,6 @@
           </object>
         </child>
         <child>
-          <object class="AdwActionRow" id="activity_scope_row">
-            <property name="title" translatable="yes">Source</property>
-            <child type="suffix">
-              <object class="GtkMenuButton" id="activity_source">
-                <property name="valign">center</property>
-              </object>
-            </child>
-          </object>
-        </child>
-        <child>
           <object class="AdwActionRow">
             <property name="title" translatable="yes">Export your listening history in Slopsonic</property>
             <property name="title-lines">0</property>
@@ -101,20 +91,6 @@
   </object>
   <object class="AdwPreferencesPage" id="downloads_page">
     <property name="title" translatable="yes">Downloads</property>
-    <child>
-      <object class="AdwPreferencesGroup">
-        <child>
-          <object class="AdwActionRow" id="download_source_row">
-            <property name="title" translatable="yes">Source</property>
-            <child type="suffix">
-              <object class="GtkMenuButton" id="download_source">
-                <property name="valign">center</property>
-              </object>
-            </child>
-          </object>
-        </child>
-      </object>
-    </child>
   </object>
   <object class="AdwActionRow" id="empty_remote_row">
     <property name="title" translatable="yes">No sources configured</property>

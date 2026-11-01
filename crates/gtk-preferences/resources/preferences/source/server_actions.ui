@@ -14,13 +14,6 @@
             <property name="halign">fill</property><property name="hexpand">true</property>
             <property name="margin-top">6</property><property name="margin-bottom">6</property><property name="margin-start">8</property><property name="margin-end">8</property>
             <child>
-              <object class="GtkButton" id="select">
-                <property name="tooltip-text" translatable="yes">Use This Source</property><property name="halign">fill</property><property name="hexpand">true</property>
-                <style><class name="flat"/></style>
-                <property name="child"><object class="GtkBox"><property name="orientation">horizontal</property><property name="spacing">6</property><property name="halign">center</property><property name="valign">center</property><child><object class="GtkImage"><property name="icon-name">rufin-object-select-symbolic</property></object></child><child><object class="GtkLabel"><property name="label" translatable="yes">Use This Source</property><property name="ellipsize">end</property><property name="width-chars">0</property><property name="max-width-chars">18</property><property name="wrap">true</property><property name="wrap-mode">word-char</property><property name="lines">2</property></object></child></object></property>
-              </object>
-            </child>
-            <child>
               <object class="GtkButton" id="resync">
                 <property name="tooltip-text" translatable="yes">Resync Library</property><property name="halign">fill</property><property name="hexpand">true</property>
                 <style><class name="flat"/></style>

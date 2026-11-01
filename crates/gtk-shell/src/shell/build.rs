@@ -162,7 +162,6 @@ pub async fn build(
         volume_persist_source: RefCell::new(None),
     };
     let preferences = PreferencesState {
-        source_choice: RefCell::new(None),
         connect_dialog: gtk::glib::WeakRef::new(),
         connect_feedback: RefCell::new(None),
         secret_storage_row: gtk::glib::WeakRef::new(),

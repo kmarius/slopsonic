@@ -43,7 +43,6 @@ fn library_sources_page(
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
         library_page: adw::PreferencesPage,
-        activity_source: gtk::MenuButton,
         listenbrainz: gtk::ToggleButton, jsonl: gtk::ToggleButton,
         activity_export: gtk::Button,
         servers_group: adw::PreferencesGroup,
@@ -58,7 +57,6 @@ fn library_sources_page(
         servers_group.add(&empty_remote_row);
     } else {
         for server in &remote_sources {
-            let selected = configured.selected_source_id.as_ref() == Some(&server.id);
             let summary = configured
                 .caches
                 .iter()
@@ -84,9 +82,6 @@ fn library_sources_page(
                 ))
                 .subtitle_lines(4)
                 .build();
-            if selected {
-                row.add_suffix(&gtk::Image::from_icon_name("rufin-object-select-symbolic"));
-            }
             row.add_suffix(&gtk::Image::from_icon_name("rufin-go-next-symbolic"));
             row.set_activatable(true);
             let settings_shell = Rc::clone(shell);
@@ -134,17 +129,11 @@ fn library_sources_page(
         add_navigation.push(&page);
         add_navigation_controls.set_nested_page_visible(true);
     });
+    add_source.set_visible(configured.sources.is_empty());
     servers_group.set_header_suffix(Some(&add_source));
 
-    let sources: Rc<[_]> = shell.source.configured.borrow().sources.clone().into();
-    let selection =
-        gtk_widgets::source_labels::bind_source_picker(&activity_source, sources.clone(), 0, true);
     let weak = Rc::downgrade(shell);
-    let (listenbrainz, jsonl, activity_scope) = (
-        listenbrainz.downgrade(),
-        jsonl.downgrade(),
-        selection.downgrade(),
-    );
+    let (listenbrainz, jsonl) = (listenbrainz.downgrade(), jsonl.downgrade());
     activity_export.connect_clicked(move |_| {
         if let Some(shell) = weak.upgrade() {
             let format = if jsonl.upgrade().is_some_and(|button| button.is_active()) {
@@ -157,12 +146,7 @@ fn library_sources_page(
             } else {
                 Some(library::ActivityCsvFormat::LastFm)
             };
-            let source = activity_scope
-                .upgrade()
-                .and_then(|row| row.selected().checked_sub(1))
-                .and_then(|index| sources.get(index as usize))
-                .map(|source| source.id.clone());
-            (shell.effects)(crate::Effect::ExportActivity(format, source));
+            (shell.effects)(crate::Effect::ExportActivity(format, None));
         }
     });
     library_page
@@ -176,39 +160,15 @@ pub(super) fn downloads_page(
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
         downloads_page: adw::PreferencesPage,
-        download_source: gtk::MenuButton,
         downloads_group: adw::PreferencesGroup,
         empty_remote_row: adw::ActionRow,
     });
-    let (sources, selection) = super::source::preference_source_choices(shell, &download_source);
-    if sources.is_empty() {
+    let Some(source) = shell.source.configured.borrow().sources.first().cloned() else {
         downloads_group.add(&empty_remote_row);
         downloads_page.add(&downloads_group);
         return downloads_page;
-    }
-    let current_group = Rc::new(RefCell::new(None::<adw::PreferencesGroup>));
-    let weak = Rc::downgrade(shell);
-    let page = downloads_page.downgrade();
-    let dialog = dialog.downgrade();
-    let render = move |row: &gtk::SingleSelection| {
-        let (Some(shell), Some(page), Some(dialog), Some(source)) = (
-            weak.upgrade(),
-            page.upgrade(),
-            dialog.upgrade(),
-            sources.get(row.selected() as usize),
-        ) else {
-            return;
-        };
-        let previous = current_group.borrow_mut().take();
-        if let Some(previous) = previous {
-            page.remove(&previous);
-        }
-        let group = source_downloads_group(&shell, &dialog, source);
-        page.add(&group);
-        *current_group.borrow_mut() = Some(group);
     };
-    render(&selection);
-    selection.connect_selected_notify(render);
+    downloads_page.add(&source_downloads_group(shell, dialog, &source));
     downloads_page
 }
 

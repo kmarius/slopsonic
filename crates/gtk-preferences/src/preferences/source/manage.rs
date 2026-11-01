@@ -45,7 +45,6 @@ fn manage_server_content(
     exit: ManageServerExitSlot,
     preferences_dialog: &adw::Dialog,
 ) -> gtk::Widget {
-    let selected = shell.source.configured.borrow().selected_source_id.as_ref() == Some(&server.id);
     let resource = gtk_widgets::ui_resource::MANAGE_SERVER_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
@@ -79,7 +78,6 @@ fn manage_server_content(
     content.append(&server_actions_group(
         shell,
         &server,
-        selected,
         &exit,
         preferences_dialog,
     ));
@@ -102,7 +100,6 @@ fn close_manage_server(exit: &ManageServerExitSlot) {
 fn server_actions_group(
     shell: &Rc<Preferences>,
     server: &SourceSummary,
-    selected: bool,
     exit: &ManageServerExitSlot,
     preferences_dialog: &adw::Dialog,
 ) -> adw::PreferencesGroup {
@@ -110,30 +107,9 @@ fn server_actions_group(
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
         group: adw::PreferencesGroup,
-        select: gtk::Button,
         resync: gtk::Button,
         forget: gtk::Button,
     });
-
-    if !selected {
-        let source = shell.products.source.clone();
-        let source_id = server.id.clone();
-        let exit = exit.clone();
-        let preferences_dialog = preferences_dialog.downgrade();
-        select.connect_clicked(move |_| {
-            let source = source.clone();
-            let source_id = source_id.clone();
-            gtk::glib::spawn_future_local(async move {
-                let _ = source.select_source(source_id).await;
-            });
-            close_manage_server(&exit);
-            if let Some(dialog) = preferences_dialog.upgrade() {
-                dialog.close();
-            }
-        });
-    } else {
-        select.set_visible(false);
-    }
 
     let source = shell.products.source.clone();
     let source_id = server.id.clone();

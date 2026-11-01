@@ -486,9 +486,27 @@ impl SourceOwner {
             return Err("the source owner is already running".to_string());
         }
         self.start_asset_downloader();
-        if let Some(source_id) = self.shared.settings.load().sources.selected_source_id {
+        let stored = self.shared.settings.load();
+        let keep = stored.sources.selected_source_id.clone().or_else(|| {
+            stored
+                .sources
+                .configured
+                .first()
+                .map(|configured| configured.configuration.source_id.clone())
+        });
+        let extras = stored
+            .sources
+            .configured
+            .iter()
+            .map(|configured| configured.configuration.source_id.clone())
+            .filter(|source_id| Some(source_id) != keep.as_ref())
+            .collect::<Vec<_>>();
+        if let Some(source_id) = keep {
             let owner = self.clone();
             self.shared.runtime.spawn(async move {
+                for extra in extras {
+                    let _ = owner.forget_source(extra).await;
+                }
                 let _ = owner.select_source(source_id).await;
             });
         }
@@ -1433,6 +1451,10 @@ impl SourceOwner {
         input: SourceSetup,
     ) -> Receiver<Result<SelectedLibrary, String>> {
         let (sender, receiver) = async_channel::bounded(1);
+        if !self.shared.settings.load().sources.configured.is_empty() {
+            let _ = sender.try_send(Err("A server is already configured".to_string()));
+            return receiver;
+        }
         let cancelled = self.shared.begin_selection();
         let owner = self.clone();
         self.shared.runtime.spawn(async move {
@@ -1565,7 +1587,7 @@ impl SourceOwner {
 impl SourceOwner {
     /// Completes when the source's stored catalog is selected. Connection and refresh
     /// continue in the background, including while credentials are being unlocked.
-    pub async fn select_source(&self, source_id: SourceId) -> sources::SourceResult<SourceId> {
+    pub(crate) async fn select_source(&self, source_id: SourceId) -> sources::SourceResult<SourceId> {
         let cancelled = self.shared.begin_selection();
         let owner = self.clone();
         self.shared

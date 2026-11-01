@@ -135,7 +135,6 @@
     <file compressed="true">routes/text_slide.ui</file>
     <file compressed="true">routes/play_menu.ui</file>
     <file compressed="true">preferences/source/manage_server.ui</file>
-    <file compressed="true">preferences/source/picker.ui</file>
     <file compressed="true">routes/recycled_artwork_cell.ui</file>
     <file compressed="true">routes/recycled_badged_text_cell.ui</file>
     <file compressed="true">routes/recycled_folder_cell.ui</file>

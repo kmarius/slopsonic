@@ -39,7 +39,6 @@ const LASTFM_API_CREATE_URL: &str = "https://www.last.fm/api/account/create";
 const LISTENBRAINZ_TOKEN_URL: &str = "https://listenbrainz.org/settings/";
 
 pub struct PreferencesState {
-    pub source_choice: RefCell<Option<sources::SourceId>>,
     pub connect_dialog: gtk::glib::WeakRef<adw::Dialog>,
     pub connect_feedback: RefCell<Option<Rc<gtk_widgets::feedback::ControlFeedbackState>>>,
     pub secret_storage_row: gtk::glib::WeakRef<adw::ComboRow>,

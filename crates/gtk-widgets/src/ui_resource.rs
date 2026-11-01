@@ -1,4 +1,3 @@
-pub const SOURCE_PICKER_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/source/picker.ui";
 use gtk::glib;
 use gtk::prelude::*;
 
@@ -92,7 +91,6 @@ pub const RECYCLED_TEXT_CELL_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/routes/recycled_text_cell.ui";
 
 pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
-    SOURCE_PICKER_RESOURCE,
     TEXT_SLIDE_RESOURCE,
     DISPLAY_SETTINGS_RESOURCE,
     "/io/github/screwys/Rufin/ui/routes/row_actions.ui",
