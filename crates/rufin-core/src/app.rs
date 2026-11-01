@@ -11,7 +11,6 @@ use tracing::warn;
 
 use crate::paths::Paths;
 use crate::playback::PlaybackOwner;
-use crate::release_update::ReleaseUpdateOwner;
 use crate::scrobbling::ScrobblingOwner;
 use crate::settings::{SettingsFile, SettingsOwner, platform_secret_store};
 use crate::source::{SourceOutputs, SourceOwner};
@@ -37,7 +36,6 @@ pub fn worker_runtime() -> std::io::Result<tokio::runtime::Runtime> {
 
 pub async fn runtime_inputs<StartBackend>(
     diagnostics: DiagnosticsHandle,
-    take_previous_update_result: bool,
     settings: SettingsFile,
     paths: Paths,
     start_backend: StartBackend,
@@ -113,7 +111,6 @@ where
 
     let (source_events, source_receiver) = unbounded();
     let (download_events, download_receiver) = unbounded();
-    let (release_update_events, release_update_receiver) = unbounded();
     let artwork = match artwork::Artwork::new(paths.artwork_dir(), runtime.clone()) {
         Ok(artwork) => artwork,
         Err(error) => {
@@ -129,14 +126,6 @@ where
         download_events,
         stored.ui.downloads.clone(),
     );
-    let release_updates = ReleaseUpdateOwner::new(
-        settings.clone(),
-        runtime.clone(),
-        release_update_events,
-        paths.release_history_file(),
-        take_previous_update_result,
-    );
-    let release_history = release_updates.initial_history();
 
     let source = SourceOwner::open_dormant(
         artwork.clone(),
@@ -301,18 +290,15 @@ where
             downloads,
             playback,
             artwork,
-            release_updates,
             scrobbling,
         },
         settings: settings_handle,
         receivers: ProductReceivers {
             source: source_receiver,
             downloads: download_receiver,
-            release_updates: release_update_receiver,
         },
         configured_sources: source.list_sources(),
         source_operation: source.operation().borrow().clone(),
-        release_history,
     })
 }
 

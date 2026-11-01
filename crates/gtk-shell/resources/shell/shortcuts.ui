@@ -39,12 +39,6 @@
           </object>
         </child>
         <child>
-          <object class="AdwShortcutsItem" id="shortcut_version_history">
-            <property name="title" translatable="yes">Version History</property>
-            <property name="action-name">win.show-release-notes</property>
-          </object>
-        </child>
-        <child>
           <object class="AdwShortcutsItem" id="shortcut_private_mode">
             <property name="title" translatable="yes">Private mode</property>
             <property name="action-name">win.toggle-private-mode</property>

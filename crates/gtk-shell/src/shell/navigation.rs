@@ -492,12 +492,6 @@ fn replace_primary_menu_model(menu: &gio::Menu, shell: &Rc<Shell>) {
     let information = gio::Menu::new();
     append_menu_action(
         &information,
-        &"Version History".to_string(),
-        "win.show-release-notes",
-        "rufin-appointment-new-symbolic",
-    );
-    append_menu_action(
-        &information,
         &"Troubleshooting".to_string(),
         "win.troubleshooting",
         "rufin-utilities-terminal-symbolic",

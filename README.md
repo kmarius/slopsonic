@@ -44,7 +44,6 @@ Rufin is a powerful, fast and easy to use native music player for Navidrome.
 - Fast, responsive and broadly customizable
 - Theme support including custom themes
 - Extensive keyboard shortcuts catalog
-- Automatic updates for Windows and macOS builds
 - Easy built-in log viewing and exporting (privacy-conscious)
 - Type to search
 - Can run in the background or set to launch minimized, which uses the GNOME portal when available

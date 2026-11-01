@@ -207,10 +207,6 @@ preference_group!(#[cfg_attr(feature = "bindings", derive(uniffi::Record))] Appl
     notifications_enabled: bool = false => set_notifications_enabled;
     #[serde(default = "default_true")]
     control_notifications_enabled: bool = true => set_control_notifications_enabled;
-    #[serde(default = "default_true")]
-    release_notifications_enabled: bool = true => set_release_notifications_enabled;
-    #[serde(default = "default_release_check_interval_hours")]
-    release_check_interval_hours: u32 = default_release_check_interval_hours() => set_release_check_interval_hours;
     #[serde(default)]
     reduce_motion: bool = false => set_reduce_motion;
     #[serde(default = "default_true")]
@@ -266,10 +262,6 @@ pub struct Settings {
     pub layout: LayoutSettings,
     #[serde(default)]
     pub sidebar: SidebarSettings,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub release_notification_seen_version: Option<String>,
-    #[serde(default)]
-    pub automatic_updates_enabled: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub downloads: Vec<SourceDownloadSettings>,
     #[serde(default)]
@@ -314,8 +306,6 @@ impl Default for Settings {
             web_controller: crate::settings::ControllerSettings::default(),
             layout: LayoutSettings::default(),
             sidebar: SidebarSettings::default(),
-            release_notification_seen_version: None,
-            automatic_updates_enabled: false,
             downloads: Vec::new(),
             show_bottom_bar_rating: false,
             tray_enabled: false,
@@ -363,9 +353,6 @@ impl Settings {
 
     pub fn sanitize(&mut self) {
         self.recent_search_results.truncate(20);
-        if ![1, 6, 12, 24].contains(&self.application.release_check_interval_hours) {
-            self.application.release_check_interval_hours = default_release_check_interval_hours();
-        }
         self.playback.sanitize();
         self.random_play.sanitize();
         self.application.auto_dj_refill_threshold = self
@@ -373,12 +360,6 @@ impl Settings {
             .auto_dj_refill_threshold
             .clamp(MIN_AUTO_DJ_REFILL_THRESHOLD, MAX_AUTO_DJ_REFILL_THRESHOLD);
         self.lastfm_api_key = self.lastfm_api_key.trim().to_string();
-        self.release_notification_seen_version = self
-            .release_notification_seen_version
-            .as_deref()
-            .map(str::trim)
-            .filter(|version| !version.is_empty())
-            .map(str::to_string);
         self.layout.sanitize();
         self.sidebar.sanitize();
         self.application.context_menu.sanitize();
@@ -504,10 +485,6 @@ fn default_starting_page() -> SidebarRouteItem {
     SidebarRouteItem::Home
 }
 
-fn default_release_check_interval_hours() -> u32 {
-    6
-}
-
 fn default_true() -> bool {
     true
 }
@@ -577,7 +554,7 @@ mod tests {
     use crate::settings::SidebarRouteItem;
 
     use super::{
-        ApplicationPreferences, PlayerDisplayPreferences, RecentSearchKind, RecentSearchResult,
+        PlayerDisplayPreferences, RecentSearchKind, RecentSearchResult,
         Settings,
     };
 
@@ -686,13 +663,8 @@ mod tests {
     #[test]
     fn general_preferences_default_for_existing_settings_and_round_trip_choices() {
         let mut saved = serde_json::to_value(Settings::default()).unwrap();
-        saved
-            .as_object_mut()
-            .unwrap()
-            .remove("release_check_interval_hours");
         saved.as_object_mut().unwrap().remove("starting_page");
         let previous: Settings = serde_json::from_value(saved).unwrap();
-        assert_eq!(previous.application.release_check_interval_hours, 6);
         assert_eq!(previous.application.starting_page, SidebarRouteItem::Home);
 
         for page in SidebarRouteItem::all() {
@@ -702,20 +674,6 @@ mod tests {
             let saved = serde_json::to_vec(&settings).unwrap();
             let restored: Settings = serde_json::from_slice(&saved).unwrap();
             assert_eq!(restored.application.starting_page, page);
-        }
-
-        for hours in [1, 6, 12, 24] {
-            let mut settings = Settings {
-                application: ApplicationPreferences {
-                    release_check_interval_hours: hours,
-                    ..Default::default()
-                },
-                ..Settings::default()
-            };
-            settings.sanitize();
-            let saved = serde_json::to_vec(&settings).unwrap();
-            let restored: Settings = serde_json::from_slice(&saved).unwrap();
-            assert_eq!(restored.application.release_check_interval_hours, hours);
         }
     }
 }

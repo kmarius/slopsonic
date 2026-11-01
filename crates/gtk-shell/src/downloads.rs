@@ -53,7 +53,6 @@ impl Shell {
         feedback: &OperationFeedback,
         action: Option<Box<dyn FnOnce()>>,
     ) {
-        crate::preferences::dialogs::release_notes::dismiss_release_notification(&self.preferences);
         let title = &feedback.title;
         let count = track_count_text(feedback.item_count as u64);
         let subtitle = operation_feedback_subtitle(&feedback.kind, &count);

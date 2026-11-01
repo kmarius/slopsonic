@@ -28,14 +28,12 @@ metadata-lookup.workspace = true
 async-channel.workspace = true
 futures-util.workspace = true
 artwork.workspace = true
-pulldown-cmark = { workspace = true, features = ["html"] }
 directories.workspace = true
 downloads.workspace = true
 getrandom.workspace = true
 glib.workspace = true
 gio.workspace = true
 playback.workspace = true
-reqwest = { workspace = true, features = ["blocking", "json"] }
 scrobbling.workspace = true
 sources.workspace = true
 secrets.workspace = true

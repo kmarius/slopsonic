@@ -532,15 +532,15 @@ fn host_is_sandboxed() -> bool {
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) fn present_initial_window(shell: &Rc<Shell>, _force_visible: bool) {
+pub(crate) fn present_initial_window(shell: &Rc<Shell>) {
     crate::application::present_window(&shell.chrome.window);
 }
 
 #[cfg(not(target_os = "macos"))]
-pub(crate) fn present_initial_window(shell: &Rc<Shell>, force_visible: bool) {
+pub(crate) fn present_initial_window(shell: &Rc<Shell>) {
     let settings = shell.settings.current.borrow().clone();
     let tray_available = settings.tray_enabled && settings.start_minimized && shell.ensure_tray();
-    if !force_visible && settings.tray_enabled && settings.start_minimized && tray_available {
+    if settings.tray_enabled && settings.start_minimized && tray_available {
         shell.chrome.window.set_visible(false);
     } else {
         crate::application::present_window(&shell.chrome.window);

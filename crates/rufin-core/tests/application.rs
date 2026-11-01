@@ -32,7 +32,6 @@ fn application_starts_on_a_worker_and_reopens_saved_settings_without_a_ui() {
     app::with_runtime(|runtime| {
         let opened = runtime.block_on(app::runtime_inputs(
             diagnostics.clone(),
-            false,
             app::startup_settings(&paths),
             paths.clone(),
             |_| Ok(Box::new(IdleBackend) as Box<dyn PlaybackBackend>),
@@ -66,7 +65,6 @@ fn application_starts_on_a_worker_and_reopens_saved_settings_without_a_ui() {
             let inputs = runtime
                 .block_on(runtime.spawn(app::runtime_inputs(
                     diagnostics.clone(),
-                    false,
                     app::startup_settings(&paths),
                     paths.clone(),
                     |_| Ok(Box::new(IdleBackend) as Box<dyn PlaybackBackend>),

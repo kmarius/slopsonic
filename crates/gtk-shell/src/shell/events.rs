@@ -8,7 +8,6 @@ use rufin_core::text::{fill};
 use tracing::warn;
 
 use crate::player::{now_playing_notification_can_send, now_playing_notification_should_withdraw};
-use crate::preferences::dialogs::release_notes::apply_release_update;
 use crate::shell::playlist_picker::refresh_context_playlist_picker;
 use gtk_player::fullscreen::{FullscreenPlaybackRefresh, fullscreen_playback_refresh};
 use gtk_player::state::NowPlayingPresentation;
@@ -28,7 +27,6 @@ pub(crate) fn install_product_event_receivers(shell: &Rc<Shell>, receivers: Prod
     let ProductReceivers {
         source,
         downloads,
-        release_updates,
     } = receivers;
 
     let event_shell = Rc::clone(shell);
@@ -63,13 +61,6 @@ pub(crate) fn install_product_event_receivers(shell: &Rc<Shell>, receivers: Prod
                 event_shell.withdraw_now_playing_notification();
                 event_shell.update_media_controls_after(None);
             }
-        }
-    });
-
-    let event_shell = Rc::clone(shell);
-    glib::spawn_future_local(async move {
-        while let Ok(update) = release_updates.recv().await {
-            apply_release_update(&event_shell.preferences, update);
         }
     });
 }

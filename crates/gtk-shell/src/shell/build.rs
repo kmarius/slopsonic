@@ -21,9 +21,6 @@ use crate::player::desktop::DesktopState;
 use crate::player::desktop::lifecycle::install_application_quit;
 use crate::player::right_panel::RightPanelWidgets;
 use crate::player::{install_desktop_lifecycle, present_initial_window};
-use crate::preferences::dialogs::release_notes::{
-    check_for_release_update, schedule_periodic_release_checks,
-};
 use crate::preferences::source::SourceState;
 use gtk_player::state::PlaybackState;
 use gtk_preferences::preferences::PreferencesState;
@@ -56,8 +53,6 @@ pub async fn build(
     bootstrap: impl std::future::Future<Output = Result<RuntimeInputs, String>>,
     quitting: Rc<Cell<bool>>,
     storage_reset: crate::application::StorageResetResult,
-    force_initial_presentation: bool,
-    presented: Option<Box<dyn FnOnce()>>,
     window_bar_preview: Option<crate::application::WindowBarPreview>,
 ) -> Result<(), String> {
     let appearance = Rc::new(gtk_preferences::appearance::ApplicationAppearance::install());
@@ -120,7 +115,6 @@ pub async fn build(
         gtk::glib::Propagation::Proceed
     });
     if cfg!(target_os = "macos")
-        || force_initial_presentation
         || !settings.tray_enabled
         || !settings.start_minimized
     {
@@ -145,7 +139,6 @@ pub async fn build(
         receivers,
         configured_sources,
         source_operation,
-        release_history,
     } = inputs;
     temporary_storage_banner.set_revealed(temporary_store);
     let settings = settings_handle.load();
@@ -184,13 +177,6 @@ pub async fn build(
         connect_feedback: RefCell::new(None),
         secret_storage_row: gtk::glib::WeakRef::new(),
         dialog: gtk::glib::WeakRef::new(),
-        release_history: RefCell::new(release_history),
-        release_history_view: RefCell::new(None),
-        release_check_source: RefCell::new(None),
-        preview_windows_updates: window_bar_preview
-            == Some(crate::application::WindowBarPreview::Windows),
-        release_notification_toast: RefCell::new(None),
-        release_updating: RefCell::new(None),
     };
     let downloads = gtk_widgets::downloads::DownloadsState::new(Rc::clone(&settings_state));
 
@@ -490,11 +476,6 @@ pub async fn build(
                 tracing::warn!(%error, "could not finish saving settings");
             }
             shell.close_activity();
-            if shell.storage_reset.borrow().is_none()
-                && let Err(error) = shell.products.release_updates.install_on_exit()
-            {
-                tracing::warn!(%error, "could not start update on exit");
-            }
         }
     });
     install_normal_navigation_activation(&shell);
@@ -585,19 +566,6 @@ pub async fn build(
         }
     });
 
-    check_for_release_update(&shell.preferences);
-    if let Some(presented) = presented {
-        if shell.chrome.window.is_mapped() {
-            presented();
-        } else {
-            let presented = Rc::new(RefCell::new(Some(presented)));
-            shell.chrome.window.connect_map(move |_| {
-                if let Some(presented) = presented.borrow_mut().take() {
-                    presented();
-                }
-            });
-        }
-    }
     if shell.source.configured.borrow().sources.is_empty() {
         if shell.chrome.window.is_mapped() {
             shell.preferences.present_onboarding();
@@ -615,7 +583,7 @@ pub async fn build(
         }
     }
     if !shell.chrome.window.is_visible() {
-        present_initial_window(&shell, force_initial_presentation);
+        present_initial_window(&shell);
     }
     if shell.chrome.window.is_mapped() {
         shell.open_startup_activity();
@@ -630,7 +598,6 @@ pub async fn build(
             }
         });
     }
-    schedule_periodic_release_checks(&shell.preferences);
     if defer_initial_route && !shell.source.operation.borrow().blocks_library() {
         shell.prepare_startup_route_content();
     }

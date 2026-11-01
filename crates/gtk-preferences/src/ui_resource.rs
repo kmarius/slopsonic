@@ -24,12 +24,6 @@ pub const THEME_ACCENT_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences
 pub const THEME_TILE_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/theme_tile.ui";
 pub const BACKUP_DIALOG_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/dialogs/backup.ui";
-pub const RELEASE_NOTES_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/dialogs/release_notes.ui";
-pub const RELEASE_NOTE_ROW_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/dialogs/release_note_row.ui";
-pub const UPDATE_READY_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/dialogs/update_ready.ui";
 pub const SOURCE_CHOICE_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/source/choice.ui";
 pub const SOURCE_CHOICE_SELECTOR_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/source/choice_selector.ui";
@@ -64,9 +58,6 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     THEME_ACCENT_RESOURCE,
     THEME_TILE_RESOURCE,
     BACKUP_DIALOG_RESOURCE,
-    RELEASE_NOTES_RESOURCE,
-    RELEASE_NOTE_ROW_RESOURCE,
-    UPDATE_READY_RESOURCE,
     SOURCE_CHOICE_RESOURCE,
     SOURCE_CHOICE_SELECTOR_RESOURCE,
     CONNECTION_PROGRESS_RESOURCE,

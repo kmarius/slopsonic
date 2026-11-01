@@ -14,7 +14,6 @@ mod loudness;
 pub mod paths;
 pub mod playback;
 pub mod radio;
-pub mod release_update;
 pub mod route;
 pub mod runtime;
 pub mod scrobbling;

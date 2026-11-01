@@ -48,7 +48,6 @@ const STORE_FILE: &str = "rufin-store.sqlite";
 const SETTINGS_FILE: &str = "settings.json";
 const ARTWORK_DIRECTORY: &str = "covers";
 const DOWNLOADS_DIRECTORY: &str = "downloads";
-const RELEASE_HISTORY_FILE: &str = "releases.json";
 
 #[derive(Clone)]
 pub struct Paths {
@@ -98,10 +97,6 @@ impl Paths {
 
     pub fn downloads_dir(&self) -> PathBuf {
         self.data_dir().join(DOWNLOADS_DIRECTORY)
-    }
-
-    pub fn release_history_file(&self) -> PathBuf {
-        self.cache_dir().join(RELEASE_HISTORY_FILE)
     }
 
     pub fn prepare(&self) -> Result<(), String> {

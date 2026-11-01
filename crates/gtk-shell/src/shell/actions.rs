@@ -366,14 +366,6 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
         let shell = Rc::clone(shell);
         move || navigation::popup_primary_menu(&shell)
     });
-    #[cfg(target_os = "macos")]
-    let release_notes_accels = &["<Meta>y"][..];
-    #[cfg(not(target_os = "macos"))]
-    let release_notes_accels = &["<Control>h"][..];
-    add_window_action(shell, "show-release-notes", release_notes_accels, {
-        let shell = Rc::clone(shell);
-        move || shell.preferences.present_release_notes()
-    });
 
     #[cfg(target_os = "macos")]
     {
@@ -570,7 +562,6 @@ fn macos_menu_model() -> gio::Menu {
 
     let help = gio::Menu::new();
     help.append(Some(&"Keyboard Shortcuts".to_string()), Some("app.show-shortcuts"));
-    help.append(Some(&"Version History".to_string()), Some("win.show-release-notes"));
     help.append(Some(&"Troubleshooting".to_string()), Some("win.troubleshooting"));
     menu.append_submenu(Some(&"Help".to_string()), &help);
 
@@ -868,7 +859,6 @@ mod tests {
             "win.volume-up",
             "win.volume-down",
             "win.troubleshooting",
-            "win.show-release-notes",
             "window.close",
             "app.show-shortcuts",
         ] {

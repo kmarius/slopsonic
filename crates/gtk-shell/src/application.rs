@@ -56,37 +56,11 @@ where
     F: FnOnce() -> Fut + 'static,
     Fut: std::future::Future<Output = Result<RuntimeInputs, String>> + 'static,
 {
-    run_application_with_presentation(settings, bootstrap, false, None)
-}
-
-pub fn run_application_after_update<F, Fut>(
-    settings: rufin_core::settings::Settings,
-    bootstrap: F,
-    presented: impl FnOnce() + 'static,
-) -> ApplicationExit
-where
-    F: FnOnce() -> Fut + 'static,
-    Fut: std::future::Future<Output = Result<RuntimeInputs, String>> + 'static,
-{
-    run_application_with_presentation(settings, bootstrap, true, Some(Box::new(presented)))
-}
-
-fn run_application_with_presentation<F, Fut>(
-    settings: rufin_core::settings::Settings,
-    bootstrap: F,
-    force_initial_presentation: bool,
-    presented: Option<Box<dyn FnOnce()>>,
-) -> ApplicationExit
-where
-    F: FnOnce() -> Fut + 'static,
-    Fut: std::future::Future<Output = Result<RuntimeInputs, String>> + 'static,
-{
     let (app, options) = application();
     let storage_reset = StorageResetResult::default();
     let reset_result = Rc::clone(&storage_reset);
     connect_startup_configuration(&app, Rc::clone(&options));
     let bootstrap = Rc::new(RefCell::new(Some(bootstrap)));
-    let presented = Rc::new(RefCell::new(presented));
     let quitting = Rc::new(Cell::new(false));
     app.connect_activate(move |app| {
         if quitting.get() {
@@ -107,7 +81,6 @@ where
         let settings = settings.clone();
         let quitting = Rc::clone(&quitting);
         let storage_reset = Rc::clone(&storage_reset);
-        let presented = presented.borrow_mut().take();
         let window_bar_preview = options.borrow().window_bar_preview;
         gtk::glib::spawn_future_local(async move {
             let _hold = hold;
@@ -117,8 +90,6 @@ where
                 bootstrap(),
                 quitting,
                 Rc::clone(&storage_reset),
-                force_initial_presentation,
-                presented,
                 window_bar_preview,
             )
             .await
@@ -173,15 +144,6 @@ fn application() -> (adw::Application, Rc<RefCell<ApplicationOptions>>) {
     app.set_option_context_summary(Some(
         "Open audio files or M3U, PLS and XSPF playlists. Use --headless --help for playback without a window.",
     ));
-    #[cfg(target_os = "windows")]
-    app.add_main_option(
-        "updated-restart",
-        0u8.into(),
-        gtk::glib::OptionFlags::HIDDEN,
-        gtk::glib::OptionArg::String,
-        "Resume after the update handshake handled by the launcher",
-        Some("VERSION"),
-    );
     app.add_main_option(
         GTK_DECORATION_LAYOUT_OPTION,
         0u8.into(),
@@ -195,7 +157,7 @@ fn application() -> (adw::Application, Rc<RefCell<ApplicationOptions>>) {
         0u8.into(),
         gtk::glib::OptionFlags::NONE,
         gtk::glib::OptionArg::String,
-        "Preview a 25px platform window bar and Windows update preferences",
+        "Preview a 25px platform window bar",
         Some("macos|windows"),
     );
     let options = Rc::new(RefCell::new(ApplicationOptions::default()));

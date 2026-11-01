@@ -12,7 +12,6 @@ publish.workspace = true
 
 [dependencies]
 desktop-integration.workspace = true
-pulldown-cmark.workspace = true
 tempfile.workspace = true
 secrets.workspace = true
 backup.workspace = true

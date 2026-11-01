@@ -18,7 +18,6 @@ use std::{
 };
 
 mod context_menu;
-pub mod dialogs;
 mod general;
 mod layout;
 mod library;
@@ -47,20 +46,6 @@ pub struct PreferencesState {
     pub connect_feedback: RefCell<Option<Rc<gtk_widgets::feedback::ControlFeedbackState>>>,
     pub secret_storage_row: gtk::glib::WeakRef<adw::ComboRow>,
     pub dialog: gtk::glib::WeakRef<adw::Dialog>,
-    pub release_history: RefCell<rufin_core::runtime::ReleaseHistory>,
-    pub release_history_view: RefCell<Option<dialogs::release_notes::ReleaseHistoryView>>,
-    pub release_check_source: RefCell<Option<gtk::glib::SourceId>>,
-    pub preview_windows_updates: bool,
-    pub release_notification_toast: RefCell<Option<adw::Toast>>,
-    pub release_updating: RefCell<Option<String>>,
-}
-
-impl Drop for PreferencesState {
-    fn drop(&mut self) {
-        if let Some(source) = self.release_check_source.get_mut().take() {
-            source.remove();
-        }
-    }
 }
 
 impl PreferencesState {
@@ -819,11 +804,8 @@ fn general_page(
         keep_running_row: adw::SwitchRow,
         start_minimized_row: adw::SwitchRow,
         type_to_search_row: adw::SwitchRow,
-        automatic_updates_row: adw::SwitchRow,
-        release_check_interval_row: adw::ComboRow,
         control_notifications_row: adw::SwitchRow,
         notifications_row: adw::SwitchRow,
-        release_notifications_row: adw::SwitchRow,
     });
     let settings = shell.settings.current.borrow().clone();
     prefer_distinct_track_covers_row.set_active(settings.application.prefer_distinct_track_covers);
@@ -942,52 +924,7 @@ fn general_page(
                 |settings| &mut settings.type_to_search_enabled,
             );
         });
-        if shell
-            .state
-            .release_history
-            .borrow()
-            .automatic_updates_supported
-            || shell.state.preview_windows_updates
-        {
-            automatic_updates_row.set_active(settings.automatic_updates_enabled);
-            let automatic_updates_shell = Rc::clone(shell);
-            automatic_updates_row.connect_active_notify(move |row| {
-                automatic_updates_shell.settings.set_app_setting(
-                    "automatic update setting",
-                    row.is_active(),
-                    |settings| &mut settings.automatic_updates_enabled,
-                );
-            });
-        } else {
-            window_group.remove(&automatic_updates_row);
-        }
     }
-
-    let intervals = [1, 6, 12, 24];
-    release_check_interval_row.set_selected(
-        intervals
-            .iter()
-            .position(|hours| *hours == settings.application.release_check_interval_hours)
-            .unwrap_or(1) as u32,
-    );
-    let interval_shell = Rc::downgrade(shell);
-    release_check_interval_row.connect_selected_notify(move |row| {
-        let Some(shell) = interval_shell.upgrade() else {
-            return;
-        };
-        let Some(&hours) = intervals.get(row.selected() as usize) else {
-            return;
-        };
-        if shell
-            .settings
-            .set_app_setting("release check interval", hours, |settings| {
-                &mut settings.application.release_check_interval_hours
-            })
-            .is_some()
-        {
-            dialogs::release_notes::schedule_periodic_release_checks(&shell);
-        }
-    });
 
     control_notifications_row.set_active(settings.application.control_notifications_enabled);
     let control_notifications_shell = Rc::clone(shell);
@@ -1012,15 +949,6 @@ fn general_page(
         {
             (notifications_shell.effects)(crate::Effect::WithdrawNotification);
         }
-    });
-    release_notifications_row.set_active(settings.application.release_notifications_enabled);
-    let release_notifications_shell = Rc::clone(shell);
-    release_notifications_row.connect_active_notify(move |row| {
-        release_notifications_shell.settings.set_app_setting(
-            "release notification setting",
-            row.is_active(),
-            |settings| &mut settings.application.release_notifications_enabled,
-        );
     });
     activity::wrap_general(shell, &page, &activity_overview_row, navigation_controls)
 }

@@ -4,7 +4,7 @@ use rufin_core::{app, diagnostics, paths};
 use std::env;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::ffi::OsStr;
-use std::io::{self, Write};
+use std::io;
 use std::process::{Command, ExitCode};
 #[cfg(target_os = "macos")]
 use std::{
@@ -12,8 +12,6 @@ use std::{
     path::{Path, PathBuf},
 };
 use tracing::info;
-
-const UPDATED_RESTART_VERSION_ENV: &str = "RUFIN_UPDATED_RESTART_VERSION";
 
 fn main() -> ExitCode {
     process_memory::configure_allocator();
@@ -25,14 +23,6 @@ fn main() -> ExitCode {
     if let Some(result) = playback_gstreamer::restart_with_http1() {
         return result;
     }
-    let updated_restart = match updated_restart_argument() {
-        Some(Ok(())) => true,
-        Some(Err(message)) => {
-            let _ = writeln!(io::stderr().lock(), "{message}");
-            return ExitCode::FAILURE;
-        }
-        None => false,
-    };
     let settings = app::startup_settings(&paths::roots());
     let (diagnostics, _stderr_guard) = diagnostics::Diagnostics::install(paths::state_dir());
     let _desktop_platform = desktop_integration::Platform::initialize();
@@ -42,7 +32,6 @@ fn main() -> ExitCode {
     let bootstrap = move || async move {
         app::runtime_inputs(
             diagnostics,
-            !updated_restart,
             settings,
             paths::roots(),
             |processing| {
@@ -64,11 +53,7 @@ fn main() -> ExitCode {
     };
     let result = {
         let _guard = runtime.enter();
-        if updated_restart {
-            gtk_shell::run_application_after_update(initial_settings, bootstrap, || {})
-        } else {
-            gtk_shell::run_application(initial_settings, bootstrap)
-        }
+        gtk_shell::run_application(initial_settings, bootstrap)
     };
     if result.storage_reset.is_some() {
         // Wait for file workers too; deleting data while they run can recreate it.
@@ -98,7 +83,6 @@ fn finish_storage_reset(mut result: gtk_shell::ApplicationExit) -> ExitCode {
 fn restart_after_storage_reset() -> io::Result<ExitCode> {
     env::current_exe().and_then(|executable| {
         let mut command = Command::new(executable);
-        command.env_remove(UPDATED_RESTART_VERSION_ENV);
         #[cfg(unix)]
         {
             use std::os::unix::process::CommandExt as _;
@@ -238,35 +222,4 @@ fn macos_bundle_command(
     };
     command.env("DYLD_LIBRARY_PATH", library_path);
     Ok(command)
-}
-
-#[cfg(target_os = "windows")]
-fn updated_restart_argument() -> Option<Result<(), String>> {
-    let mut arguments = env::args_os().skip(1);
-    if arguments.next().as_deref() != Some(OsStr::new("--updated-restart")) {
-        return None;
-    }
-    Some((|| {
-        let version = arguments
-            .next()
-            .ok_or("Usage: rufin --updated-restart VERSION")?;
-        if arguments.next().is_some() {
-            return Err("Usage: rufin --updated-restart VERSION".to_string());
-        }
-        if version != OsStr::new(env!("CARGO_PKG_VERSION")) {
-            return Err(
-                "The reopened Rufin version does not match the installed update.".to_string(),
-            );
-        }
-        if env::var_os(UPDATED_RESTART_VERSION_ENV).as_deref() == Some(version.as_os_str()) {
-            Ok(())
-        } else {
-            windows_updater::wait_for_updated_restart()
-        }
-    })())
-}
-
-#[cfg(not(target_os = "windows"))]
-fn updated_restart_argument() -> Option<Result<(), String>> {
-    None
 }

@@ -8,7 +8,6 @@ mod backup;
 mod diagnostics;
 mod events;
 mod inputs;
-pub mod release_update;
 pub mod scrobbling;
 pub mod source;
 mod storage;
@@ -20,7 +19,6 @@ pub use inputs::{
     CatalogChange, CatalogPublication, CatalogRevision, FavoriteSettlement, RuntimeInputs,
     SelectedLibrary, SourceEvent, SourceNotice, SourceNoticeKind,
 };
-pub use release_update::{ReleaseHistory, ReleaseNote, ReleaseUpdate, ReleaseUpdateHandle};
 pub use scrobbling::{
     LastFmPreferences, LibreFmPreferences, ListenBrainzPreferences, ScrobblingConnection,
     ScrobblingConnectionEvent, ScrobblingHandle, ScrobblingPreferences,
@@ -39,6 +37,5 @@ pub struct ProductHandles {
     pub downloads: downloads::Downloads,
     pub playback: std::sync::Arc<crate::playback::PlaybackOwner>,
     pub artwork: artwork::Artwork,
-    pub release_updates: ReleaseUpdateHandle,
     pub scrobbling: ScrobblingHandle,
 }
