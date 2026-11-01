@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::mpsc::{SyncSender, sync_channel};
 
 const GAPLESS_BUFFERING_IGNORE_REMAINING_MS: u64 = 5_000;
-const STATUS_FADE_DURATION: Duration = Duration::from_millis(300);
+const STATUS_FADE_DURATION: Duration = Duration::from_millis(150);
 
 struct AudioWarning {
     category: String,
