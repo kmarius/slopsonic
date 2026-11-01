@@ -71,27 +71,6 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
         move || shell.toggle_active_left_sidebar_size()
     });
 
-    #[cfg(target_os = "macos")]
-    let private_mode_accels = &["<Alt><Meta>p"][..];
-    #[cfg(not(target_os = "macos"))]
-    let private_mode_accels = &["<Control><Alt>p"][..];
-    add_window_action(shell, "toggle-private-mode", private_mode_accels, {
-        let shell = Rc::clone(shell);
-        move || {
-            let enabled = !shell.settings.current.borrow().application.private_mode;
-            shell.preferences.set_private_mode(enabled);
-            if shell.settings.current.borrow().application.private_mode == enabled {
-                shell
-                    .control_feedback
-                    .show_control_feedback_toast(if enabled {
-                        "Private mode is on".to_string()
-                    } else {
-                        "Private mode is off".to_string()
-                    });
-            }
-        }
-    });
-
     let fullscreen = gio::SimpleAction::new("toggle-fullscreen", None);
     let fullscreen_shell = Rc::clone(shell);
     fullscreen.connect_activate(move |_, _| {
@@ -494,7 +473,6 @@ fn macos_menu_model() -> gio::Menu {
         &[
             ("Collapse/expand sidebar".to_string(), "win.toggle-left-sidebar"),
             ("Show/hide right sidebar".to_string(), "win.toggle-queue"),
-            ("Private mode".to_string(), "win.toggle-private-mode"),
             ("Toggle Fullscreen".to_string(), "win.toggle-fullscreen"),
         ],
     );
@@ -821,7 +799,6 @@ mod tests {
             "win.navigate-sidebar",
             "win.toggle-left-sidebar",
             "win.toggle-queue",
-            "win.toggle-private-mode",
             "win.toggle-fullscreen",
             "win.play-pause",
             "win.previous-track",

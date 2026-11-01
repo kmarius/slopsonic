@@ -163,7 +163,6 @@ struct DeliveryTarget {
 #[derive(Clone)]
 struct DeliveryState {
     settings: Settings,
-    private_mode: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -272,13 +271,9 @@ impl Scrobbler {
         database: Database,
         runtime: tokio::runtime::Handle,
         mut settings: Settings,
-        private_mode: bool,
     ) -> Result<Self, String> {
         settings.sanitize();
-        let state = Arc::new(Mutex::new(DeliveryState {
-            settings,
-            private_mode,
-        }));
+        let state = Arc::new(Mutex::new(DeliveryState { settings }));
         let worker = Worker::new(database.clone(), runtime.clone(), Arc::clone(&state))?;
         Ok(Self {
             database,
@@ -297,16 +292,11 @@ impl Scrobbler {
     }
 
     /// Apply preferences immediately using the already loaded account credentials.
-    pub fn update_preferences(
-        &self,
-        settings: &Settings,
-        private_mode: bool,
-    ) -> Result<(), String> {
+    pub fn update_preferences(&self, settings: &Settings) -> Result<(), String> {
         let mut current = self
             .state
             .lock()
             .map_err(|_| "scrobbling settings lock was poisoned".to_string())?;
-        current.private_mode = private_mode;
         current.settings.lastfm.enabled = settings.lastfm.enabled;
         current.settings.lastfm.now_playing_enabled = settings.lastfm.now_playing_enabled;
         current.settings.librefm.enabled = settings.librefm.enabled;
@@ -315,18 +305,16 @@ impl Scrobbler {
         current.settings.listenbrainz.now_playing_enabled =
             settings.listenbrainz.now_playing_enabled;
         drop(current);
-        if !private_mode {
-            self.worker.wake();
-        }
+        self.worker.wake();
         Ok(())
     }
 
-    pub fn update_settings(&self, settings: Settings, private_mode: bool) -> Result<(), String> {
-        self.replace_settings(settings, Some(private_mode), None)
+    pub fn update_settings(&self, settings: Settings) -> Result<(), String> {
+        self.replace_settings(settings, true, None)
     }
 
     pub fn update_credentials(&self, settings: Settings) -> Result<(), String> {
-        self.replace_settings(settings, None, None)
+        self.replace_settings(settings, false, None)
     }
 
     /// Load stored accounts without overwriting an account edited while storage unlocks.
@@ -337,17 +325,17 @@ impl Scrobbler {
             .map_err(|_| "scrobbling settings lock was poisoned".to_string())?
             .settings
             .clone();
-        self.replace_settings(load(), None, Some(expected))
+        self.replace_settings(load(), false, Some(expected))
     }
 
     fn replace_settings(
         &self,
         mut settings: Settings,
-        private_mode: Option<bool>,
+        replace_preferences: bool,
         expected: Option<Settings>,
     ) -> Result<(), String> {
         settings.sanitize();
-        let (previous_accounts, current_accounts, reauthorized, private_mode) = {
+        let (previous_accounts, current_accounts, reauthorized) = {
             let mut state = self
                 .state
                 .lock()
@@ -370,7 +358,7 @@ impl Scrobbler {
                     settings.listenbrainz = state.settings.listenbrainz.clone();
                 }
             }
-            if private_mode.is_none() {
+            if !replace_preferences {
                 settings.lastfm.enabled = state.settings.lastfm.enabled;
                 settings.lastfm.now_playing_enabled = state.settings.lastfm.now_playing_enabled;
                 settings.librefm.enabled = state.settings.librefm.enabled;
@@ -383,10 +371,7 @@ impl Scrobbler {
             let current = known_accounts(&settings);
             let reauthorized = reauthorized_accounts(&state.settings, &settings);
             state.settings = settings;
-            if let Some(private_mode) = private_mode {
-                state.private_mode = private_mode;
-            }
-            (previous, current, reauthorized, state.private_mode)
+            (previous, current, reauthorized)
         };
         for (service, account_id) in previous_accounts {
             if !current_accounts
@@ -410,9 +395,7 @@ impl Scrobbler {
                 )
                 .map_err(|error| error.to_string())?;
         }
-        if !private_mode {
-            self.worker.wake();
-        }
+        self.worker.wake();
         Ok(())
     }
 
@@ -420,7 +403,7 @@ impl Scrobbler {
         let enabled = self
             .state
             .lock()
-            .is_ok_and(|state| !state.private_mode && !targets(&state.settings, true).is_empty());
+            .is_ok_and(|state| !targets(&state.settings, true).is_empty());
         self.worker
             .now_playing(track.filter(|_| enabled).and_then(SubmissionTrack::capture));
     }
@@ -434,7 +417,7 @@ impl Scrobbler {
             let Some(state) = state else {
                 return Vec::new();
             };
-            if state.private_mode || listen.skipped {
+            if listen.skipped {
                 return Vec::new();
             }
             if external_scrobble_threshold_millis(listen.duration_millis.max(0) as u64)
@@ -519,7 +502,6 @@ fn deliver_now_playing(
     let targets = state
         .lock()
         .ok()
-        .filter(|state| !state.private_mode)
         .map(|state| targets(&state.settings, true))
         .unwrap_or_default();
     let submission = Submission::NowPlaying(track);
@@ -540,9 +522,6 @@ fn deliver_due(
     state: &Arc<Mutex<DeliveryState>>,
     work: &Mutex<PendingWork>,
 ) {
-    if state.lock().map_or(true, |state| state.private_mode) {
-        return;
-    }
     let now = unix_seconds();
     let cancellation = ReadCancellation::new();
     let pending = match runtime.block_on(database.due_listen_deliveries(
@@ -665,7 +644,6 @@ fn current_target(
     state
         .lock()
         .ok()
-        .filter(|state| !state.private_mode)
         .and_then(|state| {
             targets(&state.settings, false)
                 .into_iter()
@@ -841,7 +819,7 @@ mod tests {
     }
 
     #[test]
-    fn delayed_credentials_preserve_private_mode_preferences_and_new_account() {
+    fn delayed_credentials_preserve_preferences_and_new_account() {
         let directory = tempfile::tempdir().unwrap();
         let runtime = tokio::runtime::Runtime::new().unwrap();
         let database = runtime
@@ -851,7 +829,6 @@ mod tests {
             database,
             runtime.handle().clone(),
             Settings::default(),
-            false,
         )
         .unwrap();
         scrobbler
@@ -859,7 +836,7 @@ mod tests {
                 let mut changed = Settings::default();
                 changed.listenbrainz.user_token = "new-account".into();
                 changed.listenbrainz.enabled = false;
-                scrobbler.update_settings(changed, true).unwrap();
+                scrobbler.update_settings(changed).unwrap();
                 let mut delayed = Settings::default();
                 delayed.listenbrainz.user_token = "old-account".into();
                 delayed.listenbrainz.enabled = true;
@@ -867,7 +844,6 @@ mod tests {
             })
             .unwrap();
         let current = scrobbler.state.lock().unwrap();
-        assert!(current.private_mode);
         assert!(!current.settings.listenbrainz.enabled);
         assert_eq!(current.settings.listenbrainz.user_token, "new-account");
     }
@@ -953,7 +929,6 @@ mod tests {
                 database.clone(),
                 tokio::runtime::Handle::current(),
                 settings,
-                false,
             )
         })
         .expect("start Scrobbler");

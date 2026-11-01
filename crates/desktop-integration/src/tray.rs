@@ -4,7 +4,6 @@ pub enum TrayIntent {
     PlayPause,
     PreviousTrack,
     NextTrack,
-    TogglePrivateMode,
     Quit,
 }
 
@@ -36,37 +35,23 @@ mod freedesktop {
         play_pause_label: String,
         previous_label: String,
         next_label: String,
-        enable_private_mode_label: String,
-        disable_private_mode_label: String,
         quit_label: String,
-        private_mode: bool,
     }
 
     impl RufinTray {
-        fn new(sender: Sender<TrayIntent>, private_mode: bool) -> Self {
+        fn new(sender: Sender<TrayIntent>) -> Self {
             Self {
                 sender,
                 show_label: "Show Rufin".to_string(),
                 play_pause_label: "Play/Pause".to_string(),
                 previous_label: "Previous Track".to_string(),
                 next_label: "Next Track".to_string(),
-                enable_private_mode_label: "Enable private mode".to_string(),
-                disable_private_mode_label: "Disable private mode".to_string(),
                 quit_label: "Quit".to_string(),
-                private_mode,
             }
         }
 
         fn send_command(&self, command: TrayIntent) {
             let _ = self.sender.send(command);
-        }
-
-        fn private_mode_label(&self) -> String {
-            if self.private_mode {
-                self.disable_private_mode_label.clone()
-            } else {
-                self.enable_private_mode_label.clone()
-            }
         }
     }
 
@@ -143,15 +128,6 @@ mod freedesktop {
                 .into(),
                 MenuItem::Separator,
                 StandardItem {
-                    label: self.private_mode_label(),
-                    activate: Box::new(|tray: &mut RufinTray| {
-                        tray.send_command(TrayIntent::TogglePrivateMode)
-                    }),
-                    ..Default::default()
-                }
-                .into(),
-                MenuItem::Separator,
-                StandardItem {
                     label: self.quit_label.clone(),
                     activate: Box::new(|tray: &mut RufinTray| tray.send_command(TrayIntent::Quit)),
                     ..Default::default()
@@ -162,19 +138,13 @@ mod freedesktop {
     }
 
     impl Tray {
-        pub fn start(private_mode: bool) -> Result<(Self, Receiver<TrayIntent>), String> {
+        pub fn start() -> Result<(Self, Receiver<TrayIntent>), String> {
             let (sender, receiver) = channel();
-            let tray = RufinTray::new(sender, private_mode);
+            let tray = RufinTray::new(sender);
             let handle = tray.disable_dbus_name(true).spawn().map_err(|error| {
                 format!("failed to create status notifier tray item: {error:?}")
             })?;
             Ok((Self { handle }, receiver))
-        }
-
-        pub fn set_private_mode(&self, private_mode: bool) {
-            let _updated = self.handle.update(|tray| {
-                tray.private_mode = private_mode;
-            });
         }
 
         pub fn shutdown(self) {
@@ -243,7 +213,7 @@ mod freedesktop {
         #[test]
         fn tray_use_controls() {
             let (sender, _receiver) = channel();
-            let tray = RufinTray::new(sender, false);
+            let tray = RufinTray::new(sender);
             let items = tray.menu();
             let labels = standard_items(&items)
                 .iter()
@@ -257,7 +227,6 @@ mod freedesktop {
                     "Play/Pause",
                     "Previous Track",
                     "Next Track",
-                    "Enable private mode",
                     "Quit"
                 ]
             );
@@ -269,30 +238,18 @@ mod freedesktop {
         }
 
         #[test]
-        fn tray_match_state() {
-            let (sender, _receiver) = channel();
-            let disabled = RufinTray::new(sender.clone(), false);
-            let enabled = RufinTray::new(sender, true);
-
-            assert!(standard_labels(&disabled.menu()).contains(&"Enable private mode"));
-            assert!(standard_labels(&enabled.menu()).contains(&"Disable private mode"));
-        }
-
-        #[test]
         fn tray_playback_command() {
             let (sender, receiver) = channel();
-            let mut tray = RufinTray::new(sender, false);
+            let mut tray = RufinTray::new(sender);
             let mut items = tray.menu();
 
             activate_standard_item(&mut items, &mut tray, "Play/Pause");
             activate_standard_item(&mut items, &mut tray, "Previous Track");
             activate_standard_item(&mut items, &mut tray, "Next Track");
-            activate_standard_item(&mut items, &mut tray, "Enable private mode");
 
             assert_eq!(receiver.recv().ok(), Some(TrayIntent::PlayPause));
             assert_eq!(receiver.recv().ok(), Some(TrayIntent::PreviousTrack));
             assert_eq!(receiver.recv().ok(), Some(TrayIntent::NextTrack));
-            assert_eq!(receiver.recv().ok(), Some(TrayIntent::TogglePrivateMode));
         }
 
         #[test]
@@ -318,13 +275,6 @@ mod freedesktop {
                     MenuItem::Standard(item) => Some(item),
                     _ => None,
                 })
-                .collect()
-        }
-
-        fn standard_labels<T>(items: &[MenuItem<T>]) -> Vec<&str> {
-            standard_items(items)
-                .iter()
-                .map(|item| item.label.as_str())
                 .collect()
         }
 
@@ -367,7 +317,6 @@ mod windows {
     const PLAY_PAUSE_ID: &str = "rufin-tray-play-pause";
     const PREVIOUS_ID: &str = "rufin-tray-previous";
     const NEXT_ID: &str = "rufin-tray-next";
-    const PRIVATE_MODE_ID: &str = "rufin-tray-private-mode";
     const QUIT_ID: &str = "rufin-tray-quit";
 
     static INSTALL_EVENT_HANDLERS: Once = Once::new();
@@ -375,11 +324,10 @@ mod windows {
 
     pub struct Tray {
         icon: TrayIcon,
-        private_mode_item: MenuItem,
     }
 
     impl Tray {
-        pub fn start(private_mode: bool) -> Result<(Self, Receiver<TrayIntent>), String> {
+        pub fn start() -> Result<(Self, Receiver<TrayIntent>), String> {
             install_event_handlers();
             let (sender, receiver) = channel();
             let menu = Menu::new();
@@ -387,16 +335,9 @@ mod windows {
             let play_pause = MenuItem::with_id(PLAY_PAUSE_ID, "Play/Pause".to_string(), true, None);
             let previous = MenuItem::with_id(PREVIOUS_ID, "Previous Track".to_string(), true, None);
             let next = MenuItem::with_id(NEXT_ID, "Next Track".to_string(), true, None);
-            let private_mode_item = MenuItem::with_id(
-                PRIVATE_MODE_ID,
-                private_mode_label(private_mode),
-                true,
-                None,
-            );
             let quit = MenuItem::with_id(QUIT_ID, "Quit".to_string(), true, None);
             let separator_one = PredefinedMenuItem::separator();
             let separator_two = PredefinedMenuItem::separator();
-            let separator_three = PredefinedMenuItem::separator();
             menu.append_items(&[
                 &show,
                 &separator_one,
@@ -404,8 +345,6 @@ mod windows {
                 &previous,
                 &next,
                 &separator_two,
-                &private_mode_item,
-                &separator_three,
                 &quit,
             ])
             .map_err(|error| format!("failed to build the tray menu: {error}"))?;
@@ -420,18 +359,7 @@ mod windows {
                 .build()
                 .map_err(|error| format!("failed to create the system tray icon: {error}"))?;
             set_event_sender(Some(sender));
-            Ok((
-                Self {
-                    icon,
-                    private_mode_item,
-                },
-                receiver,
-            ))
-        }
-
-        pub fn set_private_mode(&self, private_mode: bool) {
-            self.private_mode_item
-                .set_text(private_mode_label(private_mode));
+            Ok((Self { icon }, receiver))
         }
 
         pub fn shutdown(self) {
@@ -443,14 +371,6 @@ mod windows {
     impl Drop for Tray {
         fn drop(&mut self) {
             set_event_sender(None);
-        }
-    }
-
-    fn private_mode_label(private_mode: bool) -> String {
-        if private_mode {
-            "Disable private mode".to_string()
-        } else {
-            "Enable private mode".to_string()
         }
     }
 
@@ -500,7 +420,6 @@ mod windows {
             PLAY_PAUSE_ID => TrayIntent::PlayPause,
             PREVIOUS_ID => TrayIntent::PreviousTrack,
             NEXT_ID => TrayIntent::NextTrack,
-            PRIVATE_MODE_ID => TrayIntent::TogglePrivateMode,
             QUIT_ID => TrayIntent::Quit,
             _ => return None,
         })
@@ -531,7 +450,7 @@ mod windows {
 
     #[cfg(test)]
     mod tests {
-        use super::{menu_intent, private_mode_label};
+        use super::menu_intent;
         use crate::tray::TrayIntent;
 
         #[test]
@@ -546,18 +465,8 @@ mod windows {
                 Some(TrayIntent::PreviousTrack)
             );
             assert_eq!(menu_intent("rufin-tray-next"), Some(TrayIntent::NextTrack));
-            assert_eq!(
-                menu_intent("rufin-tray-private-mode"),
-                Some(TrayIntent::TogglePrivateMode)
-            );
             assert_eq!(menu_intent("rufin-tray-quit"), Some(TrayIntent::Quit));
             assert_eq!(menu_intent("another-app"), None);
-        }
-
-        #[test]
-        fn native_tray_private_mode_label_follows_state() {
-            assert_eq!(private_mode_label(false), "Enable private mode");
-            assert_eq!(private_mode_label(true), "Disable private mode");
         }
     }
 }
@@ -574,11 +483,9 @@ mod unsupported {
     pub struct Tray;
 
     impl Tray {
-        pub fn start(_private_mode: bool) -> Result<(Self, Receiver<TrayIntent>), String> {
+        pub fn start() -> Result<(Self, Receiver<TrayIntent>), String> {
             Err("system tray integration is unavailable on this platform".to_string())
         }
-
-        pub fn set_private_mode(&self, _private_mode: bool) {}
 
         pub fn shutdown(self) {}
     }

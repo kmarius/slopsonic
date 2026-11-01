@@ -7,11 +7,6 @@
     <child>
       <object class="AdwPreferencesGroup">
         <child>
-          <object class="AdwSwitchRow" id="private_row">
-            <property name="title" translatable="yes">Private mode</property>
-          </object>
-        </child>
-        <child>
           <object class="AdwComboRow" id="secret_storage_row">
             <property name="title" translatable="yes">Secret storage</property>
           </object>

@@ -148,7 +148,6 @@ macro_rules! preference_group {
 preference_group!(#[cfg_attr(feature = "bindings", derive(uniffi::Record))] ApplicationPreferences, application, {
     #[serde(default = "default_starting_page")]
     starting_page: SidebarRouteItem = default_starting_page() => set_starting_page;
-    private_mode: bool = false => set_private_mode;
     #[serde(default = "default_true")]
     external_metadata_enabled: bool = true => set_external_metadata_enabled;
     #[serde(default)]
@@ -294,7 +293,7 @@ impl Settings {
     }
 
     pub fn allows_external_metadata_lookup(&self) -> bool {
-        self.application.external_metadata_enabled && !self.application.private_mode
+        self.application.external_metadata_enabled
     }
 
     pub fn sanitize(&mut self) {

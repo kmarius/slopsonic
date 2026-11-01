@@ -1,5 +1,4 @@
 //! Owns accepted listens, on-demand Activity summaries, and per-service delivery targets.
-//! Rufin Activity is recorded independently of external private-mode delivery policy.
 
 use std::io::{BufRead, Write};
 

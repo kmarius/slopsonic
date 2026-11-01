@@ -15,7 +15,6 @@ pub(super) fn page(
     gtk_widgets::objects!(builder, resource, {
         navigation: adw::NavigationView,
         privacy_page: adw::PreferencesPage,
-        private_row: adw::SwitchRow,
         secret_storage_row: adw::ComboRow,
     });
     navigation_controls.set_navigation(&navigation);
@@ -28,11 +27,6 @@ pub(super) fn page(
         navigation_controls,
     ));
     let settings = shell.settings.current.borrow().clone();
-    private_row.set_active(settings.application.private_mode);
-    let private_shell = Rc::clone(shell);
-    private_row.connect_active_notify(move |row| {
-        private_shell.set_private_mode(row.is_active());
-    });
     let secret_storage_titles = ["Legacy".to_string(), "System keyring".to_string()];
     let secret_storage_refs = secret_storage_titles
         .iter()

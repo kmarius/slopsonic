@@ -93,7 +93,6 @@ where
     let scrobbling_library = library.as_ref().clone();
     let scrobbling_runtime = runtime.clone();
     let scrobbling_settings = stored.scrobbling_runtime_settings();
-    let private_mode = stored.ui.application.private_mode;
     let scrobbler = Arc::new(
         runtime
             .spawn_blocking(move || {
@@ -101,7 +100,6 @@ where
                     scrobbling_library,
                     scrobbling_runtime,
                     scrobbling_settings,
-                    private_mode,
                 )
             })
             .await
@@ -225,10 +223,7 @@ where
                     current.ui.application.auto_dj_refill_threshold,
                 );
             }
-            if previous.ui.application.private_mode != current.ui.application.private_mode
-                || previous.scrobbling != current.scrobbling
-                || credentials_changed
-            {
+            if previous.scrobbling != current.scrobbling || credentials_changed {
                 settings_scrobbling.settings_changed(credentials_changed);
             }
             if !previous.ui.application.download_artwork_automatically

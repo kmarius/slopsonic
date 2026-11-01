@@ -155,9 +155,6 @@ impl PlaybackOwner {
         owner.runtime.spawn(async move {
             while let Ok((source_id, report)) = report_receiver.recv().await {
                 let Some(owner) = weak.upgrade() else { break };
-                if owner.settings.load().ui.application.private_mode {
-                    continue;
-                }
                 let source = owner.source_owner();
                 if let Ok(Some(source)) =
                     tokio::task::spawn_blocking(move || source?.client(&source_id).ok()).await
@@ -322,8 +319,7 @@ impl PlaybackOwner {
     }
 
     fn report_source(&self, report: playback::SourceReportFact) {
-        if external_source_reporting_enabled(self.settings.load().ui.application.private_mode)
-            && let Some((source_id, kind, _)) = library::source_entity_parts(&report.media_uri)
+        if let Some((source_id, kind, _)) = library::source_entity_parts(&report.media_uri)
             && kind == "track"
         {
             let _ = self.report_sender.try_send((source_id, report));
@@ -946,16 +942,13 @@ fn empty_clock_sample() -> ClockSample {
         local_period: "1970-01".to_string(),
     }
 }
-fn external_source_reporting_enabled(private_mode: bool) -> bool {
-    !private_mode
-}
 fn string_error(error: impl std::fmt::Display) -> String {
     error.to_string()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{external_source_reporting_enabled, prepare_media_stream};
+    use super::prepare_media_stream;
 
     fn test_media(source_format: &str) -> playback::TrackReference {
         playback::TrackReference {
@@ -1011,11 +1004,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn private_mode_gates_only_external_source_reporting() {
-        assert!(external_source_reporting_enabled(false));
-        assert!(!external_source_reporting_enabled(true));
-    }
 
     #[test]
     fn prepared_original_stream_keeps_format() {

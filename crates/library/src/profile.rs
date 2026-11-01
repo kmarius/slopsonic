@@ -3588,7 +3588,7 @@ mod tests {
         .unwrap();
         let record = |value| ConnectRecord {
             kind: "preference".into(),
-            key: "private_mode".into(),
+            key: "compact".into(),
             value: Some(json!(value)),
         };
         original

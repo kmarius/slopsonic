@@ -33,12 +33,6 @@
           </object>
         </child>
         <child>
-          <object class="AdwShortcutsItem" id="shortcut_private_mode">
-            <property name="title" translatable="yes">Private mode</property>
-            <property name="action-name">win.toggle-private-mode</property>
-          </object>
-        </child>
-        <child>
           <object class="AdwShortcutsItem" id="shortcut_sidebar_toggle">
             <property name="title" translatable="yes">Collapse/expand sidebar</property>
             <property name="action-name">win.toggle-left-sidebar</property>

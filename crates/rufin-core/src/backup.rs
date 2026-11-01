@@ -753,7 +753,7 @@ mod tests {
         })
         .unwrap();
         let mut incoming = file.load();
-        incoming.ui.application.private_mode = true;
+        incoming.ui.application.external_metadata_enabled = false;
         incoming.scrobbling.listenbrainz.enabled = false;
         let applied = Arc::new(Mutex::new(Vec::new()));
         let observed = Arc::clone(&applied);
@@ -763,7 +763,7 @@ mod tests {
         let settings_apply =
             (*SettingsOwner::new(file.clone(), secrets, move |_, current, credentials| {
                 observed.lock().unwrap().push((
-                    current.ui.application.private_mode,
+                    current.ui.application.external_metadata_enabled,
                     current.scrobbling.listenbrainz.enabled,
                     credentials,
                 ));
@@ -794,13 +794,13 @@ mod tests {
             )
         });
         written.recv_timeout(Duration::from_secs(5)).unwrap();
-        assert!(file.load().ui.application.private_mode);
+        assert!(!file.load().ui.application.external_metadata_enabled);
         assert!(!file.load().scrobbling.listenbrainz.enabled);
-        assert_eq!(*applied.lock().unwrap(), vec![(true, false, false)]);
+        assert_eq!(*applied.lock().unwrap(), vec![(false, false, false)]);
         settings_apply
             .restore(
                 |current| {
-                    current.ui.application.private_mode = false;
+                    current.ui.application.external_metadata_enabled = true;
                     current.scrobbling.listenbrainz.enabled = true;
                     Ok(())
                 },
@@ -809,14 +809,14 @@ mod tests {
             .unwrap();
         resume.send(()).unwrap();
         assert!(restored.join().unwrap().is_empty());
-        assert!(!file.load().ui.application.private_mode);
+        assert!(file.load().ui.application.external_metadata_enabled);
         assert!(file.load().scrobbling.listenbrainz.enabled);
         assert_eq!(
             *applied.lock().unwrap(),
             vec![
-                (true, false, false),
-                (false, true, false),
-                (false, true, true),
+                (false, false, false),
+                (true, true, false),
+                (true, true, true),
             ]
         );
     }

@@ -93,7 +93,6 @@ pub(in crate::playback) async fn seeded(
             database.clone(),
             runtime.clone(),
             stored.scrobbling_runtime_settings(),
-            true,
         )
         .unwrap()
     }));

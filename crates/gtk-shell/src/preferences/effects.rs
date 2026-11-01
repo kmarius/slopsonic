@@ -11,7 +11,6 @@ impl Shell {
             Effect::ReloadCatalog => self.render_current_route(),
             Effect::RefreshHome => self.refresh_mounted_home(),
             Effect::MediaControlsChanged => self.update_media_controls(),
-            Effect::PrivateModeChanged => self.refresh_tray_private_mode(),
             Effect::WithdrawNotification => self.withdraw_now_playing_notification(),
             Effect::PlaylistPickerChanged => {
                 crate::shell::playlist_picker::refresh_context_playlist_picker(self)

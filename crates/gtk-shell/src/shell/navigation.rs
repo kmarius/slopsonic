@@ -456,12 +456,6 @@ fn replace_primary_menu_model(menu: &gio::Menu, shell: &Rc<Shell>) {
         "app.show-shortcuts",
         "rufin-preferences-desktop-keyboard-shortcuts-symbolic",
     );
-    append_menu_action(
-        &preferences,
-        &primary_menu_private_mode_label(shell.as_ref()),
-        "win.toggle-private-mode",
-        "rufin-system-lock-screen-symbolic",
-    );
     menu.append_section(None, &preferences);
 
     let window = gio::Menu::new();
@@ -510,14 +504,6 @@ fn primary_menu_sidebar_toggle_label(shell: &Shell) -> String {
         "Collapse sidebar".to_string()
     } else {
         "Expand sidebar".to_string()
-    }
-}
-
-fn primary_menu_private_mode_label(shell: &Shell) -> String {
-    if shell.settings.current.borrow().application.private_mode {
-        "Turn off private mode".to_string()
-    } else {
-        "Turn on private mode".to_string()
     }
 }
 

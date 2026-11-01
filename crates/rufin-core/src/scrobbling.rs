@@ -66,10 +66,8 @@ impl ScrobblingOwner {
 
     pub(crate) fn settings_changed(&self, credentials_changed: bool) {
         let stored = self.settings.load();
-        if let Err(error) = self.scrobbler.update_preferences(
-            &stored.scrobbling_runtime_settings(),
-            stored.ui.application.private_mode,
-        ) {
+        if let Err(error) = self.scrobbler.update_preferences(&stored.scrobbling_runtime_settings())
+        {
             warn!(%error, "could not update external scrobbling settings");
         }
         if credentials_changed {

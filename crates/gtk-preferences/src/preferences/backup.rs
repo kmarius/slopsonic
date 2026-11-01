@@ -442,7 +442,6 @@ pub fn import_dialog(shell: &Rc<Preferences>) {
                 if affected.settings {
                     shell.appearance.apply(&shell.settings.current.borrow());
                     (shell.effects)(crate::Effect::LayoutChanged);
-                    (shell.effects)(crate::Effect::PrivateModeChanged);
                     (shell.effects)(crate::Effect::MediaControlsChanged);
                 }
                 if affected.settings || affected.playlists {

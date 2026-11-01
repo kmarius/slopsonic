@@ -71,11 +71,14 @@ fn application_starts_on_a_worker_and_reopens_saved_settings_without_a_ui() {
                 .unwrap()
                 .unwrap();
             assert!(!inputs.temporary_store);
-            assert_eq!(inputs.settings.load().application.private_mode, reopening);
+            assert_eq!(
+                inputs.settings.load().application.external_metadata_enabled,
+                !reopening
+            );
             let settings = inputs.settings.clone();
             runtime
                 .block_on(runtime.spawn_blocking(move || {
-                    settings.set_private_mode(true).unwrap();
+                    settings.set_external_metadata_enabled(false).unwrap();
                     settings.flush().unwrap();
                 }))
                 .unwrap();

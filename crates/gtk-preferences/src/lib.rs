@@ -31,7 +31,6 @@ pub enum Effect {
     ReloadCatalog,
     RefreshHome,
     MediaControlsChanged,
-    PrivateModeChanged,
     WithdrawNotification,
     PlaylistPickerChanged,
     #[cfg(not(target_os = "macos"))]

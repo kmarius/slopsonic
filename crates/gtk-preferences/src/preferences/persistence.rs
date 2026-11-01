@@ -14,21 +14,6 @@ impl Preferences {
         (self.effects)(crate::Effect::MediaControlsChanged);
     }
 
-    pub fn set_private_mode(self: &Rc<Self>, enabled: bool) {
-        if self
-            .settings
-            .set_app_setting("private mode setting", enabled, |settings| {
-                &mut settings.application.private_mode
-            })
-            .is_none()
-        {
-            return;
-        }
-        (self.effects)(crate::Effect::PrivateModeChanged);
-        (self.effects)(crate::Effect::CatalogChanged);
-        (self.effects)(crate::Effect::MediaControlsChanged);
-    }
-
     pub(super) async fn set_secret_storage_mode(self: &Rc<Self>, mode: SecretStorageMode) -> bool {
         match self.products.source.change_secret_storage(mode).await {
             Ok(()) => {

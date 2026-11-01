@@ -1345,7 +1345,7 @@ mod tests {
         let next_writer = std::thread::spawn(move || {
             next_file.update(|stored| {
                 let previous_shuffle = stored.ui.shuffle_enabled;
-                stored.ui.application.private_mode = true;
+                stored.ui.application.external_metadata_enabled = false;
                 Ok(previous_shuffle)
             })
         });
@@ -1366,7 +1366,7 @@ mod tests {
         assert_eq!(edited_width, Some(1234));
         let committed = file.load();
         assert!(committed.ui.shuffle_enabled);
-        assert!(committed.ui.application.private_mode);
+        assert!(!committed.ui.application.external_metadata_enabled);
         assert_eq!(committed.ui.window_width, Some(1234));
         file.flush().unwrap();
         assert_eq!(read_startup_settings(&path).unwrap().0, file.load());
