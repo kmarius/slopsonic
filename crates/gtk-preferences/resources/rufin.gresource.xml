@@ -11,7 +11,6 @@
     <file compressed="true">preferences/general.ui</file>
     <file compressed="true">preferences/appearance.ui</file>
     <file compressed="true">preferences/theme.ui</file>
-    <file compressed="true">preferences/controller.ui</file>
     <file compressed="true">preferences/storage.ui</file>
     <file compressed="true">preferences/privacy.ui</file>
     <file compressed="true">preferences/theme_accent.ui</file>
@@ -24,7 +23,6 @@
     <file compressed="true">preferences/source/onboarding.ui</file>
     <file compressed="true">preferences/source/server_actions.ui</file>
     <file compressed="true">preferences/source/setup_scaffold.ui</file>
-    <file compressed="true">shell/controller.ui</file>
     <file compressed="true">style.css</file>
     <file compressed="true">preferences/download_queue.ui</file>
     <file compressed="true">preferences/download_queue_row.ui</file>

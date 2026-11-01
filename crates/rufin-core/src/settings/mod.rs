@@ -23,8 +23,6 @@ pub use storage_reset::{StorageReset, StorageResetRequest};
 mod secret_storage;
 pub use secret_storage::KeyringSecretStore;
 pub mod sidebar;
-mod web_controller;
-pub use web_controller::ControllerSettings;
 
 pub use app::{
     ExternalSiteLinkSettings, HomeBlockKind, HomeSectionKind, RandomPlayGenreSelection,
@@ -300,7 +298,6 @@ fn default_home_sections() -> Vec<HomeSectionKind> {
 pub struct SettingsFile {
     sidebar: tokio::sync::watch::Sender<SidebarSettings>,
     appearance: tokio::sync::watch::Sender<AppearancePreferences>,
-    web_controller: tokio::sync::watch::Sender<crate::settings::ControllerSettings>,
     path: Option<PathBuf>,
     config_dir: PathBuf,
     value: Arc<Mutex<StoredSettings>>,
@@ -342,7 +339,6 @@ impl SettingsFile {
         Ok(Self {
             sidebar: tokio::sync::watch::channel(value.ui.sidebar.clone()).0,
             appearance: tokio::sync::watch::channel(value.ui.appearance.clone()).0,
-            web_controller: tokio::sync::watch::channel(value.ui.web_controller.clone()).0,
             config_dir: path
                 .parent()
                 .unwrap_or_else(|| Path::new("."))
@@ -368,7 +364,6 @@ impl SettingsFile {
             path: None,
             sidebar: tokio::sync::watch::channel(value.ui.sidebar.clone()).0,
             appearance: tokio::sync::watch::channel(value.ui.appearance.clone()).0,
-            web_controller: tokio::sync::watch::channel(value.ui.web_controller.clone()).0,
             config_dir,
             value: Arc::new(Mutex::new(value.clone())),
             persistence: Arc::new(Mutex::new(value)),
@@ -595,25 +590,6 @@ impl SettingsFile {
             *current = stored.ui.sidebar.clone();
             true
         });
-        let next = stored.ui.web_controller.clone();
-        self.web_controller.send_if_modified(|current| {
-            if *current == next {
-                return false;
-            }
-            *current = next;
-            true
-        });
-    }
-
-    pub(crate) fn web_controller_changes(
-        &self,
-    ) -> tokio::sync::watch::Receiver<crate::settings::ControllerSettings> {
-        self.web_controller.subscribe()
-    }
-
-    pub(crate) fn web_controller_credentials_changed(&self) {
-        self.web_controller
-            .send_replace(self.load().ui.web_controller);
     }
 }
 
@@ -1407,10 +1383,10 @@ mod tests {
             ..SettingsFile::memory_at(directory.path().to_path_buf())
         };
         let initial = file.load();
-        let changes = file.web_controller_changes();
+        let changes = file.sidebar_changes();
         assert!(
             file.update(|stored| {
-                stored.ui.web_controller.enabled = !stored.ui.web_controller.enabled;
+                stored.ui.sidebar.pins_visible = !stored.ui.sidebar.pins_visible;
                 Ok(())
             })
             .is_err()
@@ -1420,14 +1396,14 @@ mod tests {
 
         fs::remove_dir(&path).unwrap();
         file.update(|stored| {
-            stored.ui.web_controller.enabled = !stored.ui.web_controller.enabled;
+            stored.ui.sidebar.pins_visible = !stored.ui.sidebar.pins_visible;
             Ok(())
         })
         .unwrap();
         let committed = file.load();
-        assert_ne!(committed.ui.web_controller, initial.ui.web_controller);
+        assert_ne!(committed.ui.sidebar, initial.ui.sidebar);
         assert!(changes.has_changed().unwrap());
-        assert_eq!(*changes.borrow(), committed.ui.web_controller);
+        assert_eq!(*changes.borrow(), committed.ui.sidebar);
         assert_eq!(read_startup_settings(&path).unwrap().0, committed);
     }
 

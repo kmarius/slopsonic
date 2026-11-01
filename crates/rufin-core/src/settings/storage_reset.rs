@@ -95,7 +95,6 @@ impl StorageResetRequest {
             let mut keys = vec![
                 super::settings_encryption_key(),
                 super::backup_password_key(),
-                super::web_controller::secret_key(),
             ];
             keys.extend(
                 stored

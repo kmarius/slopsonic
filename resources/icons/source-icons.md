@@ -6,6 +6,4 @@ External service logos come from [Last.fm](https://commons.wikimedia.org/wiki/Fi
 
 Logos may be resized or adapted for display; their inclusion does not imply affiliation.
 
-The phonelink icon comes from [Valent (CC0-1.0)](https://github.com/andyholmes/valent/blob/df82168bc37ad1ec700c66b0f0f5dfd7a07be485/src/plugins/gnome/data/icons/scalable/devices/phonelink-symbolic.svg).
-
 Most icons either come directly from the [GNOME Icon Development Kit (CC0-1.0)](https://gitlab.gnome.org/Teams/Design/icon-development-kit/-/tree/156946fbae49beff62bd6ac1503f11c5cc6dc548/icons), or are modified slightly.

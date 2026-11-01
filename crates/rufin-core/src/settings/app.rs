@@ -206,8 +206,6 @@ pub struct Settings {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recent_search_results: Vec<RecentSearchResult>,
     #[serde(default)]
-    pub web_controller: crate::settings::ControllerSettings,
-    #[serde(default)]
     pub layout: LayoutSettings,
     #[serde(default)]
     pub sidebar: SidebarSettings,
@@ -252,7 +250,6 @@ impl Default for Settings {
             application: ApplicationPreferences::default(),
             player_display: PlayerDisplayPreferences::default(),
             recent_search_results: Vec::new(),
-            web_controller: crate::settings::ControllerSettings::default(),
             layout: LayoutSettings::default(),
             sidebar: SidebarSettings::default(),
             downloads: Vec::new(),

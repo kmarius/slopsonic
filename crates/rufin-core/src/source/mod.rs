@@ -1730,7 +1730,6 @@ impl SourceOwner {
                         Ok(())
                     })?;
                     secrets.replace(platform_secret_store(&settings));
-                    settings.web_controller_credentials_changed();
                     Ok(())
                 })
                 .await
