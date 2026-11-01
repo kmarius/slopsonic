@@ -62,6 +62,7 @@ impl Topbar {
             menu: gtk::MenuButton,
             sidebar: gtk::Button,
         });
+        hide_window_icon(&header);
         gtk_widgets::controls::configure_search_entry(&search);
         Self {
             window_content,
@@ -77,7 +78,6 @@ impl Topbar {
     }
 
     pub fn bind(&self, shell: &Rc<Shell>) {
-        hide_window_icon(&self.header);
         self.search_shortcut.set_accelerator("<Control>k");
         self.search_popup
             .replace(Some(super::topbar_search::SearchPopup::new(
