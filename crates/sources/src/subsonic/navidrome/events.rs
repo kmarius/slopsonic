@@ -159,9 +159,7 @@ mod tests {
         let server = MockServer::start().await;
         let source = crate::Source::new(
             crate::SourceId::new("source"),
-            crate::source::Implementation::OpenSubsonic(navidrome_source_with_token(
-                &server, "token",
-            )),
+            navidrome_source_with_token(&server, "token"),
         );
         let directory = tempfile::tempdir().unwrap();
         let database = library::Database::open(directory.path().join("library.sqlite"))
@@ -381,10 +379,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(upserts, ["song:second", "song:track"]);
-        let source = crate::Source::new(
-            configuration.source_id,
-            crate::source::Implementation::OpenSubsonic(provider),
-        );
+        let source = crate::Source::new(configuration.source_id, provider);
         source
             .apply_items(&database, upserts, vec![])
             .await

@@ -4,7 +4,7 @@ use crate::source::{SourceOwner, string_error};
 use async_channel::Receiver;
 use futures_util::{StreamExt, TryStreamExt};
 use library::{Database, PlaylistEntryKey, PlaylistKey, ReadCancellation, SourceKey};
-use sources::{Implementation, Source, SourceError, SourceId};
+use sources::{Source, SourceError, SourceId};
 use std::{
     future::Future,
     sync::Arc,
@@ -77,10 +77,9 @@ pub async fn create_playlist(
                     .await
                     .map_err(string_error)?;
                 let first = &tracks[..tracks.len().min(256)];
-                let object = match &source.implementation {
-                    Implementation::OpenSubsonic(provider) => {
-                        provider.create_playlist(&name, first, public).await
-                    }
+                let object = {
+                    let provider = &source.subsonic;
+                    provider.create_playlist(&name, first, public).await
                 }
                 .map_err(string_error)?;
                 append_native_tracks(&source, &object, &tracks[first.len()..])
@@ -146,8 +145,9 @@ pub fn playlist_public(
         let (target, id) = playlist_source(&owner, playlist, None).await?;
         match target {
             PlaylistOwner::Local(_) => Ok(None),
-            PlaylistOwner::Server(source, _) => match &source.implementation {
-                Implementation::OpenSubsonic(provider) => provider.playlist_public(&id).await,
+            PlaylistOwner::Server(source, _) => {
+                let provider = &source.subsonic;
+                provider.playlist_public(&id).await
             }
             .map_err(string_error),
         }
@@ -333,18 +333,18 @@ pub(crate) async fn update_playlist_on(
                     return Err(sources::SourceMetadataError::Unavailable);
                 }
                 if name.is_some() || public.is_some() {
-                    match &source.implementation {
-                        Implementation::OpenSubsonic(provider) => provider
+                    {
+                        let provider = &source.subsonic;
+                        provider
                             .update_playlist(&id, name, public)
                             .await
-                            .map_err(error)?,
+                            .map_err(error)?
                     }
                 }
                 let result = if let Some(artwork) = artwork {
-                    match &source.implementation {
-                        Implementation::OpenSubsonic(provider) => {
-                            provider.change_playlist_artwork(&id, artwork).await
-                        }
+                    {
+                        let provider = &source.subsonic;
+                        provider.change_playlist_artwork(&id, artwork).await
                     }
                     .map_err(error)
                 } else {
@@ -418,10 +418,9 @@ pub async fn delete_playlist(
                     .await
                     .map_err(SourceError::from),
                 PlaylistOwner::Server(source, _) => {
-                    match &source.implementation {
-                        Implementation::OpenSubsonic(provider) => {
-                            provider.delete_playlist(&id).await?
-                        }
+                    {
+                        let provider = &source.subsonic;
+                        provider.delete_playlist(&id).await?
                     }
                     refresh_playlist(&source, &database, None, Some(id))
                         .await
@@ -559,10 +558,9 @@ pub fn remove_playlist_entries(
                     .map(|entry| entry.object_id)
                     .collect::<Vec<_>>();
                 for ids in ids.chunks(256) {
-                    match &source.implementation {
-                        Implementation::OpenSubsonic(provider) => {
-                            provider.remove_playlist_entries(&id, ids).await
-                        }
+                    {
+                        let provider = &source.subsonic;
+                        provider.remove_playlist_entries(&id, ids).await
                     }
                     .map_err(string_error)?;
                 }
@@ -659,12 +657,11 @@ pub fn move_playlist_entry(
                     if entry.position == position {
                         return Ok(false);
                     }
-                    match &source.implementation {
-                        Implementation::OpenSubsonic(provider) => {
-                            provider
-                                .move_playlist_entry(&id, &entry.object_id, position)
-                                .await?
-                        }
+                    {
+                        let provider = &source.subsonic;
+                        provider
+                            .move_playlist_entry(&id, &entry.object_id, position)
+                            .await?
                     }
                     refresh_playlist(&source, &database, Some(id), None)
                         .await
@@ -910,10 +907,9 @@ async fn append_native_tracks(
     tracks: &[String],
 ) -> Result<(), SourceError> {
     for tracks in tracks.chunks(256) {
-        match &source.implementation {
-            Implementation::OpenSubsonic(provider) => {
-                provider.add_playlist_tracks(playlist, tracks).await?
-            }
+        {
+            let provider = &source.subsonic;
+            provider.add_playlist_tracks(playlist, tracks).await?
         }
     }
     Ok(())
@@ -927,11 +923,7 @@ async fn refresh_playlist(
 ) -> Result<(), SourceError> {
     let object = |id: String| {
         let raw = id.rsplit(':').next().unwrap_or(&id);
-        if matches!(source.implementation, Implementation::OpenSubsonic(_)) {
-            format!("playlist:{raw}")
-        } else {
-            raw.to_owned()
-        }
+        format!("playlist:{raw}")
     };
     source
         .apply_items(

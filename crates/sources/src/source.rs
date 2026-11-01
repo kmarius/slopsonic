@@ -372,10 +372,7 @@ impl ConnectedSource {
         credential: Option<String>,
     ) -> Self {
         Self {
-            source: Source::new(
-                configuration.source_id.clone(),
-                Implementation::OpenSubsonic(source),
-            ),
+            source: Source::new(configuration.source_id.clone(), source),
             configuration,
             credential,
         }
@@ -388,14 +385,10 @@ pub enum SourceEditResult {
     Connected(Box<ConnectedSource>),
 }
 
-pub enum Implementation {
-    OpenSubsonic(crate::subsonic::SubsonicSource),
-}
-
 pub struct Source {
     source_id: SourceId,
     retired: AtomicBool,
-    pub implementation: Implementation,
+    pub subsonic: crate::subsonic::SubsonicSource,
 }
 
 impl Source {
@@ -432,11 +425,11 @@ impl Source {
             ))
     }
 
-    pub(crate) fn new(source_id: SourceId, implementation: Implementation) -> Self {
+    pub(crate) fn new(source_id: SourceId, subsonic: crate::subsonic::SubsonicSource) -> Self {
         Self {
             source_id,
             retired: AtomicBool::new(false),
-            implementation,
+            subsonic,
         }
     }
 
@@ -471,17 +464,15 @@ impl Source {
         configuration: SourceConfiguration,
         credential: Option<String>,
     ) -> SourceResult<Self> {
-        let implementation = match configuration.kind.as_str() {
-            "navidrome" | "subsonic" => {
-                Implementation::OpenSubsonic(crate::subsonic::open(&configuration, credential)?)
-            }
+        let subsonic = match configuration.kind.as_str() {
+            "navidrome" | "subsonic" => crate::subsonic::open(&configuration, credential)?,
             kind => {
                 return Err(SourceError::InvalidConfig(format!(
                     "unknown source kind {kind}"
                 )));
             }
         };
-        Ok(Self::new(configuration.source_id, implementation))
+        Ok(Self::new(configuration.source_id, subsonic))
     }
 
     pub fn retire(&self) {
@@ -529,7 +520,7 @@ impl Source {
                 };
                 let full = !accepted;
                 if !full {
-                    let Implementation::OpenSubsonic(source) = &self.implementation;
+                    let source = &self.subsonic;
                     source
                         .acquire_user_collections(changes, &|_| {}, &cancelled_fn)
                         .await?;
@@ -538,7 +529,7 @@ impl Source {
             }
             let stamp = Some(changes.start_observation().await?);
             let report = |value| progress(value);
-            let Implementation::OpenSubsonic(source) = &self.implementation;
+            let source = &self.subsonic;
             let complete = source
                 .acquire_catalog(changes, &report, &cancelled_fn)
                 .await?;
@@ -558,7 +549,7 @@ impl Source {
     }
 
     async fn freshness(&self) -> SourceResult<Option<Freshness>> {
-        let Implementation::OpenSubsonic(source) = &self.implementation;
+        let source = &self.subsonic;
         source.freshness().await
     }
 
@@ -571,7 +562,7 @@ impl Source {
             return Ok(stream);
         }
         let object_id = self.track_object_id(&request.media_uri)?;
-        let Implementation::OpenSubsonic(source) = &self.implementation;
+        let source = &self.subsonic;
         source.resolve_stream(&object_id, request.quality).await
     }
 
@@ -595,12 +586,12 @@ impl Source {
             return Ok(ResolvedDownload::encode(stream, quality));
         }
         let object_id = self.track_object_id(media_uri)?;
-        let Implementation::OpenSubsonic(source) = &self.implementation;
+        let source = &self.subsonic;
         source.resolve_download(&object_id, quality)
     }
 
     pub async fn image(&self, request: SourceImageRequest) -> SourceResult<ImageBytes> {
-        let Implementation::OpenSubsonic(source) = &self.implementation;
+        let source = &self.subsonic;
         match request {
             SourceImageRequest::Native { image_ref, size } => {
                 source.image_bytes(&image_ref, size).await
@@ -616,7 +607,7 @@ impl Source {
     ) -> SourceResult<library::SearchResults> {
         self.catalog_operation(database, async |changes| {
             let source_id = self.source_id.as_str();
-            let Implementation::OpenSubsonic(source) = &self.implementation;
+            let source = &self.subsonic;
             let batch = source.live_search(source_id, query, limit).await?;
             let tracks = batch
                 .tracks
@@ -659,7 +650,7 @@ impl Source {
         object_id: &str,
         favorite: bool,
     ) -> SourceResult<()> {
-        let Implementation::OpenSubsonic(source) = &self.implementation;
+        let source = &self.subsonic;
         source.set_favorite(kind, object_id, favorite).await
     }
 
@@ -667,12 +658,12 @@ impl Source {
         if rating.is_some_and(|rating| rating > 10) {
             return Err(SourceError::InvalidRequest("rating outside 0..=10"));
         }
-        let Implementation::OpenSubsonic(source) = &self.implementation;
+        let source = &self.subsonic;
         source.set_rating(object_id, rating).await
     }
 
     pub fn supports_playlist_artwork(&self) -> bool {
-        let Implementation::OpenSubsonic(provider) = &self.implementation;
+        let provider = &self.subsonic;
         provider.supports_playlist_artwork()
     }
 
@@ -682,7 +673,7 @@ impl Source {
         folder_object_id: Option<&str>,
         music_folder_object_id: Option<&str>,
     ) -> SourceResult<LiveFolderPage> {
-        let Implementation::OpenSubsonic(source) = &self.implementation;
+        let source = &self.subsonic;
         source
             .browse_folder(folder_object_id, music_folder_object_id)
             .await
@@ -693,7 +684,7 @@ impl Source {
         seed: &SourceRadioSeed,
         limit: usize,
     ) -> SourceResult<Vec<String>> {
-        let Implementation::OpenSubsonic(source) = &self.implementation;
+        let source = &self.subsonic;
         source.generated_track_object_ids(seed, limit).await
     }
 
@@ -742,37 +733,32 @@ impl Source {
         upserts: Vec<String>,
         removals: Vec<String>,
     ) -> SourceResult<()> {
-        match &self.implementation {
-            Implementation::OpenSubsonic(source) => {
-                let result = source
-                    .acquire_items(changes, upserts, false, &|| self.is_retired())
-                    .await;
-                for object in removals {
-                    if let Some((kind, id)) = object.split_once(':') {
-                        let kind = match kind {
-                            "song" => "track",
-                            "album" => "album",
-                            "artist" => "artist",
-                            "playlist" => "playlist",
-                            _ => continue,
-                        };
-                        changes
-                            .remove_source_items(kind, &[source.id(kind, id)])
-                            .await?;
-                    }
+        {
+            let source = &self.subsonic;
+            let result = source
+                .acquire_items(changes, upserts, false, &|| self.is_retired())
+                .await;
+            for object in removals {
+                if let Some((kind, id)) = object.split_once(':') {
+                    let kind = match kind {
+                        "song" => "track",
+                        "album" => "album",
+                        "artist" => "artist",
+                        "playlist" => "playlist",
+                        _ => continue,
+                    };
+                    changes
+                        .remove_source_items(kind, &[source.id(kind, id)])
+                        .await?;
                 }
-                result
             }
+            result
         }
     }
 
     fn item_request_id(&self, kind: &str, object: &str) -> String {
         let raw = raw_item_id(object);
-        match &self.implementation {
-            Implementation::OpenSubsonic(_) => {
-                format!("{}:{raw}", if kind == "track" { "song" } else { kind })
-            }
-        }
+        format!("{}:{raw}", if kind == "track" { "song" } else { kind })
     }
 
     pub(crate) async fn acquire_item_relations(
@@ -834,7 +820,7 @@ impl Source {
             _ => return Err(SourceError::InvalidRequest("URI is not a collection")),
         };
         self.catalog_operation(database, async |changes| {
-            let Implementation::OpenSubsonic(source) = &self.implementation;
+            let source = &self.subsonic;
             source
                 .acquire_collection(changes, &collection, false, &|| self.is_retired())
                 .await?;
@@ -865,7 +851,7 @@ impl Source {
         &self,
         section: SourceHomeSection,
     ) -> SourceResult<Vec<library::HomeEntryInput>> {
-        let Implementation::OpenSubsonic(source) = &self.implementation;
+        let source = &self.subsonic;
         source.home_section(section).await
     }
 
@@ -883,11 +869,11 @@ impl Source {
             remote_task: Mutex::new(None),
             receiver,
         });
-        let Implementation::OpenSubsonic(source) = &self.implementation;
+        let source = &self.subsonic;
         if source.has_navidrome_library() {
             let producer = Arc::clone(&feed);
             let task = runtime.spawn(async move {
-                let Implementation::OpenSubsonic(source) = &producer.source.implementation;
+                let source = &producer.source.subsonic;
                 if let Err(error) = source
                     .listen_navidrome_changes(|change| {
                         producer.submit(SelectedFeedChange::Remote(change))
@@ -904,7 +890,7 @@ impl Source {
 
     pub async fn report_playback(&self, report: &SourceReportFact) -> SourceResult<()> {
         let object_id = self.track_object_id(&report.media_uri)?;
-        let Implementation::OpenSubsonic(source) = &self.implementation;
+        let source = &self.subsonic;
         source.report_playback(&object_id, report).await
     }
 

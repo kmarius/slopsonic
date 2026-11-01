@@ -1216,11 +1216,8 @@ mod tests {
                 "subsonic-response":{"status":"ok","album":{"id":"album","name":"Summary","song":[{"id":"track","title":"Summary"}]}}
             }))).mount(&server).await;
         let source = navidrome_source_with_token(&server, "token");
-        let source_owner = crate::Source::new(
-            library::SourceId::new("source"),
-            crate::Implementation::OpenSubsonic(source),
-        );
-        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation;
+        let source_owner = crate::Source::new(library::SourceId::new("source"), source);
+        let source = &source_owner.subsonic;
         let directory = tempfile::tempdir().unwrap();
         let database = library::Database::open(directory.path().join("library.sqlite"))
             .await
@@ -1501,11 +1498,8 @@ mod tests {
             .await;
 
         let source = navidrome_source(&server.uri());
-        let source_owner = crate::Source::new(
-            library::SourceId::new("navidrome:test"),
-            crate::Implementation::OpenSubsonic(source),
-        );
-        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation;
+        let source_owner = crate::Source::new(library::SourceId::new("navidrome:test"), source);
+        let source = &source_owner.subsonic;
         let directory = tempfile::tempdir().expect("Library directory");
         let database = library::Database::open(directory.path().join("library.sqlite3"))
             .await

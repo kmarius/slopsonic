@@ -1604,11 +1604,8 @@ mod tests {
             SubsonicCredential::from_password("password").serialize(),
         )
         .unwrap();
-        let source_owner = crate::Source::new(
-            library::SourceId::new("search-source"),
-            crate::Implementation::OpenSubsonic(source),
-        );
-        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation;
+        let source_owner = crate::Source::new(library::SourceId::new("search-source"), source);
+        let source = &source_owner.subsonic;
         let directory = tempfile::tempdir().unwrap();
         let database = library::Database::open(directory.path().join("library.db"))
             .await
@@ -1726,11 +1723,8 @@ mod tests {
             SubsonicCredential::from_password("password").serialize(),
         )
         .unwrap();
-        let source_owner = crate::Source::new(
-            crate::SourceId::new("song-search"),
-            crate::Implementation::OpenSubsonic(source),
-        );
-        let crate::Implementation::OpenSubsonic(source) = &source_owner.implementation;
+        let source_owner = crate::Source::new(crate::SourceId::new("song-search"), source);
+        let source = &source_owner.subsonic;
         for cached in [false, true] {
             let root = tempfile::tempdir().unwrap();
             let database = library::Database::open(root.path().join("library.sqlite"))
