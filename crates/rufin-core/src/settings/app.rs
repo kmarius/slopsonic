@@ -210,7 +210,7 @@ pub struct Settings {
     pub sidebar: SidebarSettings,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub downloads: Vec<SourceDownloadSettings>,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub show_bottom_bar_rating: bool,
     #[serde(default)]
     pub tray_enabled: bool,
@@ -252,7 +252,7 @@ impl Default for Settings {
             layout: LayoutSettings::default(),
             sidebar: SidebarSettings::default(),
             downloads: Vec::new(),
-            show_bottom_bar_rating: false,
+            show_bottom_bar_rating: true,
             tray_enabled: false,
             keep_running_after_close: false,
             start_minimized: false,
