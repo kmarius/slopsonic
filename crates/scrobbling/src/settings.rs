@@ -226,7 +226,7 @@ mod tests {
 
     #[test]
     fn defaults_preserve_existing_serialized_shape() {
-        let settings: Settings = serde_json::from_str("{}").expect("default settings");
+        let settings: Settings = toml::from_str("").expect("default settings");
         assert_eq!(settings, Settings::default());
         assert!(settings.lastfm.now_playing_enabled);
         assert!(settings.librefm.now_playing_enabled);

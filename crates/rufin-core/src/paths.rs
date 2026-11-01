@@ -45,7 +45,7 @@ pub fn roots() -> Paths {
 
 const STORE_DIRECTORY: &str = "store";
 const STORE_FILE: &str = "rufin-store.sqlite";
-const SETTINGS_FILE: &str = "settings.json";
+const SETTINGS_FILE: &str = "settings.toml";
 const ARTWORK_DIRECTORY: &str = "covers";
 const DOWNLOADS_DIRECTORY: &str = "downloads";
 

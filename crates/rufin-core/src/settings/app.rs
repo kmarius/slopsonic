@@ -538,23 +538,23 @@ mod tests {
             settings.recent_search_results.last().unwrap().media_uri,
             "provider://one/track/5"
         );
-        let restored: Settings =
-            serde_json::from_slice(&serde_json::to_vec(&settings).unwrap()).unwrap();
+        let restored: Settings = toml::from_str(&toml::to_string(&settings).unwrap()).unwrap();
         assert_eq!(
             restored.recent_search_results,
             settings.recent_search_results
         );
-        let mut saved = serde_json::to_value(settings).unwrap();
+        let mut saved = toml::Value::try_from(settings).unwrap();
         saved
-            .as_object_mut()
+            .as_table_mut()
             .unwrap()
             .remove("recent_search_results");
-        saved
-            .as_object_mut()
-            .unwrap()
-            .insert("recent_searches".into(), serde_json::json!(["old query"]));
+        saved.as_table_mut().unwrap().insert(
+            "recent_searches".into(),
+            toml::Value::try_from(["old query"]).unwrap(),
+        );
         assert!(
-            serde_json::from_value::<Settings>(saved)
+            saved
+                .try_into::<Settings>()
                 .unwrap()
                 .recent_search_results
                 .is_empty()
@@ -563,14 +563,14 @@ mod tests {
 
     #[test]
     fn fullscreen_display_defaults_and_choices_survive_settings_reload() {
-        let mut old = serde_json::to_value(Settings::default()).unwrap();
+        let mut old = toml::Value::try_from(Settings::default()).unwrap();
         for key in [
             "fullscreen_dynamic_background",
             "fullscreen_background_image",
         ] {
-            old.as_object_mut().unwrap().remove(key);
+            old.as_table_mut().unwrap().remove(key);
         }
-        let restored: Settings = serde_json::from_value(old).unwrap();
+        let restored: Settings = old.try_into().unwrap();
         assert!(restored.player_display.fullscreen_dynamic_background);
         for choice in 0..4 {
             let settings = Settings {
@@ -581,8 +581,7 @@ mod tests {
                 },
                 ..Settings::default()
             };
-            let restored: Settings =
-                serde_json::from_slice(&serde_json::to_vec(&settings).unwrap()).unwrap();
+            let restored: Settings = toml::from_str(&toml::to_string(&settings).unwrap()).unwrap();
             assert_eq!(
                 (
                     restored.player_display.fullscreen_dynamic_background,
@@ -598,17 +597,17 @@ mod tests {
 
     #[test]
     fn general_preferences_default_for_existing_settings_and_round_trip_choices() {
-        let mut saved = serde_json::to_value(Settings::default()).unwrap();
-        saved.as_object_mut().unwrap().remove("starting_page");
-        let previous: Settings = serde_json::from_value(saved).unwrap();
+        let mut saved = toml::Value::try_from(Settings::default()).unwrap();
+        saved.as_table_mut().unwrap().remove("starting_page");
+        let previous: Settings = saved.try_into().unwrap();
         assert_eq!(previous.application.starting_page, SidebarRouteItem::Home);
 
         for page in SidebarRouteItem::all() {
             let mut settings = Settings::default();
             settings.application.starting_page = page;
             settings.sanitize();
-            let saved = serde_json::to_vec(&settings).unwrap();
-            let restored: Settings = serde_json::from_slice(&saved).unwrap();
+            let saved = toml::to_string(&settings).unwrap();
+            let restored: Settings = toml::from_str(&saved).unwrap();
             assert_eq!(restored.application.starting_page, page);
         }
     }

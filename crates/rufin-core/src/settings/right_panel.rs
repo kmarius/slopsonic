@@ -20,11 +20,11 @@ mod tests {
 
     #[test]
     fn queue_visibility_defaults_on_and_round_trips() {
-        let mut settings: RightPanelSettings = serde_json::from_str("{}").unwrap();
+        let mut settings: RightPanelSettings = toml::from_str("").unwrap();
         assert!(settings.queue_visible);
         settings.queue_visible = false;
         let restored: RightPanelSettings =
-            serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
+            toml::from_str(&toml::to_string(&settings).unwrap()).unwrap();
         assert_eq!(restored, settings);
     }
 }

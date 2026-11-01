@@ -25,7 +25,7 @@ pub enum SidebarRouteItem {
 }
 impl SidebarRouteItem {
     pub fn from_stable_id(stable_id: &str) -> Option<Self> {
-        serde_json::from_value(serde_json::Value::String(stable_id.to_owned())).ok()
+        toml::Value::String(stable_id.to_owned()).try_into().ok()
     }
 
     pub fn all() -> [Self; 13] {
@@ -350,11 +350,16 @@ mod tests {
             source_id: None,
             playlist_id: "mix".into(),
         };
-        let saved = serde_json::json!({
-            "pins": [first, second, global, first],
-            "playlist_pin_imported_sources": ["first", "second"]
-        });
-        let mut settings: SidebarSettings = serde_json::from_value(saved).unwrap();
+        let mut saved = toml::Table::new();
+        saved.insert(
+            "pins".into(),
+            toml::Value::try_from([&first, &second, &global, &first]).unwrap(),
+        );
+        saved.insert(
+            "playlist_pin_imported_sources".into(),
+            toml::Value::try_from(["first", "second"]).unwrap(),
+        );
+        let mut settings: SidebarSettings = toml::Value::Table(saved).try_into().unwrap();
         settings.sanitize();
         assert_eq!(
             settings.pins,
@@ -362,15 +367,12 @@ mod tests {
         );
         assert!(settings.reorder_pin(&second, &global, true));
         assert_eq!(settings.pins, [first, global, second]);
-        let encoded = serde_json::to_value(&settings).unwrap();
+        let encoded = toml::Value::try_from(&settings).unwrap();
         assert_eq!(
             encoded["playlist_pin_imported_sources"],
-            serde_json::json!(["first", "second"])
+            toml::Value::try_from(["first", "second"]).unwrap()
         );
-        assert_eq!(
-            serde_json::from_value::<SidebarSettings>(encoded).unwrap(),
-            settings
-        );
+        assert_eq!(encoded.try_into::<SidebarSettings>().unwrap(), settings);
     }
 
     #[test]
@@ -384,7 +386,7 @@ mod tests {
         let retained = settings.pins[1].clone();
         settings.set_pinned(removed, false);
         let mut restored: SidebarSettings =
-            serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
+            toml::from_str(&toml::to_string(&settings).unwrap()).unwrap();
         assert!(!restored.import_playlist_pins_once(first, ["mix".into()]));
         assert!(!restored.import_playlist_pins_once(second, ["mix".into()]));
         assert_eq!(restored.pins, [retained]);

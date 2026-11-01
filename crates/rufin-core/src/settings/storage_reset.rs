@@ -128,7 +128,10 @@ impl StorageResetRequest {
         // Replace the whole document, including settings unknown to this version.
         super::write_private(
             &paths.settings_file(),
-            &serde_json::to_vec_pretty(&super::persistent_settings(&retained)).map_err(error)?,
+            &super::encode_settings(
+                &toml::Value::try_from(super::persistent_settings(&retained)).map_err(error)?,
+            )
+            .map_err(error)?,
         )
     }
 }

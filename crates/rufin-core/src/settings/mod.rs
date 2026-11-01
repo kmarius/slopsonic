@@ -506,11 +506,11 @@ fn merge_preference_edits<T: Serialize + serde::de::DeserializeOwned + PartialEq
     current: &T,
 ) -> Result<(), String> {
     if previous != current {
-        let mut merged = serde_json::to_value(&*next).map_err(|e| e.to_string())?;
-        let previous = serde_json::to_value(previous).map_err(|e| e.to_string())?;
-        let current = serde_json::to_value(current).map_err(|e| e.to_string())?;
+        let mut merged = toml::Value::try_from(&*next).map_err(|e| e.to_string())?;
+        let previous = toml::Value::try_from(previous).map_err(|e| e.to_string())?;
+        let current = toml::Value::try_from(current).map_err(|e| e.to_string())?;
         merge_settings(&mut merged, &previous, &current);
-        *next = serde_json::from_value(merged).map_err(|e| e.to_string())?;
+        *next = merged.try_into().map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -1075,10 +1075,10 @@ fn random_identity(prefix: &str) -> Result<String, String> {
     }
     Ok(value)
 }
-fn read_settings_json(path: &Path) -> Result<Option<serde_json::Value>, String> {
+fn read_settings_file(path: &Path) -> Result<Option<toml::Value>, String> {
     match fs::read_to_string(path) {
         Ok(raw) if raw.trim().is_empty() => Ok(None),
-        Ok(raw) => serde_json::from_str(&raw)
+        Ok(raw) => toml::from_str(&raw)
             .map(Some)
             .map_err(|error| error.to_string()),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
@@ -1087,13 +1087,13 @@ fn read_settings_json(path: &Path) -> Result<Option<serde_json::Value>, String> 
 }
 
 fn replace_setting(
-    root: &mut serde_json::Value,
+    root: &mut toml::Value,
     path: &[String],
-    value: Option<serde_json::Value>,
-) -> Option<serde_json::Value> {
+    value: Option<toml::Value>,
+) -> Option<toml::Value> {
     let (key, parents) = path.split_last().unwrap();
     let parent = parents.iter().fold(root, |parent, key| &mut parent[key]);
-    let fields = parent.as_object_mut().unwrap();
+    let fields = parent.as_table_mut().unwrap();
     match value {
         Some(value) => fields.insert(key.clone(), value),
         None => fields.remove(key),
@@ -1101,18 +1101,18 @@ fn replace_setting(
 }
 
 fn recover_setting(
-    accepted: &mut serde_json::Value,
+    accepted: &mut toml::Value,
     path: Vec<String>,
-    value: &serde_json::Value,
+    value: &toml::Value,
     unsupported: &mut Vec<Vec<String>>,
 ) {
     let previous = replace_setting(accepted, &path, Some(value.clone()));
-    if serde_json::from_value::<StoredSettings>(accepted.clone()).is_ok() {
+    if accepted.clone().try_into::<StoredSettings>().is_ok() {
         return;
     }
-    let recover_children = previous.as_ref().is_some_and(serde_json::Value::is_object);
+    let recover_children = previous.as_ref().is_some_and(toml::Value::is_table);
     replace_setting(accepted, &path, previous);
-    if recover_children && let Some(fields) = value.as_object() {
+    if recover_children && let Some(fields) = value.as_table() {
         for (key, value) in fields {
             let mut child = path.clone();
             child.push(key.clone());
@@ -1124,40 +1124,41 @@ fn recover_setting(
 }
 
 pub(crate) fn decode_settings(
-    raw: &serde_json::Value,
+    raw: &toml::Value,
 ) -> Result<(StoredSettings, Vec<Vec<String>>), String> {
     let mut migrated = raw.clone();
     if migrated.get("equalizer").is_none()
         && let Some(legacy) = raw.get("playback").and_then(|p| p.get("equalizer"))
     {
         migrated["equalizer"] =
-            serde_json::to_value(crate::playback::EqualizerPreferences::from_legacy(legacy))
+            toml::Value::try_from(crate::playback::EqualizerPreferences::from_legacy(legacy))
                 .map_err(|e| e.to_string())?;
     }
     let raw = &migrated;
-    if let Ok(stored) = serde_json::from_value::<StoredSettings>(raw.clone()) {
+    if let Ok(stored) = raw.clone().try_into::<StoredSettings>() {
         stored.equalizer.validate()?;
         return Ok((stored, Vec::new()));
     }
-    let fields = raw.as_object().ok_or("settings must be a JSON object")?;
+    let fields = raw.as_table().ok_or("settings must be a table")?;
     let mut accepted =
-        serde_json::to_value(StoredSettings::default()).map_err(|error| error.to_string())?;
+        toml::Value::try_from(StoredSettings::default()).map_err(|error| error.to_string())?;
     // Missing legacy markers still need their deserializer defaults.
     accepted
-        .as_object_mut()
+        .as_table_mut()
         .unwrap()
         .remove("scrobbling_secrets_present");
     let mut unsupported = Vec::new();
     for (key, value) in fields {
         recover_setting(&mut accepted, vec![key.clone()], value, &mut unsupported);
     }
-    serde_json::from_value(accepted)
+    accepted
+        .try_into()
         .map(|stored| (stored, unsupported))
         .map_err(|error| error.to_string())
 }
 
 fn read_startup_settings(path: &Path) -> Result<(StoredSettings, bool), String> {
-    let Some(raw) = read_settings_json(path)? else {
+    let Some(raw) = read_settings_file(path)? else {
         return Ok((StoredSettings::default(), false));
     };
     let (stored, unsupported) = decode_settings(&raw)?;
@@ -1175,19 +1176,13 @@ fn read_startup_settings(path: &Path) -> Result<(StoredSettings, bool), String> 
 
 // Apply typed changes without dropping fields this version does not understand.
 // Arrays are whole preferences: replacing their contents is an explicit change.
-fn merge_settings(
-    saved: &mut serde_json::Value,
-    previous: &serde_json::Value,
-    next: &serde_json::Value,
-) {
+fn merge_settings(saved: &mut toml::Value, previous: &toml::Value, next: &toml::Value) {
     if previous == next {
         return;
     }
-    if let (Some(saved), Some(previous), Some(next)) = (
-        saved.as_object_mut(),
-        previous.as_object(),
-        next.as_object(),
-    ) {
+    if let (Some(saved), Some(previous), Some(next)) =
+        (saved.as_table_mut(), previous.as_table(), next.as_table())
+    {
         for key in previous.keys() {
             if !next.contains_key(key) {
                 saved.remove(key);
@@ -1221,12 +1216,12 @@ fn persistent_settings(value: &StoredSettings) -> StoredSettings {
 
 pub(crate) fn write_settings(path: &Path, value: &StoredSettings) -> Result<(), String> {
     let next =
-        serde_json::to_value(persistent_settings(value)).map_err(|error| error.to_string())?;
-    let mut merged = match read_settings_json(path)? {
+        toml::Value::try_from(persistent_settings(value)).map_err(|error| error.to_string())?;
+    let mut merged = match read_settings_file(path)? {
         None => next,
         Some(mut saved) => {
             let (mut previous, unsupported) = decode_settings(&saved)?;
-            let mut before = serde_json::to_value(&previous).map_err(|error| error.to_string())?;
+            let mut before = toml::Value::try_from(&previous).map_err(|error| error.to_string())?;
             // These decoded legacy fields are consumed by migration and never serialized.
             for (key, present) in [
                 ("home_sections", previous.legacy_home_sections.is_some()),
@@ -1239,7 +1234,7 @@ pub(crate) fn write_settings(path: &Path, value: &StoredSettings) -> Result<(), 
             if !unsupported.is_empty() {
                 previous.migrate_defaults();
                 let defaults =
-                    serde_json::to_value(&previous).map_err(|error| error.to_string())?;
+                    toml::Value::try_from(&previous).map_err(|error| error.to_string())?;
                 // Sanitizing a runtime default must not overwrite an unsupported saved value.
                 for path in unsupported {
                     let default = path
@@ -1255,17 +1250,21 @@ pub(crate) fn write_settings(path: &Path, value: &StoredSettings) -> Result<(), 
     // The decoded legacy value can compare equal before and after migration.
     // Install its new key even when the ordinary merge has no changed fields.
     if merged.get("equalizer").is_none() {
-        merged["equalizer"] = serde_json::to_value(&value.equalizer).map_err(|e| e.to_string())?;
+        merged["equalizer"] = toml::Value::try_from(&value.equalizer).map_err(|e| e.to_string())?;
     }
     if let Some(playback) = merged
         .get_mut("playback")
-        .and_then(serde_json::Value::as_object_mut)
+        .and_then(toml::Value::as_table_mut)
     {
         playback.remove("equalizer");
     }
-    let mut json = serde_json::to_vec_pretty(&merged).map_err(|error| error.to_string())?;
-    json.push(b'\n');
-    write_private(path, &json)
+    write_private(path, &encode_settings(&merged)?)
+}
+
+pub(crate) fn encode_settings(value: &toml::Value) -> Result<Vec<u8>, String> {
+    toml::to_string_pretty(value)
+        .map(String::into_bytes)
+        .map_err(|error| error.to_string())
 }
 
 pub(crate) fn write_private(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -1307,7 +1306,7 @@ mod tests {
         use std::time::Duration;
 
         let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("settings.json");
+        let path = directory.path().join("settings.toml");
         let file = SettingsFile {
             path: Some(path.clone()),
             ..SettingsFile::memory_at(directory.path().to_path_buf())
@@ -1363,7 +1362,7 @@ mod tests {
     #[test]
     fn failed_settings_save_does_not_publish_and_later_saves_succeed() {
         let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("settings.json");
+        let path = directory.path().join("settings.toml");
         // A directory at the target path makes the atomic replacement fail.
         fs::create_dir(&path).unwrap();
         let file = SettingsFile {
@@ -1428,7 +1427,7 @@ mod tests {
     #[test]
     fn backup_schedule_identity_and_private_settings_survive_replacement() {
         let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("settings.json");
+        let path = directory.path().join("settings.toml");
         let file = SettingsFile {
             path: Some(path.clone()),
             ..SettingsFile::memory_at(directory.path().to_path_buf())
@@ -1480,16 +1479,18 @@ mod tests {
     #[test]
     fn fresh_settings_persist_empty_secret_storage_while_legacy_settings_probe_once() {
         let fresh = StoredSettings::default();
-        let serialized = serde_json::to_value(&fresh).expect("serialize fresh settings");
+        let serialized = toml::Value::try_from(&fresh).expect("serialize fresh settings");
         let mut legacy_json = serialized.clone();
         legacy_json
-            .as_object_mut()
+            .as_table_mut()
             .expect("settings object")
             .remove("scrobbling_secrets_present");
-        let legacy: StoredSettings =
-            serde_json::from_value(legacy_json).expect("deserialize old settings");
+        let legacy: StoredSettings = legacy_json.try_into().expect("deserialize old settings");
 
-        assert_eq!(serialized["scrobbling_secrets_present"], false);
+        assert_eq!(
+            serialized["scrobbling_secrets_present"],
+            toml::Value::Boolean(false)
+        );
         assert!(!fresh.scrobbling_secrets_present);
         assert!(legacy.scrobbling_secrets_present);
     }

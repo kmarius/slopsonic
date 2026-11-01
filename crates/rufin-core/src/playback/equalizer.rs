@@ -500,7 +500,7 @@ impl EqualizerPreferences {
         }
         Ok(())
     }
-    pub(crate) fn from_legacy(raw: &serde_json::Value) -> Self {
+    pub(crate) fn from_legacy(raw: &toml::Value) -> Self {
         let mut preferences = Self::default();
         let mut profile = template(BandLayout::Classic10);
         profile.automatic_preamp = false;
@@ -508,7 +508,7 @@ impl EqualizerPreferences {
         for (index, filter) in profile.bands.iter_mut().enumerate() {
             filter.gain_db = bands
                 .and_then(|b| b.get(index))
-                .and_then(|v| v.as_f64())
+                .and_then(|v| v.as_float().or_else(|| v.as_integer().map(|v| v as f64)))
                 .filter(|v| v.is_finite())
                 .unwrap_or(0.)
                 .clamp(-12., 12.);
@@ -525,7 +525,7 @@ impl EqualizerPreferences {
             .map(|(id, _, _)| (*id).into());
         preferences.default_output.enabled = raw
             .get("enabled")
-            .and_then(|v| v.as_bool())
+            .and_then(toml::Value::as_bool)
             .unwrap_or(false);
         preferences.default_output.selection = selected;
         if preferences.default_output.selection.is_none() {

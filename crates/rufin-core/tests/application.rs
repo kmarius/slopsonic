@@ -28,7 +28,7 @@ fn application_starts_on_a_worker_and_reopens_saved_settings_without_a_ui() {
     std::fs::create_dir_all(paths.store_file().parent().unwrap()).unwrap();
     std::fs::write(paths.store_file(), b"unreadable database").unwrap();
     std::fs::create_dir_all(paths.settings_file().parent().unwrap()).unwrap();
-    std::fs::write(paths.settings_file(), b"{}").unwrap();
+    std::fs::write(paths.settings_file(), b"").unwrap();
     app::with_runtime(|runtime| {
         let opened = runtime.block_on(app::runtime_inputs(
             diagnostics.clone(),

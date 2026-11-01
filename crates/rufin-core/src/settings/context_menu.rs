@@ -85,10 +85,10 @@ fn deserialize_known_items<'de, D>(
 where
     D: serde::Deserializer<'de>,
 {
-    let entries = Vec::<serde_json::Value>::deserialize(deserializer)?;
+    let entries = Vec::<toml::Value>::deserialize(deserializer)?;
     Ok(entries
         .into_iter()
-        .filter_map(|entry| serde_json::from_value(entry).ok())
+        .filter_map(|entry| entry.try_into().ok())
         .collect())
 }
 
@@ -148,12 +148,14 @@ mod tests {
 
     #[test]
     fn legacy_artist_and_album_destinations_merge_into_one_go_to_setting() {
-        let mut settings: ContextMenuSettings = serde_json::from_value(serde_json::json!({
-            "items": [
-                { "item": "GoToAlbum", "visible": false },
-                { "item": "GoToArtist", "visible": true }
+        let mut settings: ContextMenuSettings = toml::from_str(
+            r#"
+            items = [
+                { item = "GoToAlbum", visible = false },
+                { item = "GoToArtist", visible = true },
             ]
-        }))
+            "#,
+        )
         .expect("legacy context menu settings");
 
         settings.sanitize();
@@ -174,10 +176,8 @@ mod tests {
     fn rating_is_visible_by_default_and_in_older_settings() {
         assert!(ContextMenuSettings::default().rating_visible);
 
-        let settings: ContextMenuSettings = serde_json::from_value(serde_json::json!({
-            "items": []
-        }))
-        .expect("older context menu settings");
+        let settings: ContextMenuSettings =
+            toml::from_str("items = []").expect("older context menu settings");
 
         assert!(settings.rating_visible);
     }

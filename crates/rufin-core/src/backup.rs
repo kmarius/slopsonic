@@ -137,7 +137,9 @@ impl BackupOwner {
             for descriptor in scrobbling::secret_descriptors() {
                 descriptor.value_mut(&mut export.scrobbling).clear();
             }
-            Some(serde_json::to_vec_pretty(&export).map_err(|e| e.to_string())?)
+            Some(crate::settings::encode_settings(
+                &toml::Value::try_from(&export).map_err(|e| e.to_string())?,
+            )?)
         } else {
             None
         };
@@ -251,9 +253,7 @@ impl BackupOwner {
         let contents = preview.contents.intersect(preview.staged.manifest.contents);
         let previous = self.settings.load();
         let incoming = if contents.settings {
-            let raw =
-                serde_json::from_slice(&preview.staged.settings().map_err(|e| e.to_string())?)
-                    .map_err(|e| e.to_string())?;
+            let raw = parse_settings(&preview.staged.settings().map_err(|e| e.to_string())?)?;
             let mut incoming = crate::settings::decode_settings(&raw)?.0;
             incoming.migrate_defaults();
             if removed_sources(&previous, &incoming) != preview.removed_sources {
@@ -385,9 +385,7 @@ impl BackupOwner {
                 let (input, passphrase) = open()?;
                 let staged = backup::stage_backup(input, passphrase).map_err(|e| e.to_string())?;
                 let removed_sources = if contents.settings && staged.manifest.contents.settings {
-                    let raw =
-                        serde_json::from_slice(&staged.settings().map_err(|e| e.to_string())?)
-                            .map_err(|e| e.to_string())?;
+                    let raw = parse_settings(&staged.settings().map_err(|e| e.to_string())?)?;
                     let incoming = crate::settings::decode_settings(&raw)?.0;
                     removed_sources(&settings.load(), &incoming)
                 } else {
@@ -613,6 +611,11 @@ fn removed_sources(previous: &StoredSettings, incoming: &StoredSettings) -> Vec<
         .collect()
 }
 
+fn parse_settings(bytes: &[u8]) -> Result<toml::Value, String> {
+    toml::from_str(std::str::from_utf8(bytes).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())
+}
+
 fn saved_logins(stored: &StoredSettings, secrets: &dyn SecretStore) -> Result<SavedLogins, String> {
     let mut logins = SavedLogins {
         lastfm_username: stored.scrobbling.lastfm.username.clone(),
@@ -743,7 +746,7 @@ mod tests {
         }
 
         let directory = tempfile::tempdir().unwrap();
-        let file = SettingsFile::open(directory.path().join("settings.json")).unwrap();
+        let file = SettingsFile::open(directory.path().join("settings.toml")).unwrap();
         file.update(|current| {
             current.sources.configured = vec![source("exact", "destination-reference")];
             current.scrobbling.listenbrainz.enabled = true;

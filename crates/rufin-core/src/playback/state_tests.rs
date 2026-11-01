@@ -60,7 +60,7 @@ pub(in crate::playback) async fn seeded(
     }
     database.save_queue(&sequence.snapshot()).await.unwrap();
     let runtime = tokio::runtime::Handle::current();
-    let settings = SettingsFile::open(directory.path().join("settings.json")).unwrap();
+    let settings = SettingsFile::open(directory.path().join("settings.toml")).unwrap();
     let artwork = artwork::Artwork::new(directory.path().join("artwork"), runtime.clone()).unwrap();
     let downloads = downloads::Downloads::new(
         artwork::Artwork::new(

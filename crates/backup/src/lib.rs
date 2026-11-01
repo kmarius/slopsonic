@@ -59,7 +59,7 @@ impl BackupContents {
     fn members(self) -> impl Iterator<Item = &'static str> {
         self.state_groups().members().chain(
             [
-                ("settings.json", self.settings),
+                ("settings.toml", self.settings),
                 ("saved-logins.json", self.saved_logins),
                 ("playlist-pins.json", self.playlists),
                 ("manifest.json", true),
@@ -93,7 +93,7 @@ pub struct StagedBackup {
 }
 impl StagedBackup {
     pub fn settings(&self) -> BackupResult<Vec<u8>> {
-        Ok(fs::read(self.directory.path().join("settings.json"))?)
+        Ok(fs::read(self.directory.path().join("settings.toml"))?)
     }
     pub fn saved_logins(&self) -> BackupResult<Vec<u8>> {
         Ok(fs::read(self.directory.path().join("saved-logins.json"))?)
@@ -113,6 +113,8 @@ pub enum BackupError {
     Io(#[from] io::Error),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Toml(#[from] toml::de::Error),
     #[error("the Library request is invalid: {0}")]
     InvalidRequest(String),
 }
@@ -128,17 +130,18 @@ fn private_file(path: &Path) -> BackupResult<File> {
     }
     Ok(options.open(path)?)
 }
-fn write_json_file(path: &Path, value: &[u8]) -> BackupResult<()> {
+fn write_metadata_file(path: &Path, value: &[u8], toml: bool) -> BackupResult<()> {
     if value.len() as u64 > METADATA_LIMIT {
         return Err(invalid(
             "backup Settings or saved logins exceed the metadata limit",
         ));
     }
-    let json: serde_json::Value = serde_json::from_slice(value)?;
-    if !json.is_object() {
-        return Err(invalid(
-            "backup Settings and saved logins must be JSON objects",
-        ));
+    if toml {
+        toml::from_str::<toml::Table>(
+            std::str::from_utf8(value).map_err(|error| invalid(error.to_string()))?,
+        )?;
+    } else if !serde_json::from_slice::<serde_json::Value>(value)?.is_object() {
+        return Err(invalid("backup saved logins must be JSON objects"));
     }
     let mut file = private_file(path)?;
     file.write_all(value)?;
@@ -153,25 +156,28 @@ pub async fn write_backup(
     let directory = tempfile::tempdir()?;
     let contents = options.contents;
     if contents.settings {
-        write_json_file(
-            &directory.path().join("settings.json"),
+        write_metadata_file(
+            &directory.path().join("settings.toml"),
             options
                 .settings
                 .ok_or_else(|| invalid("selected Settings are missing"))?,
+            true,
         )?;
     }
     if contents.saved_logins {
-        write_json_file(
+        write_metadata_file(
             &directory.path().join("saved-logins.json"),
             options
                 .saved_logins
                 .ok_or_else(|| invalid("selected saved logins are missing"))?,
+            false,
         )?;
     }
     if contents.playlists {
-        write_json_file(
+        write_metadata_file(
             &directory.path().join("playlist-pins.json"),
             options.playlist_pins.unwrap_or(b"{}"),
+            false,
         )?;
     }
     let ordinal = database
@@ -455,7 +461,7 @@ mod tests {
             &mut bytes,
             BackupOptions {
                 contents: BackupContents::default(),
-                settings: Some(b"{\"sources\":[]}"),
+                settings: Some(b"sources = []\n"),
                 saved_logins: Some(b"{}"),
                 playlist_pins: None,
                 passphrase,
@@ -497,7 +503,7 @@ mod tests {
         flate2::read::GzDecoder::new(Cursor::new(bytes))
             .read_to_end(&mut raw)
             .unwrap();
-        for name in ["../settings.json", "settings.json", "unrecognized.json"] {
+        for name in ["../settings.toml", "settings.toml", "unrecognized.json"] {
             let mut original = tar::Archive::new(Cursor::new(&raw));
             let mut builder = tar::Builder::new(Vec::new());
             for entry in original.entries().unwrap() {
@@ -578,7 +584,7 @@ mod tests {
                 },
                 BackupOptions {
                     contents: BackupContents::default(),
-                    settings: Some(b"{}"),
+                    settings: Some(b""),
                     saved_logins: Some(b"{}"),
                     playlist_pins: None,
                     passphrase: None,
@@ -676,7 +682,7 @@ mod tests {
         target.set_rating(&favorite, Some(2)).await.unwrap();
         let bytes = archive(&source, None).await;
         let staged = stage_backup(Cursor::new(bytes), || None).unwrap();
-        assert_eq!(staged.settings().unwrap(), br#"{"sources":[]}"#);
+        assert_eq!(staged.settings().unwrap(), b"sources = []\n");
         assert_eq!(staged.saved_logins().unwrap(), b"{}");
         assert_eq!(staged.playlist_pins().unwrap(), b"{}");
         let report = restore_backup(&target, &staged, BackupContents::default())
