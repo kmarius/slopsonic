@@ -1,7 +1,4 @@
-use library::{
-    CatalogSort, QueueProvenance, QueueRepeatMode, ReadCancellation, SmartPlaylistDefinition,
-    TrackReference,
-};
+use library::{CatalogSort, QueueProvenance, QueueRepeatMode, ReadCancellation, TrackReference};
 
 use super::support::{QueueItem, connection, fixture, persist_queue};
 
@@ -146,7 +143,7 @@ async fn occurrence_media_and_progress_follow_the_exact_uri() {
 }
 
 #[tokio::test]
-async fn album_playlist_and_smart_playlist_materialize_the_same_uri_identity() {
+async fn album_and_playlist_materialize_the_same_uri_identity() {
     let fixture = fixture().await;
     let cancel = ReadCancellation::new();
     let album = ({
@@ -187,26 +184,7 @@ async fn album_playlist_and_smart_playlist_materialize_the_same_uri_identity() {
         )
         .await
         .expect("Playlist URI order");
-    let smart_key = fixture
-        .database
-        .create_smart_playlist("Everything", &SmartPlaylistDefinition::default())
-        .await
-        .expect("create Smart Playlist");
-    let smart = fixture
-        .database
-        .selected_track_uris(
-            &library::MemberRead::new(library::Collection::Smart {
-                key: smart_key,
-                now: 0,
-            })
-            .selection(),
-            None,
-            &cancel,
-        )
-        .await
-        .expect("Smart Playlist URI order");
-
-    for (name, order) in [("album", album), ("playlist", playlist), ("smart", smart)] {
+    for (name, order) in [("album", album), ("playlist", playlist)] {
         assert!(!order.is_empty(), "{name} order");
         let media = fixture
             .database

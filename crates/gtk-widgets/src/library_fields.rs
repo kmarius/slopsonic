@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use ::library::{AlbumView, ArtistView, PlaylistRow, QueueRow, SmartPlaylistRow, TrackView};
+use ::library::{AlbumView, ArtistView, PlaylistRow, QueueRow, TrackView};
 use adw::prelude::*;
 use artwork::ArtworkBinding;
 #[cfg(test)]
@@ -79,8 +79,6 @@ pub fn add_field_skeleton_class(widget: &impl IsA<gtk::Widget>, field: LibraryFi
     widget.add_css_class(class);
 }
 
-pub use rufin_core::playlists::smart_playlist_display_name;
-
 pub fn album_item_field(album: &AlbumView, field: LibraryField) -> String {
     match field {
         LibraryField::Title | LibraryField::TitleMerged => album.metadata.title.clone(),
@@ -145,20 +143,6 @@ pub fn playlist_artwork(playlist: &PlaylistRow) -> Vec<ArtworkBinding> {
         .iter()
         .map(|binding| ArtworkBinding::opaque(binding))
         .collect()
-}
-pub fn smart_playlist_field(playlist: &SmartPlaylistRow, field: LibraryField) -> String {
-    match field {
-        LibraryField::Title | LibraryField::TitleMerged => {
-            smart_playlist_display_name(&playlist.object_id, &playlist.name)
-        }
-        LibraryField::SongCount if playlist.track_count > 0 => {
-            track_count_text(playlist.track_count as u64)
-        }
-        LibraryField::Duration if playlist.duration_millis > 0 => {
-            format_duration_units((playlist.duration_millis / 1_000) as u32)
-        }
-        _ => String::new(),
-    }
 }
 pub use rufin_core::settings::presentation::{
     audio_property_field, optional_track_number, track_field,

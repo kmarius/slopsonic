@@ -26,9 +26,7 @@ use super::grid_cells::{
     CollectionGridCardCell, CollectionGridProjection, ReusableCollectionGridCell,
     collection_grid_with_demand, install_grid_context, install_grid_play,
 };
-use gtk_media_menus::media_menus::{
-    present_genre_context_menu, present_mood_context_menu, present_smart_playlist_context_menu,
-};
+use gtk_media_menus::media_menus::{present_genre_context_menu, present_mood_context_menu};
 use gtk_widgets::library_fields::column_fit_width;
 
 use super::route_shell::LibraryPageShellOptions;
@@ -37,7 +35,7 @@ use crate::LibraryField;
 use gtk_widgets::detail_links::DetailLinks;
 use gtk_widgets::format_duration_units;
 use gtk_widgets::interactions::install_context_menu_openers;
-use gtk_widgets::library_fields::{playlist_artwork, playlist_field, smart_playlist_field};
+use gtk_widgets::library_fields::{playlist_artwork, playlist_field};
 use gtk_widgets::recycled_cells::{RecycledBadgedTextCell, list_cell};
 use gtk_widgets::route::Route;
 use gtk_widgets::sparse_model::{SparseRouteModel, SparseSource, connect_sparse_bind};
@@ -582,27 +580,18 @@ impl CollectionRow for library::PlaylistListRow {
             Self::Playlist(row) => Some(gtk_widgets::selection::collection_play_request(
                 library::Collection::Playlist(row.playlist_key),
             )),
-            Self::SmartPlaylist(row) => Some(gtk_widgets::selection::smart_play_request(
-                row.smart_playlist_key,
-            )),
             Self::Folder(_) => None,
         }
     }
     fn downloaded(&self) -> bool {
         match self {
             Self::Playlist(row) => row.track_count > 0 && row.downloaded_count == row.track_count,
-            Self::SmartPlaylist(row) => {
-                row.track_count > 0 && row.downloaded_count == row.track_count
-            }
             Self::Folder(_) => false,
         }
     }
     fn set_downloaded(&mut self, downloaded: bool) {
         match self {
             Self::Playlist(row) => {
-                row.downloaded_count = if downloaded { row.track_count } else { 0 }
-            }
-            Self::SmartPlaylist(row) => {
                 row.downloaded_count = if downloaded { row.track_count } else { 0 }
             }
             Self::Folder(_) => {}
@@ -621,7 +610,6 @@ impl NamedCollectionRow for library::PlaylistListRow {
     fn name(&self) -> &str {
         match self {
             Self::Playlist(row) => &row.name,
-            Self::SmartPlaylist(row) => &row.name,
             Self::Folder(row) => &row.name,
         }
     }
@@ -631,7 +619,6 @@ impl NamedCollectionRow for library::PlaylistListRow {
     fn field(&self, field: LibraryField) -> String {
         match self {
             Self::Playlist(row) => playlist_field(row, field),
-            Self::SmartPlaylist(row) => smart_playlist_field(row, field),
             Self::Folder(row) => match field {
                 LibraryField::Title | LibraryField::TitleMerged => row.name.clone(),
                 LibraryField::SongCount => track_count_text(row.track_count.max(0) as u64),
@@ -645,17 +632,14 @@ impl NamedCollectionRow for library::PlaylistListRow {
     fn route(&self) -> Route {
         match self {
             Self::Playlist(row) => Route::PlaylistDetail(row.playlist_key),
-            Self::SmartPlaylist(row) => Route::SmartPlaylistDetail(row.smart_playlist_key),
             Self::Folder(row) => Route::PlaylistFolder {
                 key: row.folder_key,
-                smart: row.smart,
             },
         }
     }
     fn artwork(&self) -> Vec<artwork::ArtworkBinding> {
         let binding = match self {
             Self::Playlist(row) => return playlist_artwork(row),
-            Self::SmartPlaylist(row) => &row.artwork_binding,
             Self::Folder(row) => &row.artwork_binding,
         };
         binding
@@ -673,13 +657,6 @@ impl NamedCollectionRow for library::PlaylistListRow {
             Self::Playlist(row) => {
                 (shell.playlist_context_menu)(target, row.clone(), None, position)
             }
-            Self::SmartPlaylist(row) => present_smart_playlist_context_menu(
-                target,
-                &shell.media_menus,
-                row.clone(),
-                None,
-                position,
-            ),
             Self::Folder(row) => gtk_media_menus::playlist_folders::present_folder_context_menu(
                 target,
                 &shell.media_menus,
@@ -709,8 +686,8 @@ impl NamedCollectionRow for library::PlaylistListRow {
                 return;
             };
             let accepts = match accept_current() {
-                Some(library::PlaylistListRow::Folder(folder)) => {
-                    gtk_media_menus::playlist_folders::playlist_drag_matches(&source, folder.smart)
+                Some(library::PlaylistListRow::Folder(_)) => {
+                    gtk_media_menus::playlist_folders::playlist_drag_matches(&source)
                 }
                 Some(library::PlaylistListRow::Playlist(_)) => {
                     !gtk_media_menus::playlist_folders::single_regular_playlist_drag(&source)
@@ -746,11 +723,9 @@ impl NamedCollectionRow for library::PlaylistListRow {
                     gtk_media_menus::playlist_folders::drop_playlist_on_folder(
                         &menus,
                         row.folder_key,
-                        row.smart,
                         source,
                     )
                 }
-                library::PlaylistListRow::SmartPlaylist(_) => false,
             }
         });
         widget.add_controller(drop);
@@ -967,10 +942,8 @@ where
 }
 
 fn named_column_width(key: LibraryListKey, field: LibraryField) -> i32 {
-    if matches!(
-        key,
-        LibraryListKey::Playlists | LibraryListKey::SmartPlaylists
-    ) && matches!(field, LibraryField::Title | LibraryField::TitleMerged)
+    if key == LibraryListKey::Playlists
+        && matches!(field, LibraryField::Title | LibraryField::TitleMerged)
     {
         220
     } else {

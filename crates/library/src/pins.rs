@@ -1,5 +1,5 @@
-//! Indexed sidebar facts; smart totals are evaluated separately from row loading.
-use crate::{Database, LibraryResult, ReadCancellation, SmartPlaylistKey, SourceId};
+//! Indexed sidebar facts.
+use crate::{Database, LibraryResult, ReadCancellation, SourceId};
 use serde::{Deserialize, Serialize};
 use sqlx::{AssertSqlSafe, FromRow};
 use std::collections::HashMap;
@@ -25,12 +25,8 @@ pub enum SidebarPin {
         source_id: Option<SourceId>,
         playlist_id: String,
     },
-    SmartPlaylist {
-        playlist_id: String,
-    },
     PlaylistFolder {
         folder_id: String,
-        smart: bool,
     },
 }
 
@@ -83,16 +79,8 @@ impl Database {
             ("Artist", "artists", "artist_key", "name", "artist"),
             ("Genre", "genres", "genre_key", "name", "genre"),
             ("Playlist", "playlists", "playlist_key", "name", "playlist"),
-            (
-                "SmartPlaylist",
-                "smart_playlists",
-                "smart_playlist_key",
-                "name",
-                "smart",
-            ),
         ] {
-            let (scope, totals, count, duration) = match kind {
-                "SmartPlaylist" => (String::new(), String::new(), "NULL".to_string(), "NULL".to_string()),
+            let (scope, totals, count, duration): (String, String, String, String) = match kind {
                 "Album" => ("AND item.source_key IS source.source_key AND source.source_key IS NOT NULL".into(), String::new(), "item.track_count".into(), "item.duration_millis".into()),
                 _ => (
                     "AND item.source_key IS source.source_key AND (requested.source_id IS NULL OR source.source_key IS NOT NULL)".into(),
@@ -119,15 +107,12 @@ impl Database {
                 CROSS JOIN {table} item ON item.object_id=requested.object_id {scope} {totals}
                 WHERE requested.kind='{kind}' AND item.{name} IS NOT NULL"));
         }
-        let binding = crate::artwork::preview_sql(
-            "CASE WHEN item.smart THEN smart.artwork_binding ELSE regular.artwork_binding END",
-        );
+        let binding = crate::artwork::preview_sql("regular.artwork_binding");
         parts.push(format!(
             "SELECT requested.ordinal,item.folder_key,item.name,NULL,NULL,
-            {binding},'[]',coalesce(smart.object_id,regular.object_id),source.object_id
+            {binding},'[]',regular.object_id,source.object_id
             FROM requested CROSS JOIN playlist_folders item ON item.object_id=requested.object_id
             LEFT JOIN playlists regular ON regular.playlist_key=item.playlist_cover_key
-            LEFT JOIN smart_playlists smart ON smart.smart_playlist_key=item.smart_cover_key
             LEFT JOIN sources source ON source.source_key=regular.source_key
             WHERE requested.kind='PlaylistFolder'"
         ));
@@ -147,15 +132,11 @@ impl Database {
                         source_id,
                         playlist_id,
                     } => Some((
-                        false,
                         source_id.as_ref().map(ToString::to_string),
                         playlist_id.clone(),
                     )),
-                    SidebarPin::SmartPlaylist { playlist_id } => {
-                        Some((true, None, playlist_id.clone()))
-                    }
-                    SidebarPin::PlaylistFolder { smart, .. } => {
-                        row.cover_id.map(|id| (*smart, row.cover_source, id))
+                    SidebarPin::PlaylistFolder { .. } => {
+                        row.cover_id.map(|id| (row.cover_source, id))
                     }
                     _ => None,
                 };
@@ -189,75 +170,26 @@ impl Database {
     pub async fn sidebar_pin_totals(
         &self,
         mut rows: Vec<SidebarPinRow>,
-        now: i64,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<SidebarPinRow>> {
-        let mut keys = rows
-            .iter()
-            .filter(|row| matches!(row.pin, SidebarPin::SmartPlaylist { .. }))
-            .map(|row| SmartPlaylistKey::from_raw(row.key))
-            .collect::<Vec<_>>();
         let folders = rows
             .iter()
-            .filter(|row| matches!(row.pin, SidebarPin::PlaylistFolder { smart: true, .. }))
+            .filter(|row| matches!(row.pin, SidebarPin::PlaylistFolder { .. }))
             .map(|row| row.key)
             .collect::<Vec<_>>();
-        let regular_folders = rows
-            .iter()
-            .filter(|row| matches!(row.pin, SidebarPin::PlaylistFolder { smart: false, .. }))
-            .map(|row| row.key)
-            .collect::<Vec<_>>();
-        if keys.is_empty() && folders.is_empty() && regular_folders.is_empty() {
+        if folders.is_empty() {
             return Ok(rows);
         }
         let (_permit, mut connection) = self.acquire_general(cancellation).await?;
-        let mut folder_totals = HashMap::<i64, (i64, i64)>::new();
-        if !regular_folders.is_empty() {
-            folder_totals.extend(sqlx::query_as::<_,(i64,i64,i64)>("SELECT child.playlist_folder_key,sum(totals.track_count),sum(totals.duration_millis)
-                FROM json_each(?1) requested CROSS JOIN playlists child ON child.playlist_folder_key=requested.value
-                JOIN collection_totals totals ON totals.kind='playlist' AND totals.entity_key=child.playlist_key AND totals.role=0 AND coalesce(totals.folder_key,'')=''
-                WHERE child.name IS NOT NULL AND (child.owner='rufin' OR child.indexed) GROUP BY child.playlist_folder_key")
-                .bind(serde_json::to_string(&regular_folders)?).fetch_all(&mut *connection).await?.into_iter().map(|(key,count,duration)| (key,(count,duration))));
-        }
-        let members: Vec<(i64, SmartPlaylistKey)> = if folders.is_empty() {
-            Vec::new()
-        } else {
-            sqlx::query_as("SELECT playlist_folder_key,smart_playlist_key FROM smart_playlists WHERE playlist_folder_key IN(SELECT value FROM json_each(?1))")
-                .bind(serde_json::to_string(&folders)?).fetch_all(&mut *connection).await?
-        };
-        keys.extend(members.iter().map(|(_, key)| *key));
-        keys.sort_unstable();
-        keys.dedup();
-        let mut totals = HashMap::new();
-        for batch in keys.chunks(crate::smart_playlists::SMART_PLAYLIST_ROW_LIMIT) {
-            let membership =
-                crate::smart_playlists::smart_membership_sql(&mut connection, now, Some(batch))
-                    .await?;
-            totals.extend(sqlx::query_as::<_,(SmartPlaylistKey,i64,i64)>(AssertSqlSafe(format!("{membership}
-                SELECT definition_key,count(*),coalesce(sum(track.duration_millis),0) FROM selected
-                JOIN tracks track INDEXED BY tracks_duration_idx USING(track_key) GROUP BY definition_key")))
-                .fetch_all(&mut *connection).await?.into_iter().map(|(key,count,duration)| (key,(count,duration))));
-        }
-        for (folder, key) in members {
-            if let Some(&(count, duration)) = totals.get(&key) {
-                let total = folder_totals.entry(folder).or_default();
-                total.0 += count;
-                total.1 += duration;
-            }
-        }
+        let folder_totals: HashMap<i64, (i64, i64)> = sqlx::query_as::<_,(i64,i64,i64)>("SELECT child.playlist_folder_key,sum(totals.track_count),sum(totals.duration_millis)
+            FROM json_each(?1) requested CROSS JOIN playlists child ON child.playlist_folder_key=requested.value
+            JOIN collection_totals totals ON totals.kind='playlist' AND totals.entity_key=child.playlist_key AND totals.role=0 AND coalesce(totals.folder_key,'')=''
+            WHERE child.name IS NOT NULL AND (child.owner='rufin' OR child.indexed) GROUP BY child.playlist_folder_key")
+            .bind(serde_json::to_string(&folders)?).fetch_all(&mut *connection).await?.into_iter().map(|(key,count,duration)| (key,(count,duration))).collect();
         for row in &mut rows {
-            row.totals = match row.pin {
-                SidebarPin::SmartPlaylist { .. } => Some(
-                    totals
-                        .get(&SmartPlaylistKey::from_raw(row.key))
-                        .copied()
-                        .unwrap_or_default(),
-                ),
-                SidebarPin::PlaylistFolder { .. } => {
-                    Some(folder_totals.get(&row.key).copied().unwrap_or_default())
-                }
-                _ => row.totals,
-            };
+            if matches!(row.pin, SidebarPin::PlaylistFolder { .. }) {
+                row.totals = Some(folder_totals.get(&row.key).copied().unwrap_or_default());
+            }
         }
         Ok(rows)
     }

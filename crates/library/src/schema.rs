@@ -14,7 +14,7 @@ pub(crate) async fn pragma(
 }
 pub(crate) const STORE_SCHEMA: &str = r#"PRAGMA application_id = 1381320270;
 
-PRAGMA user_version = 62;
+PRAGMA user_version = 63;
 
 CREATE TABLE IF NOT EXISTS queue_contexts (
     context_key INTEGER PRIMARY KEY,
@@ -83,38 +83,15 @@ CREATE INDEX IF NOT EXISTS playlist_entries_order_idx ON playlist_entries(playli
 CREATE INDEX IF NOT EXISTS playlist_entries_shuffle_idx ON playlist_entries(playlist_key,((playlist_entry_key*1103515245)%2147483647),playlist_entry_key);
 CREATE INDEX IF NOT EXISTS playlist_entries_track_idx ON playlist_entries(track_key,playlist_key);
 
-CREATE TABLE IF NOT EXISTS smart_playlists (
-    smart_playlist_key INTEGER PRIMARY KEY,
-    object_id TEXT NOT NULL CHECK (object_id <> ''),
-    name TEXT NOT NULL,
-    normalized_name TEXT NOT NULL,
-    playlist_folder_key INTEGER REFERENCES playlist_folders(folder_key) ON DELETE SET NULL,
-    definition_json TEXT NOT NULL CHECK (json_valid(definition_json)),
-    artwork_bytes BLOB,
-    artwork_revision TEXT,
-    artwork_binding BLOB,
-    position INTEGER NOT NULL CHECK (position >= 0),
-    UNIQUE (object_id),
-    UNIQUE (position)
-) STRICT;
-
-CREATE INDEX IF NOT EXISTS smart_playlists_title_idx
-    ON smart_playlists(normalized_name, smart_playlist_key);
-
 CREATE TABLE IF NOT EXISTS playlist_folders (
     folder_key INTEGER PRIMARY KEY,
     object_id TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
-    smart INTEGER NOT NULL CHECK(smart IN(0,1)),
-    playlist_cover_key INTEGER REFERENCES playlists ON DELETE SET NULL,
-    smart_cover_key INTEGER REFERENCES smart_playlists ON DELETE SET NULL
+    playlist_cover_key INTEGER REFERENCES playlists ON DELETE SET NULL
 ) STRICT;
 CREATE INDEX IF NOT EXISTS playlists_folder_idx ON playlists(playlist_folder_key,playlist_key);
-CREATE TRIGGER IF NOT EXISTS playlists_folder_cover_update AFTER UPDATE OF playlist_folder_key,name,indexed ON playlists BEGIN UPDATE playlist_folders SET playlist_cover_key=(SELECT child.playlist_key FROM playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key AND child.name IS NOT NULL AND (child.owner='rufin' OR child.indexed) ORDER BY child.playlist_key LIMIT 1) WHERE folder_key IN(OLD.playlist_folder_key,NEW.playlist_folder_key) AND smart=0 AND NOT EXISTS(SELECT 1 FROM playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key AND child.playlist_key=playlist_folders.playlist_cover_key AND child.name IS NOT NULL AND (child.owner='rufin' OR child.indexed)); END;
-CREATE TRIGGER IF NOT EXISTS playlists_folder_cover_delete AFTER DELETE ON playlists BEGIN UPDATE playlist_folders SET playlist_cover_key=(SELECT child.playlist_key FROM playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key AND child.name IS NOT NULL AND (child.owner='rufin' OR child.indexed) ORDER BY child.playlist_key LIMIT 1) WHERE folder_key =OLD.playlist_folder_key AND smart=0 AND NOT EXISTS(SELECT 1 FROM playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key AND child.playlist_key=playlist_folders.playlist_cover_key AND child.name IS NOT NULL AND (child.owner='rufin' OR child.indexed)); END;
-CREATE INDEX IF NOT EXISTS smart_playlists_folder_idx ON smart_playlists(playlist_folder_key,smart_playlist_key);
-CREATE TRIGGER IF NOT EXISTS smart_playlists_folder_cover_update AFTER UPDATE OF playlist_folder_key ON smart_playlists BEGIN UPDATE playlist_folders SET smart_cover_key=(SELECT child.smart_playlist_key FROM smart_playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key ORDER BY child.smart_playlist_key LIMIT 1) WHERE folder_key IN(OLD.playlist_folder_key,NEW.playlist_folder_key) AND smart=1 AND NOT EXISTS(SELECT 1 FROM smart_playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key AND child.smart_playlist_key=playlist_folders.smart_cover_key); END;
-CREATE TRIGGER IF NOT EXISTS smart_playlists_folder_cover_delete AFTER DELETE ON smart_playlists BEGIN UPDATE playlist_folders SET smart_cover_key=(SELECT child.smart_playlist_key FROM smart_playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key ORDER BY child.smart_playlist_key LIMIT 1) WHERE folder_key =OLD.playlist_folder_key AND smart=1 AND NOT EXISTS(SELECT 1 FROM smart_playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key AND child.smart_playlist_key=playlist_folders.smart_cover_key); END;
+CREATE TRIGGER IF NOT EXISTS playlists_folder_cover_update AFTER UPDATE OF playlist_folder_key,name,indexed ON playlists BEGIN UPDATE playlist_folders SET playlist_cover_key=(SELECT child.playlist_key FROM playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key AND child.name IS NOT NULL AND (child.owner='rufin' OR child.indexed) ORDER BY child.playlist_key LIMIT 1) WHERE folder_key IN(OLD.playlist_folder_key,NEW.playlist_folder_key) AND NOT EXISTS(SELECT 1 FROM playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key AND child.playlist_key=playlist_folders.playlist_cover_key AND child.name IS NOT NULL AND (child.owner='rufin' OR child.indexed)); END;
+CREATE TRIGGER IF NOT EXISTS playlists_folder_cover_delete AFTER DELETE ON playlists BEGIN UPDATE playlist_folders SET playlist_cover_key=(SELECT child.playlist_key FROM playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key AND child.name IS NOT NULL AND (child.owner='rufin' OR child.indexed) ORDER BY child.playlist_key LIMIT 1) WHERE folder_key =OLD.playlist_folder_key AND NOT EXISTS(SELECT 1 FROM playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key AND child.playlist_key=playlist_folders.playlist_cover_key AND child.name IS NOT NULL AND (child.owner='rufin' OR child.indexed)); END;
 
 CREATE TABLE IF NOT EXISTS favorite_outbox (
     outbox_key INTEGER PRIMARY KEY,
@@ -605,7 +582,23 @@ const MIGRATE_61: &str = "
 DROP TABLE IF EXISTS loudness_measurements;
 ";
 
-pub(crate) const SCHEMA_VERSION: i64 = 62;
+const MIGRATE_62: &str = "
+DROP TRIGGER IF EXISTS playlists_folder_cover_update;
+DROP TRIGGER IF EXISTS playlists_folder_cover_delete;
+DELETE FROM playlist_folders WHERE smart=1;
+CREATE TABLE playlist_folders_new (
+    folder_key INTEGER PRIMARY KEY,
+    object_id TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    playlist_cover_key INTEGER REFERENCES playlists ON DELETE SET NULL
+) STRICT;
+INSERT INTO playlist_folders_new SELECT folder_key,object_id,name,playlist_cover_key FROM playlist_folders;
+DROP TABLE playlist_folders;
+ALTER TABLE playlist_folders_new RENAME TO playlist_folders;
+DROP TABLE IF EXISTS smart_playlists;
+";
+
+pub(crate) const SCHEMA_VERSION: i64 = 63;
 
 pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> LibraryResult<()> {
     let version = pragma(connection, "user_version").await?;
@@ -614,6 +607,7 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
         && version != 59
         && version != 60
         && version != 61
+        && version != 62
         && version != SCHEMA_VERSION
     {
         return Err(crate::LibraryError::Migration(format!(
@@ -635,6 +629,9 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
     if version != 0 && version < 62 {
         sqlx::raw_sql(MIGRATE_61).execute(&mut *transaction).await?;
     }
+    if version != 0 && version < 63 {
+        sqlx::raw_sql(MIGRATE_62).execute(&mut *transaction).await?;
+    }
     sqlx::raw_sql(STORE_SCHEMA)
         .execute(&mut *transaction)
         .await?;
@@ -642,7 +639,6 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
         UPDATE download_locators AS locator SET source_key=track.source_key FROM tracks track WHERE locator.source_key IS NULL AND locator.origin='download' AND locator.media_uri=track.media_uri AND track.source_key IS NOT NULL;")
         .execute(&mut *transaction).await?;
     if version == 0 {
-        crate::smart_playlists::create_default_smart_playlists(&mut transaction).await?;
         crate::catalog::index::initialize(&mut transaction).await?;
     }
     transaction.commit().await?;

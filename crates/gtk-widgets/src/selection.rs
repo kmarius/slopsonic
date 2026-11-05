@@ -370,7 +370,6 @@ pub fn collection_play_request(scope: library::Collection) -> rufin_core::playba
         library::Collection::Genre(key) => format!("genre:{key}"),
         library::Collection::Mood(key) => format!("mood:{key}"),
         library::Collection::Playlist(key) => format!("playlist:{key}"),
-        library::Collection::Smart { key, .. } => format!("smart-playlist:{key}"),
         library::Collection::History { source } => format!("history:{source:?}"),
     };
     rufin_core::playback::PlayRequest::ordered(
@@ -396,15 +395,6 @@ pub fn track_play_request(key: library::TrackKey) -> rufin_core::playback::PlayR
         QueuePlacement::Now,
         false,
     )
-}
-
-pub fn smart_play_request(key: library::SmartPlaylistKey) -> rufin_core::playback::PlayRequest {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |value| value.as_secs() as i64);
-    let query = library::MemberRead::new(library::Collection::Smart { key, now });
-    rufin_core::playback::PlayRequest::ordered(query.selection(), 0, QueuePlacement::Now, true)
-        .with_context(format!("smart-playlist:{key}").into())
 }
 
 pub fn album_play_request(row: &library::AlbumView) -> rufin_core::playback::PlayRequest {

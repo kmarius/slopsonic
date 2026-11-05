@@ -335,12 +335,52 @@ async fn unsupported_version_preserves_library_data() {
     assert_eq!(durable_rows(&fixture.path).await, before);
 }
 
+const SCHEMA_62_FOLDERS: &str = "DROP TRIGGER IF EXISTS playlists_folder_cover_update; DROP TRIGGER IF EXISTS playlists_folder_cover_delete; DROP TABLE playlist_folders; CREATE TABLE smart_playlists(smart_playlist_key INTEGER PRIMARY KEY); CREATE TABLE playlist_folders(folder_key INTEGER PRIMARY KEY, object_id TEXT NOT NULL UNIQUE, name TEXT NOT NULL, smart INTEGER NOT NULL CHECK(smart IN(0,1)), playlist_cover_key INTEGER REFERENCES playlists ON DELETE SET NULL, smart_cover_key INTEGER REFERENCES smart_playlists ON DELETE SET NULL) STRICT; INSERT INTO playlist_folders(object_id,name,smart) VALUES('a','Regular',0),('b','Smart',1);";
+
+#[tokio::test]
+async fn upgrading_from_schema_62_drops_smart_playlists_and_smart_folders() {
+    let fixture = super::support::fixture().await;
+    fixture.database.close().await.unwrap();
+    let mut raw = connection(&fixture.path, false).await;
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+        "{SCHEMA_62_FOLDERS} PRAGMA user_version=62;"
+    )))
+    .execute(&mut raw)
+    .await
+    .unwrap();
+    raw.close().await.unwrap();
+    let database = Database::open(&fixture.path).await.unwrap();
+    assert!(
+        database
+            .create_playlist_folder("After upgrade")
+            .await
+            .is_ok()
+    );
+    database.close().await.unwrap();
+    let mut raw = connection(&fixture.path, false).await;
+    let names: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM playlist_folders ORDER BY folder_key")
+            .fetch_all(&mut raw)
+            .await
+            .unwrap();
+    let smart_tables: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM sqlite_master WHERE instr(sql,'smart_playlists')>0",
+    )
+    .fetch_one(&mut raw)
+    .await
+    .unwrap();
+    assert_eq!(
+        (names, smart_tables),
+        (vec!["Regular".into(), "After upgrade".into()], 0)
+    );
+}
+
 #[tokio::test]
 async fn upgrading_from_schema_60_drops_recovered_activity_and_its_triggers() {
     let fixture = super::support::fixture().await;
     fixture.database.close().await.unwrap();
     let mut raw = connection(&fixture.path, false).await;
-    sqlx::raw_sql("CREATE TABLE legacy_activity(source_id TEXT NOT NULL, play_count INTEGER NOT NULL); CREATE TRIGGER legacy_probe AFTER INSERT ON playlists BEGIN SELECT count(*) FROM legacy_activity; END; PRAGMA user_version=60;")
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("{SCHEMA_62_FOLDERS} CREATE TABLE legacy_activity(source_id TEXT NOT NULL, play_count INTEGER NOT NULL); CREATE TRIGGER legacy_probe AFTER INSERT ON playlists BEGIN SELECT count(*) FROM legacy_activity; END; PRAGMA user_version=60;")))
         .execute(&mut raw).await.unwrap();
     raw.close().await.unwrap();
     let database = Database::open(&fixture.path).await.unwrap();
@@ -364,7 +404,7 @@ async fn upgrading_from_schema_60_drops_recovered_activity_and_its_triggers() {
         .fetch_one(&mut raw)
         .await
         .unwrap();
-    assert_eq!((leftovers, version), (0, 62));
+    assert_eq!((leftovers, version), (0, 63));
 }
 
 #[tokio::test]

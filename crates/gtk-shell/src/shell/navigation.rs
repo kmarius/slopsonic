@@ -7,12 +7,11 @@ use std::{
     collections::HashMap,
     rc::Rc,
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 use gtk_media_menus::media_menus::{
     present_album_context_menu, present_artist_context_menu, present_genre_context_menu,
-    present_playlist_context_menu, present_smart_playlist_context_menu,
+    present_playlist_context_menu,
 };
 use gtk_widgets::cover_controls::cover_play_only_hover_controls;
 use gtk_widgets::selection::collection_play_request;
@@ -26,9 +25,7 @@ use gtk_widgets::interactions::{
     CONTEXT_MENU_HOVER_HELD_CLASS, CONTEXT_MENU_HOVER_OWNER_CLASS, install_context_menu_openers,
     replace_native_menu_checkmarks, show_native_menu_icons,
 };
-use gtk_widgets::library_fields::smart_playlist_display_name;
 use gtk_widgets::route::{CollectionCategory, Route};
-use library::SmartPlaylistRow;
 use rufin_core::playback::QueuePlacement;
 use tracing::warn;
 
@@ -514,11 +511,7 @@ impl SidebarPinItem {
         self.0.pin.clone()
     }
     fn title(&self) -> String {
-        if let SidebarPin::SmartPlaylist { playlist_id } = &self.0.pin {
-            smart_playlist_display_name(playlist_id, &self.0.name)
-        } else {
-            self.0.name.clone()
-        }
+        self.0.name.clone()
     }
     fn track_count(&self) -> u32 {
         self.0
@@ -549,12 +542,8 @@ impl SidebarPinItem {
             SidebarPin::Playlist { .. } => {
                 Route::PlaylistDetail(library::PlaylistKey::from_raw(key))
             }
-            SidebarPin::SmartPlaylist { .. } => {
-                Route::SmartPlaylistDetail(library::SmartPlaylistKey::from_raw(key))
-            }
-            SidebarPin::PlaylistFolder { smart, .. } => Route::PlaylistFolder {
+            SidebarPin::PlaylistFolder { .. } => Route::PlaylistFolder {
                 key: library::PlaylistFolderKey::from_raw(key),
-                smart: *smart,
             },
         }
     }
@@ -573,11 +562,6 @@ impl SidebarPinItem {
             }
             SidebarPin::Playlist { .. } => {
                 library::Collection::Playlist(library::PlaylistKey::from_raw(key))
-            }
-            SidebarPin::SmartPlaylist { .. } => {
-                return Some(gtk_widgets::selection::smart_play_request(
-                    library::SmartPlaylistKey::from_raw(key),
-                ));
             }
             SidebarPin::PlaylistFolder { .. } => return None,
         };
@@ -691,28 +675,6 @@ impl SidebarPinItem {
                                     shell.player_ui.selected_playback().as_deref(),
                                 )
                                 .map(|track| track.media_uri),
-                            )
-                        }) as PinMenu
-                    }),
-                SidebarPin::SmartPlaylist { .. } => database
-                    .smart_playlist_rows(
-                        &[library::SmartPlaylistKey::from_raw(key)],
-                        SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .as_secs() as i64,
-                        &cancel,
-                    )
-                    .await?
-                    .pop()
-                    .map(|row| {
-                        Box::new(move |target: &gtk::Widget, shell: &Rc<Shell>| {
-                            present_smart_playlist_context_menu(
-                                target,
-                                &shell.media_menus,
-                                row,
-                                None,
-                                position,
                             )
                         }) as PinMenu
                     }),
@@ -875,18 +837,8 @@ pub(crate) fn request_sidebar_pins(shell: &Rc<Shell>) {
             current.navigation.pin_cancellation.borrow_mut().take();
             return;
         }
-        let task = runtime.spawn(async move {
-            database
-                .sidebar_pin_totals(
-                    pending,
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs() as i64,
-                    &cancellation,
-                )
-                .await
-        });
+        let task =
+            runtime.spawn(async move { database.sidebar_pin_totals(pending, &cancellation).await });
         drop(current);
         let result = task.await.ok().and_then(Result::ok);
         let Some(current) = shell.upgrade() else {
@@ -938,31 +890,6 @@ fn sidebar_pin_publication_is_current(expected_generation: u64, current_generati
 pub(crate) fn refresh_sidebar_pins(shell: &Rc<Shell>) {
     shell.navigation.pin_identity.borrow_mut().take();
     request_sidebar_pins(shell);
-}
-
-pub(crate) fn update_sidebar_smart_playlist_pin_metadata(
-    shell: &Shell,
-    summary: &SmartPlaylistRow,
-) {
-    let item = {
-        let mut items = shell.navigation.pin_items.borrow_mut();
-        let Some(playlist) = items.iter_mut().find(|item| {
-            matches!(item.0.pin, SidebarPin::SmartPlaylist { .. })
-                && item.0.key == summary.smart_playlist_key.raw()
-        }) else {
-            return;
-        };
-        playlist.0.totals = Some((summary.track_count, summary.duration_millis));
-        playlist.clone()
-    };
-    let Some(key) = sidebar_pin_route_key(&item.route()) else {
-        return;
-    };
-    if let Some(widget) =
-        keyed_sidebar_pin_widgets(&shell.navigation_view.normal_nav_pins).get(&key)
-    {
-        update_sidebar_pin_widget_metadata(widget, &item);
-    }
 }
 
 fn sidebar_pin_items(shell: &Shell) -> Vec<SidebarPinItem> {
@@ -1499,8 +1426,7 @@ fn sidebar_pin_drag_variant(pin: &SidebarPin) -> glib::Variant {
             source_id,
             playlist_id,
         } => (3, source_id.as_ref(), playlist_id, false),
-        SidebarPin::SmartPlaylist { playlist_id } => (4, None, playlist_id, false),
-        SidebarPin::PlaylistFolder { folder_id, smart } => (5, None, folder_id, *smart),
+        SidebarPin::PlaylistFolder { folder_id } => (4, None, folder_id, false),
     };
     (
         kind,
@@ -1534,12 +1460,8 @@ fn sidebar_pin_from_drag_value(value: &glib::Value) -> Option<SidebarPin> {
             source_id,
             playlist_id: object_id,
         }),
-        4 => Some(SidebarPin::SmartPlaylist {
-            playlist_id: object_id,
-        }),
-        5 => Some(SidebarPin::PlaylistFolder {
+        4 => Some(SidebarPin::PlaylistFolder {
             folder_id: object_id,
-            smart: album_artist,
         }),
         _ => None,
     }
@@ -1550,9 +1472,8 @@ fn install_playlist_pin_drop(
     shell: &Rc<Shell>,
     pin: &SidebarPinItem,
 ) {
-    if let SidebarPin::PlaylistFolder { smart, .. } = &pin.0.pin {
+    if matches!(pin.0.pin, SidebarPin::PlaylistFolder { .. }) {
         let folder_key = library::PlaylistFolderKey::from_raw(pin.0.key);
-        let smart = *smart;
         let menus = Rc::downgrade(&shell.media_menus);
         let drop = gtk::DropTarget::new(
             glib::BoxedAnyObject::static_type(),
@@ -1564,7 +1485,7 @@ fn install_playlist_pin_drop(
                 .value()
                 .as_ref()
                 .and_then(gtk_widgets::media_drag::media_drag_source)
-                && !gtk_media_menus::playlist_folders::playlist_drag_matches(&source, smart)
+                && !gtk_media_menus::playlist_folders::playlist_drag_matches(&source)
             {
                 drop.reject();
             }
@@ -1577,9 +1498,7 @@ fn install_playlist_pin_drop(
             ) else {
                 return false;
             };
-            gtk_media_menus::playlist_folders::drop_playlist_on_folder(
-                &menus, folder_key, smart, source,
-            )
+            gtk_media_menus::playlist_folders::drop_playlist_on_folder(&menus, folder_key, source)
         });
         target.add_controller(drop);
         return;
@@ -1718,7 +1637,6 @@ fn sidebar_pin_route_key(route: &Route) -> Option<String> {
         Route::AlbumArtistDetail(id) => Some(format!("sidebar-pin-album-artist:{id}")),
         Route::GenreDetail(id) => Some(format!("sidebar-pin-genre:{id}")),
         Route::PlaylistDetail(id) => Some(format!("sidebar-pin-playlist:{id}")),
-        Route::SmartPlaylistDetail(id) => Some(format!("sidebar-pin-smart-playlist:{id}")),
         Route::PlaylistFolder { key, .. } => Some(format!("sidebar-pin-playlist-folder:{key}")),
         _ => None,
     }
@@ -1863,7 +1781,6 @@ mod tests {
                 }],
             },
             Route::PlaylistDetail(library::PlaylistKey::from_raw(1)),
-            Route::SmartPlaylistDetail(library::SmartPlaylistKey::from_raw(1)),
         ];
         for route in routes {
             assert!(SidebarRouteItem::all().into_iter().all(|item| {

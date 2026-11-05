@@ -56,21 +56,7 @@ impl CollectionTargets {
                 let mut targets = Vec::new();
                 for (read, ranges) in reads {
                     let collections = selected_parent_collections(database, read, ranges).await?;
-                    targets.extend(collections.into_iter().map(|collection| {
-                        if let library::Collection::Smart { key, .. } = collection {
-                            let mut members = library::MemberRead::new(collection);
-                            members.folder = read.folder;
-                            PlayRequest::ordered(
-                                members.selection(),
-                                0,
-                                rufin_core::playback::QueuePlacement::Now,
-                                true,
-                            )
-                            .with_context(format!("smart-playlist:{key}").into())
-                        } else {
-                            collection_play_request(collection)
-                        }
-                    }));
+                    targets.extend(collections.into_iter().map(collection_play_request));
                 }
                 Ok(targets)
             }
@@ -111,13 +97,7 @@ pub fn install_parent_selection<K, R>(
                     (
                         Some(library::MemberSelection::Members { read: left, .. }),
                         Some(library::MemberSelection::Members { read: right, .. }),
-                    ) => match (&left.collection, &right.collection) {
-                        (
-                            library::Collection::Smart { key: left, .. },
-                            library::Collection::Smart { key: right, .. },
-                        ) => left == right,
-                        _ => left == right,
-                    },
+                    ) => left == right,
                     (left, right) => left == right,
                 }
             })?;
@@ -655,7 +635,6 @@ fn selection_title(selection: Option<&library::MemberSelection>) -> String {
             Collection::Genre(_) => "Genre",
             Collection::Mood(_) => "Mood",
             Collection::Playlist(_) => "Playlist",
-            Collection::Smart { .. } => "Smart Playlist",
             _ => "Folder",
         }),
         Some(MemberSelection::Keys { .. } | MemberSelection::Uris(_)) => "Track".to_string(),

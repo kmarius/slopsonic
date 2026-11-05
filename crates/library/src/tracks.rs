@@ -467,15 +467,11 @@ mod tests {
             CatalogSort::Album,
         ] {
             for descending in [false, true] {
-                let query = crate::query::member_query_on(
-                    &mut connection,
-                    &crate::MemberRead {
-                        sort: Some(sort),
-                        descending,
-                        ..crate::MemberRead::new(crate::Collection::Source(source))
-                    },
-                )
-                .await
+                let query = crate::query::member_query(&crate::MemberRead {
+                    sort: Some(sort),
+                    descending,
+                    ..crate::MemberRead::new(crate::Collection::Source(source))
+                })
                 .unwrap();
                 let plan =
                     sqlx::query_as::<_, (i64, i64, i64, String)>(sqlx::AssertSqlSafe(format!(

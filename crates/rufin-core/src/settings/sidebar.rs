@@ -20,7 +20,6 @@ pub enum SidebarRouteItem {
     Moods,
     Folders,
     Playlists,
-    SmartPlaylists,
     History,
 }
 impl SidebarRouteItem {
@@ -28,7 +27,7 @@ impl SidebarRouteItem {
         toml::Value::String(stable_id.to_owned()).try_into().ok()
     }
 
-    pub fn all() -> [Self; 13] {
+    pub fn all() -> [Self; 12] {
         [
             Self::Home,
             Self::Search,
@@ -42,7 +41,6 @@ impl SidebarRouteItem {
             Self::History,
             Self::Folders,
             Self::Playlists,
-            Self::SmartPlaylists,
         ]
     }
 
@@ -82,17 +80,6 @@ impl Default for SidebarSettings {
     }
 }
 impl SidebarSettings {
-    pub fn pins_use_activity(&self) -> bool {
-        self.pins_visible
-            && self.pins.iter().any(|pin| {
-                matches!(
-                    pin,
-                    SidebarPin::SmartPlaylist { .. }
-                        | SidebarPin::PlaylistFolder { smart: true, .. }
-                )
-            })
-    }
-
     pub fn set_route_visible(&mut self, item: SidebarRouteItem, visible: bool) -> bool {
         let Some(stored) = self
             .route_items

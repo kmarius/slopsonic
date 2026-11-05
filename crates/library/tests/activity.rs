@@ -142,46 +142,6 @@ async fn activity_keeps_one_listen_and_independent_delivery_targets() {
     sqlx::query("INSERT INTO native_media_state(media_uri,play_count,last_played) SELECT media_uri,2,1600000000 FROM tracks WHERE source_key=?1 AND object_id='track-1' ON CONFLICT(media_uri) DO UPDATE SET play_count=excluded.play_count,last_played=excluded.last_played")
         .bind(fixture.source).execute(&mut raw).await.unwrap();
     drop(raw);
-    let never = fixture
-        .database
-        .create_smart_playlist(
-            "Local never played",
-            &library::SmartPlaylistDefinition {
-                match_all: vec![
-                    library::SmartPlaylistRule {
-                        field: library::SmartPlaylistRuleField::Played,
-                        operator: library::SmartPlaylistRuleOperator::Is,
-                        value: Some(library::SmartPlaylistRuleValue::Bool(false)),
-                    },
-                    library::SmartPlaylistRule {
-                        field: library::SmartPlaylistRuleField::PlayCount,
-                        operator: library::SmartPlaylistRuleOperator::Equals,
-                        value: Some(library::SmartPlaylistRuleValue::Number(0)),
-                    },
-                ],
-                ..library::SmartPlaylistDefinition::default()
-            },
-        )
-        .await
-        .unwrap();
-    let unplayed = fixture
-        .database
-        .selected_track_uris(
-            &library::MemberRead::new(library::Collection::Smart {
-                key: never,
-                now: 1800000000,
-            })
-            .selection(),
-            None,
-            &cancel,
-        )
-        .await
-        .unwrap();
-    assert!(
-        unplayed.contains(&fixture.track_uris[1]),
-        "remote play totals do not count as Rufin listens"
-    );
-    assert!(!unplayed.contains(&listen.media_uri));
     let catalog = fixture
         .database
         .tracks_by_uris(&([(&listen.media_uri).to_string()]), &cancel)

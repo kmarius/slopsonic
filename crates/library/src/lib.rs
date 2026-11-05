@@ -36,7 +36,6 @@ mod schema;
 mod search;
 mod selection;
 pub use selection::MemberSelection;
-mod smart_playlists;
 mod storage;
 pub use storage::CacheUsage;
 mod tracks;
@@ -68,8 +67,8 @@ pub use home::{
 };
 pub use keys::{
     AlbumKey, ArtistKey, DownloadAccessFileKey, FolderKey, GenreKey, ListenKey, ListenOutboxKey,
-    MoodKey, PlaylistEntryKey, PlaylistFolderKey, PlaylistKey, SmartPlaylistKey, SourceId,
-    SourceKey, TrackKey, document_access_uri, document_fragment_parts, document_locator_fragment,
+    MoodKey, PlaylistEntryKey, PlaylistFolderKey, PlaylistKey, SourceId, SourceKey, TrackKey,
+    document_access_uri, document_fragment_parts, document_locator_fragment,
     document_locator_parts, document_media_id, document_media_uri, file_media_path,
     normalize_direct_media_uri, source_entity_parts, source_entity_uri, source_id_for_uri,
 };
@@ -84,12 +83,6 @@ pub use queue::{
 };
 pub use radio::{PlayedFilter, RadioSeed, RandomCriteria};
 pub use search::{SearchRequest, SearchResults};
-pub use smart_playlists::{
-    SmartPlaylistActivityPeriod, SmartPlaylistDefinition, SmartPlaylistRow, SmartPlaylistRule,
-    SmartPlaylistRuleField, SmartPlaylistRuleOperator, SmartPlaylistRuleValue,
-    SmartPlaylistRuleValueKind, SmartPlaylistSort, SmartPlaylistValueSuggestions,
-    SmartPlaylistWrite,
-};
 pub use tracks::{
     CatalogSort, TrackAccess, TrackArtistLink, TrackGenreLink, TrackLinks, TrackState, TrackView,
 };

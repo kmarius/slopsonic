@@ -5,11 +5,7 @@ use async_channel::Receiver;
 use futures_util::{StreamExt, TryStreamExt};
 use library::{Database, PlaylistEntryKey, PlaylistKey, ReadCancellation, SourceKey};
 use sources::{Source, SourceError, SourceId};
-use std::{
-    future::Future,
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{future::Future, sync::Arc};
 fn run<T, Work>(
     owner: &SourceOwner,
     work: impl FnOnce(SourceOwner) -> Work + Send + 'static,
@@ -209,23 +205,6 @@ pub fn regenerate_playlist_artwork(
     owner.reply(move |owner, database| async move {
         let bindings = database
             .random_playlist_artwork(playlist)
-            .await
-            .map_err(string_error)?;
-        generate_artwork(&owner, bindings).await
-    })
-}
-
-pub fn regenerate_smart_playlist_artwork(
-    owner: &SourceOwner,
-    key: library::SmartPlaylistKey,
-) -> Receiver<Result<Option<Arc<sources::ImageBytes>>, String>> {
-    owner.reply(move |owner, database| async move {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64;
-        let bindings = database
-            .random_smart_playlist_artwork(key, now)
             .await
             .map_err(string_error)?;
         generate_artwork(&owner, bindings).await
@@ -773,7 +752,7 @@ async fn local_playlist_changed(
     if let Err(error) = owner
         .shared
         .database
-        .refresh_incomplete_playlist_artwork(playlist, false)
+        .refresh_incomplete_playlist_artwork(playlist)
         .await
     {
         owner.shared.warn_nonfatal(&error.to_string());
@@ -786,15 +765,6 @@ async fn local_playlist_changed(
             change: CatalogChange::Playlists(playlist),
         }))
         .await;
-}
-
-pub fn smart_playlist_display_name(object_id: &str, name: &str) -> String {
-    match object_id {
-        "builtin:most_played" => "Most Played".to_string(),
-        "builtin:never_played" => "Never Played".to_string(),
-        "builtin:most_skipped" => "Most Skipped".to_string(),
-        _ => name.to_owned(),
-    }
 }
 
 pub async fn playlist_folders_changed(owner: &SourceOwner) {
@@ -811,11 +781,10 @@ pub async fn playlist_folders_changed(owner: &SourceOwner) {
 pub async fn create_playlist_folder(
     owner: &SourceOwner,
     name: String,
-    smart: bool,
 ) -> sources::SourceResult<library::PlaylistFolderKey> {
     owner
         .reply(move |owner, database| async move {
-            let key = database.create_playlist_folder(&name, smart).await?;
+            let key = database.create_playlist_folder(&name).await?;
             playlist_folders_changed(&owner).await;
             Ok::<_, SourceError>(key)
         })
@@ -848,12 +817,12 @@ pub async fn delete_playlist_folder(
         .reply(move |owner, database| async move {
             let folder = database.delete_playlist_folder(key).await?;
             playlist_folders_changed(&owner).await;
-            if let Some((folder_id, smart)) = folder {
+            if let Some(folder_id) = folder {
                 let settings = owner.shared.settings.clone();
                 tokio::task::spawn_blocking(move || {
                     settings.update(|stored| {
                         stored.ui.sidebar.set_pinned(
-                            crate::settings::SidebarPin::PlaylistFolder { folder_id, smart },
+                            crate::settings::SidebarPin::PlaylistFolder { folder_id },
                             false,
                         );
                         Ok(())
@@ -884,21 +853,6 @@ pub async fn move_playlist_to_folder(
         .recv()
         .await
         .map_err(|error| SourceError::Other(error.to_string()))?
-}
-
-#[derive(Clone)]
-pub enum SmartPlaylistChange {
-    Create {
-        name: String,
-        definition: library::SmartPlaylistDefinition,
-    },
-    Update {
-        key: library::SmartPlaylistKey,
-        name: String,
-        definition: library::SmartPlaylistDefinition,
-        artwork: Option<sources::ArtworkChange>,
-    },
-    Delete(library::SmartPlaylistKey),
 }
 
 async fn append_native_tracks(

@@ -1,6 +1,6 @@
 pub mod detail_links;
 
-use library::{GenreKey, MoodKey, PlaylistKey, SmartPlaylistKey};
+use library::{GenreKey, MoodKey, PlaylistKey};
 use serde::{Deserialize, Serialize};
 
 use crate::settings::SidebarRouteItem;
@@ -54,17 +54,10 @@ pub enum Route {
     GenreDetail(GenreKey),
     Moods,
     MoodDetail(MoodKey),
-    Folders {
-        path: Vec<FolderPathItem>,
-    },
+    Folders { path: Vec<FolderPathItem> },
     Playlists,
     PlaylistDetail(PlaylistKey),
-    SmartPlaylists,
-    SmartPlaylistDetail(SmartPlaylistKey),
-    PlaylistFolder {
-        key: library::PlaylistFolderKey,
-        smart: bool,
-    },
+    PlaylistFolder { key: library::PlaylistFolderKey },
 }
 
 impl Route {
@@ -85,10 +78,7 @@ impl Route {
     }
     pub fn uses_selected_source(&self) -> bool {
         self.requires_selected_source()
-            || matches!(
-                self,
-                Self::Playlists | Self::PlaylistFolder { smart: false, .. }
-            )
+            || matches!(self, Self::Playlists | Self::PlaylistFolder { .. })
     }
 }
 
@@ -137,7 +127,6 @@ impl SidebarRouteDescriptor {
             SidebarRouteItem::History => SidebarRouteDescriptor::new("History", "History", "rufin-history-symbolic", None, Route::History),
             SidebarRouteItem::Folders => SidebarRouteDescriptor::new("Folders", "Folders", "rufin-folders-symbolic", Some("rufin-folders-selected-symbolic"), Route::Folders { path: Vec::new() }),
             SidebarRouteItem::Playlists => SidebarRouteDescriptor::new("Playlists", "Playlists", "rufin-playlists-symbolic", None, Route::Playlists),
-            SidebarRouteItem::SmartPlaylists => SidebarRouteDescriptor::new("SmartPlaylists", "Smart Playlists", "rufin-smart-playlists-symbolic", None, Route::SmartPlaylists),
         }
     }
 

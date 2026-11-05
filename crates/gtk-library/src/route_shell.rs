@@ -306,20 +306,13 @@ impl CatalogUi {
             sort_fields,
         }));
         let command_button = toolbar.imp().command_button.get();
-        command_button.set_visible(matches!(
-            key,
-            LibraryListKey::Playlists | LibraryListKey::SmartPlaylists
-        ));
+        command_button.set_visible(key == LibraryListKey::Playlists);
         let resource = crate::ui_resource::PLAYLIST_COMMANDS_RESOURCE;
         let builder = gtk_widgets::ui_resource::builder(resource);
         let menu = gtk_widgets::ui_resource::object::<gtk::gio::Menu>(
             &builder,
             resource,
-            if key == LibraryListKey::SmartPlaylists {
-                "smart_playlist_commands"
-            } else {
-                "playlist_commands"
-            },
+            "playlist_commands",
         );
         command_button.set_menu_model(Some(&menu));
         let settings = self.settings.current.borrow().library_list(key);

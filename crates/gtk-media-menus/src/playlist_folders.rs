@@ -40,7 +40,6 @@ pub fn folder_name_dialog(
 
 pub fn present_new_folder_dialog(
     menus: &Rc<MediaMenus>,
-    smart: bool,
     members: Vec<library::PlaylistFolderMember>,
     dismiss: Rc<dyn Fn()>,
 ) {
@@ -53,8 +52,7 @@ pub fn present_new_folder_dialog(
         let dismiss = Rc::clone(&dismiss);
         gtk::glib::spawn_future_local(async move {
             let result = async {
-                let folder =
-                    rufin_core::playlists::create_playlist_folder(&source, name, smart).await?;
+                let folder = rufin_core::playlists::create_playlist_folder(&source, name).await?;
                 for member in members {
                     rufin_core::playlists::move_playlist_to_folder(&source, member, Some(folder))
                         .await?;
@@ -154,10 +152,6 @@ fn populate_folder_picker(
     members: Vec<library::PlaylistFolderMember>,
     dismiss: Rc<dyn Fn()>,
 ) {
-    let smart = matches!(
-        members.first(),
-        Some(library::PlaylistFolderMember::SmartPlaylist { .. })
-    );
     let create_menus = Rc::downgrade(menus);
     let create_members = members.clone();
     let create_dismiss = Rc::clone(&dismiss);
@@ -179,18 +173,13 @@ fn populate_folder_picker(
             let Some(menus) = create_menus.upgrade() else {
                 return;
             };
-            present_new_folder_dialog(
-                &menus,
-                smart,
-                create_members.clone(),
-                Rc::clone(&create_dismiss),
-            );
+            present_new_folder_dialog(&menus, create_members.clone(), Rc::clone(&create_dismiss));
         }),
     );
     let database = menus.library.clone();
     let task = menus.runtime.spawn(async move {
         database
-            .playlist_folder_choices(smart, &library::ReadCancellation::new())
+            .playlist_folder_choices(&library::ReadCancellation::new())
             .await
     });
     let menus = Rc::downgrade(menus);
@@ -217,7 +206,6 @@ pub fn present_folder_context_menu(
         menus,
         Some(rufin_core::settings::SidebarPin::PlaylistFolder {
             folder_id: folder.object_id.clone(),
-            smart: folder.smart,
         }),
     );
     surface.append_fixed_action("Rename folder", "rename", gtk_widgets::controls::EDIT_ICON);
@@ -251,20 +239,15 @@ pub fn present_folder_context_menu(
         let source = delete_menus.source.clone();
         let menus = Rc::downgrade(&delete_menus);
         let key = folder.folder_key;
-        let smart = folder.smart;
         gtk::glib::spawn_future_local(async move {
             let result = rufin_core::playlists::delete_playlist_folder(&source, key).await;
             let Some(menus) = menus.upgrade() else { return };
             match result {
                 Ok(()) => {
                     if (menus.current_route)()
-                        == (gtk_widgets::route::Route::PlaylistFolder { key, smart })
+                        == (gtk_widgets::route::Route::PlaylistFolder { key })
                     {
-                        (menus.navigate)(if smart {
-                            gtk_widgets::route::Route::SmartPlaylists
-                        } else {
-                            gtk_widgets::route::Route::Playlists
-                        });
+                        (menus.navigate)(gtk_widgets::route::Route::Playlists);
                     }
                 }
                 Err(error) => (menus.show_error)(error.to_string()),
@@ -283,20 +266,15 @@ pub fn single_regular_playlist_drag(source: &gtk_widgets::media_drag::MediaDragS
         } => targets.len() == 1,
         _ => false,
     };
-    single && playlist_drag_matches(source, false)
+    single && playlist_drag_matches(source)
 }
 
-pub fn playlist_drag_matches(
-    source: &gtk_widgets::media_drag::MediaDragSource,
-    smart: bool,
-) -> bool {
+pub fn playlist_drag_matches(source: &gtk_widgets::media_drag::MediaDragSource) -> bool {
     use gtk_widgets::media_drag::{CollectionTargets, MediaDragSource};
     let matches_target = |target: &rufin_core::playback::PlayRequest| match target.selection() {
-        Some(library::MemberSelection::Members { read, .. }) => match read.collection {
-            library::Collection::Playlist(_) => !smart,
-            library::Collection::Smart { .. } => smart,
-            _ => false,
-        },
+        Some(library::MemberSelection::Members { read, .. }) => {
+            matches!(read.collection, library::Collection::Playlist(_))
+        }
         _ => false,
     };
     match source {
@@ -306,11 +284,9 @@ pub fn playlist_drag_matches(
         } => targets.iter().any(matches_target),
         MediaDragSource::Targets {
             targets: CollectionTargets::Parents(reads),
-        } => reads.iter().any(|(read, _)| match read.kind {
-            library::ListKind::Playlists => !smart,
-            library::ListKind::SmartPlaylists { .. } => smart,
-            _ => false,
-        }),
+        } => reads
+            .iter()
+            .any(|(read, _)| matches!(read.kind, library::ListKind::Playlists)),
         _ => false,
     }
 }
@@ -318,11 +294,10 @@ pub fn playlist_drag_matches(
 pub fn drop_playlist_on_folder(
     menus: &Rc<MediaMenus>,
     folder_key: library::PlaylistFolderKey,
-    smart: bool,
     source: gtk_widgets::media_drag::MediaDragSource,
 ) -> bool {
     use gtk_widgets::media_drag::{CollectionTargets, MediaDragSource};
-    if !playlist_drag_matches(&source, smart) {
+    if !playlist_drag_matches(&source) {
         return false;
     }
     let targets = match source {
@@ -341,11 +316,8 @@ pub fn drop_playlist_on_folder(
             let collections = task.await.map_err(|error| error.to_string())??;
             for collection in collections {
                 let member = match collection {
-                    library::Collection::Playlist(key) if !smart => {
+                    library::Collection::Playlist(key) => {
                         library::PlaylistFolderMember::Playlist { key }
-                    }
-                    library::Collection::Smart { key, .. } if smart => {
-                        library::PlaylistFolderMember::SmartPlaylist { key }
                     }
                     _ => continue,
                 };

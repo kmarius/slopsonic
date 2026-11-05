@@ -33,11 +33,6 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
         move || shell.new_playlist_dialog()
     });
 
-    add_window_action(shell, "new-smart-playlist", &[], {
-        let shell = Rc::clone(shell);
-        move || shell.new_smart_playlist_dialog()
-    });
-
     let go_back = gio::SimpleAction::new("go-back", None);
     let go_back_shell = Rc::clone(shell);
     go_back.connect_activate(move |_, _| go_back_shell.go_back());

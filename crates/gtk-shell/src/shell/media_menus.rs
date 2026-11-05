@@ -64,22 +64,6 @@ pub(super) fn build(
                 }
             })
         },
-        edit_smart_playlist_dialog: {
-            let weak = weak.clone();
-            Rc::new(move |row| {
-                if let Some(shell) = weak.upgrade() {
-                    shell.edit_smart_playlist_dialog(row);
-                }
-            })
-        },
-        publish_smart_playlist_change: {
-            let weak = weak.clone();
-            Rc::new(move |change, settled| {
-                if let Some(shell) = weak.upgrade() {
-                    shell.publish_smart_playlist_change(change, settled);
-                }
-            })
-        },
         operation_feedback: {
             let weak = weak.clone();
             Rc::new(move |feedback, undo| {

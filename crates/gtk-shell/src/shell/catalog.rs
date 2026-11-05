@@ -44,16 +44,6 @@ impl Shell {
             )
             .is_some(),
             history_source_name,
-            update_smart_playlist_pin: {
-                let weak = Rc::downgrade(self);
-                Rc::new(move |summary| {
-                    if let Some(shell) = weak.upgrade() {
-                        super::navigation::update_sidebar_smart_playlist_pin_metadata(
-                            &shell, summary,
-                        );
-                    }
-                })
-            },
             is_current: {
                 let weak = Rc::downgrade(self);
                 let route = route.clone();

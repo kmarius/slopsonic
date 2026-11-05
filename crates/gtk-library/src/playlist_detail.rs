@@ -1,12 +1,11 @@
 use rufin_core::browse::{DetailContent, DetailPage, DetailSummary};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use adw::prelude::*;
 use artwork::ArtworkBinding;
 use gtk::glib;
-use library::{PlaylistKey, PlaylistRow, ReadCancellation, SmartPlaylistKey, SmartPlaylistRow};
+use library::{PlaylistKey, PlaylistRow, ReadCancellation};
 use rufin_core::text::track_count_text;
 
 use crate::CatalogUi;
@@ -23,7 +22,6 @@ use super::detail_showcase::{
 use crate::route_layout::{
     DETAIL_SHOWCASE_METADATA_MIN_WIDTH, PRIMARY_ROUTE_MARGIN_START, ROUTE_TOP_MARGIN,
 };
-use gtk_media_menus::media_menus::present_smart_playlist_context_menu;
 use gtk_widgets::library_fields::playlist_artwork;
 
 const PLAYLIST_DETAIL_COMPACT_WIDTH: i32 = 760;
@@ -31,76 +29,30 @@ const PLAYLIST_DETAIL_TINY_COVER_SIZE: i32 = 150;
 const PLAYLIST_DETAIL_WIDE_COVER_SIZE: i32 = 208;
 
 #[derive(Clone, PartialEq)]
-enum PlaylistDetailOwner {
-    Saved {
-        key: PlaylistKey,
-        summary: PlaylistRow,
-    },
-    Smart {
-        key: SmartPlaylistKey,
-        summary: SmartPlaylistRow,
-    },
+struct PlaylistDetailOwner {
+    key: PlaylistKey,
+    summary: PlaylistRow,
 }
 
 impl PlaylistDetailOwner {
-    fn key(&self) -> LibraryListKey {
-        match self {
-            Self::Saved { .. } => LibraryListKey::PlaylistTracks,
-            Self::Smart { .. } => LibraryListKey::SmartPlaylistTracks,
-        }
-    }
-
     fn name(&self) -> &str {
-        match self {
-            Self::Saved { summary, .. } => &summary.name,
-            Self::Smart { summary, .. } => &summary.name,
-        }
+        &self.summary.name
     }
 
     fn seed(&self) -> u32 {
-        match self {
-            Self::Saved { summary, .. } => stable_seed(&summary.object_id),
-            Self::Smart { summary, .. } => stable_seed(&summary.object_id),
-        }
+        stable_seed(&self.summary.object_id)
     }
 
     fn track_count(&self) -> i64 {
-        match self {
-            Self::Saved { summary, .. } => summary.track_count,
-            Self::Smart { summary, .. } => summary.track_count,
-        }
+        self.summary.track_count
     }
 
     fn duration_millis(&self) -> i64 {
-        match self {
-            Self::Saved { summary, .. } => summary.duration_millis,
-            Self::Smart { summary, .. } => summary.duration_millis,
-        }
+        self.summary.duration_millis
     }
 
     fn artwork(&self) -> Vec<ArtworkBinding> {
-        match self {
-            Self::Saved { summary, .. } => playlist_artwork(summary),
-            Self::Smart { summary, .. } => summary
-                .artwork_binding
-                .iter()
-                .map(|binding| ArtworkBinding::opaque(binding))
-                .collect(),
-        }
-    }
-
-    fn saved_key(&self) -> Option<PlaylistKey> {
-        match self {
-            Self::Saved { key, .. } => Some(*key),
-            Self::Smart { .. } => None,
-        }
-    }
-
-    fn context_id(&self) -> String {
-        match self {
-            Self::Saved { key, .. } => format!("playlist:{key}"),
-            Self::Smart { key, .. } => format!("smart-playlist:{key}"),
-        }
+        playlist_artwork(&self.summary)
     }
 
     fn install_context(
@@ -110,99 +62,11 @@ impl PlaylistDetailOwner {
         play: CollectionPlay,
         position: Option<(f64, f64)>,
     ) {
-        match self {
-            Self::Saved { summary, .. } => {
-                (shell.playlist_context_menu)(target, summary.clone(), Some(play), position)
-            }
-            Self::Smart { summary, .. } => present_smart_playlist_context_menu(
-                target,
-                &shell.media_menus,
-                summary.clone(),
-                Some(play),
-                position,
-            ),
-        }
+        (shell.playlist_context_menu)(target, self.summary.clone(), Some(play), position)
     }
 }
 
 impl CatalogUi {
-    pub fn smart_playlist_detail_route(
-        self: &Rc<Self>,
-        key: SmartPlaylistKey,
-        detail: Option<DetailPage>,
-    ) -> MountedRoute {
-        let Some(DetailPage {
-            summary: DetailSummary::SmartPlaylist(summary),
-            content: DetailContent::Tracks(projection),
-        }) = detail
-        else {
-            return MountedRoute::static_widget(crate::route_layout::placeholder_view(
-                "Smart Playlist",
-                "This isn't available",
-            ));
-        };
-        (self.update_smart_playlist_pin)(&summary);
-        let owner = PlaylistDetailOwner::Smart {
-            key,
-            summary: *summary,
-        };
-        let list_key = owner.key();
-        let model = crate::track_model::TrackCollectionModel::new(
-            Arc::clone(&self.library),
-            self.runtime.clone(),
-            projection,
-        );
-        let play_model = model.clone();
-        let play_queue = self.playback.clone();
-        let play_context = owner.context_id();
-        let play: CollectionPlay = Rc::new(move |placement, shuffled| {
-            play_model.play_source(
-                play_queue.clone(),
-                placement,
-                play_context.clone(),
-                shuffled,
-            );
-        });
-        let (tracks_widget, tracks, toolbar) = self.scrolling_track_projection(
-            model,
-            list_key,
-            "smart-playlist-detail",
-            owner.context_id(),
-        );
-        let item_navigation = tracks.item_navigation();
-        let refresh_order = tracks.connect_read(self, "mounted Smart Playlist route");
-        let apply_tracks = tracks.clone();
-        let apply_toolbar = toolbar.clone();
-        let apply_refresh = refresh_order.clone();
-        let apply = Rc::new(move |settings: &LibraryListSettings| {
-            let previous = apply_tracks.query();
-            apply_tracks.apply_library_list_settings(list_key, settings);
-            apply_toolbar.apply(list_key, settings);
-            let request = apply_tracks.query();
-            if previous != request {
-                apply_refresh();
-            }
-        }) as Rc<dyn Fn(&LibraryListSettings)>;
-        let search = tracks.search();
-        let layout_cycle = toolbar.layout_cycle();
-        let initial_demand = {
-            let tracks = tracks.clone();
-            Rc::new(move || tracks.resume_initial_demand()) as Rc<dyn Fn()>
-        };
-        self.shared_playlist_detail_route(
-            owner,
-            tracks_widget,
-            item_navigation,
-            apply,
-            refresh_order,
-            search,
-            layout_cycle,
-            initial_demand,
-            play,
-        )
-        .with_download_change(tracks.download_change())
-    }
-
     pub fn playlist_detail_route(
         self: &Rc<Self>,
         key: PlaylistKey,
@@ -224,14 +88,14 @@ impl CatalogUi {
             .into_iter()
             .filter_map(library::MemberRow::into_entry)
             .collect();
-        let owner = PlaylistDetailOwner::Saved {
+        let owner = PlaylistDetailOwner {
             key,
             summary: *summary,
         };
         let entries = Rc::new(self.playlist_entries_view(
             key,
             owner.name().to_string(),
-            matches!(&owner, PlaylistDetailOwner::Saved { summary, .. } if summary.writable),
+            owner.summary.writable,
             page.page.count,
             page.page.first_row_position,
             first_rows,
@@ -345,12 +209,9 @@ impl CatalogUi {
         initial_demand: Rc<dyn Fn()>,
         play: CollectionPlay,
     ) -> MountedRoute {
-        let key = owner.key();
+        let key = LibraryListKey::PlaylistTracks;
         let owner_state = Rc::new(std::cell::RefCell::new(owner.clone()));
-        let wrapper = gtk::Box::new(
-            gtk::Orientation::Vertical,
-            if owner.saved_key().is_some() { 20 } else { 18 },
-        );
+        let wrapper = gtk::Box::new(gtk::Orientation::Vertical, 20);
         wrapper.add_css_class("route-content");
         wrapper.set_hexpand(true);
         wrapper.set_width_request(1);
@@ -390,15 +251,13 @@ impl CatalogUi {
         let actions = showcase_view.actions();
         actions.set_halign(gtk::Align::Start);
         let controls = detail_playback_controls(&actions, "Play playlist", None, Rc::clone(&play));
-        if let PlaylistDetailOwner::Saved { summary, .. } = &owner
-            && summary.writable
-        {
+        if owner.summary.writable {
             let drop = gtk::DropTarget::new(
                 glib::BoxedAnyObject::static_type(),
                 gtk::gdk::DragAction::COPY,
             );
             let drop_owner = Rc::clone(&owner_state);
-            let playlist = summary.playlist_key;
+            let playlist = owner.summary.playlist_key;
             drop.set_preload(true);
             drop.connect_notify_local(Some("value"), move |drop, _| {
                 let Some(value) = drop.value() else { return };
@@ -414,9 +273,7 @@ impl CatalogUi {
                 let Some(source) = gtk_widgets::media_drag::media_drag_source(value) else {
                     return false;
                 };
-                let PlaylistDetailOwner::Saved { summary, .. } = drop_owner.borrow().clone() else {
-                    return false;
-                };
+                let summary = drop_owner.borrow().summary.clone();
                 gtk_media_menus::media_menus::add_drag_to_playlist(
                     &menus,
                     summary.playlist_key,
@@ -505,28 +362,14 @@ impl CatalogUi {
                 move |owner_key: PlaylistDetailOwner, cancellation: ReadCancellation| {
                     let database = Arc::clone(&database);
                     Box::pin(async move {
-                        match owner_key {
-                            PlaylistDetailOwner::Saved { key, .. } => {
-                                let summary = database
-                                    .playlists(&[key], &cancellation)
-                                    .await
-                                    .map_err(|error| error.to_string())?
-                                    .pop();
-                                summary.map(|summary| PlaylistDetailOwner::Saved { key, summary })
-                            }
-                            PlaylistDetailOwner::Smart { key, .. } => {
-                                let now = SystemTime::now()
-                                    .duration_since(UNIX_EPOCH)
-                                    .map_or(0, |duration| duration.as_secs() as i64);
-                                database
-                                    .smart_playlist_rows(&[key], now, &cancellation)
-                                    .await
-                                    .map_err(|error| error.to_string())?
-                                    .pop()
-                                    .map(|summary| PlaylistDetailOwner::Smart { key, summary })
-                            }
-                        }
-                        .ok_or_else(|| "Playlist no longer exists".to_string())
+                        let key = owner_key.key;
+                        database
+                            .playlists(&[key], &cancellation)
+                            .await
+                            .map_err(|error| error.to_string())?
+                            .pop()
+                            .map(|summary| PlaylistDetailOwner { key, summary })
+                            .ok_or_else(|| "Playlist no longer exists".to_string())
                     })
                         as std::pin::Pin<Box<dyn std::future::Future<Output = _> + Send>>
                 },
@@ -544,22 +387,16 @@ impl CatalogUi {
         };
 
         let download_owner = Rc::clone(&owner_state);
-        let downloads =
-            crate::collection_download_change(
-                move |identity, downloaded| match &mut *download_owner.borrow_mut() {
-                    PlaylistDetailOwner::Saved { key, summary, .. }
-                        if identity == format!("playlist:{key}") =>
-                    {
-                        summary.downloaded_count = if downloaded { summary.track_count } else { 0 };
-                    }
-                    PlaylistDetailOwner::Smart { key, summary, .. }
-                        if identity == format!("smart-playlist:{key}") =>
-                    {
-                        summary.downloaded_count = if downloaded { summary.track_count } else { 0 };
-                    }
-                    _ => {}
-                },
-            );
+        let downloads = crate::collection_download_change(move |identity, downloaded| {
+            let mut owner = download_owner.borrow_mut();
+            if identity == format!("playlist:{}", owner.key) {
+                owner.summary.downloaded_count = if downloaded {
+                    owner.summary.track_count
+                } else {
+                    0
+                };
+            }
+        });
         MountedRoute::new(wrapper.upcast(), resume)
             .with_download_change(downloads)
             .with_search(search)
@@ -575,26 +412,23 @@ impl CatalogUi {
         owner: &PlaylistDetailOwner,
     ) {
         showcase.clear_kind_controls();
-        if let PlaylistDetailOwner::Saved { key, .. } = owner {
-            let radio = detail_radio_button();
-            let controller = self.playback.clone();
-            let key = *key;
-            radio.connect_clicked(move |_| {
-                controller.play_radio(rufin_core::playback::RadioPlayRequest::now(
-                    library::RadioSeed::Playlist(key),
-                ));
-            });
-            showcase.append_kind_control(&radio);
-        }
-        if let PlaylistDetailOwner::Saved { summary, .. } = owner {
-            showcase.set_genres(
-                self,
-                summary
-                    .genres
-                    .iter()
-                    .map(|genre| (genre.name.as_str(), genre.genre_key)),
-            );
-        }
+        let radio = detail_radio_button();
+        let controller = self.playback.clone();
+        let key = owner.key;
+        radio.connect_clicked(move |_| {
+            controller.play_radio(rufin_core::playback::RadioPlayRequest::now(
+                library::RadioSeed::Playlist(key),
+            ));
+        });
+        showcase.append_kind_control(&radio);
+        showcase.set_genres(
+            self,
+            owner
+                .summary
+                .genres
+                .iter()
+                .map(|genre| (genre.name.as_str(), genre.genre_key)),
+        );
     }
 }
 
@@ -648,7 +482,7 @@ mod tests {
 
     #[test]
     fn provider_playlist_cover_is_not_nested_inside_representative_mosaic() {
-        let owner = PlaylistDetailOwner::Saved {
+        let owner = PlaylistDetailOwner {
             key: PlaylistKey::from_raw(1),
             summary: PlaylistRow {
                 source_owned: true,

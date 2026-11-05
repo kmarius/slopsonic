@@ -1,4 +1,4 @@
-//! Library-owned groups for regular and smart playlists.
+//! Library-owned groups for playlists.
 use crate::*;
 use sqlx::{FromRow, SqliteConnection};
 
@@ -7,7 +7,6 @@ pub struct PlaylistFolderRow {
     pub folder_key: PlaylistFolderKey,
     pub object_id: String,
     pub name: String,
-    pub smart: bool,
     pub artwork_binding: Option<Vec<u8>>,
     pub track_count: i64,
     pub duration_millis: i64,
@@ -16,15 +15,13 @@ pub struct PlaylistFolderRow {
 #[derive(Clone, Debug, PartialEq)]
 pub enum PlaylistListRow {
     Playlist(PlaylistRow),
-    SmartPlaylist(SmartPlaylistRow),
     Folder(PlaylistFolderRow),
 }
 impl PlaylistListRow {
     pub fn key(&self) -> (u8, i64) {
         match self {
             Self::Playlist(row) => (0, row.playlist_key.raw()),
-            Self::SmartPlaylist(row) => (1, row.smart_playlist_key.raw()),
-            Self::Folder(row) => (2, row.folder_key.raw()),
+            Self::Folder(row) => (1, row.folder_key.raw()),
         }
     }
 }
@@ -32,15 +29,11 @@ impl PlaylistListRow {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum PlaylistFolderMember {
     Playlist { key: PlaylistKey },
-    SmartPlaylist { key: SmartPlaylistKey },
 }
 
 fn member_relation(member: &PlaylistFolderMember) -> (&'static str, &'static str, i64) {
     match member {
         PlaylistFolderMember::Playlist { key } => ("playlists", "playlist_key", key.raw()),
-        PlaylistFolderMember::SmartPlaylist { key } => {
-            ("smart_playlists", "smart_playlist_key", key.raw())
-        }
     }
 }
 
@@ -54,15 +47,11 @@ fn folder_name(name: &str) -> LibraryResult<&str> {
     Ok(name)
 }
 impl Database {
-    pub async fn create_playlist_folder(
-        &self,
-        name: &str,
-        smart: bool,
-    ) -> LibraryResult<PlaylistFolderKey> {
+    pub async fn create_playlist_folder(&self, name: &str) -> LibraryResult<PlaylistFolderKey> {
         let name = folder_name(name)?;
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
-        Ok(sqlx::query_scalar("INSERT INTO playlist_folders(object_id,name,smart) VALUES('rufin:playlist-folder:'||lower(hex(randomblob(16))),?1,?2) RETURNING folder_key").bind(name).bind(smart).fetch_one(connection).await?)
+        Ok(sqlx::query_scalar("INSERT INTO playlist_folders(object_id,name) VALUES('rufin:playlist-folder:'||lower(hex(randomblob(16))),?1) RETURNING folder_key").bind(name).fetch_one(connection).await?)
     }
     pub async fn rename_playlist_folder(
         &self,
@@ -82,11 +71,11 @@ impl Database {
     pub async fn delete_playlist_folder(
         &self,
         key: PlaylistFolderKey,
-    ) -> LibraryResult<Option<(String, bool)>> {
+    ) -> LibraryResult<Option<String>> {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
-        Ok(sqlx::query_as(
-            "DELETE FROM playlist_folders WHERE folder_key=?1 RETURNING object_id,smart",
+        Ok(sqlx::query_scalar(
+            "DELETE FROM playlist_folders WHERE folder_key=?1 RETURNING object_id",
         )
         .bind(key)
         .fetch_optional(connection)
@@ -114,22 +103,9 @@ impl Database {
         member: PlaylistFolderMember,
         folder: Option<PlaylistFolderKey>,
     ) -> LibraryResult<()> {
-        let smart = matches!(member, PlaylistFolderMember::SmartPlaylist { .. });
         let (table, column, key) = member_relation(&member);
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
-        if let Some(folder) = folder {
-            let namespace: Option<bool> =
-                sqlx::query_scalar("SELECT smart FROM playlist_folders WHERE folder_key=?1")
-                    .bind(folder)
-                    .fetch_optional(&mut *connection)
-                    .await?;
-            if namespace != Some(smart) {
-                return Err(LibraryError::InvalidRequest(
-                    "Playlist folder does not match the playlist kind".into(),
-                ));
-            }
-        }
         sqlx::query(sqlx::AssertSqlSafe(format!(
             "UPDATE {table} SET playlist_folder_key=?2 WHERE {column}=?1 AND playlist_folder_key IS NOT ?2"
         )))
@@ -138,12 +114,14 @@ impl Database {
     }
     pub async fn playlist_folder_choices(
         &self,
-        smart: bool,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<(PlaylistFolderKey, String)>> {
         let (_permit, mut connection) = self.acquire_general(cancellation).await?;
-        Ok(sqlx::query_as("SELECT folder_key,name FROM playlist_folders WHERE smart=?1 ORDER BY lower(name),folder_key")
-            .bind(smart).fetch_all(&mut *connection).await?)
+        Ok(sqlx::query_as(
+            "SELECT folder_key,name FROM playlist_folders ORDER BY lower(name),folder_key",
+        )
+        .fetch_all(&mut *connection)
+        .await?)
     }
     pub async fn playlist_folder_by_id(
         &self,
@@ -153,25 +131,7 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Option<PlaylistFolderRow>> {
         let (_permit, mut connection) = self.acquire_general(cancellation).await?;
-        let namespace: Option<bool> =
-            sqlx::query_scalar("SELECT smart FROM playlist_folders WHERE object_id=?1")
-                .bind(id)
-                .fetch_optional(&mut *connection)
-                .await?;
-        let Some(smart) = namespace else {
-            return Ok(None);
-        };
-        let mut read = ListRead::new(
-            if smart {
-                ListKind::SmartPlaylists {
-                    now: chrono::Utc::now().timestamp(),
-                }
-            } else {
-                ListKind::Playlists
-            },
-            source,
-            CatalogSort::Title,
-        );
+        let mut read = ListRead::new(ListKind::Playlists, source, CatalogSort::Title);
         read.folder = music_folder;
         Ok(load_folders_on(
             &mut connection,
@@ -183,49 +143,22 @@ impl Database {
     }
 }
 
-async fn child_query_on(
-    connection: &mut SqliteConnection,
-    read: &ListRead,
-) -> LibraryResult<crate::query::OrderedQuery> {
-    if let ListKind::SmartPlaylists { now } = read.kind {
-        crate::smart_playlists::smart_list_query(connection, read, now).await
-    } else {
-        Ok(crate::playlists::playlist_list_query(
-            read.source,
-            read.folder,
-            read.sort,
-            read.descending,
-            &read.filter,
-        ))
-    }
+fn child_query(read: &ListRead) -> crate::query::OrderedQuery {
+    crate::playlists::playlist_list_query(
+        read.source,
+        read.folder,
+        read.sort,
+        read.descending,
+        &read.filter,
+    )
 }
-fn child_relation(read: &ListRead, query: &crate::query::OrderedQuery) -> String {
-    let smart = matches!(read.kind, ListKind::SmartPlaylists { .. });
-    let key = if smart {
-        "smart_playlist_key"
-    } else {
-        "playlist_key"
-    };
-    let name = if smart {
-        "playlist.normalized_name"
-    } else {
-        "playlist.sort_text"
-    };
-    let totals = if smart { "playlist" } else { "totals" };
-    let stats = if smart && matches!(read.sort, CatalogSort::Position | CatalogSort::Title) {
-        "0 track_count,0 duration_millis,0 downloaded_count".into()
-    } else {
-        format!(
-            "coalesce({totals}.track_count,0) track_count,coalesce({totals}.duration_millis,0) duration_millis,coalesce({totals}.downloaded_count,0) downloaded_count"
-        )
-    };
+fn child_relation(query: &crate::query::OrderedQuery) -> String {
     format!(
-        "SELECT playlist.{key} item_key,playlist.name name,{name} sort_text,playlist.position,{stats},playlist.playlist_folder_key folder_key FROM {} WHERE {}",
+        "SELECT playlist.playlist_key item_key,playlist.name name,playlist.sort_text sort_text,playlist.position,coalesce(totals.track_count,0) track_count,coalesce(totals.duration_millis,0) duration_millis,coalesce(totals.downloaded_count,0) downloaded_count,playlist.playlist_folder_key folder_key FROM {} WHERE {}",
         query.from, query.predicate
     )
 }
 fn item_query(read: &ListRead, children: Option<String>) -> crate::query::OrderedQuery {
-    let smart = matches!(read.kind, ListKind::SmartPlaylists { .. });
     let scope = match read.playlist_scope {
         PlaylistScope::Folder { key } => format!("member.folder_key={}", key.raw()),
         _ => "member.folder_key IS NULL".into(),
@@ -239,19 +172,13 @@ fn item_query(read: &ListRead, children: Option<String>) -> crate::query::Ordere
         PlaylistScope::Root | PlaylistScope::Folders
     ) {
         items.push(if matches!(read.sort, CatalogSort::TrackCount | CatalogSort::Duration) {
-            format!("SELECT -folder.folder_key item_key,folder.name,lower(folder.name) sort_text,folder.folder_key position,coalesce(sum(member.track_count),0) track_count,coalesce(sum(member.duration_millis),0) duration_millis,coalesce(sum(member.downloaded_count),0) downloaded_count FROM playlist_folders folder LEFT JOIN children member ON member.folder_key=folder.folder_key WHERE folder.smart={} GROUP BY folder.folder_key", i32::from(smart))
+            "SELECT -folder.folder_key item_key,folder.name,lower(folder.name) sort_text,folder.folder_key position,coalesce(sum(member.track_count),0) track_count,coalesce(sum(member.duration_millis),0) duration_millis,coalesce(sum(member.downloaded_count),0) downloaded_count FROM playlist_folders folder LEFT JOIN children member ON member.folder_key=folder.folder_key GROUP BY folder.folder_key".to_string()
         } else {
-            format!("SELECT -folder_key item_key,name,lower(name) sort_text,folder_key position,0 track_count,0 duration_millis,0 downloaded_count FROM playlist_folders WHERE smart={}", i32::from(smart))
+            "SELECT -folder_key item_key,name,lower(name) sort_text,folder_key position,0 track_count,0 duration_millis,0 downloaded_count FROM playlist_folders".to_string()
         });
     }
     let children = children.map_or(String::new(), |children| {
-        let materialized =
-            if smart && matches!(read.sort, CatalogSort::TrackCount | CatalogSort::Duration) {
-                "MATERIALIZED "
-            } else {
-                ""
-            };
-        format!("WITH children AS {materialized}({children}) ")
+        format!("WITH children AS ({children}) ")
     });
     let field = match read.sort {
         CatalogSort::Position => "item.position",
@@ -281,24 +208,6 @@ async fn load_folders_on(
     read: &ListRead,
     predicate: &str,
 ) -> LibraryResult<Vec<PlaylistFolderRow>> {
-    if let ListKind::SmartPlaylists { now } = read.kind {
-        let requested = crate::query::RequestedKeys {
-            sql: format!(
-                "SELECT -folder.folder_key value,row_number() OVER(ORDER BY lower(folder.name),folder.folder_key) ordinal FROM playlist_folders folder WHERE {predicate}"
-            ),
-            arguments: Default::default(),
-        };
-        return Ok(
-            crate::smart_playlists::load_smart_items_on(connection, requested, now, false)
-                .await?
-                .into_iter()
-                .filter_map(|row| match row {
-                    PlaylistListRow::Folder(row) => Some(row),
-                    _ => None,
-                })
-                .collect(),
-        );
-    }
     #[derive(FromRow)]
     struct Projection {
         #[sqlx(flatten)]
@@ -309,15 +218,15 @@ async fn load_folders_on(
     let mut child_read = read.clone();
     child_read.filter.clear();
     child_read.sort = CatalogSort::TrackCount;
-    let mut query = child_query_on(connection, &child_read).await?;
+    let mut query = child_query(&child_read);
     if read.playlist_scope == PlaylistScope::All {
         query.predicate =
             "playlist.name IS NOT NULL AND (playlist.owner='rufin' OR playlist.indexed)".into();
     }
-    let children = child_relation(&child_read, &query);
+    let children = child_relation(&query);
     let binding = crate::artwork::preview_sql("regular_cover.artwork_binding");
     let rows: Vec<Projection> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
-        "SELECT folder.folder_key,folder.object_id,folder.name,folder.smart,{binding} artwork_binding,coalesce(sum(child.track_count),0) track_count,coalesce(sum(child.duration_millis),0) duration_millis,source.object_id source_id,regular_cover.object_id cover_object_id FROM playlist_folders folder LEFT JOIN ({children}) child ON child.folder_key=folder.folder_key LEFT JOIN playlists regular_cover ON regular_cover.playlist_key=folder.playlist_cover_key LEFT JOIN sources source ON source.source_key=regular_cover.source_key WHERE {predicate} GROUP BY folder.folder_key ORDER BY lower(folder.name),folder.folder_key"
+        "SELECT folder.folder_key,folder.object_id,folder.name,{binding} artwork_binding,coalesce(sum(child.track_count),0) track_count,coalesce(sum(child.duration_millis),0) duration_millis,source.object_id source_id,regular_cover.object_id cover_object_id FROM playlist_folders folder LEFT JOIN ({children}) child ON child.folder_key=folder.folder_key LEFT JOIN playlists regular_cover ON regular_cover.playlist_key=folder.playlist_cover_key LEFT JOIN sources source ON source.source_key=regular_cover.source_key WHERE {predicate} GROUP BY folder.folder_key ORDER BY lower(folder.name),folder.folder_key"
     ))).fetch_all(connection).await?;
     rows.into_iter()
         .map(|mut row| {
@@ -326,7 +235,7 @@ async fn load_folders_on(
                 .map(|id| {
                     crate::artwork::playlist_artwork(
                         row.folder.artwork_binding.take(),
-                        (false, row.source_id, id),
+                        (row.source_id, id),
                         (None, None),
                     )
                 })
@@ -336,10 +245,9 @@ async fn load_folders_on(
         .collect()
 }
 
-async fn has_folders_on(connection: &mut SqliteConnection, read: &ListRead) -> LibraryResult<bool> {
+async fn has_folders_on(connection: &mut SqliteConnection) -> LibraryResult<bool> {
     Ok(
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM playlist_folders WHERE smart=?1)")
-            .bind(matches!(read.kind, ListKind::SmartPlaylists { .. }))
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM playlist_folders)")
             .fetch_one(connection)
             .await?,
     )
@@ -350,9 +258,9 @@ pub(crate) async fn playlist_query_on(
     read: &ListRead,
 ) -> LibraryResult<crate::query::OrderedQuery> {
     if read.playlist_scope == PlaylistScope::All
-        || read.playlist_scope == PlaylistScope::Root && !has_folders_on(connection, read).await?
+        || read.playlist_scope == PlaylistScope::Root && !has_folders_on(connection).await?
     {
-        return child_query_on(connection, read).await;
+        return Ok(child_query(read));
     }
     if read.playlist_scope == PlaylistScope::Folders
         && matches!(read.sort, CatalogSort::Position | CatalogSort::Title)
@@ -361,11 +269,8 @@ pub(crate) async fn playlist_query_on(
     }
     let mut children_read = read.clone();
     children_read.filter.clear();
-    let children = child_query_on(connection, &children_read).await?;
-    Ok(item_query(
-        read,
-        Some(child_relation(&children_read, &children)),
-    ))
+    let children = child_query(&children_read);
+    Ok(item_query(read, Some(child_relation(&children))))
 }
 
 pub(crate) async fn load_items_on(
@@ -373,15 +278,6 @@ pub(crate) async fn load_items_on(
     read: &ListRead,
     requested: crate::query::RequestedKeys,
 ) -> LibraryResult<Vec<PlaylistListRow>> {
-    if let ListKind::SmartPlaylists { now } = read.kind {
-        return crate::smart_playlists::load_smart_items_on(
-            connection,
-            requested,
-            now,
-            matches!(read.sort, CatalogSort::TrackCount | CatalogSort::Duration),
-        )
-        .await;
-    }
     if read.playlist_scope == PlaylistScope::All {
         return Ok(Database::load_playlist_requested(connection, requested)
             .await?

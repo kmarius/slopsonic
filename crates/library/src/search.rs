@@ -137,7 +137,7 @@ impl Database {
         let mut transaction = connection.begin().await?;
         let mut tracks = MemberRead::new(Collection::Source(source));
         tracks.folder = folder;
-        let tracks = crate::query::member_query_on(&mut transaction, &tracks).await?;
+        let tracks = crate::query::member_query(&tracks)?;
         let mut albums = ListRead::new(ListKind::Albums, Some(source), CatalogSort::Title);
         albums.folder = folder;
         let albums = crate::collections::collection_query(&albums);

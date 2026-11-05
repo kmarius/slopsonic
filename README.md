@@ -43,7 +43,7 @@ Built with [GTK 4](https://www.gtk.org/), [libadwaita](https://gitlab.gnome.org/
 
 Slopsonic is a fork of [Rufin](https://github.com/screwys/Rufin) and greatly influenced by [Feishin](https://github.com/jeffvli/feishin), and a lot of design decisions are directly borrowed; as much we can achieve natively.
 
-Player backend design and Smart Playlists are inspired from [Strawberry](https://github.com/strawberrymusicplayer/strawberry) (fork of [Clementine](https://github.com/clementine-player/Clementine)).
+Player backend design is inspired from [Strawberry](https://github.com/strawberrymusicplayer/strawberry) (fork of [Clementine](https://github.com/clementine-player/Clementine)).
 
 Icon is designed by [Commenter25](https://commenter.cc) and it is licensed under CC-BY-SA-3.0.
 

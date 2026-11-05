@@ -1,5 +1,4 @@
 pub mod playlist_artwork;
-pub mod smart_playlist;
 pub mod ui_resource;
 pub fn register_resources() -> Result<(), String> {
     gtk_widgets::register_resources()?;

@@ -18,10 +18,6 @@ pub enum Collection {
     Genre(GenreKey),
     Mood(MoodKey),
     Playlist(PlaylistKey),
-    Smart {
-        key: SmartPlaylistKey,
-        now: i64,
-    },
     History {
         source: Option<SourceId>,
     },
@@ -54,9 +50,6 @@ pub enum ListKind {
     Genres,
     Moods,
     Playlists,
-    SmartPlaylists {
-        now: i64,
-    },
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -205,10 +198,7 @@ impl MemberRead {
     pub fn activity_sensitive(&self) -> bool {
         self.activity
             || self.effective_sort().activity_sensitive()
-            || matches!(
-                self.collection,
-                Collection::Smart { .. } | Collection::History { .. }
-            )
+            || matches!(self.collection, Collection::History { .. })
     }
     pub fn selection(self) -> MemberSelection {
         MemberSelection::Members {
@@ -222,7 +212,7 @@ impl MemberRead {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<usize> {
         let (_permit, mut connection) = database.acquire_general(cancellation).await?;
-        let query = member_query_on(&mut connection, self).await?;
+        let query = member_query(self)?;
         member_count(&mut connection, self, &query).await
     }
     pub async fn rows(
@@ -237,7 +227,7 @@ impl MemberRead {
         }
         let (_permit, mut connection) = database.acquire_general(cancellation).await?;
         let mut transaction = connection.begin().await?;
-        let query = member_query_on(&mut transaction, self).await?;
+        let query = member_query(self)?;
         let rows = member_rows(&mut transaction, self, &query, offset, limit.min(256)).await?;
         transaction.commit().await?;
         Ok(rows)
@@ -250,7 +240,7 @@ impl MemberRead {
     ) -> LibraryResult<Page<MemberRow>> {
         let (_permit, mut connection) = database.acquire_general(cancellation).await?;
         let mut transaction = connection.begin().await?;
-        let query = member_query_on(&mut transaction, self).await?;
+        let query = member_query(self)?;
         let count = member_count(&mut transaction, self, &query).await?;
         let range = window.range(count);
         let rows = member_rows(&mut transaction, self, &query, range.start, range.len()).await?;
@@ -267,10 +257,7 @@ impl MemberRead {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<ScrollSection>> {
         let (_permit, mut connection) = database.acquire_general(cancellation).await?;
-        member_query_on(&mut connection, self)
-            .await?
-            .sections(&mut connection)
-            .await
+        member_query(self)?.sections(&mut connection).await
     }
     pub async fn disc_sections(
         &self,
@@ -278,7 +265,7 @@ impl MemberRead {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<(u32, i64)>> {
         let (_permit, mut connection) = database.acquire_general(cancellation).await?;
-        let query = member_query_on(&mut connection, self).await?;
+        let query = member_query(self)?;
         crate::collections::album_disc_sections(
             &query,
             self.effective_sort(),
@@ -312,20 +299,11 @@ impl ListRead {
         })
     }
     fn requested_rows(&self, query: &OrderedQuery, offset: usize, limit: usize) -> RequestedKeys {
-        let totals = if matches!(self.kind, ListKind::SmartPlaylists { .. })
-            && matches!(self.sort, CatalogSort::TrackCount | CatalogSort::Duration)
-        {
-            ",track_count,duration_millis,downloaded_count"
-        } else {
-            ""
-        };
-        query.requested_rows(offset, limit, &format!("{} value{totals}", query.key))
+        query.requested_rows(offset, limit, &format!("{} value", query.key))
     }
 
     pub fn activity_sensitive(&self) -> bool {
-        self.activity
-            || self.sort.activity_sensitive()
-            || matches!(self.kind, ListKind::SmartPlaylists { .. })
+        self.activity || self.sort.activity_sensitive()
     }
     pub fn selection(self) -> MemberSelection {
         MemberSelection::Parents {
@@ -361,12 +339,8 @@ impl ListRead {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<usize> {
         let (_permit, mut connection) = database.acquire_general(cancellation).await?;
-        let mut read = self.clone();
-        if matches!(read.kind, ListKind::SmartPlaylists { .. }) {
-            read.sort = CatalogSort::Title;
-        }
-        let query = list_query_on(&mut connection, &read).await?;
-        list_count(&mut connection, &read, &query).await
+        let query = list_query_on(&mut connection, self).await?;
+        list_count(&mut connection, self, &query).await
     }
     pub async fn sections(
         &self,
@@ -452,14 +426,6 @@ list_windows!(playlists, page_playlists, PlaylistRow, connection, _read, request
 });
 list_windows!(playlist_items, page_playlist_items, PlaylistListRow, connection, read, requested => {
     crate::playlist_folders::load_items_on(connection, read, requested)
-});
-list_windows!(smart_playlists, page_smart_playlists, SmartPlaylistRow, connection, read, requested => {
-    let ListKind::SmartPlaylists { now } = read.kind else {
-        unreachable!()
-    };
-    crate::smart_playlists::load_smart_playlist_requested(
-        connection, requested, now, matches!(read.sort, CatalogSort::TrackCount | CatalogSort::Duration),
-    )
 });
 
 async fn member_count(
@@ -556,16 +522,6 @@ async fn list_count(
         .unwrap_or(0)
         .max(0) as usize);
     }
-    if matches!(read.kind, ListKind::SmartPlaylists { .. })
-        && matches!(read.sort, CatalogSort::TrackCount | CatalogSort::Duration)
-    {
-        let mut read = read.clone();
-        read.sort = CatalogSort::Title;
-        return Ok(list_query_on(connection, &read)
-            .await?
-            .count(connection)
-            .await? as usize);
-    }
     Ok(query.count(connection).await?.max(0) as usize)
 }
 
@@ -608,30 +564,14 @@ pub(crate) async fn list_query_on(
     read: &ListRead,
 ) -> LibraryResult<OrderedQuery> {
     match read.kind {
-        ListKind::Playlists | ListKind::SmartPlaylists { .. } => {
-            crate::playlist_folders::playlist_query_on(connection, read).await
-        }
+        ListKind::Playlists => crate::playlist_folders::playlist_query_on(connection, read).await,
         _ => Ok(crate::collections::collection_query(read)),
     }
 }
 
-pub(crate) async fn member_query_on(
-    connection: &mut SqliteConnection,
-    read: &MemberRead,
-) -> LibraryResult<OrderedQuery> {
+pub(crate) fn member_query(read: &MemberRead) -> LibraryResult<OrderedQuery> {
     let sort = read.effective_sort();
     let mut query = match &read.collection {
-        Collection::Smart { key, now, .. } => {
-            crate::smart_playlists::smart_query(
-                connection,
-                *key,
-                &read.filter,
-                read.sort,
-                read.descending,
-                *now,
-            )
-            .await?
-        }
         Collection::History { source } => {
             crate::activity::history_query(source.as_ref(), &read.filter, read.descending)
         }

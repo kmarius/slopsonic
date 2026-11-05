@@ -339,7 +339,7 @@ impl Database {
         let binding = if artwork.is_some() {
             let (source_id, object_id, previous): (Option<String>, String, Option<Vec<u8>>) = sqlx::query_as("SELECT source.object_id,playlist.object_id,playlist.artwork_binding FROM playlists playlist LEFT JOIN sources source USING(source_key) WHERE playlist_key=?1").bind(playlist).fetch_one(&mut *transaction).await?;
             let incoming = revision.as_ref().map(|revision| {
-                crate::artwork::playlist_binding(false, source_id, object_id, revision.clone())
+                crate::artwork::playlist_binding(source_id, object_id, revision.clone())
             });
             crate::artwork::merge_playlist_artwork(previous.as_deref(), incoming.as_deref())?
         } else {
@@ -771,7 +771,7 @@ impl Database {
         for row in &mut rows {
             row.artwork_binding = Some(crate::artwork::playlist_artwork(
                 row.artwork_binding.take(),
-                (false, row.source_id.clone(), row.object_id.clone()),
+                (row.source_id.clone(), row.object_id.clone()),
                 (None, None),
             )?);
         }

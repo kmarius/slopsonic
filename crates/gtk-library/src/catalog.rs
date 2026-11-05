@@ -35,7 +35,6 @@ pub struct CatalogUi {
         ),
     >,
     pub has_current_track: bool,
-    pub update_smart_playlist_pin: Rc<dyn Fn(&library::SmartPlaylistRow)>,
     pub add_current_to_playlist: Rc<dyn Fn(library::PlaylistKey, String)>,
     pub refresh_home_section: Rc<dyn Fn(rufin_core::settings::HomeSectionKind)>,
     pub set_favorite_category: Rc<dyn Fn(gtk_widgets::route::CollectionCategory)>,

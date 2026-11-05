@@ -208,9 +208,6 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
             }
         }
         CatalogChange::Activity => {
-            if shell.settings.current.borrow().sidebar.pins_use_activity() {
-                super::navigation::refresh_sidebar_pins(shell);
-            }
             if !affects_current && source_scoped {
                 return;
             }
@@ -264,10 +261,7 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
         CatalogChange::Playlists(playlist) => {
             refresh_context_playlist_picker(shell);
             super::navigation::refresh_sidebar_pins(shell);
-            if matches!(
-                current,
-                Route::Playlists | Route::SmartPlaylists | Route::PlaylistFolder { .. }
-            ) || (playlist.is_none() && matches!(current, Route::SmartPlaylistDetail(_)))
+            if matches!(current, Route::Playlists | Route::PlaylistFolder { .. })
                 || matches!(current, Route::PlaylistDetail(key) if playlist.is_none_or(|playlist| playlist == key))
             {
                 shell.refresh_mounted_catalog();

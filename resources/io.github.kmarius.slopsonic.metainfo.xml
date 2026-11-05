@@ -26,7 +26,6 @@
       <li>Built-in Last.fm, Libre.fm, ListenBrainz integrations</li>
       <li>Remote tracks are downloadable with automatic download rules and playable while offline</li>
       <li>Audio device selection support</li>
-      <li>Advanced smart playlist support with in app activity recording and multiple rule combinations</li>
       <li>Automatic cover/metadata lookups</li>
       <li>Built-in metadata editor with search and bulk edits</li>
       <li>Extensive customization support and keyboard shortcuts catalog</li>
@@ -45,10 +44,6 @@
     <screenshot>
       <caption>Browse genres</caption>
       <image type="source" width="1000" height="700">https://raw.githubusercontent.com/screwys/Rufin/v0.16.6/resources/screenshots/genres.png</image>
-    </screenshot>
-    <screenshot>
-      <caption>Create smart playlists</caption>
-      <image type="source" width="1000" height="700">https://raw.githubusercontent.com/screwys/Rufin/v0.16.6/resources/screenshots/smart_playlists.png</image>
     </screenshot>
     <screenshot>
       <caption>Configure playback</caption>

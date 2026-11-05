@@ -24,7 +24,7 @@ use super::table_links::mapped_track_link_column;
 use gtk_widgets::detail_links::{DetailLinks, album_artist_links};
 use gtk_widgets::library_fields::{
     add_field_skeleton_class, album_field, artist_field, column_fit_width, column_width,
-    opaque_artwork, play_count_column_width,
+    opaque_artwork,
 };
 use gtk_widgets::recycled_cells::{
     RecycledArtworkCell, RecycledBadgedTextCell, RecycledMergedCell, RecycledTextCell, list_cell,
@@ -596,12 +596,10 @@ pub fn track_column_for_key<T: gtk_widgets::library_fields::TrackPresentation>(
                 |item: &T| item.download_badge(),
                 |_, item: &T| item.title().to_string(),
             );
-            if matches!(
-                key,
-                LibraryListKey::PlaylistTracks | LibraryListKey::SmartPlaylistTracks
-            ) && let Some(factory) = column
-                .factory()
-                .and_then(|factory| factory.downcast::<gtk::SignalListItemFactory>().ok())
+            if key == LibraryListKey::PlaylistTracks
+                && let Some(factory) = column
+                    .factory()
+                    .and_then(|factory| factory.downcast::<gtk::SignalListItemFactory>().ok())
             {
                 factory.connect_setup(|_, item| {
                     if let Some(label) = item
@@ -682,7 +680,6 @@ pub fn track_column_width(key: LibraryListKey, field: LibraryField) -> i32 {
             | LibraryListKey::GenreTracks
             | LibraryListKey::MoodTracks
             | LibraryListKey::PlaylistTracks
-            | LibraryListKey::SmartPlaylistTracks
     ) {
         match field {
             LibraryField::RowIndex => {
@@ -697,37 +694,8 @@ pub fn track_column_width(key: LibraryListKey, field: LibraryField) -> i32 {
     match key {
         LibraryListKey::ArtistTracks
         | LibraryListKey::GenreTracks
-        | LibraryListKey::PlaylistTracks => return track_list_column_width(field),
-        LibraryListKey::SmartPlaylistTracks => {}
-        _ => return column_width(field),
-    }
-
-    match field {
-        LibraryField::RowIndex => 44,
-        LibraryField::Title | LibraryField::TitleMerged => 212,
-        LibraryField::Album
-        | LibraryField::Artist
-        | LibraryField::AlbumArtist
-        | LibraryField::Genre => 180,
-        LibraryField::PlayCount => play_count_column_width(),
-        LibraryField::UserRating | LibraryField::SongCount | LibraryField::AlbumCount => 82,
-        LibraryField::ReleaseDate | LibraryField::DateAdded => 108,
-        LibraryField::LastPlayed => 148,
-        LibraryField::Year
-        | LibraryField::DiscNumber
-        | LibraryField::TrackNumber
-        | LibraryField::Bpm => 62,
-        LibraryField::Duration => 70,
-        LibraryField::Image => column_width(LibraryField::Image),
-        LibraryField::Bitrate
-        | LibraryField::SampleRate
-        | LibraryField::BitDepth
-        | LibraryField::Channels
-        | LibraryField::Format
-        | LibraryField::FilePath
-        | LibraryField::Source => column_width(field),
-        LibraryField::Favorite => FAVORITE_COLUMN_WIDTH,
-        LibraryField::Tools => gtk_widgets::recycled_cells::ROW_ACTIONS_WIDTH,
+        | LibraryListKey::PlaylistTracks => track_list_column_width(field),
+        _ => column_width(field),
     }
 }
 

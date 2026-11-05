@@ -244,9 +244,6 @@ impl CatalogUi {
                             detail,
                         ),
                     Route::PlaylistDetail(key) => self.playlist_detail_route(key, detail),
-                    Route::SmartPlaylistDetail(key) => {
-                        self.smart_playlist_detail_route(key, detail)
-                    }
                     Route::GenreDetail(key) => self
                         .named_detail_view(super::named_detail::NamedDetailId::Genre(key), detail),
                     Route::MoodDetail(key) => self
@@ -259,9 +256,6 @@ impl CatalogUi {
             OpenedCollection::Genres { read, page } => self.library_genres_route(read, page),
             OpenedCollection::Moods { read, page } => self.library_moods_route(read, page),
             OpenedCollection::Playlists { read, page } => self.library_playlists_route(read, page),
-            OpenedCollection::SmartPlaylists { read, page } => {
-                self.library_smart_playlists_route(read, page)
-            }
             OpenedCollection::Folders(page) => {
                 let Route::Folders { path } = route else {
                     unreachable!("folder renderer")
@@ -668,20 +662,6 @@ impl CatalogUi {
         self.collection_list_route(
             LibraryListKey::Playlists,
             "No playlists yet",
-            page,
-            |row: &library::PlaylistListRow| row.key(),
-            read,
-        )
-    }
-
-    pub fn library_smart_playlists_route(
-        self: &Rc<Self>,
-        read: library::ListRead,
-        page: library::Page<library::PlaylistListRow>,
-    ) -> MountedRoute {
-        self.collection_list_route(
-            LibraryListKey::SmartPlaylists,
-            "No smart playlists yet",
             page,
             |row: &library::PlaylistListRow| row.key(),
             read,

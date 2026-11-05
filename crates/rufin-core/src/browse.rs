@@ -168,12 +168,8 @@ pub fn library_list_key(route: &Route, category: CollectionCategory) -> LibraryL
         Route::AlbumArtists => LibraryListKey::AlbumArtists,
         Route::Genres => LibraryListKey::Genres,
         Route::Moods => LibraryListKey::Moods,
-        Route::Playlists | Route::PlaylistFolder { smart: false, .. } => LibraryListKey::Playlists,
-        Route::SmartPlaylists | Route::PlaylistFolder { smart: true, .. } => {
-            LibraryListKey::SmartPlaylists
-        }
+        Route::Playlists | Route::PlaylistFolder { .. } => LibraryListKey::Playlists,
         Route::PlaylistDetail(_) => LibraryListKey::PlaylistTracks,
-        Route::SmartPlaylistDetail(_) => LibraryListKey::SmartPlaylistTracks,
         Route::AlbumDetail(_) => LibraryListKey::AlbumDetailTracks,
         Route::ArtistDiscography(_) | Route::AlbumArtistDiscography(_) => {
             LibraryListKey::ArtistAlbums
@@ -261,7 +257,6 @@ pub enum DetailSummary {
     Album(Box<library::AlbumView>),
     Artist(Box<library::ArtistView>),
     Playlist(Box<library::PlaylistRow>),
-    SmartPlaylist(Box<library::SmartPlaylistRow>),
     Genre(Box<library::GenreView>),
     Mood(Box<library::MoodView>),
 }
@@ -370,10 +365,6 @@ pub enum OpenedCollection {
         read: ListRead,
         page: Page<library::PlaylistListRow>,
     },
-    SmartPlaylists {
-        read: ListRead,
-        page: Page<library::PlaylistListRow>,
-    },
     Folders(FolderPage),
     Home(Box<library::HomePage>),
     Search(library::SearchResults),
@@ -434,14 +425,8 @@ pub fn supports_downloaded_filter(route: &Route, category: CollectionCategory) -
 }
 
 pub fn uses_activity(route: &Route, settings: &LibraryListSettings) -> bool {
-    matches!(
-        route,
-        Route::Home
-            | Route::SmartPlaylists
-            | Route::SmartPlaylistDetail(_)
-            | Route::PlaylistFolder { smart: true, .. }
-            | Route::History
-    ) || settings.sort_key.catalog_sort().activity_sensitive()
+    matches!(route, Route::Home | Route::History)
+        || settings.sort_key.catalog_sort().activity_sensitive()
         || match settings.layout {
             LibraryLayout::Grid => &settings.grid_fields,
             _ => &settings.row_fields,
@@ -531,9 +516,6 @@ impl crate::source::SourceOwner {
         let require_source = || {
             source.ok_or_else(|| library::LibraryError::InvalidRequest("No source selected".into()))
         };
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |duration| duration.as_secs() as i64);
         let favorites = options.favorites_only && supports_favorite_filter(route, options.category)
             || matches!(
                 route,
@@ -646,16 +628,6 @@ impl crate::source::SourceOwner {
                     )
                 })
             }
-            Route::SmartPlaylistDetail(key) => database
-                .smart_playlist_rows(&[*key], now, cancel)
-                .await?
-                .pop()
-                .map(|row| {
-                    (
-                        DetailSummary::SmartPlaylist(Box::new(row)),
-                        member(Collection::Smart { key: *key, now }),
-                    )
-                }),
             Route::GenreDetail(key) => database
                 .genres(&[*key], folder, cancel)
                 .await?
@@ -685,7 +657,6 @@ impl crate::source::SourceOwner {
                 && !read.favorites_only
                 && !read.downloaded_only
                 && (read.folder.is_none()
-                    || matches!(read.collection, Collection::Smart { .. })
                     || matches!(&summary, DetailSummary::Playlist(row) if row.source_key.is_none()))
             {
                 let count = match &summary {
@@ -694,7 +665,6 @@ impl crate::source::SourceOwner {
                     DetailSummary::Genre(row) => row.summary.track_count,
                     DetailSummary::Mood(row) => row.summary.track_count,
                     DetailSummary::Playlist(row) => row.track_count,
-                    DetailSummary::SmartPlaylist(row) => row.track_count,
                 }
                 .max(0) as usize;
                 let range = window.range(count);
@@ -726,7 +696,6 @@ impl crate::source::SourceOwner {
         Ok(match route {
             Route::AlbumDetail(_)
             | Route::PlaylistDetail(_)
-            | Route::SmartPlaylistDetail(_)
             | Route::GenreDetail(_)
             | Route::MoodDetail(_) => OpenedCollection::Detail(None),
             Route::Tracks | Route::Favorites
@@ -786,7 +755,7 @@ impl crate::source::SourceOwner {
                 let page = read.page_moods(database, window, cancel).await?;
                 OpenedCollection::Moods { read, page }
             }
-            Route::Playlists | Route::PlaylistFolder { smart: false, .. } => {
+            Route::Playlists | Route::PlaylistFolder { .. } => {
                 let mut read = list(ListKind::Playlists);
                 read.playlist_scope = match route {
                     Route::PlaylistFolder { key, .. } => {
@@ -796,17 +765,6 @@ impl crate::source::SourceOwner {
                 };
                 let page = read.page_playlist_items(database, window, cancel).await?;
                 OpenedCollection::Playlists { read, page }
-            }
-            Route::SmartPlaylists | Route::PlaylistFolder { smart: true, .. } => {
-                let mut read = list(ListKind::SmartPlaylists { now });
-                read.playlist_scope = match route {
-                    Route::PlaylistFolder { key, .. } => {
-                        library::PlaylistScope::Folder { key: *key }
-                    }
-                    _ => library::PlaylistScope::Root,
-                };
-                let page = read.page_playlist_items(database, window, cancel).await?;
-                OpenedCollection::SmartPlaylists { read, page }
             }
             Route::Folders { path } => {
                 let selected = selected.ok_or_else(|| {

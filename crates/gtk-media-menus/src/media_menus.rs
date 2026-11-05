@@ -4,8 +4,7 @@ use adw::prelude::*;
 use downloads::DownloadSubject;
 use gtk::glib;
 use library::{
-    AlbumView, ArtistView, FavoriteTarget, GenreView, MoodView, PlaylistRow, RadioSeed,
-    SmartPlaylistRow, TrackView,
+    AlbumView, ArtistView, FavoriteTarget, GenreView, MoodView, PlaylistRow, RadioSeed, TrackView,
 };
 use rufin_core::playback::{QueuePlacement, RadioPlayRequest};
 
@@ -17,7 +16,6 @@ use gtk_widgets::interactions::{
 };
 use gtk_widgets::ratings::context_rating_row;
 use rufin_core::metadata::MediaDetailsItem;
-use rufin_core::playlists::SmartPlaylistChange;
 use rufin_core::settings::ContextMenuItem;
 use rufin_core::settings::SidebarPin;
 
@@ -95,9 +93,6 @@ pub struct MediaMenus {
     pub set_sidebar_pin: Rc<dyn Fn(SidebarPin, bool)>,
     pub source_download_available: Rc<dyn Fn(&sources::SourceId) -> bool>,
     pub edit_playlist_dialog: Rc<dyn Fn(library::PlaylistKey, String)>,
-    pub edit_smart_playlist_dialog: Rc<dyn Fn(SmartPlaylistRow)>,
-    pub publish_smart_playlist_change:
-        Rc<dyn Fn(SmartPlaylistChange, Option<Rc<dyn Fn(Result<(), String>)>>)>,
     pub operation_feedback: Rc<dyn Fn(&OperationFeedback, Option<Box<dyn FnOnce()>>)>,
     pub show_error: Rc<dyn Fn(String)>,
     pub picker_target: Rc<dyn Fn(&ContextMenuSurface, PlayRequest)>,
@@ -538,7 +533,6 @@ fn present_playlist_selection_menu(
             let database = Arc::clone(&menus.library);
             let task = menus.runtime.spawn(async move {
                 let targets = targets.collections(&database).await?;
-                let mut smart = Vec::new();
                 let mut failure = None;
                 for collection in targets {
                     match collection {
@@ -549,22 +543,15 @@ fn present_playlist_selection_menu(
                                 failure.get_or_insert_with(|| error.to_string());
                             }
                         }
-                        library::Collection::Smart { key, .. } => smart.push(key),
                         _ => unreachable!("playlist selection contains playlists"),
                     }
                 }
-                Ok::<_, String>((smart, failure))
+                Ok::<_, String>(failure)
             });
             let menus = Rc::clone(&menus);
             glib::spawn_future_local(async move {
                 match task.await {
-                    Ok(Ok((smart, failure))) => {
-                        for key in smart {
-                            (menus.publish_smart_playlist_change)(
-                                SmartPlaylistChange::Delete(key),
-                                None,
-                            );
-                        }
+                    Ok(Ok(failure)) => {
                         if let Some(error) = failure {
                             (menus.show_error)(error);
                         }
@@ -589,9 +576,6 @@ fn present_playlist_selection_menu(
                     .filter_map(|collection| match collection {
                         library::Collection::Playlist(key) => {
                             Some(library::PlaylistFolderMember::Playlist { key })
-                        }
-                        library::Collection::Smart { key, .. } => {
-                            Some(library::PlaylistFolderMember::SmartPlaylist { key })
                         }
                         _ => None,
                     })
@@ -1340,118 +1324,6 @@ fn present_playlist_context_menu_ready(
                 let _ = rufin_core::playlists::delete_playlist(&source, playlist_key).await;
             });
             (menus.navigate)(Route::Playlists);
-        });
-        dialog.present(Some(&target));
-    });
-    surface.popup(&menus.settings.current.borrow().application.context_menu);
-}
-
-pub fn present_smart_playlist_context_menu(
-    target: &gtk::Widget,
-    menus: &Rc<MediaMenus>,
-    playlist: SmartPlaylistRow,
-    play: Option<CollectionPlay>,
-    position: Option<(f64, f64)>,
-) {
-    let database = menus.library.clone();
-    let member = library::PlaylistFolderMember::SmartPlaylist {
-        key: playlist.smart_playlist_key,
-    };
-    let task = menus.runtime.spawn(async move {
-        database
-            .playlist_member_folder(&member, &library::ReadCancellation::new())
-            .await
-    });
-    let target = target.downgrade();
-    let menus = Rc::downgrade(menus);
-    gtk::glib::spawn_future_local(async move {
-        let (Some(target), Some(menus)) = (target.upgrade(), menus.upgrade()) else {
-            return;
-        };
-        match task.await {
-            Ok(Ok(folder)) => present_smart_playlist_context_menu_ready(
-                &target,
-                &menus,
-                playlist,
-                play,
-                position,
-                folder.is_some(),
-            ),
-            Ok(Err(error)) => (menus.show_error)(error.to_string()),
-            Err(error) => (menus.show_error)(error.to_string()),
-        }
-    });
-}
-
-fn present_smart_playlist_context_menu_ready(
-    target: &gtk::Widget,
-    menus: &Rc<MediaMenus>,
-    playlist: SmartPlaylistRow,
-    play: Option<CollectionPlay>,
-    position: Option<(f64, f64)>,
-    in_folder: bool,
-) {
-    if present_playlist_selection_menu(
-        target,
-        menus,
-        gtk_widgets::selection::smart_play_request(playlist.smart_playlist_key),
-        position,
-        in_folder,
-    ) {
-        return;
-    }
-    let surface = ContextMenuSurface::new(target, "smart-playlist", position);
-    surface.append_play_actions(&menus.settings.current.borrow().application.context_menu);
-    install_sidebar_pin_action(
-        &surface,
-        menus,
-        Some(SidebarPin::SmartPlaylist {
-            playlist_id: playlist.object_id.clone(),
-        }),
-    );
-    surface.append_fixed_action("Edit", "edit-definition", EDIT_ICON);
-    crate::playlist_folders::append_folder_actions(
-        &surface,
-        menus,
-        vec![library::PlaylistFolderMember::SmartPlaylist {
-            key: playlist.smart_playlist_key,
-        }],
-        in_folder,
-    );
-    surface.append_fixed_action("Delete", "delete", DELETE_ICON);
-    let playback = gtk_widgets::selection::smart_play_request(playlist.smart_playlist_key);
-    install_download_actions(
-        &surface,
-        menus,
-        &gtk_widgets::media_drag::MediaDragSource::capture_target(playback.clone()),
-        None,
-        false,
-        playlist.track_count > 0 && playlist.downloaded_count == playlist.track_count,
-    );
-    install_loaded_actions(&surface, menus, playback, play);
-    let edit_menus = Rc::clone(menus);
-    let edit_row = playlist.clone();
-    surface.add_action("edit-definition", move || {
-        (edit_menus.edit_smart_playlist_dialog)(edit_row.clone());
-    });
-    let delete_menus = Rc::clone(menus);
-    let key = playlist.smart_playlist_key;
-    let delete_target = target.downgrade();
-    surface.add_action("delete", move || {
-        let Some(target) = delete_target.upgrade() else {
-            return;
-        };
-        let menus = Rc::clone(&delete_menus);
-        let dialog = gtk_widgets::playlists::delete_playlist_dialog(&playlist.name, move || {
-            let navigate = Rc::clone(&menus);
-            (menus.publish_smart_playlist_change)(
-                SmartPlaylistChange::Delete(key),
-                Some(Rc::new(move |result| {
-                    if result.is_ok() {
-                        (navigate.navigate)(Route::SmartPlaylists);
-                    }
-                })),
-            );
         });
         dialog.present(Some(&target));
     });

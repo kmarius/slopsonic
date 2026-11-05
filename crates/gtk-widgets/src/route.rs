@@ -17,6 +17,5 @@ pub fn sidebar_route_css_class(item: rufin_core::settings::SidebarRouteItem) -> 
         SidebarRouteItem::History => "nav-route-history",
         SidebarRouteItem::Folders => "nav-route-folders",
         SidebarRouteItem::Playlists => "nav-route-playlists",
-        SidebarRouteItem::SmartPlaylists => "nav-route-smart-playlists",
     }
 }

@@ -77,7 +77,7 @@ impl Shell {
         selection: library::MemberSelection,
     ) {
         let folder = match self.navigation.routes.borrow().current() {
-            gtk_widgets::route::Route::PlaylistFolder { key, smart: false } => Some(*key),
+            gtk_widgets::route::Route::PlaylistFolder { key } => Some(*key),
             _ => None,
         };
         self.new_playlist_dialog_in_folder(name, selection, folder);
@@ -114,14 +114,8 @@ impl Shell {
 
 impl Shell {
     pub(crate) fn new_playlist_folder_dialog(self: &Rc<Self>) {
-        let smart = matches!(
-            self.navigation.routes.borrow().current(),
-            gtk_widgets::route::Route::SmartPlaylists
-                | gtk_widgets::route::Route::PlaylistFolder { smart: true, .. }
-        );
         gtk_media_menus::playlist_folders::present_new_folder_dialog(
             &self.media_menus,
-            smart,
             Vec::new(),
             Rc::new(|| {}),
         );

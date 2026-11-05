@@ -64,7 +64,7 @@ where
             Pending::Collection(collection, folder) => {
                 let mut read = MemberRead::new(collection);
                 read.folder = folder;
-                crate::query::member_query_on(connection, &read).await?
+                crate::query::member_query(&read)?
             }
             Pending::Selection(MemberSelection::Concat(selections)) => {
                 pending.extend(selections.iter().rev().map(Pending::Selection));
@@ -111,18 +111,14 @@ where
             }) => {
                 let query = crate::query::list_query_on(connection, read).await?;
                 let requested = query.requested_ranges(parent_ranges.as_deref());
-                if let ListKind::SmartPlaylists { now } = read.kind {
-                    crate::smart_playlists::smart_parent_query(connection, now, requested).await?
-                } else {
-                    parent_members(&read.kind, requested)
-                }
+                parent_members(&read.kind, requested)
             }
             Pending::Selection(MemberSelection::Members {
                 read,
                 ranges: selected,
             }) => {
                 ranges = selected.as_deref();
-                crate::query::member_query_on(connection, read).await?
+                crate::query::member_query(read)?
             }
             Pending::Selection(explicit) => explicit_query(explicit)?,
         };
@@ -151,7 +147,6 @@ fn parent_members(
         ListKind::Genres=>(format!("tracks track ON track.track_key IN ({})",crate::collections::genre_keys("parent.value")),CatalogSort::Title,"NULL","track.indexed=1"),
         ListKind::Moods=>("track_moods membership ON membership.mood_key=parent.value CROSS JOIN tracks track USING(track_key)".into(),CatalogSort::Title,"NULL","track.indexed=1"),
         ListKind::Playlists=>("playlist_entries entry ON entry.playlist_key=parent.value CROSS JOIN tracks track USING(track_key)".into(),CatalogSort::Position,"entry.playlist_entry_key","1"),
-        ListKind::SmartPlaylists { .. }=>unreachable!(),
     };
     let mut order = vec!["parent.ordinal".into()];
     order.extend(sort.order_terms(false, matches!(kind, ListKind::Playlists)));
@@ -178,10 +173,6 @@ fn parent_collection(read: &ListRead, key: i64) -> Collection {
         ListKind::Genres => Collection::Genre(GenreKey::from_raw(key)),
         ListKind::Moods => Collection::Mood(MoodKey::from_raw(key)),
         ListKind::Playlists => Collection::Playlist(PlaylistKey::from_raw(key)),
-        ListKind::SmartPlaylists { now } => Collection::Smart {
-            key: SmartPlaylistKey::from_raw(key),
-            now,
-        },
     }
 }
 

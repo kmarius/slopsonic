@@ -119,11 +119,7 @@ impl Database {
         update: crate::CatalogUpdate,
     ) {
         let changed = update.metadata || update.artwork || update.playlists;
-        if (changed || update.activity)
-            && let Err(error) = self
-                .refresh_incomplete_playlist_artwork(None, !changed)
-                .await
-        {
+        if changed && let Err(error) = self.refresh_incomplete_playlist_artwork(None).await {
             tracing::warn!(%error, "could not update incomplete playlist artwork");
         }
         let observer = self.inner.catalog_observer.lock().unwrap().clone();

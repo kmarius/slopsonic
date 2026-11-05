@@ -33,7 +33,6 @@ pub enum ArtworkImage {
         picture_index: Option<u32>,
     },
     Playlist {
-        smart: bool,
         source_id: Option<String>,
         object_id: String,
         revision: String,
@@ -97,13 +96,11 @@ impl ArtworkCandidate {
                 ..
             } => format!("local-embedded\0{source_id}\0{path}\0{index}"),
             ArtworkImage::Playlist {
-                smart,
                 source_id,
                 object_id,
                 ..
             } => format!(
-                "{}\0{}\0{object_id}",
-                if *smart { "smart-playlist" } else { "playlist" },
+                "playlist\0{}\0{object_id}",
                 source_id.as_deref().unwrap_or_default()
             ),
         }
@@ -179,14 +176,12 @@ pub(crate) fn preview_sql(binding: &str) -> String {
 }
 
 pub(crate) fn playlist_binding(
-    smart: bool,
     source_id: Option<String>,
     object_id: String,
     revision: String,
 ) -> Vec<u8> {
     serde_json::to_vec(&[ArtworkCandidate::new(
         ArtworkImage::Playlist {
-            smart,
             source_id,
             object_id,
             revision,
@@ -222,7 +217,6 @@ pub fn normalize_artwork_binding(bytes: &[u8]) -> LibraryResult<Vec<u8>> {
     } else if value["kind"] == "playlist" {
         candidates.push(ArtworkCandidate::new(
             ArtworkImage::Playlist {
-                smart: value["smart"].as_bool().unwrap_or_default(),
                 source_id: text("source_id"),
                 object_id: text("object_id").unwrap_or_default(),
                 revision: text("revision").unwrap_or_default(),
@@ -325,7 +319,8 @@ pub(crate) async fn refresh_mosaics(
     albums: &[i64],
     artists: &[i64],
 ) -> LibraryResult<()> {
-    for table in ["playlists", "smart_playlists"] {
+    {
+        let table = "playlists";
         let rows: Vec<(i64, Vec<u8>)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "SELECT owner.rowid,owner.artwork_binding FROM {table} owner WHERE EXISTS(
               SELECT 1 FROM json_each(owner.artwork_binding) candidate
@@ -374,7 +369,7 @@ pub(crate) async fn refresh_mosaics(
 
 pub(crate) fn playlist_artwork(
     binding: Option<Vec<u8>>,
-    owner: (bool, Option<String>, String),
+    owner: (Option<String>, String),
     context: (Option<String>, Option<String>),
 ) -> LibraryResult<Vec<u8>> {
     let mut candidates: Vec<ArtworkCandidate> = binding
@@ -389,9 +384,8 @@ pub(crate) fn playlist_artwork(
         let (source_id, folder_id) = context;
         candidates.push(ArtworkCandidate::new(
             ArtworkImage::Playlist {
-                smart: owner.0,
-                source_id: owner.1,
-                object_id: owner.2,
+                source_id: owner.0,
+                object_id: owner.1,
                 revision: "auto".into(),
                 automatic: Some(PlaylistArtworkManifest {
                     source_id,
@@ -452,15 +446,13 @@ async fn refresh_automatic_playlist_artwork_on(
 ) -> LibraryResult<()> {
     let previous = candidate.image.clone();
     if let ArtworkImage::Playlist {
-        smart,
         automatic: Some(manifest),
         resolved,
         revision,
         ..
     } = &mut candidate.image
     {
-        if !*smart
-            && !manifest.chosen.is_empty()
+        if !manifest.chosen.is_empty()
             && !sqlx::query_scalar::<_, bool>(
                 "SELECT EXISTS(SELECT 1 FROM playlist_entries WHERE playlist_key=?1)",
             )
@@ -477,22 +469,9 @@ async fn refresh_automatic_playlist_artwork_on(
             .zip(recipes)
             .filter_map(|(uri, recipe)| (!recipe.is_empty()).then(|| uri.clone()))
             .collect();
-        let prefix = if *smart {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs() as i64;
-            crate::smart_playlists::smart_membership_sql(
-                connection,
-                now,
-                Some(&[crate::SmartPlaylistKey::from_raw(key)]),
-            )
-            .await?
-        } else {
-            format!(
-                "WITH selected AS (SELECT track_key FROM playlist_entries WHERE playlist_key={key})"
-            )
-        };
+        let prefix = format!(
+            "WITH selected AS (SELECT track_key FROM playlist_entries WHERE playlist_key={key})"
+        );
         manifest.chosen =
             playlist_artwork_choices_on(connection, &prefix, &manifest.chosen, false).await?;
         let recipes = raw_playlist_artwork_on(connection, &manifest.chosen).await?;
@@ -566,84 +545,34 @@ impl Database {
     pub async fn refresh_incomplete_playlist_artwork(
         &self,
         playlist: Option<crate::PlaylistKey>,
-        activity_only: bool,
     ) -> LibraryResult<()> {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
-        for table in ["playlists", "smart_playlists"] {
-            if (activity_only && table == "playlists")
-                || (playlist.is_some() && table == "smart_playlists")
-            {
-                continue;
-            }
-            let has_members = if table == "playlists" {
-                "AND (EXISTS(SELECT 1 FROM playlist_entries entry WHERE entry.playlist_key=playlists.rowid) OR EXISTS(SELECT 1 FROM json_each(artwork_binding) candidate WHERE json_array_length(json_extract(candidate.value,'$.image.automatic.chosen'))>0))"
-            } else {
-                ""
-            };
-            let definition = if table == "smart_playlists" {
-                "definition_json"
-            } else {
-                "NULL"
-            };
-            let emptied = if table == "playlists" {
-                "OR NOT EXISTS(SELECT 1 FROM playlist_entries entry WHERE entry.playlist_key=playlists.rowid)"
-            } else {
-                ""
-            };
-            let mut after = 0;
-            loop {
-                let rows: Vec<(i64,Vec<u8>,Option<String>)> = sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT rowid,artwork_binding,{definition} FROM {table} WHERE rowid>?2 AND(?1 IS NULL OR rowid=?1) {has_members} AND EXISTS(SELECT 1 FROM json_each(artwork_binding) candidate WHERE json_extract(candidate.value,'$.image.automatic.pending')=0 AND (json_array_length(json_extract(candidate.value,'$.image.automatic.chosen'))<4 {emptied})) ORDER BY rowid LIMIT 128")))
-                    .bind(playlist).bind(after).fetch_all(&mut *connection).await?;
-                let Some(last) = rows.last() else { break };
-                after = last.0;
-                for (key, binding, definition) in rows {
-                    if activity_only && let Some(definition) = definition {
-                        use crate::{SmartPlaylistRuleField as Field, SmartPlaylistSort as Sort};
-                        let definition: crate::SmartPlaylistDefinition =
-                            serde_json::from_str(&definition)?;
-                        if !matches!(
-                            definition.sort_field,
-                            Sort::PlayCount | Sort::SkipCount | Sort::LastPlayed
-                        ) && !definition
-                            .match_all
-                            .iter()
-                            .chain(&definition.match_any)
-                            .any(|rule| {
-                                matches!(
-                                    rule.field,
-                                    Field::Played
-                                        | Field::PlayCount
-                                        | Field::SkipCount
-                                        | Field::LastPlayed
-                                )
-                            })
-                        {
-                            continue;
-                        }
+        let mut after = 0;
+        loop {
+            let rows: Vec<(i64, Vec<u8>)> = sqlx::query_as("SELECT rowid,artwork_binding FROM playlists WHERE rowid>?2 AND(?1 IS NULL OR rowid=?1) AND (EXISTS(SELECT 1 FROM playlist_entries entry WHERE entry.playlist_key=playlists.rowid) OR EXISTS(SELECT 1 FROM json_each(artwork_binding) candidate WHERE json_array_length(json_extract(candidate.value,'$.image.automatic.chosen'))>0)) AND EXISTS(SELECT 1 FROM json_each(artwork_binding) candidate WHERE json_extract(candidate.value,'$.image.automatic.pending')=0 AND (json_array_length(json_extract(candidate.value,'$.image.automatic.chosen'))<4 OR NOT EXISTS(SELECT 1 FROM playlist_entries entry WHERE entry.playlist_key=playlists.rowid))) ORDER BY rowid LIMIT 128")
+                .bind(playlist).bind(after).fetch_all(&mut *connection).await?;
+            let Some(last) = rows.last() else { break };
+            after = last.0;
+            for (key, binding) in rows {
+                let mut candidates: Vec<ArtworkCandidate> = serde_json::from_slice(&binding)?;
+                for candidate in &mut candidates {
+                    if candidate.is_automatic_playlist() {
+                        refresh_automatic_playlist_artwork_on(connection, key, candidate).await?;
                     }
-                    let mut candidates: Vec<ArtworkCandidate> = serde_json::from_slice(&binding)?;
-                    for candidate in &mut candidates {
-                        if candidate.is_automatic_playlist() {
-                            refresh_automatic_playlist_artwork_on(connection, key, candidate)
-                                .await?;
-                        }
-                    }
-                    let next = serde_json::to_vec(&candidates)?;
-                    if next == binding {
-                        continue;
-                    }
-                    let mut transaction = connection.begin().await?;
-                    sqlx::query(sqlx::AssertSqlSafe(format!(
-                        "UPDATE {table} SET artwork_binding=?2 WHERE rowid=?1"
-                    )))
+                }
+                let next = serde_json::to_vec(&candidates)?;
+                if next == binding {
+                    continue;
+                }
+                let mut transaction = connection.begin().await?;
+                sqlx::query("UPDATE playlists SET artwork_binding=?2 WHERE rowid=?1")
                     .bind(key)
                     .bind(next)
                     .execute(&mut *transaction)
                     .await?;
-                    transaction.commit().await?;
-                    self.cache_written();
-                }
+                transaction.commit().await?;
+                self.cache_written();
             }
         }
         Ok(())
@@ -733,7 +662,6 @@ impl Database {
     }
     pub async fn playlist_image(&self, image: &ArtworkImage) -> LibraryResult<Option<Vec<u8>>> {
         let ArtworkImage::Playlist {
-            smart,
             source_id,
             object_id,
             revision,
@@ -743,10 +671,6 @@ impl Database {
             return Ok(None);
         };
         let mut connection = self.acquire_reader().await?;
-        if *smart {
-            return Ok(sqlx::query_scalar("SELECT artwork_bytes FROM main.smart_playlists WHERE object_id=?1 AND artwork_revision=?2 AND artwork_bytes IS NOT NULL")
-                .bind(object_id).bind(revision).fetch_optional(&mut *connection).await?);
-        }
         Ok(sqlx::query_scalar("SELECT playlist.artwork_bytes FROM main.playlists playlist LEFT JOIN sources source USING(source_key) WHERE playlist.object_id=?1 AND source.object_id IS ?2 AND playlist.artwork_revision=?3 AND playlist.artwork_bytes IS NOT NULL")
             .bind(object_id).bind(source_id).bind(revision).fetch_optional(&mut *connection).await?)
     }
@@ -756,7 +680,6 @@ impl Database {
         candidate: ArtworkCandidate,
     ) -> LibraryResult<Option<ArtworkCandidate>> {
         let ArtworkImage::Playlist {
-            smart,
             source_id,
             object_id,
             ..
@@ -764,18 +687,11 @@ impl Database {
         else {
             return Ok(None);
         };
-        let smart = *smart;
         let source_id = source_id.clone();
         let object_id = object_id.clone();
-        let (table, from, scope) = if smart {
-            ("smart_playlists", "smart_playlists owner", "?2 IS NULL")
-        } else {
-            (
-                "playlists",
-                "playlists owner LEFT JOIN sources source USING(source_key)",
-                "source.object_id IS ?2",
-            )
-        };
+        let table = "playlists";
+        let from = "playlists owner LEFT JOIN sources source USING(source_key)";
+        let scope = "source.object_id IS ?2";
         let automatic = "json_extract(value,'$.image.automatic') IS NOT NULL";
         let select = format!(
             "SELECT owner.rowid,(SELECT value FROM json_each(owner.artwork_binding) WHERE {automatic} LIMIT 1) FROM {from} WHERE owner.object_id=?1 AND {scope}"

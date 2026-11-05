@@ -354,19 +354,17 @@ pub enum LibraryListKey {
     Genres,
     Moods,
     Playlists,
-    SmartPlaylists,
     AlbumDetailTracks,
     ArtistAlbums,
     ArtistTracks,
     GenreTracks,
     MoodTracks,
     PlaylistTracks,
-    SmartPlaylistTracks,
     Queue,
     FullscreenTracks,
 }
 impl LibraryListKey {
-    pub fn all() -> [Self; 20] {
+    pub fn all() -> [Self; 18] {
         [
             Self::Albums,
             Self::Artists,
@@ -378,14 +376,12 @@ impl LibraryListKey {
             Self::Genres,
             Self::Moods,
             Self::Playlists,
-            Self::SmartPlaylists,
             Self::AlbumDetailTracks,
             Self::ArtistAlbums,
             Self::ArtistTracks,
             Self::GenreTracks,
             Self::MoodTracks,
             Self::PlaylistTracks,
-            Self::SmartPlaylistTracks,
             Self::Queue,
             Self::FullscreenTracks,
         ]
@@ -415,14 +411,12 @@ impl LibraryListKey {
             | Self::ArtistTracks
             | Self::GenreTracks
             | Self::MoodTracks
-            | Self::PlaylistTracks
-            | Self::SmartPlaylistTracks => LibraryLayout::Row,
+            | Self::PlaylistTracks => LibraryLayout::Row,
             Self::Artists
             | Self::AlbumArtists
             | Self::Genres
             | Self::Moods
             | Self::Playlists
-            | Self::SmartPlaylists
             | Self::ArtistAlbums => LibraryLayout::Grid,
         }
     }
@@ -597,13 +591,6 @@ impl LibraryListSettings {
             }
         }
 
-        if key == LibraryListKey::SmartPlaylists
-            && self.layout_version < 4
-            && self.sort_key == LibraryField::Title
-        {
-            self.sort_key = default_sort_key(key);
-        }
-
         if key.supports_layout(LibraryLayout::Detail)
             && self.layout_version < 5
             && self
@@ -657,12 +644,10 @@ impl LibraryListSettings {
                 | LibraryListKey::Genres
                 | LibraryListKey::Moods
                 | LibraryListKey::Playlists
-                | LibraryListKey::SmartPlaylists
                 | LibraryListKey::AlbumDetailTracks
                 | LibraryListKey::GenreTracks
                 | LibraryListKey::MoodTracks
-                | LibraryListKey::PlaylistTracks
-                | LibraryListKey::SmartPlaylistTracks => {}
+                | LibraryListKey::PlaylistTracks => {}
             }
         }
 
@@ -700,13 +685,11 @@ impl LibraryListSettings {
                 | LibraryListKey::Genres
                 | LibraryListKey::Moods
                 | LibraryListKey::Playlists
-                | LibraryListKey::SmartPlaylists
                 | LibraryListKey::AlbumDetailTracks
                 | LibraryListKey::ArtistAlbums
                 | LibraryListKey::GenreTracks
                 | LibraryListKey::MoodTracks
-                | LibraryListKey::PlaylistTracks
-                | LibraryListKey::SmartPlaylistTracks => {}
+                | LibraryListKey::PlaylistTracks => {}
             }
         }
 
@@ -803,7 +786,6 @@ impl LibraryListSettings {
                     | LibraryListKey::Genres
                     | LibraryListKey::Moods
                     | LibraryListKey::Playlists
-                    | LibraryListKey::SmartPlaylists
             )
         {
             let defaults = combined_row_fields(key);
@@ -838,20 +820,6 @@ impl LibraryListSettings {
         {
             self.row_fields = combined_row_fields(key);
         }
-        if self.layout_version < 14
-            && key == LibraryListKey::SmartPlaylists
-            && self.row_fields
-                == [
-                    LibraryField::RowIndex,
-                    LibraryField::Image,
-                    LibraryField::Title,
-                    LibraryField::SongCount,
-                    LibraryField::Duration,
-                    LibraryField::Tools,
-                ]
-        {
-            self.row_fields = combined_row_fields(key);
-        }
         if self.layout_version < 15 {
             let removed = match key {
                 LibraryListKey::Albums | LibraryListKey::ArtistAlbums => {
@@ -862,16 +830,13 @@ impl LibraryListSettings {
                 }
                 LibraryListKey::Genres => Some((2, LibraryField::AlbumCount)),
                 LibraryListKey::Moods => Some((3, LibraryField::Duration)),
-                LibraryListKey::Playlists | LibraryListKey::SmartPlaylists => {
-                    Some((3, LibraryField::SongCount))
-                }
+                LibraryListKey::Playlists => Some((3, LibraryField::SongCount)),
                 LibraryListKey::Tracks
                 | LibraryListKey::Folders
                 | LibraryListKey::FavoriteTracks => Some((3, LibraryField::Year)),
                 LibraryListKey::GenreTracks
                 | LibraryListKey::MoodTracks
                 | LibraryListKey::PlaylistTracks => Some((3, LibraryField::Duration)),
-                LibraryListKey::SmartPlaylistTracks => Some((3, LibraryField::PlayCount)),
                 _ => None,
             };
             if let Some((index, field)) = removed {
@@ -889,7 +854,6 @@ impl LibraryListSettings {
                                 | LibraryListKey::Genres
                                 | LibraryListKey::Moods
                                 | LibraryListKey::Playlists
-                                | LibraryListKey::SmartPlaylists
                         )
                         && self.row_fields == previous[1..])
                 {
@@ -1000,7 +964,7 @@ pub fn available_row_fields(key: LibraryListKey) -> &'static [LibraryField] {
             LibraryField::Duration,
             LibraryField::Tools,
         ],
-        LibraryListKey::Playlists | LibraryListKey::SmartPlaylists => &[
+        LibraryListKey::Playlists => &[
             LibraryField::RowIndex,
             LibraryField::Image,
             LibraryField::Title,
@@ -1016,8 +980,7 @@ pub fn available_row_fields(key: LibraryListKey) -> &'static [LibraryField] {
         | LibraryListKey::ArtistTracks
         | LibraryListKey::GenreTracks
         | LibraryListKey::MoodTracks
-        | LibraryListKey::PlaylistTracks
-        | LibraryListKey::SmartPlaylistTracks => &[
+        | LibraryListKey::PlaylistTracks => &[
             LibraryField::RowIndex,
             LibraryField::Image,
             LibraryField::Title,
@@ -1072,9 +1035,7 @@ pub fn available_grid_fields(key: LibraryListKey) -> &'static [LibraryField] {
         ],
         LibraryListKey::Genres => &[LibraryField::AlbumCount, LibraryField::SongCount],
         LibraryListKey::Moods => &[LibraryField::SongCount, LibraryField::Duration],
-        LibraryListKey::Playlists | LibraryListKey::SmartPlaylists => {
-            &[LibraryField::SongCount, LibraryField::Duration]
-        }
+        LibraryListKey::Playlists => &[LibraryField::SongCount, LibraryField::Duration],
         LibraryListKey::Tracks
         | LibraryListKey::FavoriteTracks
         | LibraryListKey::History
@@ -1082,8 +1043,7 @@ pub fn available_grid_fields(key: LibraryListKey) -> &'static [LibraryField] {
         | LibraryListKey::ArtistTracks
         | LibraryListKey::GenreTracks
         | LibraryListKey::MoodTracks
-        | LibraryListKey::PlaylistTracks
-        | LibraryListKey::SmartPlaylistTracks => &[
+        | LibraryListKey::PlaylistTracks => &[
             LibraryField::Artist,
             LibraryField::AlbumArtist,
             LibraryField::Album,
@@ -1157,11 +1117,6 @@ pub fn available_sort_fields(key: LibraryListKey) -> &'static [LibraryField] {
             LibraryField::SongCount,
             LibraryField::Duration,
         ],
-        LibraryListKey::SmartPlaylists => &[
-            LibraryField::Title,
-            LibraryField::SongCount,
-            LibraryField::Duration,
-        ],
         LibraryListKey::PlaylistTracks => TRACK_SORT_FIELDS,
         LibraryListKey::History => &[LibraryField::LastPlayed],
         LibraryListKey::Tracks
@@ -1170,8 +1125,7 @@ pub fn available_sort_fields(key: LibraryListKey) -> &'static [LibraryField] {
         | LibraryListKey::AlbumDetailTracks
         | LibraryListKey::ArtistTracks
         | LibraryListKey::GenreTracks
-        | LibraryListKey::MoodTracks
-        | LibraryListKey::SmartPlaylistTracks => &TRACK_SORT_FIELDS[1..],
+        | LibraryListKey::MoodTracks => &TRACK_SORT_FIELDS[1..],
     }
 }
 fn default_row_fields(key: LibraryListKey) -> Vec<LibraryField> {
@@ -1219,7 +1173,7 @@ fn combined_row_fields(key: LibraryListKey) -> Vec<LibraryField> {
             LibraryField::SongCount,
             LibraryField::Tools,
         ],
-        LibraryListKey::Playlists | LibraryListKey::SmartPlaylists => vec![
+        LibraryListKey::Playlists => vec![
             LibraryField::RowIndex,
             LibraryField::Image,
             LibraryField::Title,
@@ -1259,12 +1213,6 @@ fn combined_row_fields(key: LibraryListKey) -> Vec<LibraryField> {
                 LibraryField::Tools,
             ]
         }
-        LibraryListKey::SmartPlaylistTracks => vec![
-            LibraryField::RowIndex,
-            LibraryField::TitleMerged,
-            LibraryField::Album,
-            LibraryField::Tools,
-        ],
     }
 }
 fn default_grid_fields(key: LibraryListKey) -> Vec<LibraryField> {
@@ -1279,7 +1227,6 @@ fn default_grid_fields(key: LibraryListKey) -> Vec<LibraryField> {
         LibraryListKey::Genres => Vec::new(),
         LibraryListKey::Moods => vec![LibraryField::SongCount, LibraryField::Duration],
         LibraryListKey::Playlists => vec![LibraryField::SongCount],
-        LibraryListKey::SmartPlaylists => vec![LibraryField::SongCount, LibraryField::Duration],
         LibraryListKey::History => vec![
             LibraryField::Artist,
             LibraryField::Album,
@@ -1291,8 +1238,7 @@ fn default_grid_fields(key: LibraryListKey) -> Vec<LibraryField> {
         | LibraryListKey::ArtistTracks
         | LibraryListKey::GenreTracks
         | LibraryListKey::MoodTracks
-        | LibraryListKey::PlaylistTracks
-        | LibraryListKey::SmartPlaylistTracks => {
+        | LibraryListKey::PlaylistTracks => {
             vec![
                 LibraryField::Artist,
                 LibraryField::Album,
@@ -1339,8 +1285,7 @@ fn default_sort_key(key: LibraryListKey) -> LibraryField {
         | LibraryListKey::Tracks
         | LibraryListKey::Folders
         | LibraryListKey::FavoriteTracks
-        | LibraryListKey::Playlists
-        | LibraryListKey::SmartPlaylists => LibraryField::Title,
+        | LibraryListKey::Playlists => LibraryField::Title,
         LibraryListKey::History => LibraryField::LastPlayed,
         LibraryListKey::Queue
         | LibraryListKey::FullscreenTracks
@@ -1348,8 +1293,7 @@ fn default_sort_key(key: LibraryListKey) -> LibraryField {
         LibraryListKey::AlbumDetailTracks
         | LibraryListKey::ArtistTracks
         | LibraryListKey::GenreTracks
-        | LibraryListKey::MoodTracks
-        | LibraryListKey::SmartPlaylistTracks => LibraryField::TrackNumber,
+        | LibraryListKey::MoodTracks => LibraryField::TrackNumber,
     }
 }
 fn default_descending(key: LibraryListKey) -> bool {
