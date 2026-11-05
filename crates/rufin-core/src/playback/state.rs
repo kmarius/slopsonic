@@ -2084,7 +2084,6 @@ impl Player {
         current.started_at_unix_seconds = Some(sample.unix_seconds);
         current.local_period = Some(sample.local_period.clone());
         current.last_monotonic_millis = Some(sample.monotonic_millis);
-        self.notices.push(PlaybackNotice::RunStarted(current.id));
         let current = self.current_run.as_ref().unwrap();
         self.owner()
             .report_source(self.source_report(current, SourceReportPhase::Started, false));

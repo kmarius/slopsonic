@@ -31,7 +31,6 @@ pub enum Effect {
     ReloadCatalog,
     RefreshHome,
     MediaControlsChanged,
-    WithdrawNotification,
     PlaylistPickerChanged,
     KeepRunningAfterClose(bool),
     Quit(&'static str),

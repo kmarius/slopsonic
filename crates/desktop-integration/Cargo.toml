@@ -12,7 +12,6 @@ publish.workspace = true
 
 [dependencies]
 app-identity.workspace = true
-artwork.workspace = true
 gio.workspace = true
 glib = { workspace = true, features = ["v2_66"] }
 library.workspace = true

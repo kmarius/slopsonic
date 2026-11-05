@@ -118,8 +118,7 @@ impl PlaybackSubscription {
 mod tests {
     use super::*;
     use crate::{
-        ControlsView, PlaybackNotice, QueueSummaryView, RepeatMode, RunId, TransportStatus,
-        TransportView,
+        ControlsView, PlaybackNotice, QueueSummaryView, RepeatMode, TransportStatus, TransportView,
     };
 
     #[tokio::test]
@@ -156,7 +155,7 @@ mod tests {
                 muted: false,
             },
         };
-        let started = PlaybackNotice::RunStarted(RunId::new(1));
+        let started = PlaybackNotice::OperationFailed("Started".into());
         updates.publish(PlaybackProjection {
             view: view.clone(),
             notices: vec![started.clone()],

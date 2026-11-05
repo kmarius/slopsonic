@@ -943,7 +943,6 @@ name = "desktop-integration"
 version = "0.0.1"
 dependencies = [
  "app-identity",
- "artwork",
  "blake3",
  "gio",
  "glib",

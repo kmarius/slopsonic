@@ -7,7 +7,6 @@ use gtk::prelude::WidgetExt;
 use rufin_core::text::fill;
 use tracing::warn;
 
-use crate::player::{now_playing_notification_can_send, now_playing_notification_should_withdraw};
 use crate::shell::playlist_picker::refresh_context_playlist_picker;
 use gtk_player::fullscreen::{FullscreenPlaybackRefresh, fullscreen_playback_refresh};
 use gtk_player::state::NowPlayingPresentation;
@@ -55,7 +54,6 @@ pub(crate) fn install_product_event_receivers(shell: &Rc<Shell>, receivers: Prod
                     .update_fullscreen_player_with(&NowPlayingPresentation::new(None));
                 event_shell.refresh_current_route_now_playing_selections();
                 update_sidebar_pin_playback(&event_shell);
-                event_shell.withdraw_now_playing_notification();
                 event_shell.update_media_controls_after(None);
             }
         }
@@ -507,13 +505,6 @@ fn finish_playback_projection(
         .as_ref()
         .map(|current| &current.id);
     let media_changed = previous_media != next_media;
-    let notification_became_sendable = !now_playing_notification_can_send(
-        &shell.settings.current.borrow(),
-        previous_player.as_ref(),
-    ) && now_playing_notification_can_send(
-        &shell.settings.current.borrow(),
-        Some(&next_player),
-    );
     let fullscreen_refresh = fullscreen_playback_refresh(previous_player.as_ref(), &next_player);
     let static_playback_changed = matches!(fullscreen_refresh, FullscreenPlaybackRefresh::Static);
     let now_playing =
@@ -557,14 +548,10 @@ fn finish_playback_projection(
     }
 
     let mut media_controls_discontinuity = None;
-    let mut notification_started_run = None;
     for notice in notices {
         match notice {
             playback::PlaybackNotice::PositionDiscontinuity(discontinuity) => {
                 media_controls_discontinuity = Some(discontinuity);
-            }
-            playback::PlaybackNotice::RunStarted(run) => {
-                notification_started_run = Some(run);
             }
             playback::PlaybackNotice::OperationFailed(error) => {
                 show_playback_failure(shell, error);
@@ -572,22 +559,6 @@ fn finish_playback_projection(
         }
     }
 
-    if now_playing_notification_should_withdraw(
-        &shell.settings.current.borrow(),
-        Some(&next_player),
-    ) {
-        shell.withdraw_now_playing_notification();
-    }
-    if notification_started_run.is_some_and(|run| {
-        next_player
-            .transport
-            .current
-            .as_ref()
-            .is_some_and(|media| media.id.run == Some(run))
-    }) || notification_became_sendable
-    {
-        shell.notify_now_playing(Some(&next_player));
-    }
     if let Some(now_playing) = now_playing.as_ref() {
         shell.player_ui.update_fullscreen_player_with(now_playing);
     }

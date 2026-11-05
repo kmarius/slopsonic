@@ -289,8 +289,6 @@ pub async fn build(
                 let weak = weak.clone();
                 Box::new(move || {
                     if let Some(shell) = weak.upgrade() {
-                        let player = shell.player_ui.selected_playback().as_deref().cloned();
-                        shell.refresh_now_playing_notification(player.as_ref());
                         shell.update_media_controls();
                     }
                 })

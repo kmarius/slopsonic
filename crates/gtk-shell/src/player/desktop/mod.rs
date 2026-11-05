@@ -8,10 +8,9 @@ use std::time::{Duration, Instant};
 use adw::prelude::*;
 use ashpd::desktop::background::Background;
 use gtk::glib;
-use playback::{CurrentMedia, PlaybackView, PositionDiscontinuity};
+use playback::{CurrentMedia, PositionDiscontinuity};
 use tracing::{info, warn};
 
-use crate::Settings as UiSettings;
 use crate::shell::Shell;
 use gtk_widgets::artwork::THUMB_COVER_SIZE;
 
@@ -28,7 +27,6 @@ enum BackgroundAccess {
 
 pub(crate) struct DesktopState {
     pub(crate) media_controls: Rc<desktop_integration::MediaControls>,
-    pub(crate) notifications: Rc<desktop_integration::Notifications>,
     background_access: Cell<BackgroundAccess>,
 }
 
@@ -44,27 +42,9 @@ impl DesktopState {
                     application.open(&[gtk::gio::File::for_uri(uri)], "");
                 }
             }),
-            notifications: desktop_integration::Notifications::new(application.clone().upcast()),
             background_access: Cell::new(BackgroundAccess::Unavailable),
         }
     }
-}
-
-pub(crate) fn now_playing_notification_can_send(
-    settings: &UiSettings,
-    player: Option<&PlaybackView>,
-) -> bool {
-    desktop_integration::now_playing_notification_can_send(settings.allows_notifications(), player)
-}
-
-pub(crate) fn now_playing_notification_should_withdraw(
-    settings: &UiSettings,
-    player: Option<&PlaybackView>,
-) -> bool {
-    desktop_integration::now_playing_notification_should_withdraw(
-        settings.allows_notifications(),
-        player,
-    )
 }
 
 impl Shell {
@@ -143,38 +123,6 @@ impl Shell {
             }
             Err(TryRecvError::Empty) => glib::ControlFlow::Continue,
         });
-    }
-
-    pub(crate) fn notify_now_playing(self: &Rc<Self>, player: Option<&PlaybackView>) {
-        self.observe_now_playing_notification(player, false);
-    }
-
-    pub(crate) fn refresh_now_playing_notification(self: &Rc<Self>, player: Option<&PlaybackView>) {
-        self.observe_now_playing_notification(player, true);
-    }
-
-    fn observe_now_playing_notification(
-        self: &Rc<Self>,
-        player: Option<&PlaybackView>,
-        refresh_current: bool,
-    ) {
-        let artwork = player.and_then(|player| {
-            player.transport.current.as_ref().and_then(|media| {
-                self.artwork
-                    .current_playback_cached_artwork_path(media, THUMB_COVER_SIZE)
-                    .map(|artwork| artwork.path)
-            })
-        });
-        self.desktop.notifications.observe(
-            player,
-            self.settings.current.borrow().allows_notifications(),
-            artwork,
-            refresh_current,
-        );
-    }
-
-    pub(crate) fn withdraw_now_playing_notification(&self) {
-        self.desktop.notifications.withdraw();
     }
 
     pub(crate) fn update_media_controls(&self) {

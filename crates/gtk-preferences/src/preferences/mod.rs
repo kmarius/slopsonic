@@ -776,7 +776,6 @@ fn general_page(shell: &Rc<Preferences>) -> gtk::Widget {
         keep_running_row: adw::SwitchRow,
         type_to_search_row: adw::SwitchRow,
         control_notifications_row: adw::SwitchRow,
-        notifications_row: adw::SwitchRow,
     });
     let settings = shell.settings.current.borrow().clone();
     prefer_distinct_track_covers_row.set_active(settings.application.prefer_distinct_track_covers);
@@ -856,21 +855,6 @@ fn general_page(shell: &Rc<Preferences>) -> gtk::Widget {
             row.is_active(),
             |settings| &mut settings.application.control_notifications_enabled,
         );
-    });
-    notifications_row.set_active(settings.application.notifications_enabled);
-    let notifications_shell = Rc::clone(shell);
-    notifications_row.connect_active_notify(move |row| {
-        let enabled = row.is_active();
-        if notifications_shell
-            .settings
-            .set_app_setting("notification setting", enabled, |settings| {
-                &mut settings.application.notifications_enabled
-            })
-            .is_some()
-            && !enabled
-        {
-            (notifications_shell.effects)(crate::Effect::WithdrawNotification);
-        }
     });
     page.upcast()
 }

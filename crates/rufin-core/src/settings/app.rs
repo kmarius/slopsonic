@@ -146,7 +146,6 @@ preference_group!(ApplicationPreferences, application, {
     prefer_distinct_track_covers: bool = false => set_prefer_distinct_track_covers;
     #[serde(default)]
     download_artwork_automatically: bool = false => set_download_artwork_automatically;
-    notifications_enabled: bool = false => set_notifications_enabled;
     #[serde(default = "default_true")]
     control_notifications_enabled: bool = true => set_control_notifications_enabled;
     #[serde(default)]
@@ -266,10 +265,6 @@ impl Settings {
         self.recent_search_results.insert(0, result);
         self.recent_search_results.truncate(20);
         true
-    }
-
-    pub fn allows_notifications(&self) -> bool {
-        self.application.notifications_enabled
     }
 
     pub fn shows_external_site_links(&self) -> bool {

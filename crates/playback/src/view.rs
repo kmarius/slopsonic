@@ -104,7 +104,6 @@ pub struct PlaybackView {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PlaybackNotice {
-    RunStarted(RunId),
     PositionDiscontinuity(crate::PositionDiscontinuity),
     OperationFailed(String),
 }

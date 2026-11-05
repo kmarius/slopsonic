@@ -6,16 +6,10 @@
 
 mod folders;
 mod media_controls;
-mod notification;
 mod path_display;
 #[cfg(test)]
 mod test_support;
 
-pub(crate) use app_identity::APP_ID;
-
 pub use folders::folder_target;
 pub use media_controls::MediaControls;
-pub use notification::{
-    Notifications, now_playing_notification_can_send, now_playing_notification_should_withdraw,
-};
 pub use path_display::display_path;
