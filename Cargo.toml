@@ -73,7 +73,6 @@ fast_image_resize = { version = "6.1.0", features = ["image"] }
 lofty = "0.25.1"
 md5_digest = { package = "md-5", version = "0.10" }
 mpris-server = "0.10.0"
-oo7 = "0.6.0"
 percent-encoding = "2.3.2"
 tokio-util = { version = "0.7", features = ["io"] }
 reqwest = { version = "0.13.3", default-features = false, features = ["http2", "rustls", "system-proxy"] }

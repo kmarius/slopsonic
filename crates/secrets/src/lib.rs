@@ -1,32 +1,14 @@
 use std::collections::HashMap;
 use std::fs;
-use std::future::Future;
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use app_identity::PROJECT_NAME;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 const CONFIG_SECRET_FORMAT: &str = "config-base64";
-const KEYRING_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
-static SECRET_SERVICE: Mutex<Option<(tokio::runtime::Runtime, Arc<oo7::Keyring>)>> =
-    Mutex::new(None);
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum SecretStorageMode {
-    ConfigFile,
-    SystemKeyring,
-}
-
-impl Default for SecretStorageMode {
-    fn default() -> Self {
-        SecretStorageMode::SystemKeyring
-    }
-}
 
 #[derive(Debug, Error)]
 pub enum SecretError {
@@ -45,36 +27,18 @@ pub type SecretResult<T> = Result<T, SecretError>;
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct SecretKey {
     config_key: String,
-    namespace: String,
-    kind: String,
-    label: String,
-    attribute: Option<(String, String)>,
 }
 
 impl SecretKey {
-    pub fn namespaced(
-        namespace: impl Into<String>,
-        kind: impl Into<String>,
-        label: impl Into<String>,
-    ) -> Self {
-        let namespace = namespace.into();
-        let kind = kind.into();
+    pub fn namespaced(namespace: impl AsRef<str>, kind: impl AsRef<str>) -> Self {
         Self {
-            config_key: format!("{namespace}:{kind}"),
-            namespace,
-            kind,
-            label: label.into(),
-            attribute: None,
+            config_key: format!("{}:{}", namespace.as_ref(), kind.as_ref()),
         }
     }
 
     pub fn provider_token(source_namespace: &str) -> Self {
         Self {
             config_key: format!("provider-token:{source_namespace}"),
-            namespace: "provider".to_string(),
-            kind: "provider-token".to_string(),
-            label: format!("Rufin provider token {source_namespace}"),
-            attribute: Some(("source_id".to_string(), source_namespace.to_string())),
         }
     }
 
@@ -154,64 +118,6 @@ impl SecretStore for CachedSecretStore {
         self.inner.delete_secret(key)?;
         let mut secrets = self.secrets.lock().map_err(|_| SecretError::Locked)?;
         secrets.insert(key.clone(), None);
-        Ok(())
-    }
-}
-
-#[derive(Clone)]
-pub struct SwitchableSecretStore {
-    inner: Arc<Mutex<Arc<dyn SecretStore>>>,
-    revision: Arc<std::sync::atomic::AtomicU64>,
-}
-
-impl SwitchableSecretStore {
-    pub fn new(inner: Arc<dyn SecretStore>) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(inner)),
-            revision: Default::default(),
-        }
-    }
-
-    pub fn replace(&self, inner: Arc<dyn SecretStore>) -> Arc<dyn SecretStore> {
-        let mut current = self
-            .inner
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let previous = std::mem::replace(&mut *current, inner);
-        self.revision
-            .fetch_add(1, std::sync::atomic::Ordering::Release);
-        previous
-    }
-
-    pub fn revision(&self) -> u64 {
-        self.revision.load(std::sync::atomic::Ordering::Acquire)
-    }
-
-    pub fn current(&self) -> SecretResult<Arc<dyn SecretStore>> {
-        Ok(self.inner.lock().map_err(|_| SecretError::Locked)?.clone())
-    }
-}
-
-impl SecretStore for SwitchableSecretStore {
-    fn is_persistent(&self) -> bool {
-        self.current().is_ok_and(|store| store.is_persistent())
-    }
-
-    fn save_secret(&self, key: &SecretKey, secret: &str) -> SecretResult<()> {
-        self.current()?.save_secret(key, secret)?;
-        self.revision
-            .fetch_add(1, std::sync::atomic::Ordering::Release);
-        Ok(())
-    }
-
-    fn load_secret(&self, key: &SecretKey) -> SecretResult<Option<String>> {
-        self.current()?.load_secret(key)
-    }
-
-    fn delete_secret(&self, key: &SecretKey) -> SecretResult<()> {
-        self.current()?.delete_secret(key)?;
-        self.revision
-            .fetch_add(1, std::sync::atomic::Ordering::Release);
         Ok(())
     }
 }
@@ -377,226 +283,23 @@ impl SecretStore for MemorySecretStore {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct UnavailableSecretStore {
-    message: String,
-}
-
-impl UnavailableSecretStore {
-    pub fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-        }
-    }
-}
-
-impl SecretStore for UnavailableSecretStore {
-    fn save_secret(&self, _key: &SecretKey, _secret: &str) -> SecretResult<()> {
-        Err(SecretError::Backend(self.message.clone()))
-    }
-
-    fn load_secret(&self, _key: &SecretKey) -> SecretResult<Option<String>> {
-        Err(SecretError::Backend(self.message.clone()))
-    }
-
-    fn delete_secret(&self, _key: &SecretKey) -> SecretResult<()> {
-        Err(SecretError::Backend(self.message.clone()))
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct SystemKeyringStore {
-    backend: SystemKeyringBackend,
-}
-
-impl SystemKeyringStore {
-    pub fn new(scope_id: impl Into<String>) -> SecretResult<Self> {
-        Ok(Self {
-            backend: SystemKeyringBackend::new(scope_id.into())?,
-        })
-    }
-
-    fn run<T: Send + 'static>(
-        &self,
-        operation: impl FnOnce(SystemKeyringBackend) -> SecretResult<T> + Send + 'static,
-    ) -> SecretResult<T> {
-        let backend = self.backend.clone();
-        let (sender, receiver) = std::sync::mpsc::sync_channel(1);
-        std::thread::Builder::new()
-            .name("rufin-keyring".into())
-            .spawn(move || {
-                let _ = sender.send(operation(backend));
-            })
-            .map_err(|error| SecretError::Backend(error.to_string()))?;
-        receiver.recv_timeout(KEYRING_TIMEOUT).map_err(|error| {
-            SecretError::Backend(format!("secret service did not complete: {error}"))
-        })?
-    }
-}
-
-impl SecretStore for SystemKeyringStore {
-    fn save_secret(&self, key: &SecretKey, secret: &str) -> SecretResult<()> {
-        let key = key.clone();
-        let secret = secret.to_string();
-        self.run(move |backend| backend.save_secret(&key, &secret))
-    }
-
-    fn load_secret(&self, key: &SecretKey) -> SecretResult<Option<String>> {
-        let key = key.clone();
-        self.run(move |backend| backend.load_secret(&key))
-    }
-
-    fn delete_secret(&self, key: &SecretKey) -> SecretResult<()> {
-        let key = key.clone();
-        self.run(move |backend| backend.delete_secret(&key))
-    }
-}
-
-#[derive(Clone, Debug)]
-struct SystemKeyringBackend {
-    application: String,
-    scope_id: String,
-}
-
-impl SystemKeyringBackend {
-    fn new(scope_id: String) -> SecretResult<Self> {
-        Ok(Self {
-            application: PROJECT_NAME.to_string(),
-            scope_id,
-        })
-    }
-
-    fn secret_attributes(&self, key: &SecretKey) -> Vec<(String, String)> {
-        let mut attributes = vec![
-            ("application".to_string(), self.application.clone()),
-            ("scope".to_string(), self.scope_id.clone()),
-            ("namespace".to_string(), key.namespace.clone()),
-            ("kind".to_string(), key.kind.clone()),
-        ];
-        if let Some(attribute) = &key.attribute {
-            attributes.push(attribute.clone());
-        }
-        attributes
-    }
-
-    fn secret_label(&self, key: &SecretKey) -> String {
-        key.label.clone()
-    }
-
-    fn run_with_keyring<T, Fut, Op>(&self, operation: Op) -> SecretResult<T>
-    where
-        Fut: Future<Output = oo7::Result<T>>,
-        Op: FnOnce(Arc<oo7::Keyring>) -> Fut,
-    {
-        // The D-Bus connection and portal keyring retain tasks on their originating
-        // runtime. Keep that runtime alive and serialize unlocks with the operation.
-        let mut service = SECRET_SERVICE.lock().map_err(|_| SecretError::Locked)?;
-        if service.is_none() {
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .map_err(|error| SecretError::Backend(error.to_string()))?;
-            let keyring = runtime
-                .block_on(async {
-                    tokio::time::timeout(KEYRING_TIMEOUT, oo7::Keyring::new()).await
-                })
-                .map_err(|_| SecretError::Backend("secret service timed out".into()))
-                .and_then(|result| result.map_err(|error| SecretError::Backend(error.to_string())));
-            let keyring = match keyring {
-                Ok(keyring) => keyring,
-                Err(error) => {
-                    runtime.shutdown_background();
-                    return Err(error);
-                }
-            };
-            *service = Some((runtime, Arc::new(keyring)));
-        }
-        let (runtime, keyring) = service.as_ref().expect("initialized secret service");
-        let result = runtime.block_on(async {
-            tokio::time::timeout(KEYRING_TIMEOUT, async {
-                if keyring.is_locked().await? {
-                    keyring.unlock().await?;
-                }
-                operation(Arc::clone(keyring)).await
-            })
-            .await
-        });
-        match result {
-            Ok(result) => result.map_err(|error| SecretError::Backend(error.to_string())),
-            Err(_) => {
-                // Drop the connection and its pending prompt with the timed-out operation.
-                if let Some((runtime, _)) = service.take() {
-                    runtime.shutdown_background();
-                }
-                Err(SecretError::Backend("secret service timed out".into()))
-            }
-        }
-    }
-}
-
-async fn load_item_secret(
-    keyring: &oo7::Keyring,
-    attributes: &Vec<(String, String)>,
-) -> oo7::Result<Option<oo7::Secret>> {
-    let Some(item) = keyring.search_items(attributes).await?.into_iter().next() else {
-        return Ok(None);
-    };
-    if item.is_locked().await? {
-        item.unlock().await?;
-    }
-    Ok(Some(item.secret().await?))
-}
-
-impl SecretStore for SystemKeyringBackend {
-    fn save_secret(&self, key: &SecretKey, secret: &str) -> SecretResult<()> {
-        let attributes = self.secret_attributes(key);
-        let label = self.secret_label(key);
-        let secret = secret.to_string();
-
-        self.run_with_keyring(move |keyring| async move {
-            keyring
-                .create_item(&label, &attributes, oo7::Secret::text(secret), true)
-                .await
-        })
-    }
-
-    fn load_secret(&self, key: &SecretKey) -> SecretResult<Option<String>> {
-        let attributes = self.secret_attributes(key);
-        let secret = self.run_with_keyring(move |keyring| async move {
-            load_item_secret(&keyring, &attributes).await
-        })?;
-
-        secret
-            .map(|secret| String::from_utf8(secret.as_bytes().to_vec()))
-            .transpose()
-            .map_err(|_| SecretError::Utf8)
-    }
-
-    fn delete_secret(&self, key: &SecretKey) -> SecretResult<()> {
-        let attributes = self.secret_attributes(key);
-
-        self.run_with_keyring(move |keyring| async move { keyring.delete(&attributes).await })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
         CachedSecretStore, ConfigSecretStore, MemorySecretStore, SecretError, SecretKey,
-        SecretResult, SecretStorageMode, SecretStore, SwitchableSecretStore,
+        SecretResult, SecretStore,
     };
-    use super::{PROJECT_NAME, SystemKeyringStore};
     use std::fs;
     use std::sync::{Arc, Mutex};
 
     const SOURCE: &str = "source-1";
 
     fn example_session_key() -> SecretKey {
-        SecretKey::namespaced("example", "session", "Rufin example session")
+        SecretKey::namespaced("example", "session")
     }
 
     fn other_token_key() -> SecretKey {
-        SecretKey::namespaced("other", "token", "Rufin other token")
+        SecretKey::namespaced("other", "token")
     }
 
     #[test]
@@ -610,24 +313,6 @@ mod tests {
         );
         store.delete_token(SOURCE).expect("delete token");
         assert_eq!(store.load_token(SOURCE).expect("load token"), None);
-    }
-
-    #[test]
-    fn secret_storage_mode_preserves_stored_names() {
-        assert_eq!(
-            serde_json::to_string(&SecretStorageMode::ConfigFile)
-                .expect("serialize config-file mode"),
-            "\"config-file\""
-        );
-        assert_eq!(
-            serde_json::from_str::<SecretStorageMode>("\"system-keyring\"")
-                .expect("deserialize system-keyring mode"),
-            SecretStorageMode::SystemKeyring
-        );
-        assert_eq!(
-            SecretStorageMode::default(),
-            SecretStorageMode::SystemKeyring
-        );
     }
 
     #[test]
@@ -761,44 +446,6 @@ mod tests {
         assert!(stored.contains_key("scope:scope-1:example:session"));
     }
 
-    #[test]
-    fn secret_service_namespaced_attributes_preserve_shape() {
-        let store = SystemKeyringStore::new("scope-1").expect("system keyring store");
-        let key = example_session_key();
-
-        assert_eq!(
-            store.backend.secret_attributes(&key),
-            vec![
-                ("application".to_string(), PROJECT_NAME.to_string()),
-                ("scope".to_string(), "scope-1".to_string()),
-                ("namespace".to_string(), "example".to_string()),
-                ("kind".to_string(), "session".to_string()),
-            ]
-        );
-        assert_eq!(store.backend.secret_label(&key), "Rufin example session");
-    }
-
-    #[test]
-    fn provider_attributes_preserve_shape() {
-        let store = SystemKeyringStore::new("scope-1").expect("system keyring store");
-        let key = SecretKey::provider_token(SOURCE);
-
-        assert_eq!(
-            store.backend.secret_attributes(&key),
-            vec![
-                ("application".to_string(), PROJECT_NAME.to_string()),
-                ("scope".to_string(), "scope-1".to_string()),
-                ("namespace".to_string(), "provider".to_string()),
-                ("kind".to_string(), "provider-token".to_string()),
-                ("source_id".to_string(), SOURCE.to_string()),
-            ]
-        );
-        assert_eq!(
-            store.backend.secret_label(&key),
-            "Rufin provider token source-1"
-        );
-    }
-
     #[derive(Default)]
     struct CountingSecretStore {
         inner: MemorySecretStore,
@@ -864,29 +511,5 @@ mod tests {
         store.delete_token(SOURCE).expect("delete provider token");
         assert_eq!(store.load_token(SOURCE).expect("load after delete"), None);
         assert_eq!(inner.load_count(), 0);
-    }
-
-    #[test]
-    fn switchable_store_replaces_cached_backend() {
-        let first_inner = Arc::new(CountingSecretStore::default());
-        first_inner
-            .save_token(SOURCE, "first-token")
-            .expect("seed first token");
-        let second_inner = Arc::new(CountingSecretStore::default());
-        second_inner
-            .save_token(SOURCE, "second-token")
-            .expect("seed second token");
-        let store = SwitchableSecretStore::new(Arc::new(CachedSecretStore::new(first_inner)));
-
-        assert_eq!(
-            store.load_token(SOURCE).expect("load first token"),
-            Some("first-token".to_string())
-        );
-        let _previous = store.replace(Arc::new(CachedSecretStore::new(second_inner)));
-
-        assert_eq!(
-            store.load_token(SOURCE).expect("load second token"),
-            Some("second-token".to_string())
-        );
     }
 }

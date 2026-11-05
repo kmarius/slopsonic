@@ -13,8 +13,6 @@ pub mod presentation;
 pub mod right_panel;
 mod storage_reset;
 pub use storage_reset::{StorageReset, StorageResetRequest};
-mod secret_storage;
-pub use secret_storage::KeyringSecretStore;
 pub mod sidebar;
 
 pub use app::{
@@ -44,10 +42,7 @@ use std::sync::{Arc, Mutex, OnceLock, mpsc};
 
 use app::Settings as UiSettings;
 use scrobbling::Settings as ScrobblingSettings;
-use secrets::{
-    CachedSecretStore, ConfigSecretStore, SecretKey, SecretStorageMode, SecretStore,
-    SwitchableSecretStore,
-};
+use secrets::{CachedSecretStore, ConfigSecretStore, SecretKey, SecretStore};
 use serde::{Deserialize, Serialize};
 use sources::{SourceConfiguration, SourceId};
 use tracing::warn;
@@ -194,10 +189,6 @@ pub struct SettingsFile {
     persistence: Arc<Mutex<StoredSettings>>,
     edits: Arc<OnceLock<Result<mpsc::SyncSender<Self>, String>>>,
     persistence_error: tokio::sync::watch::Sender<Option<String>>,
-    pub(crate) secret_storage_fallbacks: (
-        async_channel::Sender<KeyringSecretStore>,
-        async_channel::Receiver<KeyringSecretStore>,
-    ),
 }
 
 impl SettingsFile {
@@ -239,7 +230,6 @@ impl SettingsFile {
             persistence: Arc::new(Mutex::new(value)),
             edits: Arc::new(OnceLock::new()),
             persistence_error: tokio::sync::watch::channel(None).0,
-            secret_storage_fallbacks: async_channel::unbounded(),
         })
     }
 
@@ -260,7 +250,6 @@ impl SettingsFile {
             persistence: Arc::new(Mutex::new(value)),
             edits: Arc::new(OnceLock::new()),
             persistence_error: tokio::sync::watch::channel(None).0,
-            secret_storage_fallbacks: async_channel::unbounded(),
         }
     }
 
@@ -423,14 +412,14 @@ impl StoredSettings {
 #[derive(Clone)]
 pub struct SettingsOwner {
     file: SettingsFile,
-    secrets: Arc<SwitchableSecretStore>,
+    secrets: Arc<dyn SecretStore>,
     on_change: Arc<dyn Fn(&StoredSettings, &StoredSettings, bool) + Send + Sync>,
 }
 
 impl SettingsOwner {
     pub(crate) fn new(
         file: SettingsFile,
-        secrets: Arc<SwitchableSecretStore>,
+        secrets: Arc<dyn SecretStore>,
         on_change: impl Fn(&StoredSettings, &StoredSettings, bool) + Send + Sync + 'static,
     ) -> Arc<Self> {
         Arc::new(Self {
@@ -623,26 +612,12 @@ impl SettingsOwner {
 }
 
 pub(crate) fn platform_secret_store(file: &SettingsFile) -> Arc<dyn SecretStore> {
-    let settings = file.load();
-    let config_dir = file.config_dir();
-    match settings.ui.application.secret_storage_mode {
-        SecretStorageMode::ConfigFile => Arc::new(CachedSecretStore::new(Arc::new(
-            ConfigSecretStore::with_scope(
-                config_dir.join("secrets.json"),
-                settings.secret_scope_id.clone(),
-            ),
-        ))),
-        SecretStorageMode::SystemKeyring => {
-            Arc::new(secret_storage::KeyringSecretStore::new(file.clone()))
-        }
-    }
-}
-
-fn system_keyring_secret_store(scope_id: &str) -> Arc<dyn SecretStore> {
-    match secrets::SystemKeyringStore::new(scope_id.to_string()) {
-        Ok(store) => Arc::new(store),
-        Err(error) => Arc::new(secrets::UnavailableSecretStore::new(error.to_string())),
-    }
+    Arc::new(CachedSecretStore::new(Arc::new(
+        ConfigSecretStore::with_scope(
+            file.config_dir().join("secrets.json"),
+            file.load().secret_scope_id,
+        ),
+    )))
 }
 
 pub(crate) fn provider_secret_key(reference: &Credential) -> SecretKey {
@@ -650,11 +625,7 @@ pub(crate) fn provider_secret_key(reference: &Credential) -> SecretKey {
 }
 
 fn settings_encryption_key() -> SecretKey {
-    SecretKey::namespaced(
-        "settings",
-        "encryption-key",
-        "Rufin settings encryption key",
-    )
+    SecretKey::namespaced("settings", "encryption-key")
 }
 
 fn settings_key(secrets: &dyn SecretStore, create: bool) -> Result<age::x25519::Identity, String> {
@@ -734,6 +705,20 @@ pub(crate) fn load_provider_secret(
     Ok(Some(value))
 }
 
+/// Reads a saved credential, treating an unreadable one as missing so it can be re-entered.
+pub(crate) fn load_provider_secret_or_none(
+    secrets: &dyn SecretStore,
+    credential: &Credential,
+) -> Option<String> {
+    match load_provider_secret(secrets, credential) {
+        Ok(secret) => secret,
+        Err(error) => {
+            warn!(%error, "saved credential is unreadable and must be entered again");
+            None
+        }
+    }
+}
+
 fn scrobbling_secrets_present(settings: &ScrobblingSettings) -> bool {
     scrobbling::secret_descriptors()
         .iter()
@@ -745,11 +730,7 @@ fn legacy_scrobbling_secrets_present() -> bool {
 }
 
 pub(crate) fn scrobbling_secret_key(descriptor: scrobbling::SecretDescriptor) -> SecretKey {
-    SecretKey::namespaced(
-        descriptor.namespace(),
-        descriptor.kind(),
-        descriptor.label(),
-    )
+    SecretKey::namespaced(descriptor.namespace(), descriptor.kind())
 }
 
 pub(crate) fn read_scrobbling(
@@ -786,9 +767,7 @@ pub(crate) fn store_scrobbling(
         } else if stored
             .scrobbling_credentials
             .get(descriptor.kind())
-            .map(|credential| load_provider_secret(secrets, credential))
-            .transpose()?
-            .flatten()
+            .and_then(|credential| load_provider_secret_or_none(secrets, credential))
             .as_deref()
             != Some(value)
         {
@@ -808,7 +787,7 @@ pub(crate) fn store_scrobbling(
 
 pub(crate) fn persist_scrobbling_settings(
     file: &SettingsFile,
-    secrets: &Arc<SwitchableSecretStore>,
+    secrets: &Arc<dyn SecretStore>,
     input: &ScrobblingSettings,
     scope: &str,
 ) -> Result<ScrobblingSettings, String> {
@@ -846,7 +825,7 @@ pub(crate) fn persist_scrobbling_settings(
 
 pub(crate) fn load_scrobbling_settings(
     file: &SettingsFile,
-    secrets: &Arc<SwitchableSecretStore>,
+    secrets: &Arc<dyn SecretStore>,
 ) -> ScrobblingSettings {
     let current = file.load();
     match read_scrobbling(&current, secrets.as_ref()) {
@@ -882,7 +861,7 @@ pub(crate) fn load_scrobbling_settings(
 
 pub(crate) fn startup_scrobbling_settings(
     file: &SettingsFile,
-    secrets: &Arc<SwitchableSecretStore>,
+    secrets: &Arc<dyn SecretStore>,
 ) -> ScrobblingSettings {
     if let Err(error) = migrate_source_credentials(file, secrets.as_ref()) {
         warn!(%error, "could not migrate saved source credentials");
@@ -1270,10 +1249,10 @@ mod tests {
         }
     }
 
-    fn counting_secrets() -> (Arc<CountingSecretStore>, Arc<SwitchableSecretStore>) {
+    fn counting_secrets() -> (Arc<CountingSecretStore>, Arc<dyn SecretStore>) {
         let store = Arc::new(CountingSecretStore::default());
         let backend: Arc<dyn SecretStore> = store.clone();
-        (store, Arc::new(SwitchableSecretStore::new(backend)))
+        (store, backend)
     }
 
     #[test]
@@ -1285,7 +1264,7 @@ mod tests {
             ..SettingsFile::memory_at(directory.path().to_path_buf())
         };
         file.update(|stored| {
-            stored.ui.application.secret_storage_mode = SecretStorageMode::ConfigFile;
+            stored.ui.application.reduce_motion = true;
             Ok(())
         })
         .unwrap();
@@ -1411,8 +1390,7 @@ mod tests {
             Ok(())
         })
         .expect("mark legacy secret state");
-        let backend: Arc<dyn SecretStore> = Arc::new(Unavailable);
-        let secrets = Arc::new(SwitchableSecretStore::new(backend));
+        let secrets: Arc<dyn SecretStore> = Arc::new(Unavailable);
 
         load_scrobbling_settings(&file, &secrets);
 

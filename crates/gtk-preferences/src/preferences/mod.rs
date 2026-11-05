@@ -20,7 +20,6 @@ mod general;
 mod layout;
 mod library;
 pub mod persistence;
-mod privacy;
 mod search;
 pub mod source;
 mod storage;
@@ -41,7 +40,6 @@ const LISTENBRAINZ_TOKEN_URL: &str = "https://listenbrainz.org/settings/";
 pub struct PreferencesState {
     pub connect_dialog: gtk::glib::WeakRef<adw::Dialog>,
     pub connect_feedback: RefCell<Option<Rc<gtk_widgets::feedback::ControlFeedbackState>>>,
-    pub secret_storage_row: gtk::glib::WeakRef<adw::ComboRow>,
     pub dialog: gtk::glib::WeakRef<adw::Dialog>,
 }
 
@@ -88,11 +86,10 @@ enum PreferencesPageKind {
     Downloads,
     Storage,
     Integrations,
-    Privacy,
 }
 
 impl PreferencesPageKind {
-    const ALL: [Self; 10] = [
+    const ALL: [Self; 9] = [
         Self::General,
         Self::Customization,
         Self::Theme,
@@ -102,7 +99,6 @@ impl PreferencesPageKind {
         Self::Library,
         Self::Downloads,
         Self::Storage,
-        Self::Privacy,
     ];
 
     fn name(self) -> &'static str {
@@ -116,7 +112,6 @@ impl PreferencesPageKind {
             Self::Downloads => "downloads",
             Self::Storage => "storage",
             Self::Integrations => "integrations",
-            Self::Privacy => "privacy",
         }
     }
 
@@ -131,7 +126,6 @@ impl PreferencesPageKind {
             Self::Downloads => "Downloads".to_string(),
             Self::Storage => "Storage".to_string(),
             Self::Integrations => "Integrations".to_string(),
-            Self::Privacy => "Privacy & Security".to_string(),
         }
     }
 
@@ -146,7 +140,6 @@ impl PreferencesPageKind {
             Self::Downloads => "rufin-download-symbolic",
             Self::Storage => "rufin-drive-harddisk-symbolic",
             Self::Integrations => "rufin-network-workgroup-symbolic",
-            Self::Privacy => "rufin-system-lock-screen-symbolic",
         }
     }
 
@@ -756,7 +749,6 @@ fn build_preferences_page(
         PreferencesPageKind::General => general_page(shell),
         PreferencesPageKind::Customization => appearance_page(shell).upcast(),
         PreferencesPageKind::Theme => themes::page(shell).upcast(),
-        PreferencesPageKind::Privacy => privacy::page(shell, dialog, navigation_controls),
         PreferencesPageKind::Equalizer => equalizer_page(shell).upcast(),
         PreferencesPageKind::Downloads => library::downloads_page(shell, dialog).upcast(),
         PreferencesPageKind::Storage => storage::page(shell, navigation_controls),

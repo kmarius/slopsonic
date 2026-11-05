@@ -25,7 +25,7 @@ use downloads::Downloads;
 use library::{
     CatalogUpdate, Database, FavoriteTarget, FolderChoice, FolderKey, ReadCancellation, SourceKey,
 };
-use secrets::{SecretStorageMode, SwitchableSecretStore};
+use secrets::SecretStore;
 use sources::{
     LiveFolderPage, SelectedFeed, Source, SourceConfiguration, SourceEntityKind, SourceError,
     SourceId, SourceReadProgress, SourceReadStage, SourceSetup,
@@ -35,7 +35,7 @@ use tracing::{info, warn};
 use crate::playback::PlaybackOwner;
 use crate::settings::{
     ConfiguredSource, SettingsFile, StoredSettings, fresh_source_id, load_provider_secret,
-    platform_secret_store, seal_credential,
+    load_provider_secret_or_none, seal_credential,
 };
 
 const SOURCE_CHECK_INTERVAL: Duration = Duration::from_secs(5 * 60);
@@ -97,7 +97,7 @@ pub(crate) struct Shared {
     pub(crate) database: Arc<Database>,
     downloads: Downloads,
     pub(crate) settings: SettingsFile,
-    pub(crate) secrets: Arc<SwitchableSecretStore>,
+    pub(crate) secrets: Arc<dyn SecretStore>,
     clients: Mutex<HashMap<SourceId, CachedSource>>,
     pub(crate) runtime: tokio::runtime::Handle,
     outputs: SourceOutputs,
@@ -240,34 +240,6 @@ impl Shared {
             .ok_or_else(|| "Playback is unavailable".to_string())
     }
 
-    async fn retire_changed_clients(&self, credentials_replaced: bool) -> Result<(), String> {
-        let current = self.settings.load();
-        let retired = {
-            let mut clients = self.clients.lock().unwrap_or_else(|p| p.into_inner());
-            let ids = clients
-                .iter()
-                .filter(|(id, cached)| {
-                    (credentials_replaced && cached.credential.is_some())
-                        || !current.sources.configured.iter().any(|configured| {
-                            &configured.configuration.source_id == *id && cached.matches(configured)
-                        })
-                })
-                .map(|(id, _)| id.clone())
-                .collect::<Vec<_>>();
-            for id in &ids {
-                clients.remove(id);
-            }
-            ids
-        };
-        for id in retired {
-            self.database
-                .invalidate_source_observation(&id)
-                .await
-                .map_err(string_error)?;
-        }
-        Ok(())
-    }
-
     fn begin_selection(&self) -> Arc<AtomicBool> {
         self.cancel_selection();
         let cancelled = Arc::new(AtomicBool::new(false));
@@ -403,7 +375,7 @@ impl SourceOwner {
         database: Arc<Database>,
         downloads: Downloads,
         settings: SettingsFile,
-        secrets: Arc<SwitchableSecretStore>,
+        secrets: Arc<dyn SecretStore>,
         runtime: tokio::runtime::Handle,
         outputs: SourceOutputs,
     ) -> Arc<Self> {
@@ -1112,9 +1084,9 @@ impl SourceOwner {
             if configured
                 .credential
                 .as_ref()
-                .map(|credential| load_provider_secret(self.shared.secrets.as_ref(), credential))
-                .transpose()?
-                .flatten()
+                .and_then(|credential| {
+                    load_provider_secret_or_none(self.shared.secrets.as_ref(), credential)
+                })
                 .as_deref()
                 != Some(secret.as_str())
             {
@@ -1142,12 +1114,9 @@ impl SourceOwner {
         input: SourceSetup,
     ) -> Result<(), String> {
         let configured = configured_source(&self.shared.settings.load().sources, &source_id)?;
-        let credential = configured
-            .credential
-            .as_ref()
-            .map(|reference| load_provider_secret(self.shared.secrets.as_ref(), reference))
-            .transpose()?
-            .flatten();
+        let credential = configured.credential.as_ref().and_then(|reference| {
+            load_provider_secret_or_none(self.shared.secrets.as_ref(), reference)
+        });
         let edit = Source::edit(configured.configuration.clone(), credential, input)
             .await
             .map_err(string_error)?;
@@ -1581,89 +1550,6 @@ impl SourceOwner {
                     .map(|selected| selected.source_id)
                     .ok_or_else(|| SourceError::Cancelled.to_string())
             })
-            .await
-            .map_err(|error| SourceError::Other(error.to_string()))?
-            .map_err(SourceError::Other)
-    }
-}
-
-impl SourceOwner {
-    pub async fn change_secret_storage(
-        &self,
-        mode: SecretStorageMode,
-    ) -> sources::SourceResult<()> {
-        let (sender, receiver) = async_channel::bounded(1);
-        let owner = self.clone();
-        self.shared.runtime.spawn(async move {
-            let previous = owner.shared.settings.load();
-            let changing = previous.ui.application.secret_storage_mode != mode;
-            let result = async {
-                if !changing {
-                    return Ok(());
-                }
-                let settings = owner.shared.settings.clone();
-                let secrets = Arc::clone(&owner.shared.secrets);
-                tokio::task::spawn_blocking(move || {
-                    if let Err(error) =
-                        std::fs::remove_file(settings.config_dir().join("secrets.json"))
-                        && error.kind() != std::io::ErrorKind::NotFound
-                    {
-                        warn!(%error, "could not remove old credential file");
-                    }
-                    let scope = fresh_source_id()?.to_string();
-                    settings.update(|stored| {
-                        stored.ui.application.secret_storage_mode = mode;
-                        // Reset as confirmed in Preferences; never unlock the old keyring.
-                        stored.secret_scope_id = scope;
-                        stored.scrobbling.lastfm.username.clear();
-                        stored.scrobbling.librefm.username.clear();
-                        for descriptor in scrobbling::secret_descriptors() {
-                            descriptor.value_mut(&mut stored.scrobbling).clear();
-                        }
-                        stored.scrobbling_secrets_present = false;
-                        stored.scrobbling_credentials.clear();
-                        for source in stored.sources.configured.iter_mut() {
-                            source.credential = None;
-                        }
-                        Ok(())
-                    })?;
-                    secrets.replace(platform_secret_store(&settings));
-                    Ok(())
-                })
-                .await
-                .map_err(string_error)
-                .and_then(|result| result)
-            }
-            .await;
-            let changed = result.is_ok() && changing;
-            let _ = sender.send(result).await;
-            if changed {
-                if let Err(error) = owner.shared.retire_changed_clients(true).await {
-                    owner.shared.warn_nonfatal(&error);
-                }
-                owner.release_selected().await;
-                if let Some(selected) = owner
-                    .shared
-                    .settings
-                    .load()
-                    .sources
-                    .configured
-                    .as_ref()
-                    .map(|configured| configured.configuration.source_id.clone())
-                {
-                    let selected_owner = owner.clone();
-                    owner.shared.runtime.spawn(async move {
-                        let _ = selected_owner.select_source(selected).await;
-                    });
-                }
-                owner
-                    .shared
-                    .send(SourceEvent::Configured(owner.shared.source_status(None)))
-                    .await;
-            }
-        });
-        receiver
-            .recv()
             .await
             .map_err(|error| SourceError::Other(error.to_string()))?
             .map_err(SourceError::Other)
@@ -2457,9 +2343,7 @@ mod source_tests {
                 Vec::new(),
             ),
             SettingsFile::memory(),
-            Arc::new(SwitchableSecretStore::new(Arc::new(
-                secrets::MemorySecretStore::new(),
-            ))),
+            Arc::new(secrets::MemorySecretStore::new()),
             runtime,
             SourceOutputs { events },
         );
@@ -2519,21 +2403,6 @@ mod source_tests {
         assert!(
             matches!(&*owner.shared.operation.borrow(), SourceOperation::Refreshing {source_id: current,..} if current==&source_id)
         );
-        owner
-            .shared
-            .settings
-            .update(|stored| {
-                stored
-                    .sources
-                    .configured
-                    .as_mut()
-                    .unwrap()
-                    .configuration
-                    .name = "Renamed".into();
-                Ok(())
-            })
-            .unwrap();
-        owner.shared.retire_changed_clients(false).await.unwrap();
         assert!(owner.shared.refresh_is_current(&source_id, &first));
         owner
             .finish_source_refresh(&source_id, &first, Ok(()))
@@ -2832,10 +2701,10 @@ mod source_tests {
             let runtime = tokio::runtime::Handle::current();
             let (started, started_receiver) = async_channel::bounded(1);
             let (release, release_receiver) = std::sync::mpsc::channel();
-            let secrets = Arc::new(SwitchableSecretStore::new(Arc::new(HeldSecrets {
+            let secrets: Arc<dyn SecretStore> = Arc::new(HeldSecrets {
                 started,
                 release: Mutex::new(release_receiver),
-            })));
+            });
             let (events, receiver) = async_channel::unbounded();
             let owner = SourceOwner::open_dormant(
                 Artwork::new(directory.path().join("artwork"), runtime.clone()).unwrap(),
@@ -3103,9 +2972,7 @@ mod source_tests {
                     Vec::new(),
                 ),
                 settings.clone(),
-                Arc::new(SwitchableSecretStore::new(Arc::new(
-                    secrets::MemorySecretStore::new(),
-                ))),
+                Arc::new(secrets::MemorySecretStore::new()),
                 runtime,
                 SourceOutputs { events },
             );

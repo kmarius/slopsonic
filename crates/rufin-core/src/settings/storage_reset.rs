@@ -27,15 +27,7 @@ impl SettingsOwner {
         reset: StorageReset,
     ) -> Result<StorageResetRequest, String> {
         let stored = self.file.load();
-        let secrets = if reset == StorageReset::AllData
-            && stored.ui.application.secret_storage_mode
-                == secrets::SecretStorageMode::SystemKeyring
-        {
-            // A reset must report a locked keyring instead of accepting the session fallback.
-            super::system_keyring_secret_store(&stored.secret_scope_id)
-        } else {
-            self.secrets.current().map_err(error)?
-        };
+        let secrets = Arc::clone(&self.secrets);
         Ok(StorageResetRequest::Storage {
             reset,
             stored: Box::new(stored),
@@ -140,7 +132,6 @@ fn retained_connections(previous: StoredSettings) -> StoredSettings {
         secret_scope_id: previous.secret_scope_id,
         ..StoredSettings::default()
     };
-    next.ui.application.secret_storage_mode = previous.ui.application.secret_storage_mode;
     next.ui.lastfm_api_key = previous.ui.lastfm_api_key;
     next
 }

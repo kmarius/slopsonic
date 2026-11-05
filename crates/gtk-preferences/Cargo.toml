@@ -12,7 +12,6 @@ publish.workspace = true
 
 [dependencies]
 desktop-integration.workspace = true
-secrets.workspace = true
 gtk-player.workspace = true
 gtk-widgets.workspace = true
 rufin-core.workspace = true

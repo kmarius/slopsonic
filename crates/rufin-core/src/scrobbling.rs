@@ -13,7 +13,7 @@ use crate::runtime::{
 };
 use async_channel::{Receiver, bounded};
 use scrobbling::{AudioscrobblerAuthorization, AudioscrobblerSession, Scrobbler};
-use secrets::{SecretStore, SwitchableSecretStore};
+use secrets::SecretStore;
 use tracing::warn;
 
 use crate::settings::{SettingsFile, load_scrobbling_settings, persist_scrobbling_settings};
@@ -41,7 +41,7 @@ async fn wait_for_authorization(
 #[derive(Clone)]
 pub struct ScrobblingOwner {
     settings: SettingsFile,
-    secrets: Arc<SwitchableSecretStore>,
+    secrets: Arc<dyn SecretStore>,
     runtime: tokio::runtime::Handle,
     scrobbler: Arc<Scrobbler>,
     credential_work: Arc<Mutex<bool>>,
@@ -50,7 +50,7 @@ pub struct ScrobblingOwner {
 impl ScrobblingOwner {
     pub(crate) fn new(
         settings: SettingsFile,
-        secrets: Arc<SwitchableSecretStore>,
+        secrets: Arc<dyn SecretStore>,
         runtime: tokio::runtime::Handle,
         scrobbler: Arc<Scrobbler>,
     ) -> Arc<Self> {
@@ -235,27 +235,6 @@ impl ScrobblingOwner {
         } else {
             self.scrobbler.settings()
         }
-    }
-
-    pub fn save_credentials_to_file(
-        &self,
-        storage: crate::settings::KeyringSecretStore,
-    ) -> Receiver<Result<(), String>> {
-        let (sender, receiver) = bounded(1);
-        let owner = self.clone();
-        let scope = self.settings.load().secret_scope_id;
-        self.runtime.spawn_blocking(move || {
-            let _work = owner
-                .credential_work
-                .lock()
-                .unwrap_or_else(|p| p.into_inner());
-            let result = storage
-                .save_to_file()
-                .map_err(|error| error.to_string())
-                .and_then(|()| owner.commit(owner.scrobbler.settings(), &scope).map(|_| ()));
-            let _ = sender.send_blocking(result);
-        });
-        receiver
     }
 
     pub fn storage_reset(&self) {

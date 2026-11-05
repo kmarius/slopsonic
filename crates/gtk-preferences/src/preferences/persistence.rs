@@ -1,25 +1,10 @@
 use crate::Preferences;
 use rufin_core::runtime::ScrobblingPreferences;
 use rufin_core::settings::HomeBlockKind;
-use secrets::SecretStorageMode;
 use std::rc::Rc;
 use tracing::warn;
 
 impl Preferences {
-    pub(super) async fn set_secret_storage_mode(self: &Rc<Self>, mode: SecretStorageMode) -> bool {
-        match self.products.source.change_secret_storage(mode).await {
-            Ok(()) => {
-                *self.settings.current.borrow_mut() = self.settings.persistence.load();
-                self.products.scrobbling.storage_reset();
-                true
-            }
-            Err(error) => {
-                warn!(%error, "failed to change secret storage mode");
-                false
-            }
-        }
-    }
-
     pub(super) fn update_scrobbling_settings(
         self: &Rc<Self>,
         warning_action: &'static str,

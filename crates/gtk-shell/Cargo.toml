@@ -26,7 +26,6 @@ downloads.workspace = true
 gtk = { workspace = true, features = ["v4_20"] }
 library.workspace = true
 playback.workspace = true
-secrets.workspace = true
 sources.workspace = true
 tracing.workspace = true
 tokio.workspace = true

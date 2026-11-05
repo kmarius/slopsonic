@@ -6,7 +6,6 @@ use crate::runtime::{DiagnosticsHandle, ProductHandles, ProductReceivers, Runtim
 use ::scrobbling::Scrobbler;
 use async_channel::unbounded;
 use playback::PlaybackBackend;
-use secrets::SwitchableSecretStore;
 use tracing::warn;
 
 use crate::paths::Paths;
@@ -49,9 +48,8 @@ where
         + 'static,
 {
     let runtime = tokio::runtime::Handle::current();
-    let secret_storage_fallbacks = settings.secret_storage_fallbacks.1.clone();
     let stored = settings.load();
-    let secrets = Arc::new(SwitchableSecretStore::new(platform_secret_store(&settings)));
+    let secrets = platform_secret_store(&settings);
     let store_path = paths.store_file();
     let (database, temporary_store) = match library::Database::open(&store_path).await {
         Ok(database) => (database, false),
@@ -238,7 +236,6 @@ where
 
     Ok(RuntimeInputs {
         temporary_store,
-        secret_storage_fallbacks,
         diagnostics,
         products: ProductHandles {
             settings: Arc::clone(&settings_handle),

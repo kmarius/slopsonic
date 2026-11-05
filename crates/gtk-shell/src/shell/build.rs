@@ -73,7 +73,6 @@ pub async fn build(
         content_row: gtk::Box,
         left_resize_handle: gtk::Box,
         control_feedback_label: gtk::Label,
-        secret_storage_fallback_dialog: adw::AlertDialog,
         source_refresh_feedback: gtk::Box,
         source_refresh_feedback_label: gtk::Label,
         source_refresh_feedback_progress: gtk::ProgressBar,
@@ -123,7 +122,6 @@ pub async fn build(
     let loaded_at = std::time::Instant::now();
     let RuntimeInputs {
         temporary_store,
-        secret_storage_fallbacks,
         diagnostics,
         products,
         settings: settings_handle,
@@ -162,7 +160,6 @@ pub async fn build(
     let preferences = PreferencesState {
         connect_dialog: gtk::glib::WeakRef::new(),
         connect_feedback: RefCell::new(None),
-        secret_storage_row: gtk::glib::WeakRef::new(),
         dialog: gtk::glib::WeakRef::new(),
     };
     let downloads = gtk_widgets::downloads::DownloadsState::new(Rc::clone(&settings_state));
@@ -482,68 +479,6 @@ pub async fn build(
     shell.player_ui.update_right_panel_button();
     apply_sidebar_queue_visibility(&shell.player_ui);
     install_product_event_receivers(&shell, receivers);
-    let weak_shell = Rc::downgrade(&shell);
-    {
-        let body: gtk::Label = gtk_widgets::ui_resource::object(
-            &shell_root_builder,
-            shell_root_resource,
-            "secret_storage_portal_body",
-        );
-        let body = gtk::glib::markup_escape_text(&body.label())
-            .replace(
-                "{link_start}",
-                "<a href=\"https://github.com/screwys/Rufin/issues/1055#issuecomment-5637922622\">",
-            )
-            .replace("{link_end}", "</a>");
-        secret_storage_fallback_dialog.set_body_use_markup(true);
-        secret_storage_fallback_dialog.set_body(&body);
-    }
-    gtk::glib::spawn_future_local(async move {
-        while let Ok(storage) = secret_storage_fallbacks.recv().await {
-            let Some(shell) = weak_shell.upgrade() else {
-                break;
-            };
-            if secret_storage_fallback_dialog
-                .clone()
-                .choose_future(Some(&shell.chrome.window))
-                .await
-                != "save"
-            {
-                continue;
-            }
-            if let Err(error) = shell
-                .products
-                .scrobbling
-                .save_credentials_to_file(storage)
-                .recv()
-                .await
-                .map_err(|error| error.to_string())
-                .and_then(|result| result)
-            {
-                tracing::warn!(%error, "could not save credentials to file");
-                shell.control_feedback.show_feedback_toast(error);
-                continue;
-            }
-            let mode = shell
-                .settings
-                .persistence
-                .load()
-                .application
-                .secret_storage_mode;
-            shell
-                .settings
-                .current
-                .borrow_mut()
-                .application
-                .secret_storage_mode = mode;
-            if let Some(row) = shell.preferences.state.secret_storage_row.upgrade() {
-                row.set_selected(match mode {
-                    secrets::SecretStorageMode::ConfigFile => 0,
-                    secrets::SecretStorageMode::SystemKeyring => 1,
-                });
-            }
-        }
-    });
 
     if shell.source.configured.borrow().is_none() {
         if shell.chrome.window.is_mapped() {

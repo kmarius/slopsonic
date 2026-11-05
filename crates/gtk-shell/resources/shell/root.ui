@@ -3,21 +3,6 @@
   <requires lib="gtk" version="4.20"/>
   <requires lib="libadwaita" version="1.9"/>
 
-  <object class="AdwAlertDialog" id="secret_storage_fallback_dialog">
-    <property name="heading" translatable="yes">Secret storage</property>
-    <property name="body" translatable="yes">No secret service found. Slopsonic will use a file to store its credentials. Cancelling will not save credentials at all.</property>
-    <property name="default-response">cancel</property>
-    <property name="close-response">cancel</property>
-    <responses>
-      <response id="cancel" translatable="yes">Cancel</response>
-      <response id="save" translatable="yes" appearance="suggested">Save</response>
-    </responses>
-  </object>
-
-  <object class="GtkLabel" id="secret_storage_portal_body">
-    <property name="label" translatable="yes">No secret service found. You might have a secret service but the portal can be broken, you can check {link_start}this issue{link_end} to fix it, otherwise Slopsonic will use a file to store its credentials. Cancelling will not save credentials at all.</property>
-  </object>
-
   <object class="GtkStack" id="root_stack">
     <property name="hhomogeneous">false</property>
     <property name="vhomogeneous">false</property>

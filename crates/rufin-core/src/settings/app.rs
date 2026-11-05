@@ -7,7 +7,6 @@ use playback::{
     DEFAULT_AUTO_DJ_REFILL_THRESHOLD, MAX_AUTO_DJ_REFILL_THRESHOLD, MIN_AUTO_DJ_REFILL_THRESHOLD,
     PlaybackSettings, RepeatMode,
 };
-use secrets::SecretStorageMode;
 use serde::{Deserialize, Serialize};
 use sources::SourceId;
 
@@ -162,8 +161,6 @@ preference_group!(ApplicationPreferences, application, {
     home_blocks: Vec<HomeBlockKind> = default_home_blocks() => set_home_blocks;
     #[serde(default)]
     context_menu: ContextMenuSettings = ContextMenuSettings::default() => set_context_menu;
-    #[serde(default = "legacy_secret_storage_mode")]
-    secret_storage_mode: SecretStorageMode = SecretStorageMode::default();
 });
 
 preference_group!(PlayerDisplayPreferences, player_display, {
@@ -389,10 +386,6 @@ pub fn default_home_blocks() -> Vec<HomeBlockKind> {
         HomeBlockKind::RecentlyReleased,
         HomeBlockKind::Genres,
     ]
-}
-
-fn legacy_secret_storage_mode() -> SecretStorageMode {
-    SecretStorageMode::ConfigFile
 }
 
 fn default_starting_page() -> SidebarRouteItem {
