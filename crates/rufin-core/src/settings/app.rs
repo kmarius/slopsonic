@@ -195,8 +195,6 @@ pub struct Settings {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub downloads: Vec<SourceDownloadSettings>,
     #[serde(default = "default_true")]
-    pub show_bottom_bar_rating: bool,
-    #[serde(default = "default_true")]
     pub type_to_search_enabled: bool,
     #[serde(default)]
     pub lastfm_api_key: String,
@@ -230,7 +228,6 @@ impl Default for Settings {
             layout: LayoutSettings::default(),
             sidebar: SidebarSettings::default(),
             downloads: Vec::new(),
-            show_bottom_bar_rating: true,
             type_to_search_enabled: true,
             lastfm_api_key: String::new(),
             auto_dj_enabled: false,

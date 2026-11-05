@@ -618,6 +618,7 @@ pub fn track_column_for_key<T: gtk_widgets::library_fields::TrackPresentation>(
             |item: &T| Some(item.media_uri().to_string()),
             |item: &T| Some((item.media_uri().to_string(), item.favorite())),
         ),
+        LibraryField::UserRating => track_rating_column::<T>(shell, width),
         LibraryField::Artist => mapped_track_link_column(
             shell,
             "Artist",
@@ -659,6 +660,74 @@ pub fn track_column_for_key<T: gtk_widgets::library_fields::TrackPresentation>(
             },
         ),
     }
+}
+
+fn track_rating_column<T: gtk_widgets::library_fields::TrackPresentation>(
+    shell: &Rc<CatalogUi>,
+    width: i32,
+) -> gtk::ColumnViewColumn {
+    let factory = gtk::SignalListItemFactory::new();
+    let setup_shell = Rc::clone(shell);
+    let controls: Rc<
+        RefCell<
+            Vec<(
+                glib::WeakRef<gtk::ListItem>,
+                gtk_widgets::ratings::RatingControl,
+            )>,
+        >,
+    > = Rc::default();
+    let setup_controls = Rc::clone(&controls);
+    factory.connect_setup(move |_, item| {
+        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
+            return;
+        };
+        let control = gtk_widgets::ratings::RatingControl::new(None);
+        control.widget().set_halign(gtk::Align::Start);
+        control.widget().set_valign(gtk::Align::Center);
+        let weak = item.downgrade();
+        let shell = Rc::clone(&setup_shell);
+        control.connect_commit(move |rating| {
+            if let Some(uri) = weak
+                .upgrade()
+                .and_then(|item| item_at_from_item::<T>(&item))
+                .map(|row| row.media_uri().to_string())
+            {
+                shell
+                    .source
+                    .set_rating(library::FavoriteTarget::Track(uri), rating);
+            }
+        });
+        let mut controls = setup_controls.borrow_mut();
+        controls.retain(|(item, _)| item.upgrade().is_some());
+        controls.push((item.downgrade(), control.clone()));
+        item.set_child(Some(control.widget()));
+    });
+    connect_sparse_bind(&factory, move |item| {
+        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
+            return;
+        };
+        let Some(widget) = item.child() else { return };
+        let rating = item
+            .item()
+            .and_then(|object| object_item::<T, _>(object, |row| row.rating()))
+            .flatten();
+        widget.set_opacity(if item.item().is_some() { 1.0 } else { 0.0 });
+        if let Some((_, control)) = controls
+            .borrow()
+            .iter()
+            .find(|(candidate, _)| candidate.upgrade().as_ref() == Some(item))
+        {
+            control.set_rating(rating);
+        }
+    });
+    let column = gtk::ColumnViewColumn::new(
+        Some(gtk_widgets::settings::library_field_title(
+            LibraryField::UserRating,
+        )),
+        Some(factory),
+    );
+    column.set_fixed_width(width.max(110));
+    column
 }
 
 pub fn track_column_title(field: LibraryField) -> &'static str {

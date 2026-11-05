@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 
-const STAR_WIDTH: i32 = 95;
-const STAR_HEIGHT: i32 = 20;
+const STAR_WIDTH: i32 = 76;
+const STAR_HEIGHT: i32 = 16;
 
 #[derive(Clone)]
 pub struct RatingControl {
@@ -27,6 +27,7 @@ impl RatingControl {
         let stars = Rc::new(std::array::from_fn(|_| {
             let star = gtk::Image::new();
             star.add_css_class("rating-star");
+            star.set_pixel_size(13);
             star.set_hexpand(true);
             star.set_halign(gtk::Align::Center);
             root.append(&star);

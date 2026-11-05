@@ -19,6 +19,7 @@ pub trait TrackPresentation: Clone + PartialEq + Send + Sync + 'static {
     fn artist(&self) -> &str;
     fn artwork(&self) -> Option<&[u8]>;
     fn favorite(&self) -> bool;
+    fn rating(&self) -> Option<u8>;
     fn set_favorite(&mut self, value: bool);
     fn downloaded(&self) -> bool;
     fn download_badge(&self) -> bool {
@@ -41,6 +42,7 @@ macro_rules! song_presentation {
             fn artist(&$this) -> &str { &$song.metadata.artist }
             fn artwork(&$this) -> Option<&[u8]> { $song.artwork_binding.as_deref() }
             fn favorite(&$this) -> bool { $song.state.favorite }
+            fn rating(&$this) -> Option<u8> { $song.state.rating.and_then(|value| u8::try_from(value).ok()) }
             fn set_favorite(&mut $this, value: bool) { $song_mut.state.favorite = value; }
             fn downloaded(&$this) -> bool { $song.access.is_downloaded }
             fn set_downloaded(&mut $this, value: bool) { $song_mut.access.is_downloaded = value; }

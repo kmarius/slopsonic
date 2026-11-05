@@ -887,8 +887,7 @@ impl crate::PlayerUi {
         controls
             .album
             .set_sensitive(presentation.current && !presentation.album.is_empty());
-        let rating_visible =
-            self.settings.current.borrow().show_bottom_bar_rating && presentation.current;
+        let rating_visible = presentation.current;
         controls.rating.widget().set_visible(rating_visible);
         controls.rating.widget().set_sensitive(rating_visible);
         controls.action_buttons.set_margin_top(if rating_visible {

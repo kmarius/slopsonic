@@ -848,7 +848,6 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
     let resource = crate::ui_resource::APPEARANCE_PREFERENCES_RESOURCE;
     gtk_widgets::objects!(builder, resource, {
         layout_group: adw::PreferencesGroup,
-        bottom_bar_rating_row: adw::SwitchRow,
         narrow_row: adw::SwitchRow,
         threshold_row: adw::SpinRow,
     });
@@ -895,21 +894,6 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
         },
     );
     group.add(&default_right_row);
-
-    bottom_bar_rating_row.set_active(settings.show_bottom_bar_rating);
-    let bottom_bar_rating_shell = Rc::clone(shell);
-    bottom_bar_rating_row.connect_active_notify(move |row| {
-        if bottom_bar_rating_shell
-            .settings
-            .set_app_setting("bottom bar rating setting", row.is_active(), |settings| {
-                &mut settings.show_bottom_bar_rating
-            })
-            .is_some()
-        {
-            bottom_bar_rating_shell.player_ui.update_bottom_player();
-        }
-    });
-    group.add(&bottom_bar_rating_row);
 
     narrow_row.set_active(settings.layout.narrow_enabled);
     group.add(&narrow_row);

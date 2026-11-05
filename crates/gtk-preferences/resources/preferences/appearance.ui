@@ -107,9 +107,6 @@
       </object>
     </child>
   </object>
-  <object class="AdwSwitchRow" id="bottom_bar_rating_row">
-    <property name="title" translatable="yes">Show ratings in the bottom bar</property>
-  </object>
   <object class="AdwSwitchRow" id="narrow_row">
     <property name="title" translatable="yes">Use different layout below a threshold width</property>
   </object>

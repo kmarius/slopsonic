@@ -315,7 +315,14 @@ pub fn count(value: i64) -> String {
 
 pub fn stored_rating(value: Option<i64>) -> String {
     value
-        .map(|value| format!("{:.1}", value as f64 / 2.0))
+        .map(|value| {
+            let value = value.clamp(0, 10) as usize;
+            format!(
+                "{}{}",
+                "★".repeat(value / 2),
+                if value % 2 == 1 { "½" } else { "" }
+            )
+        })
         .unwrap_or_default()
 }
 
