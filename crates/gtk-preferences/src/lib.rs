@@ -33,9 +33,7 @@ pub enum Effect {
     MediaControlsChanged,
     WithdrawNotification,
     PlaylistPickerChanged,
-    TrayEnabled(bool),
     KeepRunningAfterClose(bool),
-    StartMinimized(bool),
     Quit(&'static str),
     ResetStorage(Box<rufin_core::settings::StorageResetRequest>),
 }

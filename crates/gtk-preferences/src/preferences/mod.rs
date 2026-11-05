@@ -713,11 +713,11 @@ mod search_tests {
 
     #[test]
     fn preference_search_matches_terms_across_row_context() {
-        let searchable = "show tray icon app window general";
+        let searchable = "show app window general";
 
-        assert!(preferences_search_matches(searchable, "tray general"));
-        assert!(preferences_search_matches(searchable, "GENERAL ICON"));
-        assert!(!preferences_search_matches(searchable, "tray playback"));
+        assert!(preferences_search_matches(searchable, "window general"));
+        assert!(preferences_search_matches(searchable, "GENERAL APP"));
+        assert!(!preferences_search_matches(searchable, "window playback"));
     }
 }
 
@@ -773,9 +773,7 @@ fn general_page(shell: &Rc<Preferences>) -> gtk::Widget {
         prefer_distinct_track_covers_row: adw::SwitchRow,
         starting_page_row: adw::ComboRow,
         window_group: adw::PreferencesGroup,
-        tray_row: adw::SwitchRow,
         keep_running_row: adw::SwitchRow,
-        start_minimized_row: adw::SwitchRow,
         type_to_search_row: adw::SwitchRow,
         control_notifications_row: adw::SwitchRow,
         notifications_row: adw::SwitchRow,
@@ -835,35 +833,11 @@ fn general_page(shell: &Rc<Preferences>) -> gtk::Widget {
                 &mut settings.application.starting_page
             });
     });
-    tray_row.set_active(settings.tray_enabled);
-    tray_row.set_sensitive(!settings.keep_running_after_close);
     keep_running_row.set_active(settings.keep_running_after_close);
-    start_minimized_row.set_active(settings.tray_enabled && settings.start_minimized);
     type_to_search_row.set_active(settings.type_to_search_enabled);
-    start_minimized_row.set_visible(settings.tray_enabled);
-    let tray_shell = Rc::clone(shell);
-    let start_minimized_row_for_tray = start_minimized_row.clone();
-    tray_row.connect_active_notify(move |row| {
-        let enabled = row.is_active();
-        start_minimized_row_for_tray.set_visible(enabled);
-        if !enabled {
-            start_minimized_row_for_tray.set_active(false);
-        }
-        (tray_shell.effects)(crate::Effect::TrayEnabled(enabled));
-    });
     let keep_running_shell = Rc::clone(shell);
-    let tray_row_for_keep_running = tray_row.clone();
     keep_running_row.connect_active_notify(move |row| {
-        let enabled = row.is_active();
-        (keep_running_shell.effects)(crate::Effect::KeepRunningAfterClose(enabled));
-        if enabled {
-            tray_row_for_keep_running.set_active(true);
-        }
-        tray_row_for_keep_running.set_sensitive(!enabled);
-    });
-    let start_minimized_shell = Rc::clone(shell);
-    start_minimized_row.connect_active_notify(move |row| {
-        (start_minimized_shell.effects)(crate::Effect::StartMinimized(row.is_active()));
+        (keep_running_shell.effects)(crate::Effect::KeepRunningAfterClose(row.is_active()));
     });
     let type_to_search_shell = Rc::clone(shell);
     type_to_search_row.connect_active_notify(move |row| {

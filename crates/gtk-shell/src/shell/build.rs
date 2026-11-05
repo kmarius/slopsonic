@@ -18,8 +18,8 @@ use tracing::info;
 use crate::player::connect_player_controls;
 use crate::player::desktop::DesktopState;
 use crate::player::desktop::lifecycle::install_application_quit;
+use crate::player::install_desktop_lifecycle;
 use crate::player::right_panel::RightPanelWidgets;
-use crate::player::{install_desktop_lifecycle, present_initial_window};
 use crate::preferences::source::SourceState;
 use gtk_player::state::PlaybackState;
 use gtk_preferences::preferences::PreferencesState;
@@ -110,9 +110,7 @@ pub async fn build(
         closing_app.quit();
         gtk::glib::Propagation::Proceed
     });
-    if !settings.tray_enabled || !settings.start_minimized {
-        crate::application::present_window(&window);
-    }
+    crate::application::present_window(&window);
     let inputs = match bootstrap.await {
         Ok(inputs) => inputs,
         Err(error) => {
@@ -566,7 +564,7 @@ pub async fn build(
         }
     }
     if !shell.chrome.window.is_visible() {
-        present_initial_window(&shell);
+        crate::application::present_window(&shell.chrome.window);
     }
     if defer_initial_route && !shell.source.operation.borrow().blocks_library() {
         shell.prepare_startup_route_content();

@@ -1,9 +1,7 @@
 pub(crate) mod lifecycle;
 
 use std::cell::Cell;
-use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::mpsc::Receiver;
 use std::sync::mpsc::{TryRecvError, channel};
 use std::time::{Duration, Instant};
 
@@ -17,7 +15,6 @@ use crate::Settings as UiSettings;
 use crate::shell::Shell;
 use gtk_widgets::artwork::THUMB_COVER_SIZE;
 
-const TRAY_POLL_INTERVAL: Duration = Duration::from_millis(120);
 const QUIT_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const QUIT_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -32,8 +29,6 @@ enum BackgroundAccess {
 pub(crate) struct DesktopState {
     pub(crate) media_controls: Rc<desktop_integration::MediaControls>,
     pub(crate) notifications: Rc<desktop_integration::Notifications>,
-    tray: RefCell<Option<desktop_integration::Tray>>,
-    tray_command_source: RefCell<Option<glib::SourceId>>,
     background_access: Cell<BackgroundAccess>,
 }
 
@@ -50,8 +45,6 @@ impl DesktopState {
                 }
             }),
             notifications: desktop_integration::Notifications::new(application.clone().upcast()),
-            tray: RefCell::new(None),
-            tray_command_source: RefCell::new(None),
             background_access: Cell::new(BackgroundAccess::Unavailable),
         }
     }
@@ -82,7 +75,6 @@ impl Shell {
         info!(reason, "stopping Slopsonic");
         self.save_window_state();
         self.chrome.window.set_visible(false);
-        self.shutdown_tray();
 
         let transport = self.products.playback.clone();
         let scrobbling = self.products.scrobbling.clone();
@@ -222,32 +214,6 @@ impl Shell {
             .map(|uri| uri.to_string())
     }
 
-    pub(crate) fn set_tray_enabled(self: &Rc<Self>, enabled: bool) {
-        if self
-            .settings
-            .update_app_settings("tray setting", |settings| {
-                if settings.tray_enabled == enabled
-                    || (!enabled && settings.keep_running_after_close)
-                {
-                    return false;
-                }
-                settings.tray_enabled = enabled;
-                if !enabled {
-                    settings.start_minimized = false;
-                }
-                true
-            })
-            .is_none()
-        {
-            return;
-        }
-        if enabled {
-            self.ensure_tray();
-        } else {
-            self.shutdown_tray();
-        }
-    }
-
     pub(crate) fn set_keep_running_after_close(self: &Rc<Self>, enabled: bool) {
         if self
             .settings
@@ -256,9 +222,6 @@ impl Shell {
                     return false;
                 }
                 settings.keep_running_after_close = enabled;
-                if enabled {
-                    settings.tray_enabled = true;
-                }
                 true
             })
             .is_none()
@@ -266,7 +229,6 @@ impl Shell {
             return;
         }
         if enabled {
-            self.ensure_tray();
             self.request_background_access();
         }
     }
@@ -274,7 +236,7 @@ impl Shell {
     fn request_background_access(self: &Rc<Self>) {
         let settings = self.settings.current.borrow();
         if !ashpd::is_sandboxed()
-            || (!settings.keep_running_after_close && !settings.start_minimized)
+            || !settings.keep_running_after_close
             || matches!(
                 self.desktop.background_access.get(),
                 BackgroundAccess::Pending | BackgroundAccess::Granted
@@ -312,11 +274,9 @@ impl Shell {
                 return;
             };
             shell.desktop.background_access.set(access);
-            let tray_unavailable = shell.desktop.tray.borrow().is_none();
             if access == BackgroundAccess::Denied
                 && shell.settings.current.borrow().keep_running_after_close
                 && !shell.chrome.window.is_visible()
-                && tray_unavailable
             {
                 shell.request_quit("background access denied");
             }
@@ -329,95 +289,11 @@ impl Shell {
             BackgroundAccess::Pending | BackgroundAccess::Granted
         )
     }
-
-    pub(crate) fn set_start_minimized_enabled(self: &Rc<Self>, enabled: bool) {
-        if self
-            .settings
-            .update_app_settings("start minimized setting", |settings| {
-                if settings.start_minimized == enabled || (enabled && !settings.tray_enabled) {
-                    return false;
-                }
-                settings.start_minimized = enabled;
-                true
-            })
-            .is_none()
-        {
-            return;
-        }
-        if enabled {
-            self.ensure_tray();
-            self.request_background_access();
-        }
-    }
-
-    fn ensure_tray(self: &Rc<Self>) -> bool {
-        if self.desktop.tray.borrow().is_some() {
-            return true;
-        }
-        let (tray, receiver) = match desktop_integration::Tray::start() {
-            Ok(started) => started,
-            Err(error) => {
-                warn!(%error);
-                return false;
-            }
-        };
-        *self.desktop.tray.borrow_mut() = Some(tray);
-        self.install_tray_command_pump(receiver);
-        true
-    }
-
-    fn shutdown_tray(&self) {
-        if let Some(source) = self.desktop.tray_command_source.borrow_mut().take() {
-            source.remove();
-        }
-        if let Some(tray) = self.desktop.tray.borrow_mut().take() {
-            tray.shutdown();
-        }
-    }
-
-    fn install_tray_command_pump(
-        self: &Rc<Self>,
-        receiver: Receiver<desktop_integration::TrayIntent>,
-    ) {
-        if let Some(source) = self.desktop.tray_command_source.borrow_mut().take() {
-            source.remove();
-        }
-        let shell = Rc::clone(self);
-        let source = glib::timeout_add_local(TRAY_POLL_INTERVAL, move || {
-            while let Ok(intent) = receiver.try_recv() {
-                match intent {
-                    desktop_integration::TrayIntent::Present => shell.present_from_tray(),
-                    desktop_integration::TrayIntent::PlayPause => {
-                        shell.products.playback.play_pause();
-                    }
-                    desktop_integration::TrayIntent::PreviousTrack => {
-                        shell.products.playback.previous();
-                    }
-                    desktop_integration::TrayIntent::NextTrack => {
-                        shell.products.playback.next();
-                    }
-                    desktop_integration::TrayIntent::Quit => {
-                        shell.request_quit("tray action");
-                        return glib::ControlFlow::Break;
-                    }
-                }
-            }
-            glib::ControlFlow::Continue
-        });
-        *self.desktop.tray_command_source.borrow_mut() = Some(source);
-    }
-
-    fn present_from_tray(&self) {
-        crate::application::present_window(&self.chrome.window);
-    }
 }
 
 pub(crate) fn install_desktop_lifecycle(shell: &Rc<Shell>) {
     let settings = shell.settings.current.borrow().clone();
-    if settings.tray_enabled {
-        shell.ensure_tray();
-    }
-    if settings.keep_running_after_close || settings.start_minimized {
+    if settings.keep_running_after_close {
         shell.request_background_access();
     }
     let close_shell = Rc::clone(shell);
@@ -429,13 +305,11 @@ pub(crate) fn install_desktop_lifecycle(shell: &Rc<Shell>) {
 
 fn close_window(shell: &Rc<Shell>) -> glib::Propagation {
     let settings = shell.settings.current.borrow().clone();
-    let tray_available = settings.tray_enabled && shell.ensure_tray();
     if settings.keep_running_after_close {
         shell.request_background_access();
     }
     if close_should_hide(
         settings.keep_running_after_close,
-        tray_available,
         host_is_sandboxed(),
         shell.background_access_available(),
     ) {
@@ -449,15 +323,11 @@ fn close_window(shell: &Rc<Shell>) -> glib::Propagation {
 
 fn close_should_hide(
     keep_running: bool,
-    tray_available: bool,
     sandboxed: bool,
     background_access_available: bool,
 ) -> bool {
     if !keep_running {
         return false;
-    }
-    if tray_available {
-        return true;
     }
     !sandboxed || background_access_available
 }
@@ -466,29 +336,19 @@ fn host_is_sandboxed() -> bool {
     ashpd::is_sandboxed()
 }
 
-pub(crate) fn present_initial_window(shell: &Rc<Shell>) {
-    let settings = shell.settings.current.borrow().clone();
-    let tray_available = settings.tray_enabled && settings.start_minimized && shell.ensure_tray();
-    if settings.tray_enabled && settings.start_minimized && tray_available {
-        shell.chrome.window.set_visible(false);
-    } else {
-        crate::application::present_window(&shell.chrome.window);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::close_should_hide;
 
     #[test]
     fn close_setting_off_never_hides() {
-        assert!(!close_should_hide(false, true, false, true));
+        assert!(!close_should_hide(false, false, true));
     }
 
     #[test]
-    fn unix_without_a_tray_needs_native_or_portal_support() {
-        assert!(close_should_hide(true, false, false, false));
-        assert!(close_should_hide(true, false, true, true));
-        assert!(!close_should_hide(true, false, true, false));
+    fn background_running_needs_native_or_portal_support() {
+        assert!(close_should_hide(true, false, false));
+        assert!(close_should_hide(true, true, true));
+        assert!(!close_should_hide(true, true, false));
     }
 }

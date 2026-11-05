@@ -202,12 +202,8 @@ pub struct Settings {
     pub downloads: Vec<SourceDownloadSettings>,
     #[serde(default = "default_true")]
     pub show_bottom_bar_rating: bool,
-    #[serde(default)]
-    pub tray_enabled: bool,
     #[serde(default, alias = "exit_to_tray")]
     pub keep_running_after_close: bool,
-    #[serde(default)]
-    pub start_minimized: bool,
     #[serde(default = "default_true")]
     pub type_to_search_enabled: bool,
     #[serde(default)]
@@ -243,9 +239,7 @@ impl Default for Settings {
             sidebar: SidebarSettings::default(),
             downloads: Vec::new(),
             show_bottom_bar_rating: true,
-            tray_enabled: false,
             keep_running_after_close: false,
-            start_minimized: false,
             type_to_search_enabled: true,
             lastfm_api_key: String::new(),
             auto_dj_enabled: false,
@@ -294,12 +288,6 @@ impl Settings {
         self.layout.sanitize();
         self.sidebar.sanitize();
         self.application.context_menu.sanitize();
-        if self.keep_running_after_close {
-            self.tray_enabled = true;
-        }
-        if !self.tray_enabled {
-            self.start_minimized = false;
-        }
         if let Some((width, height)) = sanitized_window_size(self.window_width, self.window_height)
         {
             self.window_width = Some(width);

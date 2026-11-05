@@ -22,10 +22,6 @@ rufin-core.workspace = true
 tracing.workspace = true
 url.workspace = true
 
-[dependencies.ksni]
-workspace = true
-features = ["blocking"]
-
 [dependencies.mpris-server]
 workspace = true
 

@@ -70,7 +70,6 @@ jxl = "0.7.4"
 jxl-image-rs-integration = "0.7.4"
 gif = "0.14.2"
 fast_image_resize = { version = "6.1.0", features = ["image"] }
-ksni = "0.3.4"
 lofty = "0.25.1"
 md5_digest = { package = "md-5", version = "0.10" }
 mpris-server = "0.10.0"

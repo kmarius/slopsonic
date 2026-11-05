@@ -14,18 +14,8 @@
           </object>
         </child>
         <child>
-          <object class="AdwSwitchRow" id="tray_row">
-            <property name="title" translatable="yes">Show tray icon</property>
-          </object>
-        </child>
-        <child>
           <object class="AdwSwitchRow" id="keep_running_row">
             <property name="title" translatable="yes">Keep Slopsonic running after closing the window</property>
-          </object>
-        </child>
-        <child>
-          <object class="AdwSwitchRow" id="start_minimized_row">
-            <property name="title" translatable="yes">Start minimized</property>
           </object>
         </child>
         <child>
