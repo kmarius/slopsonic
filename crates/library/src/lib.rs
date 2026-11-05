@@ -42,10 +42,7 @@ pub use storage::CacheUsage;
 mod tracks;
 pub use tracks::AudioProperties;
 
-pub use activity::{
-    ActivityCsvFormat, ActivityImportReport, ActivityRecord, ListenDeliveryTarget, ListenWrite,
-    PendingListenDelivery,
-};
+pub use activity::{ListenDeliveryTarget, ListenWrite, PendingListenDelivery};
 pub use artwork::{
     ArtworkCacheRetention, ArtworkCandidate, ArtworkImage, PlaylistArtworkManifest,
     RepresentativeArtworkScope, authored_playlist_artwork, automatic_playlist_artwork,
@@ -64,7 +61,7 @@ pub use collections::{
 };
 pub use db::{Database, ReadCancellation};
 pub use download_access::{DownloadAccessWrite, DownloadMetadata};
-pub use favorites::{FavoriteTarget, NativeUserState, UserMediaStateWrite};
+pub use favorites::{FavoriteTarget, NativeUserState};
 pub use home::{
     HomeAlbumRow, HomeBlockKind, HomeEntryInput, HomeEntryKind, HomePage, HomeProviderSection,
     HomeSectionKind, HomeSectionRows, HomeTrackRow,

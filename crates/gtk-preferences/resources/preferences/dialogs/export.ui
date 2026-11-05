@@ -1,4 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
-  <object class="GtkFileDialog" id="activity_chooser"><property name="title" translatable="yes">Export Activity</property></object>
-</interface>

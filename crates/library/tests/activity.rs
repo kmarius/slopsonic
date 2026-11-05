@@ -46,39 +46,6 @@ async fn listens_accept_empty_optional_recording_ids() {
         key
     );
     assert!(observed.try_recv().is_err());
-    let record = library::ActivityRecord {
-        version: 1,
-        listen_key: 100,
-        source_id: None,
-        current_media_uri: None,
-        listen: ListenWrite {
-            external_id: Some("imported-optional-recording-ids".into()),
-            ..listen
-        },
-    };
-    let report = fixture
-        .database
-        .import_activity_jsonl(std::io::Cursor::new(serde_json::to_vec(&record).unwrap()))
-        .await
-        .unwrap();
-    assert_eq!((report.accepted, report.skipped), (1, 0));
-    let mut exported = Vec::new();
-    fixture
-        .database
-        .export_activity_jsonl(&mut exported, None)
-        .await
-        .unwrap();
-    let rows = String::from_utf8(exported)
-        .unwrap()
-        .lines()
-        .map(|line| serde_json::from_str::<library::ActivityRecord>(line).unwrap())
-        .collect::<Vec<_>>();
-    assert_eq!(rows.len(), 2);
-    for row in rows {
-        assert_eq!(row.listen.title, "Playable song");
-        assert_eq!(row.listen.musicbrainz_recording_id, None);
-        assert_eq!(row.listen.musicbrainz_release_track_id, None);
-    }
 }
 
 #[tokio::test]
@@ -398,7 +365,8 @@ async fn activity_keeps_one_listen_and_independent_delivery_targets() {
 #[tokio::test]
 async fn history_preserves_latest_matching_facts_and_source_scope() {
     let fixture = fixture().await;
-    let records = [
+    let mut raw = connection(&fixture.path).await;
+    for (index, (source, uri, title, started_at)) in [
         (Some("source"), "https://example.org/a", "Old title", 1),
         (Some("source"), "https://example.org/a", "New title", 2),
         (Some("other"), "https://example.org/b", "Other account", 2),
@@ -412,26 +380,41 @@ async fn history_preserves_latest_matching_facts_and_source_scope() {
     ]
     .into_iter()
     .enumerate()
-    .map(|(index, (source, uri, title, started_at))| {
-        serde_json::json!({
-            "version":1,"listen_key":index+1,"source_id":source,
-            "media_uri":uri,"title":title,"artist":"Artist","album":"Album",
-            "started_at":started_at,"local_period":"2023-11",
-            "duration_millis":1000,"listened_millis":900,"skipped":false
-        })
-        .to_string()
-    })
-    .collect::<Vec<_>>()
-    .join("\n");
-    assert_eq!(
-        fixture
+    {
+        let key = fixture
             .database
-            .import_activity_jsonl(std::io::Cursor::new(records))
+            .record_listen(
+                &ListenWrite {
+                    external_id: Some(format!("history-{index}")),
+                    media_uri: uri.into(),
+                    title: title.into(),
+                    artist: "Artist".into(),
+                    album: "Album".into(),
+                    duration_millis: 1000,
+                    disc_number: None,
+                    track_number: None,
+                    year: None,
+                    release_date: None,
+                    source_format: None,
+                    musicbrainz_recording_id: None,
+                    musicbrainz_release_track_id: None,
+                    started_at,
+                    local_period: "2023-11".into(),
+                    listened_millis: 900,
+                    skipped: false,
+                },
+                None,
+                &[],
+            )
             .await
-            .unwrap()
-            .accepted,
-        5
-    );
+            .unwrap();
+        sqlx::query("UPDATE listens SET source_id=?2 WHERE listen_key=?1")
+            .bind(key)
+            .bind(source)
+            .execute(&mut raw)
+            .await
+            .unwrap();
+    }
     let cancel = ReadCancellation::new();
     let all = (&library::MemberRead {
         descending: true,
@@ -506,195 +489,4 @@ async fn history_preserves_latest_matching_facts_and_source_scope() {
             .unwrap()
             .is_empty()
     );
-}
-
-#[tokio::test]
-async fn semantic_activity_round_trip_preserves_facts_without_delivery() {
-    let fixture = fixture().await;
-    let input = library::ActivityRecord {
-        version: 1,
-        listen_key: 1,
-        source_id: Some("forgotten-server".into()),
-        current_media_uri: Some("https://example.org/canonical/music.ogg".into()),
-        listen: ListenWrite {
-            external_id: Some("accepted-play-exact-id".into()),
-            media_uri: "https://example.org/music.ogg".into(),
-            title: "Şarkı, \"one\"\nsecond line".into(),
-            artist: "Björk".into(),
-            album: "日本語".into(),
-            duration_millis: 123456,
-            disc_number: Some(2),
-            track_number: Some(7),
-            year: Some(2024),
-            release_date: Some("2024-02-29".into()),
-            source_format: Some("ogg".into()),
-            musicbrainz_recording_id: Some("recording-id".into()),
-            musicbrainz_release_track_id: Some("release-track-id".into()),
-            started_at: 1_700_000_000,
-            local_period: "2023-11".into(),
-            listened_millis: 90123,
-            skipped: true,
-        },
-    };
-    let valid = serde_json::to_string(&input).unwrap();
-    let data = format!("malformed\n{valid}\n{{\"version\":999}}\n{valid}\n");
-    let report = fixture
-        .database
-        .import_activity_jsonl(std::io::Cursor::new(data))
-        .await
-        .unwrap();
-    assert_eq!(report.accepted, 2);
-    assert_eq!(report.skipped, 2);
-    let mut exported = Vec::new();
-    assert_eq!(
-        fixture
-            .database
-            .export_activity_jsonl(&mut exported, None)
-            .await
-            .unwrap(),
-        1
-    );
-    let restored: library::ActivityRecord = serde_json::from_slice(&exported).unwrap();
-    assert_eq!(restored.source_id, input.source_id);
-    assert_eq!(restored.current_media_uri, input.current_media_uri);
-    assert_eq!(restored.listen, input.listen);
-    let empty = tempfile::tempdir().unwrap();
-    let database = library::Database::open(empty.path().join("store.sqlite"))
-        .await
-        .unwrap();
-    database
-        .import_activity_jsonl(std::io::Cursor::new(&exported))
-        .await
-        .unwrap();
-    database.close().await.unwrap();
-    let database = library::Database::open(empty.path().join("store.sqlite"))
-        .await
-        .unwrap();
-    let history = (&library::MemberRead {
-        descending: true,
-        ..library::MemberRead::new(library::Collection::History { source: None })
-    })
-        .rows(&database, 0, 100, &ReadCancellation::new())
-        .await
-        .map(|rows| {
-            rows.into_iter()
-                .map(library::MemberRow::into_track)
-                .collect::<Vec<_>>()
-        })
-        .unwrap();
-    assert_eq!(
-        history[0].media_uri,
-        input.current_media_uri.as_deref().unwrap()
-    );
-    assert_eq!(history[0].metadata.title, input.listen.title);
-    let mut again = Vec::new();
-    database
-        .export_activity_jsonl(&mut again, None)
-        .await
-        .unwrap();
-    assert_eq!(again, exported);
-    assert!(
-        database
-            .due_listen_deliveries(i64::MAX, 100, &ReadCancellation::new())
-            .await
-            .unwrap()
-            .is_empty()
-    );
-    let mut csv = Vec::new();
-    assert_eq!(
-        database
-            .export_activity_csv(&mut csv, library::ActivityCsvFormat::LastFm, None)
-            .await
-            .unwrap(),
-        1
-    );
-    let csv = String::from_utf8(csv).unwrap();
-    assert_eq!(
-        csv,
-        "\"Björk\",\"日本語\",\"Şarkı, \"\"one\"\"\nsecond line\",\"2023-11-14T22:13:20Z\"\r\n"
-    );
-    assert!(csv.contains("\"2023-11-14T22:13:20Z\""));
-    assert!(csv.contains("\"Şarkı, \"\"one\"\"\nsecond line\""));
-    assert!(!csv.contains("forgotten-server"));
-    assert!(!csv.contains("example.org"));
-    let mut csv = Vec::new();
-    database
-        .export_activity_csv(&mut csv, library::ActivityCsvFormat::ListenBrainz, None)
-        .await
-        .unwrap();
-    assert_eq!(
-        String::from_utf8(csv).unwrap(),
-        "artist,track,album,time\r\n\"Björk\",\"Şarkı, \"\"one\"\"\nsecond line\",\"日本語\",\"1700000000\"\r\n"
-    );
-    for (index, source) in [Some("another-server"), None].into_iter().enumerate() {
-        let mut listen = input.listen.clone();
-        listen.external_id = Some(format!("extra-{index}"));
-        listen.title = format!("Extra {index}");
-        let record = library::ActivityRecord {
-            version: 1,
-            listen_key: index as i64 + 2,
-            source_id: source.map(str::to_string),
-            current_media_uri: None,
-            listen,
-        };
-        database
-            .import_activity_jsonl(std::io::Cursor::new(serde_json::to_vec(&record).unwrap()))
-            .await
-            .unwrap();
-    }
-    let source = SourceId::new("forgotten-server");
-    let mut scoped = Vec::new();
-    assert_eq!(
-        database
-            .export_activity_jsonl(&mut scoped, Some(&source))
-            .await
-            .unwrap(),
-        1
-    );
-    assert_eq!(scoped, exported);
-    assert_eq!(
-        database
-            .export_activity_jsonl(std::io::sink(), None)
-            .await
-            .unwrap(),
-        3
-    );
-    let missing = SourceId::new("missing");
-    assert_eq!(
-        database
-            .export_activity_jsonl(std::io::sink(), Some(&missing))
-            .await
-            .unwrap(),
-        0
-    );
-    for format in [
-        library::ActivityCsvFormat::LastFm,
-        library::ActivityCsvFormat::ListenBrainz,
-    ] {
-        let mut scoped = Vec::new();
-        assert_eq!(
-            database
-                .export_activity_csv(&mut scoped, format, Some(&source))
-                .await
-                .unwrap(),
-            1
-        );
-        let scoped = String::from_utf8(scoped).unwrap();
-        assert!(scoped.contains("Björk"));
-        assert!(!scoped.contains("Extra"));
-        assert_eq!(
-            database
-                .export_activity_csv(std::io::sink(), format, None)
-                .await
-                .unwrap(),
-            3
-        );
-        assert_eq!(
-            database
-                .export_activity_csv(std::io::sink(), format, Some(&missing))
-                .await
-                .unwrap(),
-            0
-        );
-    }
 }

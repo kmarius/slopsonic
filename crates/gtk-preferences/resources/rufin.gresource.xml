@@ -14,7 +14,6 @@
     <file compressed="true">preferences/privacy.ui</file>
     <file compressed="true">preferences/theme_accent.ui</file>
     <file compressed="true">preferences/theme_tile.ui</file>
-    <file compressed="true">preferences/dialogs/export.ui</file>
     <file compressed="true">preferences/source/choice.ui</file>
     <file compressed="true">preferences/source/choice_selector.ui</file>
     <file compressed="true">preferences/source/connection_progress.ui</file>

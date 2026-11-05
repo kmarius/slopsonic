@@ -1,8 +1,5 @@
 //! Owns accepted listens, on-demand Activity summaries, and per-service delivery targets.
 
-use std::io::{BufRead, Write};
-
-use futures_util::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use sqlx::{Connection, FromRow, SqliteConnection};
 
@@ -13,15 +10,6 @@ use crate::{
 
 const HISTORY_LIMIT: i64 = 100;
 const DELIVERY_LIMIT: usize = 100;
-const ACTIVITY_EXPORT_SELECT: &str = "SELECT listen_key,external_id,
-                    strftime('%Y-%m-%dT%H:%M:%SZ',started_at,'unixepoch') utc_time,
-                    source_id,COALESCE(captured_media_uri,media_uri) media_uri,
-                    CASE WHEN captured_media_uri IS NOT NULL THEN media_uri END current_media_uri,
-                    track_title title,artist_name artist,album_title album,
-                    duration_millis,disc_number,track_number,year,release_date,source_format,
-                    musicbrainz_recording_id,musicbrainz_release_track_id,started_at,
-                    local_period,listened_millis,skipped
-             FROM listens";
 #[derive(Clone, Debug, FromRow, PartialEq, Deserialize, Serialize)]
 pub struct ListenWrite {
     pub external_id: Option<String>,
@@ -41,24 +29,6 @@ pub struct ListenWrite {
     pub local_period: String,
     pub listened_millis: i64,
     pub skipped: bool,
-}
-
-/// A semantic accepted listen. Delivery work is deliberately outside this record.
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ActivityRecord {
-    pub version: u32,
-    pub listen_key: i64,
-    pub source_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub current_media_uri: Option<String>,
-    #[serde(flatten)]
-    pub listen: ListenWrite,
-}
-
-#[derive(Debug, Default, Eq, PartialEq)]
-pub struct ActivityImportReport {
-    pub accepted: u64,
-    pub skipped: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -122,7 +92,6 @@ impl Database {
             listen,
             source_id.as_deref(),
             current_media_uri,
-            None,
         )
         .await?;
         for delivery in deliveries {
@@ -143,78 +112,6 @@ impl Database {
             .await;
         }
         Ok(key)
-    }
-
-    /// Streams a consistent snapshot without collecting the Activity history in memory.
-    pub async fn export_activity_jsonl(
-        &self,
-        output: impl Write,
-        source_id: Option<&SourceId>,
-    ) -> LibraryResult<u64> {
-        let (_export, mut connection) = self.acquire_export().await?;
-        export_activity_jsonl_on(&mut connection, output, source_id).await
-    }
-
-    /// Service CSV formats exclude source identities and access locators.
-    pub async fn export_activity_csv(
-        &self,
-        mut output: impl Write,
-        format: ActivityCsvFormat,
-        source_id: Option<&SourceId>,
-    ) -> LibraryResult<u64> {
-        if format == ActivityCsvFormat::ListenBrainz {
-            output.write_all(b"artist,track,album,time\r\n")?;
-        }
-        let (_export, mut connection) = self.acquire_export().await?;
-        let mut query = activity_export_query(source_id);
-        let mut rows = query
-            .build_query_as::<ActivityExportRow>()
-            .fetch(&mut *connection);
-        let mut count = 0;
-        while let Some(row) = rows.try_next().await? {
-            let listen = row.listen;
-            let fields = match format {
-                ActivityCsvFormat::LastFm => {
-                    [listen.artist, listen.album, listen.title, row.utc_time]
-                }
-                ActivityCsvFormat::ListenBrainz => [
-                    listen.artist,
-                    listen.title,
-                    listen.album,
-                    listen.started_at.to_string(),
-                ],
-            };
-            for (index, field) in fields.iter().enumerate() {
-                if index != 0 {
-                    output.write_all(b",")?;
-                }
-                output.write_all(b"\"")?;
-                for part in field.split_inclusive('"') {
-                    output.write_all(part.as_bytes())?;
-                    if part.ends_with('"') {
-                        output.write_all(b"\"")?;
-                    }
-                }
-                output.write_all(b"\"")?;
-            }
-            output.write_all(b"\r\n")?;
-            count += 1;
-        }
-        Ok(count)
-    }
-
-    /// Salvage/interchange imports keep useful records and never create delivery targets.
-    /// Backup framing is checked by the archive owner before invoking this operation.
-    pub async fn import_activity_jsonl(
-        &self,
-        input: impl BufRead,
-    ) -> LibraryResult<ActivityImportReport> {
-        let mut writer = self.writer().await?;
-        let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
-        let mut transaction = connection.begin().await?;
-        let report = import_activity_jsonl_on(&mut transaction, input).await?;
-        transaction.commit().await?;
-        Ok(report)
     }
 
     pub async fn due_listen_deliveries(
@@ -359,7 +256,6 @@ pub(crate) async fn write_listen(
     listen: &ListenWrite,
     source_id: Option<&str>,
     current_media_uri: Option<&str>,
-    imported_key: Option<i64>,
 ) -> LibraryResult<(ListenKey, bool)> {
     validate_listen(listen, &[])?;
     crate::catalog::remember_track(
@@ -386,13 +282,13 @@ pub(crate) async fn write_listen(
     .await?;
     let inserted = sqlx::query_scalar::<_, ListenKey>(
         "INSERT INTO listens(
-                 external_id,source_id,media_uri,listen_key,captured_media_uri,
+                 external_id,source_id,media_uri,captured_media_uri,
                  track_title,artist_name,album_title,
                  disc_number,track_number,year,release_date,source_format,
                  musicbrainz_recording_id,musicbrainz_release_track_id,
                  started_at,local_period,duration_millis,listened_millis,skipped
              ) VALUES (
-                 ?1,?2,?3,?19,?20,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,
+                 ?1,?2,?3,?19,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,
                  ?17,?18
              )
              ON CONFLICT DO NOTHING
@@ -426,7 +322,6 @@ pub(crate) async fn write_listen(
     .bind(listen.duration_millis)
     .bind(listen.listened_millis)
     .bind(listen.skipped)
-    .bind(imported_key)
     .bind(
         current_media_uri
             .filter(|uri| *uri != listen.media_uri)
@@ -442,8 +337,7 @@ pub(crate) async fn write_listen(
     } else {
         sqlx::query_scalar("SELECT listen_key FROM listens WHERE external_id=?1 OR (external_id IS NULL AND listen_key=?2)")
             .bind(&listen.external_id)
-            .bind(imported_key)
-            .fetch_optional(&mut *connection)
+                    .fetch_optional(&mut *connection)
             .await?
             .ok_or_else(|| {
                 LibraryError::InvalidRequest(
@@ -452,91 +346,6 @@ pub(crate) async fn write_listen(
             })?
     };
     Ok((key, changed))
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ActivityCsvFormat {
-    LastFm,
-    ListenBrainz,
-}
-
-#[derive(FromRow)]
-struct ActivityExportRow {
-    listen_key: i64,
-    utc_time: String,
-    source_id: Option<String>,
-    current_media_uri: Option<String>,
-    #[sqlx(flatten)]
-    listen: ListenWrite,
-}
-
-/// Shared accepted-Activity import inside an owner transaction.
-pub(crate) async fn import_activity_jsonl_on(
-    connection: &mut SqliteConnection,
-    input: impl BufRead,
-) -> LibraryResult<ActivityImportReport> {
-    let mut report = ActivityImportReport::default();
-    for line in input.lines() {
-        let line = line?;
-        let record = match serde_json::from_str::<ActivityRecord>(&line) {
-            Ok(record) if record.version == 1 && validate_listen(&record.listen, &[]).is_ok() => {
-                record
-            }
-            _ => {
-                report.skipped += 1;
-                continue;
-            }
-        };
-        write_listen(
-            connection,
-            &record.listen,
-            record.source_id.as_deref(),
-            record.current_media_uri.as_deref(),
-            Some(record.listen_key),
-        )
-        .await?;
-        report.accepted += 1;
-    }
-    Ok(report)
-}
-
-fn activity_export_query(source_id: Option<&SourceId>) -> sqlx::QueryBuilder<sqlx::Sqlite> {
-    let mut query = sqlx::QueryBuilder::new(ACTIVITY_EXPORT_SELECT);
-    // Use the source index rather than an optional predicate over every listen.
-    if let Some(source_id) = source_id {
-        query
-            .push(" WHERE source_id = ")
-            .push_bind(source_id.as_str());
-    }
-    query.push(" ORDER BY listen_key");
-    query
-}
-
-pub(crate) async fn export_activity_jsonl_on(
-    connection: &mut SqliteConnection,
-    mut output: impl Write,
-    source_id: Option<&SourceId>,
-) -> LibraryResult<u64> {
-    let mut query = activity_export_query(source_id);
-    let mut rows = query
-        .build_query_as::<ActivityExportRow>()
-        .fetch(&mut *connection);
-    let mut count = 0;
-    while let Some(row) = rows.try_next().await? {
-        serde_json::to_writer(
-            &mut output,
-            &ActivityRecord {
-                version: 1,
-                listen_key: row.listen_key,
-                source_id: row.source_id,
-                current_media_uri: row.current_media_uri,
-                listen: row.listen,
-            },
-        )?;
-        output.write_all(b"\n")?;
-        count += 1;
-    }
-    Ok(count)
 }
 
 pub(crate) fn history_query(

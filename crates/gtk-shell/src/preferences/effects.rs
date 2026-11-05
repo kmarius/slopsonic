@@ -23,7 +23,6 @@ impl Shell {
                 self.storage_reset.replace(Some(Ok(*request)));
                 self.request_quit("storage reset");
             }
-            Effect::ExportActivity(format, source) => self.export_activity_dialog(format, source),
         }
     }
 }

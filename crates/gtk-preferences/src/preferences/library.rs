@@ -43,8 +43,6 @@ fn library_sources_page(
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
         library_page: adw::PreferencesPage,
-        listenbrainz: gtk::ToggleButton, jsonl: gtk::ToggleButton,
-        activity_export: gtk::Button,
         servers_group: adw::PreferencesGroup,
         empty_remote_row: adw::ActionRow,
         add_source: gtk::Button,
@@ -129,23 +127,6 @@ fn library_sources_page(
     add_source.set_visible(configured.is_none());
     servers_group.set_header_suffix(Some(&add_source));
 
-    let weak = Rc::downgrade(shell);
-    let (listenbrainz, jsonl) = (listenbrainz.downgrade(), jsonl.downgrade());
-    activity_export.connect_clicked(move |_| {
-        if let Some(shell) = weak.upgrade() {
-            let format = if jsonl.upgrade().is_some_and(|button| button.is_active()) {
-                None
-            } else if listenbrainz
-                .upgrade()
-                .is_some_and(|button| button.is_active())
-            {
-                Some(library::ActivityCsvFormat::ListenBrainz)
-            } else {
-                Some(library::ActivityCsvFormat::LastFm)
-            };
-            (shell.effects)(crate::Effect::ExportActivity(format, None));
-        }
-    });
     library_page
 }
 

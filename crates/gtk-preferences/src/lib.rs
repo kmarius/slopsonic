@@ -38,10 +38,6 @@ pub enum Effect {
     StartMinimized(bool),
     Quit(&'static str),
     ResetStorage(Box<rufin_core::settings::StorageResetRequest>),
-    ExportActivity(
-        Option<library::ActivityCsvFormat>,
-        Option<sources::SourceId>,
-    ),
 }
 
 pub fn register_resources() -> Result<(), String> {

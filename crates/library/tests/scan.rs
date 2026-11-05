@@ -181,13 +181,27 @@ async fn local_play_counts_survive_import_source_refresh_and_reopen() {
             .fetch_one(&mut connection(&path).await)
             .await
             .unwrap();
-    let listen = serde_json::json!({"version":1,"listen_key":500,"source_id":null,"media_uri":uri,"title":"Track One","artist":"Artist","album":"Album","duration_millis":1000,"started_at":1700000000,"local_period":"2023-11","listened_millis":1000,"skipped":false});
+    let listen = library::ListenWrite {
+        external_id: Some("play-500".into()),
+        media_uri: uri,
+        title: "Track One".into(),
+        artist: "Artist".into(),
+        album: "Album".into(),
+        duration_millis: 1000,
+        disc_number: None,
+        track_number: None,
+        year: None,
+        release_date: None,
+        source_format: None,
+        musicbrainz_recording_id: None,
+        musicbrainz_release_track_id: None,
+        started_at: 1_700_000_000,
+        local_period: "2023-11".into(),
+        listened_millis: 1000,
+        skipped: false,
+    };
     for _ in 0..2 {
-        let report = database
-            .import_activity_jsonl(std::io::Cursor::new(serde_json::to_vec(&listen).unwrap()))
-            .await
-            .unwrap();
-        assert_eq!(report.accepted, 1);
+        database.record_listen(&listen, None, &[]).await.unwrap();
     }
     let counts =
         || sqlx::query_scalar::<_, i64>("SELECT local_play_count FROM tracks ORDER BY object_id");
