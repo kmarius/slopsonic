@@ -59,6 +59,11 @@ columnview > header {
   border: 0;
 }
 
+.table-header.sortable-header:hover {
+  color: var(--window-fg-color);
+  background-color: color-mix(in srgb, var(--window-fg-color) 7%, transparent);
+}
+
 .artist-album-table-header {
   padding: 6px 0;
   border-bottom: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);

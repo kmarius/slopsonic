@@ -1,4 +1,7 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use gtk::glib;
 use gtk::prelude::*;
@@ -107,6 +110,10 @@ impl HeaderCell {
 pub struct ColumnViewHeader {
     root: gtk::Box,
     bindings: Rc<RefCell<Vec<glib::Binding>>>,
+    on_click: Rc<RefCell<Option<Rc<dyn Fn(LibraryField)>>>>,
+    arrows: Rc<RefCell<Vec<(LibraryField, gtk::Image)>>>,
+    sort: Rc<Cell<Option<(LibraryField, bool)>>>,
+    default_sort: Rc<Cell<Option<(LibraryField, bool)>>>,
 }
 
 impl Default for ColumnViewHeader {
@@ -123,7 +130,40 @@ impl ColumnViewHeader {
         Self {
             root,
             bindings: Rc::default(),
+            on_click: Rc::default(),
+            arrows: Rc::default(),
+            sort: Rc::default(),
+            default_sort: Rc::default(),
         }
+    }
+
+    /// The list's default order; it gets no arrow.
+    pub fn set_default_sort(&self, sort: (LibraryField, bool)) {
+        self.default_sort.set(Some(sort));
+    }
+
+    /// Shows a direction arrow on the header of the sorted column.
+    pub fn set_sort(&self, sort: Option<(LibraryField, bool)>) {
+        self.sort.set(sort);
+        let sort = sort.filter(|sort| Some(*sort) != self.default_sort.get());
+        for (field, arrow) in self.arrows.borrow().iter() {
+            // The merged title column sorts by Title and "#" by the default key.
+            let field = match *field {
+                LibraryField::TitleMerged => LibraryField::Title,
+                LibraryField::RowIndex => self.default_sort.get().map_or(*field, |sort| sort.0),
+                field => field,
+            };
+            let active = sort.filter(|(sorted, _)| *sorted == field);
+            arrow.set_visible(active.is_some());
+            if let Some((_, descending)) = active {
+                arrow.set_icon_name(Some(crate::controls::sort_order_icon(descending)));
+            }
+        }
+    }
+
+    /// Called with the column's field when its header cell is clicked.
+    pub fn connect_clicked(&self, callback: impl Fn(LibraryField) + 'static) {
+        self.on_click.replace(Some(Rc::new(callback)));
     }
 
     pub fn widget(&self) -> gtk::Widget {
@@ -138,6 +178,7 @@ impl ColumnViewHeader {
             self.root.remove(&child);
         }
         let mut bindings = Vec::with_capacity(columns.len() * 2);
+        let mut arrows = Vec::new();
         for (position, (column, field)) in columns.iter().enumerate() {
             let title = column.title().unwrap_or_default();
             let cell = HeaderCell::new(&title, *field, position);
@@ -153,9 +194,31 @@ impl ColumnViewHeader {
                     .sync_create()
                     .build(),
             );
+            if let Some(field) = *field {
+                let on_click = Rc::clone(&self.on_click);
+                let click = gtk::GestureClick::new();
+                click.connect_released(move |_, _, _, _| {
+                    if let Some(callback) = on_click.borrow().clone() {
+                        callback(field);
+                    }
+                });
+                cell.add_controller(click);
+                let arrow = gtk::Image::new();
+                arrow.set_visible(false);
+                arrow.set_pixel_size(12);
+                arrow.add_css_class("dim-label");
+                gtk::subclass::prelude::ObjectSubclassIsExt::imp(&cell)
+                    .content
+                    .append(&arrow);
+                arrows.push((field, arrow));
+                cell.add_css_class("sortable-header");
+                cell.set_cursor_from_name(Some("pointer"));
+            }
             self.root.append(&cell);
         }
         self.bindings.replace(bindings);
+        self.arrows.replace(arrows);
+        self.set_sort(self.sort.get());
     }
 
     pub fn set_visible(&self, visible: bool) {

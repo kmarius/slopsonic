@@ -179,7 +179,12 @@ impl LibraryPresentationProjection {
             grid.apply_display(&settings.display);
         }
         match self {
-            Self::Row(table) => table.apply_fields(&settings.row_fields),
+            Self::Row(table) => {
+                table
+                    .header
+                    .set_sort(Some((settings.sort_key, settings.descending)));
+                table.apply_fields(&settings.row_fields)
+            }
             Self::Grid(grid) => grid.apply_fields(&settings.grid_fields),
             Self::AlbumDetail(detail) => detail.apply_display(&settings.display),
         }
@@ -867,6 +872,37 @@ where
         field_columns: Rc::new(RefCell::new(field_columns)),
         width_fit,
     };
+    let default = crate::LibraryListSettings::for_key(key);
+    projection
+        .header
+        .set_default_sort((default.sort_key, default.descending));
+    let header_shell = Rc::clone(shell);
+    projection.header.connect_clicked(move |field| {
+        // "#" stands for the list's default order, e.g. track number.
+        let field = match field {
+            LibraryField::TitleMerged => LibraryField::Title,
+            LibraryField::RowIndex => default.sort_key,
+            field => field,
+        };
+        if !rufin_core::settings::layout::available_sort_fields(key).contains(&field) {
+            return;
+        }
+        header_shell.update_library_list_settings(key, |settings| {
+            // Cycle ascending, descending, then the list's default order.
+            let default = crate::LibraryListSettings::for_key(key);
+            let (sort_key, descending) = if settings.sort_key != field {
+                (field, false)
+            } else if !settings.descending {
+                (field, true)
+            } else if (default.sort_key, default.descending) == (field, true) {
+                (field, false)
+            } else {
+                (default.sort_key, default.descending)
+            };
+            settings.sort_key = sort_key;
+            settings.descending = descending;
+        });
+    });
     projection.update_header();
     projection
         .table
