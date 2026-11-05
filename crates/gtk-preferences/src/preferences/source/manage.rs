@@ -65,12 +65,6 @@ fn manage_server_content(
         Err(error) => content.append(&source_settings_error(&error.to_string())),
     }
 
-    let library = adw::PreferencesGroup::builder()
-        .title("Library".to_string())
-        .build();
-    library.add(&super::half_stars_row(shell, &server));
-    content.append(&library);
-
     content.append(&server_actions_group(
         shell,
         &server,

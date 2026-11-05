@@ -501,7 +501,7 @@ pub fn build_player_action_controls(
     let root = actions;
     let buttons = action_buttons;
     buttons.set_spacing(BOTTOM_PLAYER_ACTION_SPACING);
-    let rating = RatingControl::new(None, true);
+    let rating = RatingControl::new(None);
     rating
         .widget()
         .set_size_request(BOTTOM_PLAYER_RATING_WIDTH, BOTTOM_PLAYER_RATING_HEIGHT);
@@ -1511,14 +1511,9 @@ pub fn connect_player_controls(shell: &Rc<crate::PlayerUi>) {
 }
 
 impl crate::PlayerUi {
-    pub fn set_current_rating_and_favorite(
-        &self,
-        favorite: bool,
-        rating: Option<u8>,
-        half_stars: bool,
-    ) {
+    pub fn set_current_rating_and_favorite(&self, favorite: bool, rating: Option<u8>) {
         let controls = &self.views.player_controls;
         set_favorite_button_active(&controls.favorite_button, favorite);
-        controls.rating.set_rating(rating, half_stars);
+        controls.rating.set_rating(rating);
     }
 }

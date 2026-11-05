@@ -152,13 +152,6 @@ pub(super) fn build(
                 })
             })
         },
-        half_stars_enabled: {
-            let weak = weak.clone();
-            Rc::new(move |_, _| {
-                weak.upgrade()
-                    .is_some_and(|shell| shell.half_stars_enabled())
-            })
-        },
         source_download_available: {
             let weak = weak.clone();
             Rc::new(move |source_id| {

@@ -1463,7 +1463,6 @@ impl SourceOwner {
                     configuration: configuration.clone(),
                     credential: None,
                     music_folder_id: None,
-                    enable_half_stars: false,
                 };
                 let configured = owner.persist_connected_source(&configured, credential)?;
                 persisted_source_id = Some(configuration.source_id.clone());
@@ -1539,33 +1538,6 @@ impl SourceOwner {
             let _ = sender.try_send(result);
         });
         receiver
-    }
-}
-
-impl SourceOwner {
-    pub fn set_half_stars(&self, source_id: SourceId, enabled: bool) {
-        let owner = self.clone();
-        self.shared.runtime.spawn(async move {
-            if let Err(error) = owner.shared.settings.update(|stored| {
-                let configured = stored
-                    .sources
-                    .configured
-                    .iter_mut()
-                    .find(|configured| configured.configuration.source_id == source_id)
-                    .ok_or_else(|| "the configured source no longer exists".to_string())?;
-                configured.enable_half_stars = enabled;
-                Ok(())
-            }) {
-                owner.shared.warn_nonfatal(&error);
-                return;
-            }
-            owner
-                .shared
-                .send(SourceEvent::Configured(
-                    owner.shared.source_status(owner.shared.selected().as_ref()),
-                ))
-                .await;
-        });
     }
 }
 
@@ -2344,7 +2316,6 @@ fn source_status(
             id: configured.configuration.source_id.clone(),
             kind: configured.configuration.kind,
             name: configured.configuration.name.clone(),
-            half_stars_enabled: configured.enable_half_stars,
         },
         cache: SourceCacheSummary {
             selected_music_folder_name: selected
@@ -2392,7 +2363,6 @@ fn editable_source(configuration: &SourceConfiguration) -> Result<EditableSource
             id: configuration.source_id.clone(),
             kind: configuration.kind,
             name: configuration.name.clone(),
-            half_stars_enabled: false,
         },
         credentials,
     })
@@ -2504,7 +2474,6 @@ mod source_tests {
             configuration: configuration.clone(),
             credential: None,
             music_folder_id: None,
-            enable_half_stars: false,
         };
         owner
             .shared
@@ -2860,7 +2829,6 @@ mod source_tests {
                 },
                 credential: Some(crate::settings::Credential::new("held")),
                 music_folder_id: None,
-                enable_half_stars: false,
             });
             Ok(())
         }).unwrap();
@@ -3110,7 +3078,6 @@ mod source_tests {
                             configuration: subsonic_configuration(id.clone(), id.as_str()),
                             credential: None,
                             music_folder_id: None,
-                            enable_half_stars: false,
                         });
                         Ok(())
                     })

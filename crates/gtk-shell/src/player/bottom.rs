@@ -16,8 +16,7 @@ impl Shell {
             .as_deref()
             .and_then(|player| player.transport.current.as_ref())
         else {
-            self.player_ui
-                .set_current_rating_and_favorite(false, None, false);
+            self.player_ui.set_current_rating_and_favorite(false, None);
             return;
         };
         let track = &current.row.track;
@@ -27,7 +26,6 @@ impl Shell {
                 .state
                 .rating
                 .and_then(|value| u8::try_from(value).ok()),
-            self.half_stars_enabled(),
         );
     }
 }

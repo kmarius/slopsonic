@@ -91,7 +91,6 @@ pub struct MediaMenus {
     pub settings: Rc<gtk_widgets::settings::SettingsState>,
     pub navigate: Rc<dyn Fn(Route)>,
     pub projected_item_favorite: Rc<dyn Fn(&FavoriteTarget, bool) -> bool>,
-    pub half_stars_enabled: Rc<dyn Fn(&str, Option<&str>) -> bool>,
     pub set_favorite: Rc<dyn Fn(FavoriteTarget, bool)>,
     pub set_sidebar_pin: Rc<dyn Fn(SidebarPin, bool)>,
     pub source_download_available: Rc<dyn Fn(&sources::SourceId) -> bool>,
@@ -195,7 +194,6 @@ pub fn present_track_menu(
                     .state
                     .rating
                     .and_then(|value| u8::try_from(value).ok()),
-                (menus.half_stars_enabled)(&track.media_uri, track.source_id.as_deref()),
                 surface.popover(),
                 move |rating| {
                     menus
@@ -412,10 +410,6 @@ pub fn present_playlist_entry_menu(
                     .state
                     .rating
                     .and_then(|value| u8::try_from(value).ok()),
-                (rating_menus.half_stars_enabled)(
-                    &row.track.media_uri,
-                    row.track.source_id.as_deref(),
-                ),
                 surface.popover(),
                 move |rating| {
                     rating_menus
@@ -944,7 +938,6 @@ pub fn present_album_context_menu(
                     .state
                     .rating
                     .and_then(|value| u8::try_from(value).ok()),
-                (menus.half_stars_enabled)(&album.media_uri, None),
                 surface.popover(),
                 move |rating| {
                     menus
@@ -1082,7 +1075,6 @@ pub fn present_artist_context_menu(
                     .state
                     .rating
                     .and_then(|value| u8::try_from(value).ok()),
-                (menus.half_stars_enabled)(&artist.media_uri, None),
                 surface.popover(),
                 move |rating| {
                     menus

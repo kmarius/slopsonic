@@ -104,7 +104,7 @@ impl PlayerUi {
         if track_changed {
             let controls = &self.views.player_controls;
             gtk_widgets::favorites::set_favorite_button_active(&controls.favorite_button, false);
-            controls.rating.set_rating(None, false);
+            controls.rating.set_rating(None);
         }
     }
     pub fn clear_player(&self) {

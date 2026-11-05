@@ -1,13 +1,5 @@
 use library::FavoriteTarget;
 impl crate::shell::Shell {
-    pub(crate) fn half_stars_enabled(&self) -> bool {
-        self.source
-            .configured
-            .borrow()
-            .as_ref()
-            .is_some_and(|status| status.source.half_stars_enabled)
-    }
-
     pub(crate) fn set_rating(&self, item: FavoriteTarget, rating: Option<u8>) {
         self.products.source.set_rating(item, rating);
     }

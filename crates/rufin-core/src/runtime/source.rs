@@ -12,7 +12,6 @@ pub struct SourceSummary {
     pub id: SourceId,
     pub kind: sources::SubsonicFlavor,
     pub name: String,
-    pub half_stars_enabled: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
