@@ -172,11 +172,6 @@ async fn activity_keeps_one_listen_and_independent_delivery_targets() {
             .await
             .expect("read accepted skip")
     );
-    sqlx::query("INSERT INTO legacy_activity(source_id,period,item_kind,track_object_id,play_count,skip_count,last_played_at) SELECT object_id,'lifetime','track','track-0',3,1,1600000000 FROM sources WHERE source_key=?1")
-        .bind(fixture.source)
-        .execute(&mut raw)
-        .await
-        .expect("seed recovered Activity baseline");
     sqlx::query("INSERT INTO native_media_state(media_uri,play_count,last_played) SELECT media_uri,2,1600000000 FROM tracks WHERE source_key=?1 AND object_id='track-1' ON CONFLICT(media_uri) DO UPDATE SET play_count=excluded.play_count,last_played=excluded.last_played")
         .bind(fixture.source).execute(&mut raw).await.unwrap();
     drop(raw);
@@ -249,7 +244,7 @@ async fn activity_keeps_one_listen_and_independent_delivery_targets() {
     assert_eq!(row.metadata.date_added, catalog.metadata.date_added);
     assert_eq!(row.metadata.bpm, catalog.metadata.bpm);
     assert_eq!(row.metadata.genres[0].name, "Rock");
-    assert_eq!(row.state.play_count, 4);
+    assert_eq!(row.state.play_count, 1);
     let (playlist, _) = fixture
         .database
         .create_playlist(

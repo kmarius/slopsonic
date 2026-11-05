@@ -14,7 +14,7 @@ pub(crate) async fn pragma(
 }
 pub(crate) const STORE_SCHEMA: &str = r#"PRAGMA application_id = 1381320270;
 
-PRAGMA user_version = 60;
+PRAGMA user_version = 61;
 
 CREATE TABLE IF NOT EXISTS queue_contexts (
     context_key INTEGER PRIMARY KEY,
@@ -217,13 +217,6 @@ CREATE INDEX IF NOT EXISTS download_locators_source_idx ON download_locators(sou
 CREATE INDEX IF NOT EXISTS download_locators_path_idx ON download_locators(source_key,path);
 CREATE INDEX IF NOT EXISTS download_locators_access_idx ON download_locators(media_uri,origin,download_access_file_key);
 
-
-CREATE TABLE IF NOT EXISTS legacy_activity (
-    source_id TEXT NOT NULL, period TEXT NOT NULL, item_kind TEXT NOT NULL,
-    track_object_id TEXT NOT NULL, play_count INTEGER NOT NULL, skip_count INTEGER NOT NULL,
-    last_played_at INTEGER,
-    PRIMARY KEY(source_id,period,item_kind,track_object_id)
-) STRICT;
 
 CREATE TABLE IF NOT EXISTS sources (
     source_key INTEGER PRIMARY KEY,
@@ -612,11 +605,16 @@ ALTER TABLE download_locators RENAME COLUMN local_access_file_key TO download_ac
 ALTER TABLE local_access_metadata RENAME TO download_access_metadata;
 ";
 
-pub(crate) const SCHEMA_VERSION: i64 = 60;
+const MIGRATE_60: &str = "
+DROP TABLE IF EXISTS legacy_activity;
+";
+
+pub(crate) const SCHEMA_VERSION: i64 = 61;
 
 pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> LibraryResult<()> {
     let version = pragma(connection, "user_version").await?;
-    if version != 0 && version != 58 && version != 59 && version != SCHEMA_VERSION {
+    if version != 0 && version != 58 && version != 59 && version != 60 && version != SCHEMA_VERSION
+    {
         return Err(crate::LibraryError::Migration(format!(
             "unsupported library schema {version}"
         )));
@@ -627,6 +625,11 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
     }
     if version == 58 || version == 59 {
         sqlx::raw_sql(MIGRATE_59).execute(&mut *transaction).await?;
+    }
+    if version != 0 && version < 61 {
+        crate::catalog::index::rebuild_triggers_referencing(&mut transaction, "legacy_activity")
+            .await?;
+        sqlx::raw_sql(MIGRATE_60).execute(&mut *transaction).await?;
     }
     sqlx::raw_sql(STORE_SCHEMA)
         .execute(&mut *transaction)

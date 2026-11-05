@@ -28,7 +28,6 @@ pub enum QueueProvenance {
     Random,
     Radio,
     AutoDj,
-    Legacy,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -165,7 +164,7 @@ enum SavedContext<S> {
         id: S,
         title: Arc<QueueContextTitle>,
     },
-    Legacy(S),
+    Untitled(S),
 }
 
 async fn decode_queue_export(
@@ -642,7 +641,7 @@ async fn apply_queue_update_on(
                                 id: context_id.as_ref(),
                                 title: title.clone(),
                             },
-                            None => SavedContext::Legacy(context_id.as_ref()),
+                            None => SavedContext::Untitled(context_id.as_ref()),
                         })?;
                         sqlx::query("INSERT INTO queue_contexts(context) VALUES(?1) ON CONFLICT(context) DO NOTHING")
                             .bind(&value).execute(&mut *connection).await?;
@@ -714,7 +713,7 @@ async fn restore_queue_on(connection: &mut sqlx::SqliteConnection) -> LibraryRes
             Some(key) => {
                 let (context_id, context_title) = match &contexts[&key] {
                     SavedContext::Titled { id, title } => (id.clone(), Some(title.clone())),
-                    SavedContext::Legacy(id) => (id.clone(), None),
+                    SavedContext::Untitled(id) => (id.clone(), None),
                 };
                 QueueProvenance::Context {
                     context_id,
@@ -935,7 +934,6 @@ impl QueueRow {
             QueueProvenance::Random => "random",
             QueueProvenance::Radio => "radio",
             QueueProvenance::AutoDj => "auto_dj",
-            QueueProvenance::Legacy => "legacy",
         }
         .into()
     }

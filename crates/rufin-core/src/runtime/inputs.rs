@@ -2,7 +2,7 @@ use crate::SettingsHandle;
 use library::{FolderChoice, FolderKey, PlaylistKey, SourceKey};
 use std::sync::Arc;
 
-use super::source::{ConfiguredSources, SourceOperation};
+use super::source::{SourceOperation, SourceStatus};
 use super::{DiagnosticsHandle, ProductHandles, ProductReceivers};
 
 #[derive(Clone)]
@@ -15,9 +15,9 @@ pub struct SelectedLibrary {
 }
 
 pub enum SourceEvent {
-    Configured(ConfiguredSources),
+    Configured(Option<SourceStatus>),
     Selected {
-        configured: ConfiguredSources,
+        configured: Option<SourceStatus>,
         selected: SelectedLibrary,
     },
     Operation(SourceOperation),
@@ -77,6 +77,6 @@ pub struct RuntimeInputs {
     pub products: ProductHandles,
     pub settings: SettingsHandle,
     pub receivers: ProductReceivers,
-    pub configured_sources: ConfiguredSources,
+    pub source_status: Option<SourceStatus>,
     pub source_operation: SourceOperation,
 }

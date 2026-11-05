@@ -130,7 +130,7 @@ pub async fn build(
         products,
         settings: settings_handle,
         receivers,
-        configured_sources,
+        source_status,
         source_operation,
     } = inputs;
     temporary_storage_banner.set_revealed(temporary_store);
@@ -140,14 +140,14 @@ pub async fn build(
         elapsed_ms = loaded_at.elapsed().as_millis(),
         "loaded music source presentation"
     );
-    let defer_initial_route = configured_sources.source.is_some();
+    let defer_initial_route = source_status.is_some();
     let settings_state = Rc::new(SettingsState::new(settings.clone(), settings_handle));
     let navigation = NavigationState::new(
         rufin_core::route::sidebar_route_descriptor(settings.application.starting_page).root_route,
     );
     let selected_ui = SelectedUiState::new();
     let source = Rc::new(SourceState {
-        configured: RefCell::new(configured_sources),
+        configured: RefCell::new(source_status),
         operation: RefCell::new(source_operation),
         add_server: RefCell::new(None),
         refresh_feedback_generation: Rc::new(Cell::new(0)),
@@ -549,7 +549,7 @@ pub async fn build(
         }
     });
 
-    if shell.source.configured.borrow().source.is_none() {
+    if shell.source.configured.borrow().is_none() {
         if shell.chrome.window.is_mapped() {
             shell.preferences.present_onboarding();
         } else {

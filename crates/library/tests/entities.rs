@@ -145,7 +145,7 @@ async fn track_sorts_keep_nulls_last_and_title_ties_in_both_directions() {
 async fn repeated_album_cards_keep_whole_counts_and_separate_source_activity() {
     let fixture = fixture().await;
     let mut raw = connection(&fixture.path).await;
-    sqlx::raw_sql("UPDATE sources SET kind='subsonic';\n      INSERT INTO legacy_activity(source_id,period,item_kind,track_object_id,play_count,skip_count,last_played_at)\n      VALUES('source','lifetime','track','track-0',7,0,100),('source','lifetime','track','track-1',99,0,900);\n      INSERT INTO native_media_state(media_uri,play_count,last_played) SELECT media_uri,3,200 FROM tracks WHERE object_id='track-1' ON CONFLICT(media_uri) DO UPDATE SET play_count=excluded.play_count,last_played=excluded.last_played;")
+    sqlx::raw_sql("UPDATE sources SET kind='subsonic';\n      INSERT INTO native_media_state(media_uri,play_count,last_played) SELECT media_uri,3,200 FROM tracks WHERE object_id='track-1' ON CONFLICT(media_uri) DO UPDATE SET play_count=excluded.play_count,last_played=excluded.last_played;")
         .execute(&mut raw).await.unwrap();
 
     let cancel = ReadCancellation::new();
@@ -170,16 +170,16 @@ async fn repeated_album_cards_keep_whole_counts_and_separate_source_activity() {
     let rows = fixture.database.albums(&keys, true, &cancel).await.unwrap();
     for row in &rows {
         assert_eq!(row.summary.track_count, 2);
-        assert_eq!(row.state.play_count, 106);
-        assert_eq!(row.state.last_played, Some(900));
+        assert_eq!(row.state.play_count, 0);
+        assert_eq!(row.state.last_played, None);
     }
     let artist = fixture
         .database
         .artists(&[fixture.artists[0]], false, true, &cancel)
         .await
         .unwrap();
-    assert_eq!(artist[0].state.play_count, 106);
-    assert_eq!(artist[0].state.last_played, Some(900));
+    assert_eq!(artist[0].state.play_count, 0);
+    assert_eq!(artist[0].state.last_played, None);
 }
 
 #[tokio::test]

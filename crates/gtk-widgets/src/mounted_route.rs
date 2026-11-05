@@ -36,8 +36,7 @@ pub fn route_current_track(player: Option<&playback::PlaybackView>) -> Option<Ro
         playback::Provenance::Manual
         | playback::Provenance::Random
         | playback::Provenance::Radio
-        | playback::Provenance::AutoDj
-        | playback::Provenance::Legacy => None,
+        | playback::Provenance::AutoDj => None,
     };
     Some(RouteCurrentTrack {
         track_key: Some(entry.row.track.track_key),

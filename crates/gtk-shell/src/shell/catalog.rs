@@ -13,10 +13,9 @@ impl Shell {
         let source = self.products.source.clone();
         let history_source_name = {
             let configured = self.source.configured.borrow();
-            configured
-                .source
-                .as_ref()
-                .map(gtk_widgets::source_labels::configured_source_display_name)
+            configured.as_ref().map(|status| {
+                gtk_widgets::source_labels::configured_source_display_name(&status.source)
+            })
         };
         Rc::new(gtk_library::CatalogUi {
             library: self.products.library.clone(),
@@ -86,9 +85,8 @@ impl Shell {
                             .source
                             .configured
                             .borrow()
-                            .source
                             .as_ref()
-                            .map(|source| source.id.clone())
+                            .map(|status| status.source.id.clone())
                     })
                 })
             },

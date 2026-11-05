@@ -260,7 +260,7 @@ where
             source: source_receiver,
             downloads: download_receiver,
         },
-        configured_sources: source.list_sources(),
+        source_status: source.source_status(),
         source_operation: source.operation().borrow().clone(),
     })
 }

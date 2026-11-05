@@ -19,10 +19,7 @@ mod remote_http;
 mod remote_json;
 mod subsonic;
 
-pub use config::{
-    CredentialInput, CredentialPreset, EditableSource, SourceConfiguration, SourceSettingsChange,
-    SourceSetup,
-};
+pub use config::{CredentialInput, CredentialPreset, SourceConfiguration, SourceSetup};
 pub use library::SourceId;
 pub use operations::{
     ArtworkChange, ArtworkEdit, ArtworkEditing, ArtworkStorage, ImageBytes, MetadataChanges,

@@ -376,33 +376,21 @@ async fn home_activity_tracks(
     let scope = "track.indexed=1 AND track.source_key=?1 AND (?2 IS NULL OR EXISTS(
         SELECT 1 FROM track_folders scope WHERE scope.track_key=track.track_key AND scope.folder_key=?2))";
     let sql = if local {
-        let (current, legacy_field, aggregate, legacy_order) = match kind {
-            HomeSectionKind::MostPlayed => (
-                "SELECT track_key,local_play_count value FROM tracks
-                    WHERE indexed=1 AND source_key=?1 AND local_play_count>0".into(),
-                "play_count", "sum", "",
-            ),
-            HomeSectionKind::RecentlyPlayed => (
-                format!("SELECT track.track_key,listen.started_at value FROM listens listen
+        let current = match kind {
+            HomeSectionKind::MostPlayed => "SELECT track_key,local_play_count value FROM tracks
+                    WHERE indexed=1 AND source_key=?1 AND local_play_count>0"
+                .to_string(),
+            HomeSectionKind::RecentlyPlayed => format!(
+                "SELECT track.track_key,listen.started_at value FROM listens listen
                     CROSS JOIN tracks track ON track.media_uri=listen.media_uri
                     WHERE {scope} AND listen.listen_key=(SELECT latest.listen_key FROM listens latest
                         WHERE latest.media_uri=listen.media_uri ORDER BY latest.started_at DESC,latest.listen_key DESC LIMIT 1)
-                    ORDER BY listen.started_at DESC,track.track_key LIMIT 24"),
-                "last_played_at", "max", " ORDER BY old.last_played_at DESC,track.track_key LIMIT 24",
+                    ORDER BY listen.started_at DESC,track.track_key LIMIT 24"
             ),
             _ => unreachable!(),
         };
-        // Read only played songs. Each recent input is already ordered and bounded;
-        // merging their maxima keeps the latest 24 even when both contain a song.
         format!(
-            "WITH current AS ({current}), legacy AS (
-            SELECT track.track_key,old.{legacy_field} value FROM legacy_activity old
-            JOIN tracks track ON track.source_key=?1 AND track.object_id=old.track_object_id
-            WHERE old.source_id=(SELECT object_id FROM sources WHERE source_key=?1)
-                AND old.period='lifetime' AND old.item_kind='track' AND old.{legacy_field} {present}
-                AND {scope}{legacy_order}
-            ), activity AS (SELECT * FROM current UNION ALL SELECT * FROM legacy),
-            played AS (SELECT track_key,{aggregate}(value) value FROM activity GROUP BY track_key)
+            "WITH played AS ({current})
             SELECT track.track_key,track.title FROM played CROSS JOIN tracks track USING(track_key)
             WHERE {scope} ORDER BY played.value DESC{tie},track.track_key LIMIT 24"
         )

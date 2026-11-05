@@ -64,7 +64,7 @@ pub(crate) fn install_product_event_receivers(shell: &Rc<Shell>, receivers: Prod
 
 fn apply_source_event(shell: &Rc<Shell>, event: SourceEvent) {
     match event {
-        SourceEvent::Configured(configured) => apply_configured_sources(shell, configured),
+        SourceEvent::Configured(configured) => apply_source_status(shell, configured),
         SourceEvent::Selected {
             configured,
             selected,
@@ -86,8 +86,8 @@ fn apply_source_event(shell: &Rc<Shell>, event: SourceEvent) {
                 .source
                 .configured
                 .borrow()
-                .source
                 .iter()
+                .map(|status| &status.source)
                 .find(|source| source.id == source_id)
                 .map(gtk_widgets::source_labels::configured_source_display_name)
                 .unwrap_or_else(|| source_id.as_str().to_string());
@@ -111,9 +111,9 @@ fn release_selected_source(shell: &Rc<Shell>) {
     shell.player_ui.update_bottom_player();
 }
 
-fn apply_configured_sources(
+fn apply_source_status(
     shell: &Rc<Shell>,
-    configured: rufin_core::runtime::source::ConfiguredSources,
+    configured: Option<rufin_core::runtime::source::SourceStatus>,
 ) {
     *shell.source.configured.borrow_mut() = configured;
     refresh_context_playlist_picker(shell);
@@ -122,7 +122,7 @@ fn apply_configured_sources(
 
 fn apply_selected_source(
     shell: &Rc<Shell>,
-    configured: rufin_core::runtime::source::ConfiguredSources,
+    configured: Option<rufin_core::runtime::source::SourceStatus>,
     selected: rufin_core::runtime::SelectedLibrary,
 ) {
     let changed = shell.selected_library().as_deref().is_none_or(|previous| {

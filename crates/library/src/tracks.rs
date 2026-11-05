@@ -337,14 +337,12 @@ pub(crate) fn displayed_stat(field: &str) -> String {
 
 pub(crate) fn local_stat(field: &str) -> &'static str {
     match field {
-        "play_count" => {
-            "track.local_play_count+COALESCE((SELECT play_count FROM legacy_activity old JOIN sources origin ON origin.object_id=old.source_id WHERE origin.source_key=track.source_key AND old.track_object_id=track.object_id AND period='lifetime' AND item_kind='track'),0)"
-        }
+        "play_count" => "track.local_play_count",
         "skip_count" => {
-            "COALESCE((SELECT sum(skipped) FROM listens WHERE media_uri=track.media_uri),0)+COALESCE((SELECT skip_count FROM legacy_activity old JOIN sources origin ON origin.object_id=old.source_id WHERE origin.source_key=track.source_key AND old.track_object_id=track.object_id AND period='lifetime' AND item_kind='track'),0)"
+            "COALESCE((SELECT sum(skipped) FROM listens WHERE media_uri=track.media_uri),0)"
         }
         "last_played" => {
-            "(SELECT max(value) FROM (SELECT max(started_at) value FROM listens WHERE media_uri=track.media_uri UNION ALL SELECT last_played_at FROM legacy_activity old JOIN sources origin ON origin.object_id=old.source_id WHERE origin.source_key=track.source_key AND old.track_object_id=track.object_id AND period='lifetime' AND item_kind='track'))"
+            "(SELECT max(value) FROM (SELECT max(started_at) value FROM listens WHERE media_uri=track.media_uri))"
         }
         _ => unreachable!(),
     }

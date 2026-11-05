@@ -41,21 +41,6 @@ pub struct CredentialPreset {
     pub open_subsonic_authentication: Option<crate::SubsonicAuthentication>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SourceSettingsChange {
-    pub source_id: SourceId,
-    pub kind: SubsonicFlavor,
-    pub authentication: crate::SubsonicAuthentication,
-    pub credentials: CredentialInput,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct EditableSource {
-    pub source_id: SourceId,
-    pub kind: SubsonicFlavor,
-    pub credentials: CredentialPreset,
-}
-
 impl SourceConfiguration {
     pub fn server_address(&self) -> Option<String> {
         let address = crate::subsonic::SubsonicSourceConfig::from_configuration(self)
@@ -100,18 +85,14 @@ impl SourceConfiguration {
     }
 
     /// Return the fields Rufin may present when editing this source.
-    pub fn editable(&self) -> SourceResult<EditableSource> {
+    pub fn editable(&self) -> SourceResult<CredentialPreset> {
         let config = crate::subsonic::SubsonicSourceConfig::from_configuration(self)?;
-        Ok(EditableSource {
-            source_id: self.source_id.clone(),
-            kind: self.kind,
-            credentials: CredentialPreset {
-                source_name: self.name.clone(),
-                server_url: config.base_url,
-                username: config.username,
-                trust_invalid_cert: config.trust_invalid_cert,
-                open_subsonic_authentication: Some(config.authentication),
-            },
+        Ok(CredentialPreset {
+            source_name: self.name.clone(),
+            server_url: config.base_url,
+            username: config.username,
+            trust_invalid_cert: config.trust_invalid_cert,
+            open_subsonic_authentication: Some(config.authentication),
         })
     }
 }

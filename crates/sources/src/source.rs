@@ -13,10 +13,7 @@ use playback::{SourceReportFact, StreamRequest};
 use serde::{Deserialize, Serialize};
 
 use crate::policy::raw_item_id;
-use crate::{
-    ImageBytes, SourceConfiguration, SourceError, SourceId, SourceResult, SourceSettingsChange,
-    SourceSetup,
-};
+use crate::{ImageBytes, SourceConfiguration, SourceError, SourceId, SourceResult, SourceSetup};
 
 pub(crate) const LIVE_CHANGE_LIMIT: usize = 128;
 
@@ -445,7 +442,7 @@ impl Source {
     pub async fn edit(
         current: SourceConfiguration,
         current_credential: Option<String>,
-        input: SourceSettingsChange,
+        input: SourceSetup,
     ) -> SourceResult<SourceEditResult> {
         crate::subsonic::edit(
             current,

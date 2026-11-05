@@ -150,9 +150,8 @@ impl Shell {
             self.source
                 .configured
                 .borrow()
-                .source
                 .iter()
-                .cloned()
+                .map(|status| status.source.clone())
                 .collect::<Vec<_>>()
                 .into(),
             Rc::new(move |change, settled| {

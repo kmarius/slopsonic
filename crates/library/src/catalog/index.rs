@@ -412,10 +412,10 @@ fn refresh_group(kind: &str, role: i32, entity: &str, album: &str) -> String {
 fn display(scope: &str) -> String {
     format!("UPDATE tracks SET displayed_play_count=current.play_count,displayed_last_played=current.last_played,displayed_skip_count=current.skip_count,is_downloaded=current.downloaded_count FROM (
         SELECT track.track_key,EXISTS(SELECT 1 FROM download_locators WHERE media_uri=track.media_uri AND origin='download') downloaded_count,
-        CASE WHEN source.kind IN('local','files','webdav','smb','documents') OR track.source_key IS NULL THEN track.local_play_count+coalesce(legacy.play_count,0) ELSE coalesce(native.play_count,0) END play_count,
-        CASE WHEN source.kind IN('local','files','webdav','smb','documents') OR track.source_key IS NULL THEN (SELECT max(value) FROM(SELECT max(started_at) value FROM listens WHERE media_uri=track.media_uri UNION ALL SELECT legacy.last_played_at)) ELSE native.last_played END last_played,
-        CASE WHEN source.kind IN('local','files','webdav','smb','documents') OR track.source_key IS NULL THEN coalesce((SELECT sum(skipped) FROM listens WHERE media_uri=track.media_uri),0)+coalesce(legacy.skip_count,0) ELSE coalesce(native.skip_count,0) END skip_count
-        FROM tracks track LEFT JOIN sources source USING(source_key) LEFT JOIN native_media_state native USING(media_uri) LEFT JOIN legacy_activity legacy ON legacy.source_id=source.object_id AND legacy.track_object_id=track.object_id AND legacy.period='lifetime' AND legacy.item_kind='track' WHERE {scope}
+        CASE WHEN source.kind IN('local','files','webdav','smb','documents') OR track.source_key IS NULL THEN track.local_play_count ELSE coalesce(native.play_count,0) END play_count,
+        CASE WHEN source.kind IN('local','files','webdav','smb','documents') OR track.source_key IS NULL THEN (SELECT max(value) FROM(SELECT max(started_at) value FROM listens WHERE media_uri=track.media_uri ))ELSE native.last_played END last_played,
+        CASE WHEN source.kind IN('local','files','webdav','smb','documents') OR track.source_key IS NULL THEN coalesce((SELECT sum(skipped) FROM listens WHERE media_uri=track.media_uri),0) ELSE coalesce(native.skip_count,0) END skip_count
+        FROM tracks track LEFT JOIN sources source USING(source_key) LEFT JOIN native_media_state native USING(media_uri) WHERE {scope}
         ) current WHERE tracks.track_key=current.track_key AND (displayed_play_count,displayed_last_played,displayed_skip_count,is_downloaded) IS NOT (current.play_count,current.last_played,current.skip_count,current.downloaded_count);")
 }
 
@@ -611,21 +611,6 @@ fn activity_triggers() -> String {
             "track.media_uri=OLD.media_uri",
         ),
         (
-            "legacy_insert",
-            "AFTER INSERT ON legacy_activity WHEN NEW.period='lifetime' AND NEW.item_kind='track'",
-            "track.source_key=(SELECT source_key FROM sources WHERE object_id=NEW.source_id) AND track.object_id=NEW.track_object_id",
-        ),
-        (
-            "legacy_update",
-            "AFTER UPDATE ON legacy_activity WHEN (OLD.source_id,OLD.period,OLD.item_kind,OLD.track_object_id,OLD.play_count,OLD.skip_count,OLD.last_played_at) IS NOT (NEW.source_id,NEW.period,NEW.item_kind,NEW.track_object_id,NEW.play_count,NEW.skip_count,NEW.last_played_at)",
-            "(OLD.period='lifetime' AND OLD.item_kind='track' AND track.source_key=(SELECT source_key FROM sources WHERE object_id=OLD.source_id) AND track.object_id=OLD.track_object_id) OR (NEW.period='lifetime' AND NEW.item_kind='track' AND track.source_key=(SELECT source_key FROM sources WHERE object_id=NEW.source_id) AND track.object_id=NEW.track_object_id)",
-        ),
-        (
-            "legacy_delete",
-            "AFTER DELETE ON legacy_activity WHEN OLD.period='lifetime' AND OLD.item_kind='track'",
-            "track.source_key=(SELECT source_key FROM sources WHERE object_id=OLD.source_id) AND track.object_id=OLD.track_object_id",
-        ),
-        (
             "download_insert",
             "AFTER INSERT ON download_locators WHEN NEW.origin='download'",
             "track.media_uri=NEW.media_uri",
@@ -757,6 +742,31 @@ pub(crate) async fn initialize(connection: &mut SqliteConnection) -> LibraryResu
     )))
     .execute(&mut *connection)
     .await?;
+    sqlx::raw_sql(sqlx::AssertSqlSafe(triggers()))
+        .execute(connection)
+        .await?;
+    Ok(())
+}
+
+/// Recreates stored triggers that still reference a table dropped by a migration.
+pub(crate) async fn rebuild_triggers_referencing(
+    connection: &mut SqliteConnection,
+    table: &str,
+) -> LibraryResult<()> {
+    let stale = sqlx::query_scalar::<_, String>(
+        "SELECT name FROM sqlite_master WHERE type='trigger' AND instr(sql,?1)>0",
+    )
+    .bind(table)
+    .fetch_all(&mut *connection)
+    .await?;
+    for name in stale {
+        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+            "DROP TRIGGER IF EXISTS \"{}\"",
+            name.replace('"', "\"\"")
+        )))
+        .execute(&mut *connection)
+        .await?;
+    }
     sqlx::raw_sql(sqlx::AssertSqlSafe(triggers()))
         .execute(connection)
         .await?;

@@ -181,7 +181,7 @@ async fn deleting_or_corrupting_catalog_preserves_exact_durable_records() {
         .unwrap();
     let mut raw = connection(&path, false).await;
     sqlx::query("INSERT INTO listens(external_id,source_id,media_uri,track_title,artist_name,album_title,started_at,local_period,duration_millis,listened_millis,skipped) VALUES(NULL,'source',?1,'Snapshot','Artist','Album',100,'1970-01',100000,90000,0)").bind(uri).execute(&mut raw).await.unwrap();
-    sqlx::raw_sql("INSERT INTO listen_outbox(listen_key,service,account_id,attempts,next_attempt_at,last_error) SELECT listen_key,'lastfm','account',3,200,'retry' FROM listens; INSERT INTO legacy_activity VALUES('source','lifetime','track','track-a',4,2,90);").execute(&mut raw).await.unwrap();
+    sqlx::raw_sql("INSERT INTO listen_outbox(listen_key,service,account_id,attempts,next_attempt_at,last_error) SELECT listen_key,'lastfm','account',3,200,'retry' FROM listens;").execute(&mut raw).await.unwrap();
     raw.close().await.unwrap();
     fixture.database.close().await.unwrap();
     let mut before = durable_rows(&path).await;
@@ -336,6 +336,38 @@ async fn unsupported_version_preserves_library_data() {
     let before = durable_rows(&fixture.path).await;
     assert!(Database::open(&fixture.path).await.is_err());
     assert_eq!(durable_rows(&fixture.path).await, before);
+}
+
+#[tokio::test]
+async fn upgrading_from_schema_60_drops_recovered_activity_and_its_triggers() {
+    let fixture = super::support::fixture().await;
+    fixture.database.close().await.unwrap();
+    let mut raw = connection(&fixture.path, false).await;
+    sqlx::raw_sql("CREATE TABLE legacy_activity(source_id TEXT NOT NULL, play_count INTEGER NOT NULL); CREATE TRIGGER legacy_probe AFTER INSERT ON playlists BEGIN SELECT count(*) FROM legacy_activity; END; PRAGMA user_version=60;")
+        .execute(&mut raw).await.unwrap();
+    raw.close().await.unwrap();
+    let database = Database::open(&fixture.path).await.unwrap();
+    database
+        .create_playlist(
+            None,
+            "After upgrade",
+            &library::MemberSelection::Uris((vec![]).into()),
+        )
+        .await
+        .unwrap();
+    database.close().await.unwrap();
+    let mut raw = connection(&fixture.path, false).await;
+    let leftovers: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM sqlite_master WHERE name='legacy_activity' OR instr(sql,'legacy_activity')>0",
+    )
+    .fetch_one(&mut raw)
+    .await
+    .unwrap();
+    let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+        .fetch_one(&mut raw)
+        .await
+        .unwrap();
+    assert_eq!((leftovers, version), (0, 61));
 }
 
 #[tokio::test]

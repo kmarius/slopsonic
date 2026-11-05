@@ -12,8 +12,8 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::runtime::source::{
-    ConfiguredSources, EditableSource, SourceCacheSummary, SourceOperation, SourceProgress,
-    SourceProgressStage, SourceSummary,
+    EditableSource, SourceCacheSummary, SourceOperation, SourceProgress, SourceProgressStage,
+    SourceStatus, SourceSummary,
 };
 use crate::runtime::{
     CatalogChange, CatalogPublication, CatalogRevision, FavoriteSettlement, SelectedLibrary,
@@ -28,7 +28,7 @@ use library::{
 use secrets::{SecretStorageMode, SwitchableSecretStore};
 use sources::{
     LiveFolderPage, SelectedFeed, Source, SourceConfiguration, SourceEntityKind, SourceError,
-    SourceId, SourceReadProgress, SourceReadStage, SourceSettingsChange, SourceSetup,
+    SourceId, SourceReadProgress, SourceReadStage, SourceSetup,
 };
 use tracing::{info, warn};
 
@@ -156,11 +156,8 @@ impl Shared {
         Ok(())
     }
 
-    pub(crate) fn configured_sources(
-        &self,
-        selected: Option<&SelectedLibrary>,
-    ) -> ConfiguredSources {
-        configured_sources(
+    pub(crate) fn source_status(&self, selected: Option<&SelectedLibrary>) -> Option<SourceStatus> {
+        source_status(
             &self.settings.load(),
             selected,
             &self
@@ -507,7 +504,7 @@ impl SourceOwner {
             }
             owner
                 .shared
-                .send(SourceEvent::Configured(owner.list_sources()))
+                .send(SourceEvent::Configured(owner.source_status()))
                 .await;
         });
         let weak = Arc::downgrade(&self.shared);
@@ -775,7 +772,7 @@ impl SourceOwner {
             .unwrap_or_else(|p| p.into_inner()) = Some(selected.clone());
         self.shared
             .send(SourceEvent::Selected {
-                configured: self.shared.configured_sources(Some(&selected)),
+                configured: self.shared.source_status(Some(&selected)),
                 selected: selected.clone(),
             })
             .await;
@@ -1142,8 +1139,11 @@ impl SourceOwner {
         Ok(configured)
     }
 
-    async fn edit_configured_source(&self, input: SourceSettingsChange) -> Result<(), String> {
-        let source_id = input.source_id.clone();
+    async fn edit_configured_source(
+        &self,
+        source_id: SourceId,
+        input: SourceSetup,
+    ) -> Result<(), String> {
         let configured = configured_source(&self.shared.settings.load().sources, &source_id)?;
         let credential = configured
             .credential
@@ -1203,8 +1203,7 @@ impl SourceOwner {
         }?;
         self.shared
             .send(SourceEvent::Configured(
-                self.shared
-                    .configured_sources(self.shared.selected().as_ref()),
+                self.shared.source_status(self.shared.selected().as_ref()),
             ))
             .await;
         self.request_asset_downloads();
@@ -1279,8 +1278,7 @@ impl SourceOwner {
                 .outputs
                 .events
                 .send(SourceEvent::Configured(
-                    self.shared
-                        .configured_sources(self.shared.selected().as_ref()),
+                    self.shared.source_status(self.shared.selected().as_ref()),
                 ))
                 .await;
         }
@@ -1372,9 +1370,8 @@ impl SourceOwner {
 }
 
 impl SourceOwner {
-    pub fn list_sources(&self) -> ConfiguredSources {
-        self.shared
-            .configured_sources(self.shared.selected().as_ref())
+    pub fn source_status(&self) -> Option<SourceStatus> {
+        self.shared.source_status(self.shared.selected().as_ref())
     }
 }
 
@@ -1527,11 +1524,15 @@ impl SourceOwner {
         receiver
     }
 
-    pub fn update_source(&self, input: SourceSettingsChange) -> Receiver<Result<(), String>> {
+    pub fn update_source(
+        &self,
+        source_id: SourceId,
+        input: SourceSetup,
+    ) -> Receiver<Result<(), String>> {
         let (sender, receiver) = async_channel::bounded(1);
         let owner = self.clone();
         self.shared.runtime.spawn(async move {
-            let result = owner.edit_configured_source(input).await;
+            let result = owner.edit_configured_source(source_id, input).await;
             if let Err(error) = &result {
                 owner.shared.warn_nonfatal(&error);
             }
@@ -1561,9 +1562,7 @@ impl SourceOwner {
             owner
                 .shared
                 .send(SourceEvent::Configured(
-                    owner
-                        .shared
-                        .configured_sources(owner.shared.selected().as_ref()),
+                    owner.shared.source_status(owner.shared.selected().as_ref()),
                 ))
                 .await;
         });
@@ -1690,9 +1689,7 @@ impl SourceOwner {
                 }
                 owner
                     .shared
-                    .send(SourceEvent::Configured(
-                        owner.shared.configured_sources(None),
-                    ))
+                    .send(SourceEvent::Configured(owner.shared.source_status(None)))
                     .await;
             }
         });
@@ -1801,9 +1798,7 @@ impl SourceOwner {
                 .await;
             owner
                 .shared
-                .send(SourceEvent::Configured(
-                    owner.shared.configured_sources(None),
-                ))
+                .send(SourceEvent::Configured(owner.shared.source_status(None)))
                 .await;
             let _ = sender.try_send(removed);
         });
@@ -2338,20 +2333,20 @@ fn configured_source(
         .ok_or_else(|| "the configured source no longer exists".to_string())
 }
 
-fn configured_sources(
+fn source_status(
     stored: &StoredSettings,
     selected: Option<&SelectedLibrary>,
     counts: &HashMap<SourceId, (usize, usize)>,
-) -> ConfiguredSources {
-    let configured = stored.sources.configured.as_ref();
-    ConfiguredSources {
-        source: configured.map(|configured| SourceSummary {
+) -> Option<SourceStatus> {
+    let configured = stored.sources.configured.as_ref()?;
+    Some(SourceStatus {
+        source: SourceSummary {
             id: configured.configuration.source_id.clone(),
             kind: configured.configuration.kind,
             name: configured.configuration.name.clone(),
             half_stars_enabled: configured.enable_half_stars,
-        }),
-        cache: configured.map(|configured| SourceCacheSummary {
+        },
+        cache: SourceCacheSummary {
             selected_music_folder_name: selected
                 .and_then(|selected| {
                     let wanted = selected.music_folder_object_id.as_ref()?;
@@ -2367,8 +2362,8 @@ fn configured_sources(
             track_count: counts
                 .get(&configured.configuration.source_id)
                 .map_or(0, |counts| counts.1),
-        }),
-    }
+        },
+    })
 }
 
 pub(crate) fn source_error_allows_cache(error: &SourceError) -> bool {
@@ -2391,8 +2386,7 @@ fn source_refresh_error_text(error: &SourceError) -> String {
 }
 
 fn editable_source(configuration: &SourceConfiguration) -> Result<EditableSource, String> {
-    let sources::EditableSource { credentials, .. } =
-        configuration.editable().map_err(string_error)?;
+    let credentials = configuration.editable().map_err(string_error)?;
     Ok(EditableSource {
         source: SourceSummary {
             id: configuration.source_id.clone(),
@@ -2900,13 +2894,7 @@ mod source_tests {
             );
             owner.shared.load_source_counts().await.unwrap();
             assert_eq!(
-                owner
-                    .shared
-                    .configured_sources(None)
-                    .cache
-                    .as_ref()
-                    .unwrap()
-                    .album_count,
+                owner.shared.source_status(None).unwrap().cache.album_count,
                 1
             );
             let completion = owner.select_source(source_id.clone());
@@ -2923,7 +2911,7 @@ mod source_tests {
                         selected,
                     } = receiver.recv().await.unwrap()
                     {
-                        assert_eq!(configured.cache.as_ref().unwrap().album_count, 1);
+                        assert_eq!(configured.unwrap().cache.album_count, 1);
                         break selected;
                     }
                 }
@@ -3078,20 +3066,8 @@ mod source_tests {
             );
             assert_eq!(
                 (
-                    owner
-                        .shared
-                        .configured_sources(None)
-                        .cache
-                        .as_ref()
-                        .unwrap()
-                        .album_count,
-                    owner
-                        .shared
-                        .configured_sources(None)
-                        .cache
-                        .as_ref()
-                        .unwrap()
-                        .track_count,
+                    owner.shared.source_status(None).unwrap().cache.album_count,
+                    owner.shared.source_status(None).unwrap().cache.track_count,
                 ),
                 (1, 1)
             );
@@ -3169,7 +3145,7 @@ mod source_tests {
                 runtime,
                 SourceOutputs { events },
             );
-            assert!(owner.list_sources().source.is_some());
+            assert!(owner.source_status().is_some());
             assert!(owner.selected_library().is_none());
             let missing = owner.select_source(SourceId::new("missing"));
             let error = tokio::time::timeout(Duration::from_secs(5), missing)
@@ -3195,7 +3171,7 @@ mod source_tests {
                 .await
                 .expect("removal completes without consuming events")
                 .unwrap();
-            assert!(owner.list_sources().source.is_none());
+            assert!(owner.source_status().is_none());
             assert!(owner.shared.selected().is_none());
             assert!(
                 database
@@ -3220,10 +3196,7 @@ mod source_tests {
             owner.shared.clients.lock().unwrap().clear();
             owner.shared.cancel_selection();
             owner.forget_source(first.clone()).await.unwrap();
-            assert!(
-                owner.list_sources().source.is_none(),
-                "removal can be repeated"
-            );
+            assert!(owner.source_status().is_none(), "removal can be repeated");
         }
     }
 }
@@ -3260,12 +3233,14 @@ impl SourceOwner {
         credentials: sources::CredentialInput,
     ) -> sources::SourceResult<()> {
         if let Some(source_id) = source_id {
-            self.update_source(SourceSettingsChange {
+            self.update_source(
                 source_id,
-                kind,
-                authentication,
-                credentials,
-            })
+                SourceSetup {
+                    kind,
+                    authentication,
+                    credentials,
+                },
+            )
             .recv()
             .await
             .map_err(|error| SourceError::Other(error.to_string()))?
@@ -3286,14 +3261,14 @@ impl SourceOwner {
 }
 
 impl SourceSubscription {
-    pub async fn next(&self) -> sources::SourceResult<ConfiguredSources> {
+    pub async fn next(&self) -> sources::SourceResult<Option<SourceStatus>> {
         self.changes
             .lock()
             .await
             .changed()
             .await
             .map_err(|error| SourceError::Other(error.to_string()))?;
-        Ok(self.source.list_sources())
+        Ok(self.source.source_status())
     }
 }
 impl SourceOperationSubscription {

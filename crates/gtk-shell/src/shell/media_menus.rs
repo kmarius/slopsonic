@@ -167,9 +167,8 @@ pub(super) fn build(
                         .source
                         .configured
                         .borrow()
-                        .source
                         .iter()
-                        .any(|source| &source.id == source_id)
+                        .any(|status| &status.source.id == source_id)
                 })
             })
         },

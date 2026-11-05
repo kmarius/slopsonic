@@ -22,18 +22,11 @@ pub struct SourceCacheSummary {
     pub track_count: usize,
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct ConfiguredSources {
-    pub source: Option<SourceSummary>,
-    pub cache: Option<SourceCacheSummary>,
-}
-
-impl ConfiguredSources {
-    pub fn half_stars_enabled(&self) -> bool {
-        self.source
-            .as_ref()
-            .is_some_and(|source| source.half_stars_enabled)
-    }
+/// The configured source together with its cache health.
+#[derive(Clone, Debug)]
+pub struct SourceStatus {
+    pub source: SourceSummary,
+    pub cache: SourceCacheSummary,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]

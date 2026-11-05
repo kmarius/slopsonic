@@ -11,9 +11,9 @@ impl SourceOwner {
     ) -> Receiver<Result<bool, String>> {
         let stored = settings.load();
         let sources = self
-            .list_sources()
-            .source
-            .iter()
+            .source_status()
+            .into_iter()
+            .map(|status| status.source)
             .filter(|source| {
                 !stored
                     .sidebar

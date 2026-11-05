@@ -415,7 +415,7 @@ async fn saved_membership_keeps_provenance_metadata_and_source_identity_across_f
         QueueProvenance::Random,
         QueueProvenance::Radio,
         QueueProvenance::AutoDj,
-        QueueProvenance::Legacy,
+        QueueProvenance::Manual,
     ]
     .into_iter()
     .enumerate()
@@ -447,7 +447,7 @@ async fn saved_membership_keeps_provenance_metadata_and_source_identity_across_f
         .queue_entries(
             library::QueueLoad::items(vec![(
                 TrackReference::direct(&missing_uri, "Missing", "", "", 0),
-                QueueProvenance::Legacy,
+                QueueProvenance::Manual,
             )]),
             None,
         )

@@ -176,7 +176,13 @@ pub(super) fn items(shell: &Preferences) -> Vec<PreferencesSearchItem> {
             None,
         );
     }
-    for source in shell.source.configured.borrow().source.iter() {
+    for source in shell
+        .source
+        .configured
+        .borrow()
+        .iter()
+        .map(|status| &status.source)
+    {
         add(
             &mut items,
             Page::Library,
