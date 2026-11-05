@@ -35,6 +35,13 @@ Do not implement or expand:
 - **Discord rich presence, update checks/self-updater**
 - **Listening overview, playback speed/pitch, audio output selection** — the system default output is always used
 - **Private mode**
+- **Activity and queue import/export** — no CSV/JSONL export or import of listening history, queues or ratings
+- **Partial star ratings** — whole stars only
+- **Local loudness analysis** — no EBU R128 scanning; only server and embedded ReplayGain are applied
+- **Mono downmix**
+- **Tray icon and start minimized**
+- **Desktop notifications** — no now-playing notifications
+- **System keyring** — credentials are stored in the config file only
 - **Localization**
 
 ## Architecture
