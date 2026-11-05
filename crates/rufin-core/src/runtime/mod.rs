@@ -27,7 +27,6 @@ pub use storage::{CacheKind, CacheSummary, CacheUsage, StorageSummary};
 #[derive(Clone)]
 pub struct ProductHandles {
     pub settings: crate::SettingsHandle,
-    pub appearance: tokio::sync::watch::Sender<std::collections::BTreeMap<String, String>>,
     pub library: Arc<library::Database>,
     pub runtime: tokio::runtime::Handle,
     pub source: SourceHandle,

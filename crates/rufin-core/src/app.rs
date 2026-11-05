@@ -239,11 +239,6 @@ where
         diagnostics,
         products: ProductHandles {
             settings: Arc::clone(&settings_handle),
-            appearance: tokio::sync::watch::channel(crate::themes::controller_colors(
-                &stored.ui,
-                &paths.config_dir().join("themes"),
-            ))
-            .0,
             library,
             runtime,
             source: source_handle,

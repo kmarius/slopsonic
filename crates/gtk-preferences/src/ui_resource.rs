@@ -16,8 +16,6 @@ pub const APPEARANCE_PREFERENCES_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/appearance.ui";
 pub const THEME_PREFERENCES_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/theme.ui";
 pub const STORAGE_PREFERENCES_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/storage.ui";
-pub const THEME_ACCENT_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/theme_accent.ui";
-pub const THEME_TILE_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/theme_tile.ui";
 pub const SOURCE_CHOICE_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/source/choice.ui";
 pub const SOURCE_CHOICE_SELECTOR_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/preferences/source/choice_selector.ui";
@@ -46,8 +44,6 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     APPEARANCE_PREFERENCES_RESOURCE,
     THEME_PREFERENCES_RESOURCE,
     STORAGE_PREFERENCES_RESOURCE,
-    THEME_ACCENT_RESOURCE,
-    THEME_TILE_RESOURCE,
     SOURCE_CHOICE_RESOURCE,
     SOURCE_CHOICE_SELECTOR_RESOURCE,
     CONNECTION_PROGRESS_RESOURCE,

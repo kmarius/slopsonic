@@ -1403,14 +1403,3 @@ impl SettingsOwner {
         self.load().download_settings(&source_id)
     }
 }
-
-impl SettingsOwner {
-    pub fn set_theme_accent(&self, theme: String, accent: String) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            ui.appearance.theme_preference = ThemePreference::Named(theme.clone());
-            ui.appearance.theme_accents.insert(theme, accent);
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-}

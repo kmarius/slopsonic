@@ -1,12 +1,7 @@
-use crate::{AccentPreference, Settings, ThemePreference};
-
-use rufin_core::themes::{Mode, Theme};
-use std::{cell::RefCell, path::PathBuf};
+use crate::{Settings, ThemePreference};
 
 pub struct ApplicationAppearance {
     override_provider: gtk::CssProvider,
-    pub themes: RefCell<Vec<Theme>>,
-    pub errors: RefCell<Vec<String>>,
     pub system_style: adw::StyleManager,
 }
 
@@ -14,14 +9,9 @@ impl ApplicationAppearance {
     pub fn install() -> Self {
         let appearance = Self {
             override_provider: gtk::CssProvider::new(),
-            themes: RefCell::new(Vec::new()),
-            errors: RefCell::new(Vec::new()),
             // A manager without a display observes the OS without forcing its scheme on the app.
             system_style: gtk::glib::Object::new(),
         };
-        for error in appearance.reload() {
-            tracing::warn!(%error, "could not load theme");
-        }
         let override_provider = &appearance.override_provider;
         let Some(display) = gtk::gdk::Display::default() else {
             return appearance;
@@ -59,53 +49,6 @@ impl ApplicationAppearance {
         appearance
     }
 
-    pub fn folder() -> PathBuf {
-        rufin_core::paths::roots().config_dir().join("themes")
-    }
-
-    pub fn reload(&self) -> Vec<String> {
-        let (custom, mut errors) = rufin_core::themes::custom(&Self::folder());
-        let mut themes = rufin_core::themes::builtins();
-        for theme in custom {
-            let provider = gtk::CssProvider::new();
-            let failures = std::rc::Rc::new(RefCell::new(Vec::new()));
-            let output = failures.clone();
-            provider.connect_parsing_error(move |_, _, error| {
-                if error.is::<gtk::CssParserError>() {
-                    output.borrow_mut().push(error.to_string());
-                }
-            });
-            // Parse values as colors too: custom property declarations alone accept invalid colors.
-            let colors = theme
-                .colors
-                .iter()
-                .filter(|(key, _)| key.ends_with("-color"))
-                .map(|(_, value)| value)
-                .chain(
-                    theme
-                        .accents
-                        .iter()
-                        .flat_map(|accent| [&accent.color, &accent.foreground]),
-                );
-            let mut css = format!(
-                ":root {{ {} }}",
-                palette_css(&themes, &theme, None, AccentPreference::System)
-            );
-            for color in colors {
-                css.push_str(&format!("* {{ color: {color}; }}"));
-            }
-            provider.load_from_string(&css);
-            if failures.borrow().is_empty() {
-                themes.push(theme);
-            } else {
-                errors.push(format!("{}: {}", theme.name, failures.borrow().join("\n")));
-            }
-        }
-        *self.themes.borrow_mut() = themes;
-        *self.errors.borrow_mut() = errors.clone();
-        errors
-    }
-
     pub fn apply(&self, settings: &Settings) {
         if let Some(gtk_settings) = gtk::Settings::default() {
             if settings.application.reduce_motion {
@@ -114,88 +57,28 @@ impl ApplicationAppearance {
                 gtk_settings.reset_property("gtk-enable-animations");
             }
         }
-        let themes = self.themes.borrow();
-        adw::StyleManager::default()
-            .set_color_scheme(color_scheme(&settings.appearance.theme_preference, &themes));
+        adw::StyleManager::default().set_color_scheme(match settings.appearance.theme_preference {
+            ThemePreference::System => adw::ColorScheme::PreferLight,
+            ThemePreference::Light => adw::ColorScheme::ForceLight,
+            ThemePreference::Dark => adw::ColorScheme::ForceDark,
+        });
         self.override_provider
-            .load_from_string(&appearance_override_css(settings, &themes));
+            .load_from_string(&appearance_override_css(settings));
     }
 }
 
-fn selected_theme<'a>(preference: &ThemePreference, themes: &'a [Theme]) -> Option<&'a Theme> {
-    let id = match preference {
-        ThemePreference::System => return None,
-        ThemePreference::Light => "builtin:light",
-        ThemePreference::Dark => "builtin:dark",
-        ThemePreference::Named(id) => id,
+fn appearance_override_css(settings: &Settings) -> String {
+    let mut css = String::from(":root {\n");
+    let palette = match settings.appearance.theme_preference {
+        ThemePreference::System => None,
+        ThemePreference::Light => Some(rufin_core::themes::colors(false)),
+        ThemePreference::Dark => Some(rufin_core::themes::colors(true)),
     };
-    themes.iter().find(|theme| theme.id == id)
-}
-
-fn color_scheme(preference: &ThemePreference, themes: &[Theme]) -> adw::ColorScheme {
-    match selected_theme(preference, themes).map(|theme| theme.mode) {
-        None => adw::ColorScheme::PreferLight,
-        Some(Mode::Light) => adw::ColorScheme::ForceLight,
-        Some(Mode::Dark) => adw::ColorScheme::ForceDark,
-    }
-}
-
-fn palette_css(
-    themes: &[Theme],
-    theme: &Theme,
-    accent: Option<&str>,
-    standard_accent: AccentPreference,
-) -> String {
-    let colors = theme.colors(themes, accent);
-    let mut css = String::new();
-    for (key, value) in colors {
+    for (key, value) in palette.iter().flatten() {
         css.push_str(&format!("  --{key}: {value};\n"));
     }
-    if theme.accents.is_empty()
-        && let Some(color) = standard_accent.color()
-    {
-        append_accent(&mut css, color, "#ffffff");
-    }
-    css
-}
-
-fn append_accent(css: &mut String, color: &str, foreground: &str) {
-    css.push_str(&format!("  --accent-bg-color: {color};\n  --accent-fg-color: {foreground};\n  --accent-color: oklab(from var(--accent-bg-color) var(--standalone-color-oklab));\n"));
-}
-
-fn appearance_override_css(settings: &Settings, themes: &[Theme]) -> String {
-    let mut css = String::from(":root {\n");
-    let theme = selected_theme(&settings.appearance.theme_preference, themes);
-    if let Some(theme) = theme {
-        // Light and Dark keep inheriting the system accent when no override is selected.
-        if matches!(
-            settings.appearance.theme_preference,
-            ThemePreference::Light | ThemePreference::Dark
-        ) {
-            for (key, value) in &theme.colors {
-                css.push_str(&format!("  --{key}: {value};\n"));
-            }
-        } else {
-            css.push_str(&palette_css(
-                themes,
-                theme,
-                settings
-                    .appearance
-                    .theme_accents
-                    .get(&theme.id)
-                    .map(String::as_str),
-                settings.appearance.accent_preference,
-            ));
-        }
-    }
-    if (theme.is_none()
-        || !matches!(
-            settings.appearance.theme_preference,
-            ThemePreference::Named(_)
-        ))
-        && let Some(color) = settings.appearance.accent_preference.color()
-    {
-        append_accent(&mut css, color, "#ffffff");
+    if let Some(color) = settings.appearance.accent_preference.color() {
+        css.push_str(&format!("  --accent-bg-color: {color};\n  --accent-fg-color: #ffffff;\n  --accent-color: oklab(from var(--accent-bg-color) var(--standalone-color-oklab));\n"));
     }
     css.push_str("}\n");
     css
@@ -204,6 +87,7 @@ fn appearance_override_css(settings: &Settings, themes: &[Theme]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::AccentPreference;
 
     fn css(theme: ThemePreference, accent: AccentPreference) -> String {
         let settings = Settings {
@@ -214,23 +98,7 @@ mod tests {
             },
             ..Settings::default()
         };
-        appearance_override_css(&settings, &rufin_core::themes::builtins())
-    }
-
-    #[test]
-    fn theme_preferences_map_to_explicit_application_color_schemes() {
-        assert_eq!(
-            color_scheme(&ThemePreference::System, &rufin_core::themes::builtins()),
-            adw::ColorScheme::PreferLight
-        );
-        assert_eq!(
-            color_scheme(&ThemePreference::Light, &rufin_core::themes::builtins()),
-            adw::ColorScheme::ForceLight
-        );
-        assert_eq!(
-            color_scheme(&ThemePreference::Dark, &rufin_core::themes::builtins()),
-            adw::ColorScheme::ForceDark
-        );
+        appearance_override_css(&settings)
     }
 
     #[test]

@@ -176,8 +176,6 @@ preference_group!(#[derive(Eq)] AppearancePreferences, appearance, {
     theme_preference: ThemePreference = ThemePreference::System => set_theme;
     #[serde(default)]
     accent_preference: AccentPreference = AccentPreference::System => set_accent;
-    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
-    theme_accents: std::collections::BTreeMap<String, String> = Default::default();
 });
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]

@@ -2612,14 +2612,6 @@ button.connect-relay-link, button.connect-relay-link:visited { color: inherit; }
   min-height: 8px;
   border-radius: 999px;
 }
-.theme-options { padding: 9px; }
-.theme-grid > flowboxchild { padding: 3px; }
-.theme-select { padding: 3px; border-radius: 9px; }
-.theme-select:checked { box-shadow: 0 0 0 2px var(--accent-color); }
-.theme-accent { font-size: 0.85em; }
-.theme-accent > button { min-width: 0; min-height: 26px; padding: 2px 4px; }
-.theme-edit { min-width: 20px; min-height: 26px; padding: 2px; }
-.theme-swatch { min-width: 10px; min-height: 10px; border-radius: 50%; }
 
 /* A drop belongs to the whole item, including when a table cell receives it. */
 .drop-feedback:drop(active),
