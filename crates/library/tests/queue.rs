@@ -356,19 +356,6 @@ async fn saved_queue_keeps_compact_choices_and_reads_only_the_window() {
         500
     );
     assert_eq!(restored.entries.len(), 500);
-    let mut exported = Vec::new();
-    fixture
-        .database
-        .export_queue_jsonl(&mut exported)
-        .await
-        .unwrap();
-    let target = super::support::fixture().await;
-    target
-        .database
-        .import_queue_jsonl(std::io::Cursor::new(exported))
-        .await
-        .unwrap();
-    assert_eq!(target.database.restore_queue().await.unwrap(), state);
 }
 
 #[tokio::test]
@@ -501,33 +488,6 @@ async fn saved_membership_keeps_provenance_metadata_and_source_identity_across_f
                 .await
                 .unwrap();
         assert_eq!(retained, [unavailable.media_uri.clone()]);
-        let mut exported = Vec::new();
-        fixture
-            .database
-            .export_queue_jsonl(&mut exported)
-            .await
-            .unwrap();
-        let header: serde_json::Value =
-            serde_json::from_slice(exported.split(|byte| *byte == b'\n').next().unwrap()).unwrap();
-        assert_eq!(header["version"], 4);
-        assert_eq!(
-            header["queue"]["entries"].as_array().unwrap().len(),
-            state.entries.len()
-        );
-        assert!(
-            header["queue"]["entries"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .all(|entry| entry.get("track_key").is_none() && entry["media_uri"].is_string())
-        );
-        let target = super::support::fixture().await;
-        target
-            .database
-            .import_queue_jsonl(std::io::Cursor::new(exported))
-            .await
-            .unwrap();
-        assert_eq!(target.database.restore_queue().await.unwrap(), restored);
     }
     state.entries = state.entries[..6].to_vec().into();
     state.ids = state.ids[..6].to_vec().into();
@@ -578,7 +538,7 @@ async fn saved_membership_keeps_provenance_metadata_and_source_identity_across_f
 }
 
 #[tokio::test]
-async fn imported_metadata_batches_keep_member_order_and_known_song_facts() {
+async fn rewritten_queue_keeps_member_order_and_known_song_facts() {
     let fixture = fixture().await;
     let mut rows = (0..205)
         .map(|index| {
@@ -609,26 +569,6 @@ async fn imported_metadata_batches_keep_member_order_and_known_song_facts() {
         true,
     )
     .await;
-    let mut exported = Vec::new();
-    fixture
-        .database
-        .export_queue_jsonl(&mut exported)
-        .await
-        .unwrap();
-    let records = String::from_utf8(exported).unwrap();
-    let metadata = records
-        .lines()
-        .skip(1)
-        .map(|line| serde_json::from_str::<TrackReference>(line).unwrap())
-        .collect::<Vec<_>>();
-    assert_eq!(metadata.len(), 3);
-    assert_eq!(
-        metadata
-            .iter()
-            .map(|item| item.metadata.title.as_str())
-            .collect::<Vec<_>>(),
-        ["Saved title 204", "Saved title 202", "Saved title 203"]
-    );
     rows.reverse();
     for (position, row) in rows.iter_mut().enumerate() {
         row.position = position;

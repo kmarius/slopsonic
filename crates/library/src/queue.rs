@@ -167,31 +167,6 @@ enum SavedContext<S> {
     Untitled(S),
 }
 
-async fn decode_queue_export(
-    connection: &mut SqliteConnection,
-    mut value: serde_json::Value,
-) -> LibraryResult<QueueRestore> {
-    if let Some(entries) = value
-        .get_mut("entries")
-        .and_then(serde_json::Value::as_array_mut)
-    {
-        for entry in entries {
-            if let Some(uri) = entry.get("media_uri").and_then(serde_json::Value::as_str) {
-                let key = crate::catalog::remember_track(
-                    connection,
-                    &TrackReference {
-                        media_uri: uri.to_owned(),
-                        ..Default::default()
-                    },
-                )
-                .await?;
-                entry["track_key"] = serde_json::to_value(key)?;
-            }
-        }
-    }
-    Ok(serde_json::from_value(value)?)
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum QueueLoad {
     Tracks(Vec<(crate::MemberSelection, QueueProvenance)>),
@@ -498,23 +473,6 @@ impl Database {
         Ok(state)
     }
 
-    pub async fn export_queue_jsonl(&self, output: impl std::io::Write) -> LibraryResult<()> {
-        let (_export, mut connection) = self.acquire_export().await?;
-        export_queue_jsonl_on(&mut connection, output).await
-    }
-
-    pub async fn import_queue_jsonl(&self, input: impl std::io::BufRead) -> LibraryResult<()> {
-        let mut writer = self.writer().await?;
-        let mut transaction = writer
-            .as_mut()
-            .ok_or(LibraryError::WriterUnavailable)?
-            .begin()
-            .await?;
-        import_queue_jsonl_on(&mut transaction, input).await?;
-        transaction.commit().await?;
-        Ok(())
-    }
-
     pub async fn queue_positions_for_source(
         &self,
         queue: &QueueRestore,
@@ -764,68 +722,6 @@ async fn read_settings(
     Ok(())
 }
 
-pub(crate) async fn export_queue_jsonl_on(
-    connection: &mut SqliteConnection,
-    mut output: impl std::io::Write,
-) -> LibraryResult<()> {
-    let state = restore_queue_on(connection).await?;
-    let keys = state
-        .entries
-        .iter()
-        .map(|entry| entry.track_key)
-        .collect::<Vec<_>>();
-    let uris = track_uris_on(connection, &keys).await?;
-    let mut saved = serde_json::to_value(&state)?;
-    for (entry, uri) in saved["entries"]
-        .as_array_mut()
-        .unwrap()
-        .iter_mut()
-        .zip(&uris)
-    {
-        entry.as_object_mut().unwrap().remove("track_key");
-        entry["media_uri"] = uri.clone().into();
-    }
-    serde_json::to_writer(&mut output, &serde_json::json!({"version":4,"queue":saved}))?;
-    output.write_all(b"\n")?;
-    let mut seen = HashSet::new();
-    for page in uris.chunks(QUEUE_CONTEXT_LIMIT) {
-        for item in track_references_for_uris_on(connection, page).await? {
-            if seen.insert(item.media_uri.clone()) {
-                serde_json::to_writer(&mut output, &item)?;
-                output.write_all(b"\n")?;
-            }
-        }
-    }
-    Ok(())
-}
-pub(crate) async fn import_queue_jsonl_on(
-    connection: &mut sqlx::SqliteConnection,
-    mut input: impl std::io::BufRead,
-) -> LibraryResult<()> {
-    let mut line = String::new();
-    input.read_line(&mut line)?;
-    let header: serde_json::Value = serde_json::from_str(&line)?;
-    let state = match header["version"].as_u64() {
-        Some(4) => {
-            while {
-                line.clear();
-                input.read_line(&mut line)? != 0
-            } {
-                if !line.trim().is_empty() {
-                    persist_metadata(connection, &serde_json::from_str::<TrackReference>(&line)?)
-                        .await?;
-                }
-            }
-            decode_queue_export(connection, header["queue"].clone()).await?
-        }
-        _ => {
-            return Err(LibraryError::InvalidRequest(
-                "unsupported Queue export version".into(),
-            ));
-        }
-    };
-    save_queue_on(connection, &state).await
-}
 #[allow(non_upper_case_globals)]
 impl QueuePlacement {
     pub const Now: Self = Self::Replace { anchor_index: 0 };
@@ -856,14 +752,6 @@ pub fn shuffle_order<T>(values: &mut [T], mut seed: u64) {
         n ^= n >> 31;
         values.swap(i, ((u128::from(n) * (i as u128 + 1)) >> 64) as usize);
     }
-}
-
-async fn track_uris_on(
-    connection: &mut SqliteConnection,
-    keys: &[crate::TrackKey],
-) -> LibraryResult<Vec<String>> {
-    Ok(sqlx::query_scalar("SELECT media_uri FROM json_each(?1) requested JOIN tracks ON track_key=requested.value ORDER BY CAST(requested.key AS INTEGER)")
-        .bind(serde_json::to_string(keys)?).fetch_all(connection).await?)
 }
 
 async fn track_references_for_uris_on(
