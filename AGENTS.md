@@ -42,6 +42,9 @@ Do not implement or expand:
 - **Tray icon and start minimized**
 - **Desktop notifications** — no now-playing notifications
 - **System keyring** — credentials are stored in the config file only
+- **Custom themes** — only light/dark/system color scheme plus an accent color
+- **Smart playlists and the rule editor**
+- **Playlist folders**
 - **Localization**
 
 ## Architecture
