@@ -182,7 +182,6 @@ async fn playlist_order_is_title_ordered_and_folder_scoped() {
 
     let cancellation = ReadCancellation::new();
     let all = library::ListRead {
-        playlist_scope: Default::default(),
         kind: library::ListKind::Playlists,
         source: Some(fixture.source),
         sort: CatalogSort::Title,
@@ -203,7 +202,6 @@ async fn playlist_order_is_title_ordered_and_folder_scoped() {
     .expect("all Playlists");
     assert_eq!(all, [alpha, zulu]);
     let scoped = library::ListRead {
-        playlist_scope: Default::default(),
         kind: library::ListKind::Playlists,
         source: Some(fixture.source),
         sort: CatalogSort::Title,
@@ -284,7 +282,6 @@ async fn playlist_reordering_keeps_one_rank_sequence() {
     );
     assert_eq!(
         library::ListRead {
-            playlist_scope: Default::default(),
             kind: library::ListKind::Playlists,
             source: Some(fixture.source),
             sort: CatalogSort::Position,

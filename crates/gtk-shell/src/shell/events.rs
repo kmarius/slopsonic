@@ -261,7 +261,7 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
         CatalogChange::Playlists(playlist) => {
             refresh_context_playlist_picker(shell);
             super::navigation::refresh_sidebar_pins(shell);
-            if matches!(current, Route::Playlists | Route::PlaylistFolder { .. })
+            if matches!(current, Route::Playlists)
                 || matches!(current, Route::PlaylistDetail(key) if playlist.is_none_or(|playlist| playlist == key))
             {
                 shell.refresh_mounted_catalog();

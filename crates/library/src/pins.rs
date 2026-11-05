@@ -2,7 +2,6 @@
 use crate::{Database, LibraryResult, ReadCancellation, SourceId};
 use serde::{Deserialize, Serialize};
 use sqlx::{AssertSqlSafe, FromRow};
-use std::collections::HashMap;
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum SidebarPin {
@@ -25,9 +24,6 @@ pub enum SidebarPin {
         source_id: Option<SourceId>,
         playlist_id: String,
     },
-    PlaylistFolder {
-        folder_id: String,
-    },
 }
 
 fn is_false(value: &bool) -> bool {
@@ -47,8 +43,7 @@ const REQUESTED: &str = "WITH requested AS (
     SELECT CAST(pin.key AS INTEGER) ordinal,kind.key kind,
     json_extract(kind.value,'$.source_id') source_id,
     coalesce(json_extract(kind.value,'$.album_id'),json_extract(kind.value,'$.artist_id'),
-        json_extract(kind.value,'$.genre_id'),json_extract(kind.value,'$.playlist_id'),
-        json_extract(kind.value,'$.folder_id')) object_id,
+        json_extract(kind.value,'$.genre_id'),json_extract(kind.value,'$.playlist_id')) object_id,
     coalesce(json_extract(kind.value,'$.album_artist'),0) role
     FROM json_each(?1) pin CROSS JOIN json_each(pin.value) kind)";
 
@@ -70,8 +65,6 @@ impl Database {
             duration_millis: Option<i64>,
             artwork_binding: Option<Vec<u8>>,
             gallery: String,
-            cover_id: Option<String>,
-            cover_source: Option<String>,
         }
         let mut parts = Vec::new();
         for (kind, table, key, name, totals_kind) in [
@@ -102,20 +95,11 @@ impl Database {
             } else {
                 "'[]'".into()
             };
-            parts.push(format!("SELECT requested.ordinal,item.{key} entity_key,item.{name} name,{count} track_count,{duration} duration_millis,{artwork} artwork_binding,{gallery} gallery,NULL cover_id,NULL cover_source
+            parts.push(format!("SELECT requested.ordinal,item.{key} entity_key,item.{name} name,{count} track_count,{duration} duration_millis,{artwork} artwork_binding,{gallery} gallery
                 FROM requested LEFT JOIN sources source ON source.object_id=requested.source_id
                 CROSS JOIN {table} item ON item.object_id=requested.object_id {scope} {totals}
                 WHERE requested.kind='{kind}' AND item.{name} IS NOT NULL"));
         }
-        let binding = crate::artwork::preview_sql("regular.artwork_binding");
-        parts.push(format!(
-            "SELECT requested.ordinal,item.folder_key,item.name,NULL,NULL,
-            {binding},'[]',regular.object_id,source.object_id
-            FROM requested CROSS JOIN playlist_folders item ON item.object_id=requested.object_id
-            LEFT JOIN playlists regular ON regular.playlist_key=item.playlist_cover_key
-            LEFT JOIN sources source ON source.source_key=regular.source_key
-            WHERE requested.kind='PlaylistFolder'"
-        ));
         let (_permit, mut connection) = self.acquire_general(cancellation).await?;
         let rows = sqlx::query_as::<_, Row>(AssertSqlSafe(format!(
             "{REQUESTED} SELECT * FROM ({}) ORDER BY ordinal",
@@ -135,9 +119,6 @@ impl Database {
                         source_id.as_ref().map(ToString::to_string),
                         playlist_id.clone(),
                     )),
-                    SidebarPin::PlaylistFolder { .. } => {
-                        row.cover_id.map(|id| (row.cover_source, id))
-                    }
                     _ => None,
                 };
                 let artwork = if let Some(owner) = owner {
@@ -165,32 +146,5 @@ impl Database {
                 })
             })
             .collect()
-    }
-
-    pub async fn sidebar_pin_totals(
-        &self,
-        mut rows: Vec<SidebarPinRow>,
-        cancellation: &ReadCancellation,
-    ) -> LibraryResult<Vec<SidebarPinRow>> {
-        let folders = rows
-            .iter()
-            .filter(|row| matches!(row.pin, SidebarPin::PlaylistFolder { .. }))
-            .map(|row| row.key)
-            .collect::<Vec<_>>();
-        if folders.is_empty() {
-            return Ok(rows);
-        }
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
-        let folder_totals: HashMap<i64, (i64, i64)> = sqlx::query_as::<_,(i64,i64,i64)>("SELECT child.playlist_folder_key,sum(totals.track_count),sum(totals.duration_millis)
-            FROM json_each(?1) requested CROSS JOIN playlists child ON child.playlist_folder_key=requested.value
-            JOIN collection_totals totals ON totals.kind='playlist' AND totals.entity_key=child.playlist_key AND totals.role=0 AND coalesce(totals.folder_key,'')=''
-            WHERE child.name IS NOT NULL AND (child.owner='rufin' OR child.indexed) GROUP BY child.playlist_folder_key")
-            .bind(serde_json::to_string(&folders)?).fetch_all(&mut *connection).await?.into_iter().map(|(key,count,duration)| (key,(count,duration))).collect();
-        for row in &mut rows {
-            if matches!(row.pin, SidebarPin::PlaylistFolder { .. }) {
-                row.totals = Some(folder_totals.get(&row.key).copied().unwrap_or_default());
-            }
-        }
-        Ok(rows)
     }
 }

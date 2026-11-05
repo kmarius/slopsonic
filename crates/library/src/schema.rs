@@ -14,7 +14,7 @@ pub(crate) async fn pragma(
 }
 pub(crate) const STORE_SCHEMA: &str = r#"PRAGMA application_id = 1381320270;
 
-PRAGMA user_version = 63;
+PRAGMA user_version = 64;
 
 CREATE TABLE IF NOT EXISTS queue_contexts (
     context_key INTEGER PRIMARY KEY,
@@ -89,9 +89,6 @@ CREATE TABLE IF NOT EXISTS playlist_folders (
     name TEXT NOT NULL,
     playlist_cover_key INTEGER REFERENCES playlists ON DELETE SET NULL
 ) STRICT;
-CREATE INDEX IF NOT EXISTS playlists_folder_idx ON playlists(playlist_folder_key,playlist_key);
-CREATE TRIGGER IF NOT EXISTS playlists_folder_cover_update AFTER UPDATE OF playlist_folder_key,name,indexed ON playlists BEGIN UPDATE playlist_folders SET playlist_cover_key=(SELECT child.playlist_key FROM playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key AND child.name IS NOT NULL AND (child.owner='rufin' OR child.indexed) ORDER BY child.playlist_key LIMIT 1) WHERE folder_key IN(OLD.playlist_folder_key,NEW.playlist_folder_key) AND NOT EXISTS(SELECT 1 FROM playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key AND child.playlist_key=playlist_folders.playlist_cover_key AND child.name IS NOT NULL AND (child.owner='rufin' OR child.indexed)); END;
-CREATE TRIGGER IF NOT EXISTS playlists_folder_cover_delete AFTER DELETE ON playlists BEGIN UPDATE playlist_folders SET playlist_cover_key=(SELECT child.playlist_key FROM playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key AND child.name IS NOT NULL AND (child.owner='rufin' OR child.indexed) ORDER BY child.playlist_key LIMIT 1) WHERE folder_key =OLD.playlist_folder_key AND NOT EXISTS(SELECT 1 FROM playlists child WHERE child.playlist_folder_key=playlist_folders.folder_key AND child.playlist_key=playlist_folders.playlist_cover_key AND child.name IS NOT NULL AND (child.owner='rufin' OR child.indexed)); END;
 
 CREATE TABLE IF NOT EXISTS favorite_outbox (
     outbox_key INTEGER PRIMARY KEY,
@@ -582,6 +579,14 @@ const MIGRATE_61: &str = "
 DROP TABLE IF EXISTS loudness_measurements;
 ";
 
+const MIGRATE_63: &str = "
+DROP INDEX IF EXISTS playlists_folder_idx;
+DROP TRIGGER IF EXISTS playlists_folder_cover_update;
+DROP TRIGGER IF EXISTS playlists_folder_cover_delete;
+UPDATE playlists SET playlist_folder_key=NULL;
+DELETE FROM playlist_folders;
+";
+
 const MIGRATE_62: &str = "
 DROP TRIGGER IF EXISTS playlists_folder_cover_update;
 DROP TRIGGER IF EXISTS playlists_folder_cover_delete;
@@ -598,7 +603,7 @@ ALTER TABLE playlist_folders_new RENAME TO playlist_folders;
 DROP TABLE IF EXISTS smart_playlists;
 ";
 
-pub(crate) const SCHEMA_VERSION: i64 = 63;
+pub(crate) const SCHEMA_VERSION: i64 = 64;
 
 pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> LibraryResult<()> {
     let version = pragma(connection, "user_version").await?;
@@ -608,6 +613,7 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
         && version != 60
         && version != 61
         && version != 62
+        && version != 63
         && version != SCHEMA_VERSION
     {
         return Err(crate::LibraryError::Migration(format!(
@@ -631,6 +637,9 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
     }
     if version != 0 && version < 63 {
         sqlx::raw_sql(MIGRATE_62).execute(&mut *transaction).await?;
+    }
+    if version != 0 && version < 64 {
+        sqlx::raw_sql(MIGRATE_63).execute(&mut *transaction).await?;
     }
     sqlx::raw_sql(STORE_SCHEMA)
         .execute(&mut *transaction)

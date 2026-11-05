@@ -338,7 +338,7 @@ async fn unsupported_version_preserves_library_data() {
 const SCHEMA_62_FOLDERS: &str = "DROP TRIGGER IF EXISTS playlists_folder_cover_update; DROP TRIGGER IF EXISTS playlists_folder_cover_delete; DROP TABLE playlist_folders; CREATE TABLE smart_playlists(smart_playlist_key INTEGER PRIMARY KEY); CREATE TABLE playlist_folders(folder_key INTEGER PRIMARY KEY, object_id TEXT NOT NULL UNIQUE, name TEXT NOT NULL, smart INTEGER NOT NULL CHECK(smart IN(0,1)), playlist_cover_key INTEGER REFERENCES playlists ON DELETE SET NULL, smart_cover_key INTEGER REFERENCES smart_playlists ON DELETE SET NULL) STRICT; INSERT INTO playlist_folders(object_id,name,smart) VALUES('a','Regular',0),('b','Smart',1);";
 
 #[tokio::test]
-async fn upgrading_from_schema_62_drops_smart_playlists_and_smart_folders() {
+async fn upgrading_from_schema_62_drops_smart_playlists_and_folders() {
     let fixture = super::support::fixture().await;
     fixture.database.close().await.unwrap();
     let mut raw = connection(&fixture.path, false).await;
@@ -350,12 +350,6 @@ async fn upgrading_from_schema_62_drops_smart_playlists_and_smart_folders() {
     .unwrap();
     raw.close().await.unwrap();
     let database = Database::open(&fixture.path).await.unwrap();
-    assert!(
-        database
-            .create_playlist_folder("After upgrade")
-            .await
-            .is_ok()
-    );
     database.close().await.unwrap();
     let mut raw = connection(&fixture.path, false).await;
     let names: Vec<String> =
@@ -369,10 +363,7 @@ async fn upgrading_from_schema_62_drops_smart_playlists_and_smart_folders() {
     .fetch_one(&mut raw)
     .await
     .unwrap();
-    assert_eq!(
-        (names, smart_tables),
-        (vec!["Regular".into(), "After upgrade".into()], 0)
-    );
+    assert_eq!((names, smart_tables), (Vec::<String>::new(), 0));
 }
 
 #[tokio::test]
@@ -404,7 +395,7 @@ async fn upgrading_from_schema_60_drops_recovered_activity_and_its_triggers() {
         .fetch_one(&mut raw)
         .await
         .unwrap();
-    assert_eq!((leftovers, version), (0, 63));
+    assert_eq!((leftovers, version), (0, 64));
 }
 
 #[tokio::test]

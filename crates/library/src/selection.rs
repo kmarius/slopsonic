@@ -109,7 +109,7 @@ where
                 read,
                 ranges: parent_ranges,
             }) => {
-                let query = crate::query::list_query_on(connection, read).await?;
+                let query = crate::query::list_query(read);
                 let requested = query.requested_ranges(parent_ranges.as_deref());
                 parent_members(&read.kind, requested)
             }
@@ -204,13 +204,12 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<Collection>> {
         let (_permit, mut connection) = self.acquire_general(cancellation).await?;
-        let query = crate::query::list_query_on(&mut connection, read).await?;
+        let query = crate::query::list_query(read);
         let rows: Vec<(i64,)> =
             crate::query::selected_rows_on(&mut connection, &query, &query.key, Some(ranges), None)
                 .await?;
         Ok(rows
             .into_iter()
-            .filter(|(key,)| read.playlist_scope == PlaylistScope::All || *key >= 0)
             .map(|(key,)| parent_collection(read, key))
             .collect())
     }

@@ -283,9 +283,6 @@ pub trait NamedCollectionRow: CollectionRow {
     const MOSAIC: bool = true;
 
     fn name(&self) -> &str;
-    fn folder(&self) -> bool {
-        false
-    }
     fn field(&self, field: LibraryField) -> String;
     fn route(&self) -> Route;
     fn artwork(&self) -> Vec<artwork::ArtworkBinding>;
@@ -555,8 +552,8 @@ impl NamedCollectionRow for MoodView {
     }
 }
 
-impl CollectionRow for library::PlaylistListRow {
-    type Key = (u8, i64);
+impl CollectionRow for library::PlaylistRow {
+    type Key = library::PlaylistKey;
     fn read<'a>(
         read: &'a library::ListRead,
         database: &'a library::Database,
@@ -564,7 +561,7 @@ impl CollectionRow for library::PlaylistListRow {
         limit: usize,
         cancel: &'a library::ReadCancellation,
     ) -> impl std::future::Future<Output = library::LibraryResult<Vec<Self>>> + Send + 'a {
-        read.playlist_items(database, offset, limit, cancel)
+        read.playlists(database, offset, limit, cancel)
     }
     fn page<'a>(
         read: &'a library::ListRead,
@@ -573,29 +570,18 @@ impl CollectionRow for library::PlaylistListRow {
         cancel: &'a library::ReadCancellation,
     ) -> impl std::future::Future<Output = library::LibraryResult<library::Page<Self>>> + Send + 'a
     {
-        read.page_playlist_items(database, window, cancel)
+        read.page_playlists(database, window, cancel)
     }
     fn playback(&self, _key: LibraryListKey) -> Option<rufin_core::playback::PlayRequest> {
-        match self {
-            Self::Playlist(row) => Some(gtk_widgets::selection::collection_play_request(
-                library::Collection::Playlist(row.playlist_key),
-            )),
-            Self::Folder(_) => None,
-        }
+        Some(gtk_widgets::selection::collection_play_request(
+            library::Collection::Playlist(self.playlist_key),
+        ))
     }
     fn downloaded(&self) -> bool {
-        match self {
-            Self::Playlist(row) => row.track_count > 0 && row.downloaded_count == row.track_count,
-            Self::Folder(_) => false,
-        }
+        self.track_count > 0 && self.downloaded_count == self.track_count
     }
     fn set_downloaded(&mut self, downloaded: bool) {
-        match self {
-            Self::Playlist(row) => {
-                row.downloaded_count = if downloaded { row.track_count } else { 0 }
-            }
-            Self::Folder(_) => {}
-        }
+        self.downloaded_count = if downloaded { self.track_count } else { 0 }
     }
     fn projection(
         shell: &Rc<CatalogUi>,
@@ -605,47 +591,19 @@ impl CollectionRow for library::PlaylistListRow {
         named_collection_projection(shell, sparse, key)
     }
 }
-impl NamedCollectionRow for library::PlaylistListRow {
+impl NamedCollectionRow for library::PlaylistRow {
     const MOSAIC: bool = false;
     fn name(&self) -> &str {
-        match self {
-            Self::Playlist(row) => &row.name,
-            Self::Folder(row) => &row.name,
-        }
-    }
-    fn folder(&self) -> bool {
-        matches!(self, Self::Folder(_))
+        &self.name
     }
     fn field(&self, field: LibraryField) -> String {
-        match self {
-            Self::Playlist(row) => playlist_field(row, field),
-            Self::Folder(row) => match field {
-                LibraryField::Title | LibraryField::TitleMerged => row.name.clone(),
-                LibraryField::SongCount => track_count_text(row.track_count.max(0) as u64),
-                LibraryField::Duration => {
-                    format_duration_units((row.duration_millis.max(0) / 1_000) as u32)
-                }
-                _ => String::new(),
-            },
-        }
+        playlist_field(self, field)
     }
     fn route(&self) -> Route {
-        match self {
-            Self::Playlist(row) => Route::PlaylistDetail(row.playlist_key),
-            Self::Folder(row) => Route::PlaylistFolder {
-                key: row.folder_key,
-            },
-        }
+        Route::PlaylistDetail(self.playlist_key)
     }
     fn artwork(&self) -> Vec<artwork::ArtworkBinding> {
-        let binding = match self {
-            Self::Playlist(row) => return playlist_artwork(row),
-            Self::Folder(row) => &row.artwork_binding,
-        };
-        binding
-            .iter()
-            .map(|binding| artwork::ArtworkBinding::opaque(binding))
-            .collect()
+        playlist_artwork(self)
     }
     fn present_context(
         &self,
@@ -653,17 +611,7 @@ impl NamedCollectionRow for library::PlaylistListRow {
         shell: &Rc<CatalogUi>,
         position: Option<(f64, f64)>,
     ) {
-        match self {
-            Self::Playlist(row) => {
-                (shell.playlist_context_menu)(target, row.clone(), None, position)
-            }
-            Self::Folder(row) => gtk_media_menus::playlist_folders::present_folder_context_menu(
-                target,
-                &shell.media_menus,
-                row.clone(),
-                position,
-            ),
-        }
+        (shell.playlist_context_menu)(target, self.clone(), None, position)
     }
     fn install_extra(
         widget: &gtk::Widget,
@@ -678,22 +626,12 @@ impl NamedCollectionRow for library::PlaylistListRow {
         let accept_current = Rc::clone(&current);
         drop.set_preload(true);
         drop.connect_notify_local(Some("value"), move |drop, _| {
-            let Some(source) = drop
-                .value()
-                .as_ref()
-                .and_then(gtk_widgets::media_drag::media_drag_source)
-            else {
-                return;
-            };
-            let accepts = match accept_current() {
-                Some(library::PlaylistListRow::Folder(_)) => {
-                    gtk_media_menus::playlist_folders::playlist_drag_matches(&source)
-                }
-                Some(library::PlaylistListRow::Playlist(_)) => {
-                    !gtk_media_menus::playlist_folders::single_regular_playlist_drag(&source)
-                }
-                _ => false,
-            };
+            let accepts = accept_current().is_some()
+                && drop
+                    .value()
+                    .as_ref()
+                    .and_then(gtk_widgets::media_drag::media_drag_source)
+                    .is_some_and(|source| !single_playlist_drag(&source));
             if !accepts {
                 drop.reject();
             }
@@ -707,26 +645,15 @@ impl NamedCollectionRow for library::PlaylistListRow {
             ) else {
                 return false;
             };
-            match row {
-                library::PlaylistListRow::Playlist(row) => {
-                    if gtk_media_menus::playlist_folders::single_regular_playlist_drag(&source) {
-                        return false;
-                    }
-                    gtk_media_menus::media_menus::add_drag_to_playlist(
-                        &menus,
-                        row.playlist_key,
-                        row.name,
-                        source,
-                    )
-                }
-                library::PlaylistListRow::Folder(row) => {
-                    gtk_media_menus::playlist_folders::drop_playlist_on_folder(
-                        &menus,
-                        row.folder_key,
-                        source,
-                    )
-                }
+            if single_playlist_drag(&source) {
+                return false;
             }
+            gtk_media_menus::media_menus::add_drag_to_playlist(
+                &menus,
+                row.playlist_key,
+                row.name,
+                source,
+            )
         });
         widget.add_controller(drop);
     }
@@ -806,7 +733,6 @@ struct NamedCollectionGridCell<T: NamedCollectionRow> {
     shell: Rc<CatalogUi>,
     cover: CoverGroupProjection,
     current: Rc<std::cell::RefCell<Option<T>>>,
-    play_buttons: [gtk::Button; 3],
 }
 
 impl<T: NamedCollectionRow> NamedCollectionGridCell<T> {
@@ -830,7 +756,7 @@ impl<T: NamedCollectionRow> NamedCollectionGridCell<T> {
         install_grid_play(
             &shell,
             &current,
-            play_buttons.clone(),
+            play_buttons,
             move |shell, item, placement| {
                 if let Some(target) = item.playback(key) {
                     (shell.media_menus.play_target)(&target, placement, false);
@@ -864,7 +790,6 @@ impl<T: NamedCollectionRow> NamedCollectionGridCell<T> {
             shell,
             cover,
             current,
-            play_buttons,
         }
     }
 }
@@ -878,10 +803,6 @@ impl<T: NamedCollectionRow> ReusableCollectionGridCell<T> for NamedCollectionGri
         if let Some(target) = item.playback(self.key) {
             self.body.bind_playing_target(&self.shell, target);
         }
-        for button in &self.play_buttons {
-            button.set_visible(!item.folder());
-        }
-        self.body.set_folder(item.folder());
         let artwork = item.artwork();
         self.cover.replace(&self.shell.artwork, &artwork);
         self.body
@@ -1005,7 +926,6 @@ fn named_collection_column<T: NamedCollectionRow>(
                     return;
                 };
                 cell.label().set_text(&row.field(LibraryField::Title));
-                cell.set_folder(row.folder());
                 bind_shell.bind_download_badge(&cell.downloaded(), row.downloaded());
             });
             factory.connect_unbind(|_, item| {
@@ -1088,4 +1008,22 @@ pub fn named_actions_column<T: NamedCollectionRow>(shell: &Rc<CatalogUi>) -> gtk
         item.set_child(Some(&actions));
     });
     gtk_widgets::recycled_cells::row_actions_column(&factory)
+}
+
+fn single_playlist_drag(source: &gtk_widgets::media_drag::MediaDragSource) -> bool {
+    use gtk_widgets::media_drag::{CollectionTargets, MediaDragSource};
+    let is_playlist = |target: &rufin_core::playback::PlayRequest| {
+        matches!(
+            target.selection(),
+            Some(library::MemberSelection::Members { read, .. })
+                if matches!(read.collection, library::Collection::Playlist(_))
+        )
+    };
+    match source {
+        MediaDragSource::Target { target } => is_playlist(target),
+        MediaDragSource::Targets {
+            targets: CollectionTargets::Ready(targets),
+        } => targets.len() == 1 && is_playlist(&targets[0]),
+        _ => false,
+    }
 }

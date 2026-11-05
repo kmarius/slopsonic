@@ -52,21 +52,8 @@ pub enum ListKind {
     Playlists,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
-pub enum PlaylistScope {
-    #[default]
-    All,
-    Root,
-    Folder {
-        key: PlaylistFolderKey,
-    },
-    Folders,
-}
-
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ListRead {
-    #[serde(default)]
-    pub playlist_scope: PlaylistScope,
     pub kind: ListKind,
     pub source: Option<SourceKey>,
     pub folder: Option<FolderKey>,
@@ -281,7 +268,6 @@ impl ListRead {
         Self {
             kind,
             source,
-            playlist_scope: PlaylistScope::All,
             sort,
             folder: None,
             filter: String::new(),
@@ -317,7 +303,7 @@ impl ListRead {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<[usize; 6]> {
         let (_permit, mut connection) = database.acquire_general(cancellation).await?;
-        let query = list_query_on(&mut connection, self).await?;
+        let query = list_query(self);
         let rows = sqlx::query_as_with::<_, (i64, i64), _>(
             sqlx::AssertSqlSafe(format!(
                 "SELECT album.release_class,count(*) FROM {} WHERE {} GROUP BY album.release_class",
@@ -339,7 +325,7 @@ impl ListRead {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<usize> {
         let (_permit, mut connection) = database.acquire_general(cancellation).await?;
-        let query = list_query_on(&mut connection, self).await?;
+        let query = list_query(self);
         list_count(&mut connection, self, &query).await
     }
     pub async fn sections(
@@ -348,10 +334,7 @@ impl ListRead {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<ScrollSection>> {
         let (_permit, mut connection) = database.acquire_general(cancellation).await?;
-        list_query_on(&mut connection, self)
-            .await?
-            .sections(&mut connection)
-            .await
+        list_query(self).sections(&mut connection).await
     }
 }
 
@@ -368,7 +351,7 @@ macro_rules! list_windows {
             ) -> LibraryResult<Vec<$row>> {
                 let (_permit, mut connection) = database.acquire_general(cancellation).await?;
                 let mut transaction = connection.begin().await?;
-                let query = list_query_on(&mut transaction, self).await?;
+                let query = list_query(self);
                 let rows = {
                     let $connection = &mut *transaction;
                     let $read = self;
@@ -386,7 +369,7 @@ macro_rules! list_windows {
             ) -> LibraryResult<Page<$row>> {
                 let (_permit, mut connection) = database.acquire_general(cancellation).await?;
                 let mut transaction = connection.begin().await?;
-                let query = list_query_on(&mut transaction, self).await?;
+                let query = list_query(self);
                 let count = list_count(&mut transaction, self, &query).await?;
                 let range = window.range(count);
                 let rows = {
@@ -424,10 +407,6 @@ list_windows!(moods, page_moods, MoodView, connection, read, requested => {
 list_windows!(playlists, page_playlists, PlaylistRow, connection, _read, requested => {
     Database::load_playlist_requested(connection, requested)
 });
-list_windows!(playlist_items, page_playlist_items, PlaylistListRow, connection, read, requested => {
-    crate::playlist_folders::load_items_on(connection, read, requested)
-});
-
 async fn member_count(
     connection: &mut SqliteConnection,
     read: &MemberRead,
@@ -559,13 +538,16 @@ async fn member_rows(
     }
 }
 
-pub(crate) async fn list_query_on(
-    connection: &mut SqliteConnection,
-    read: &ListRead,
-) -> LibraryResult<OrderedQuery> {
+pub(crate) fn list_query(read: &ListRead) -> OrderedQuery {
     match read.kind {
-        ListKind::Playlists => crate::playlist_folders::playlist_query_on(connection, read).await,
-        _ => Ok(crate::collections::collection_query(read)),
+        ListKind::Playlists => crate::playlists::playlist_list_query(
+            read.source,
+            read.folder,
+            read.sort,
+            read.descending,
+            &read.filter,
+        ),
+        _ => crate::collections::collection_query(read),
     }
 }
 

@@ -9,7 +9,6 @@ impl Shell {
         selection: library::MemberSelection,
         source_id: Option<library::SourceId>,
         public: Option<bool>,
-        folder: Option<library::PlaylistFolderKey>,
     ) {
         let source = self.products.source.clone();
         let shell = Rc::downgrade(self);
@@ -24,28 +23,7 @@ impl Shell {
             )
             .await;
             let error = match result {
-                Ok(Some(created)) => {
-                    let mut error = created.settings_error;
-                    if let Some(folder) = folder {
-                        let result = async {
-                            if let Some(key) = created.playlist_key {
-                                rufin_core::playlists::move_playlist_to_folder(
-                                    &source,
-                                    library::PlaylistFolderMember::Playlist { key },
-                                    Some(folder),
-                                )
-                                .await
-                                .map_err(|error| error.to_string())?;
-                            }
-                            Ok::<_, String>(())
-                        }
-                        .await;
-                        if let Err(folder_error) = result {
-                            error = Some(folder_error);
-                        }
-                    }
-                    error
-                }
+                Ok(Some(created)) => created.settings_error,
                 Ok(None) => None,
                 Err(error) => Some(error.to_string()),
             };
@@ -76,19 +54,6 @@ impl Shell {
         name: String,
         selection: library::MemberSelection,
     ) {
-        let folder = match self.navigation.routes.borrow().current() {
-            gtk_widgets::route::Route::PlaylistFolder { key } => Some(*key),
-            _ => None,
-        };
-        self.new_playlist_dialog_in_folder(name, selection, folder);
-    }
-
-    pub(crate) fn new_playlist_dialog_in_folder(
-        self: &Rc<Self>,
-        name: String,
-        selection: library::MemberSelection,
-        folder: Option<library::PlaylistFolderKey>,
-    ) {
         let configured = self.source.configured.borrow();
         let selected = configured.as_ref().map(|status| status.source.clone());
         drop(configured);
@@ -98,26 +63,10 @@ impl Shell {
             selected,
             move |name, source_id, public| {
                 if let Some(shell) = shell.upgrade() {
-                    shell.create_playlist_and_pin(
-                        name,
-                        selection.clone(),
-                        source_id,
-                        public,
-                        folder,
-                    );
+                    shell.create_playlist_and_pin(name, selection.clone(), source_id, public);
                 }
             },
         );
         self.present_selected_dialog(&dialog);
-    }
-}
-
-impl Shell {
-    pub(crate) fn new_playlist_folder_dialog(self: &Rc<Self>) {
-        gtk_media_menus::playlist_folders::present_new_folder_dialog(
-            &self.media_menus,
-            Vec::new(),
-            Rc::new(|| {}),
-        );
     }
 }

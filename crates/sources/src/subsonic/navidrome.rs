@@ -1558,7 +1558,6 @@ mod tests {
             .expect("published source")
             .source;
         let albums = library::ListRead {
-            playlist_scope: Default::default(),
             kind: library::ListKind::Albums,
             source: Some(source_key),
             sort: library::CatalogSort::Title,
@@ -1619,7 +1618,6 @@ mod tests {
         );
         assert_eq!(track.metadata.bpm, Some(123));
         let artists = library::ListRead {
-            playlist_scope: Default::default(),
             kind: library::ListKind::Artists {
                 album_artist: false,
             },

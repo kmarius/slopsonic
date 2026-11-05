@@ -542,9 +542,6 @@ impl SidebarPinItem {
             SidebarPin::Playlist { .. } => {
                 Route::PlaylistDetail(library::PlaylistKey::from_raw(key))
             }
-            SidebarPin::PlaylistFolder { .. } => Route::PlaylistFolder {
-                key: library::PlaylistFolderKey::from_raw(key),
-            },
         }
     }
     fn playback_target(&self) -> Option<PlayRequest> {
@@ -563,7 +560,6 @@ impl SidebarPinItem {
             SidebarPin::Playlist { .. } => {
                 library::Collection::Playlist(library::PlaylistKey::from_raw(key))
             }
-            SidebarPin::PlaylistFolder { .. } => return None,
         };
         Some(
             collection_play_request(collection).with_context(
@@ -675,19 +671,6 @@ impl SidebarPinItem {
                                     shell.player_ui.selected_playback().as_deref(),
                                 )
                                 .map(|track| track.media_uri),
-                            )
-                        }) as PinMenu
-                    }),
-                SidebarPin::PlaylistFolder { folder_id, .. } => database
-                    .playlist_folder_by_id(&folder_id, None, None, &cancel)
-                    .await?
-                    .map(|row| {
-                        Box::new(move |target: &gtk::Widget, shell: &Rc<Shell>| {
-                            gtk_media_menus::playlist_folders::present_folder_context_menu(
-                                target,
-                                &shell.media_menus,
-                                row,
-                                position,
                             )
                         }) as PinMenu
                     }),
@@ -803,22 +786,10 @@ pub(crate) fn request_sidebar_pins(shell: &Rc<Shell>) {
             warn!("failed to load sidebar Pins");
             return;
         };
-        let mut pending = Vec::new();
-        let mut indexed = HashMap::new();
-        {
-            let current_items = current.navigation.pin_items.borrow();
-            let known = current_items
-                .iter()
-                .map(|item| (&item.0.pin, item.0.totals))
-                .collect::<HashMap<_, _>>();
-            for mut row in rows {
-                if row.totals.is_none() {
-                    pending.push(row.clone());
-                    row.totals = known.get(&row.pin).copied().flatten();
-                }
-                indexed.insert(row.pin.clone(), SidebarPinItem(row));
-            }
-        }
+        let mut indexed = rows
+            .into_iter()
+            .map(|row| (row.pin.clone(), SidebarPinItem(row)))
+            .collect::<HashMap<_, _>>();
         let items = current
             .settings
             .current
@@ -833,52 +804,6 @@ pub(crate) fn request_sidebar_pins(shell: &Rc<Shell>) {
             current.navigation.pin_items.replace(items);
         }
 
-        if pending.is_empty() {
-            current.navigation.pin_cancellation.borrow_mut().take();
-            return;
-        }
-        let task =
-            runtime.spawn(async move { database.sidebar_pin_totals(pending, &cancellation).await });
-        drop(current);
-        let result = task.await.ok().and_then(Result::ok);
-        let Some(current) = shell.upgrade() else {
-            return;
-        };
-        if !sidebar_pin_publication_is_current(generation, current.navigation.pin_generation.get())
-        {
-            return;
-        }
-        if let Some(rows) = result {
-            let totals = rows
-                .into_iter()
-                .map(|row| (row.pin, row.totals))
-                .collect::<HashMap<_, _>>();
-            let items = {
-                let mut items = current.navigation.pin_items.borrow_mut();
-                let mut changed = Vec::new();
-                for item in &mut *items {
-                    if let Some(total) = totals.get(&item.0.pin)
-                        && item.0.totals != *total
-                    {
-                        item.0.totals = *total;
-                        changed.push(item.clone());
-                    }
-                }
-                changed
-            };
-            if !items.is_empty() {
-                let widgets = keyed_sidebar_pin_widgets(&current.navigation_view.normal_nav_pins);
-                for item in &items {
-                    if let Some(key) = sidebar_pin_route_key(&item.route())
-                        && let Some(widget) = widgets.get(&key)
-                    {
-                        update_sidebar_pin_widget_metadata(widget, item);
-                    }
-                }
-            }
-        } else {
-            warn!("failed to load sidebar Pin totals");
-        }
         current.navigation.pin_cancellation.borrow_mut().take();
     });
 }
@@ -1187,9 +1112,6 @@ fn sidebar_pin_row(shell: &Rc<Shell>, pin: SidebarPinItem) -> gtk::Overlay {
     title_label.set_width_chars(1);
     title_label.set_ellipsize(gtk::pango::EllipsizeMode::End);
     let title_row = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-    if matches!(&pin.0.pin, SidebarPin::PlaylistFolder { .. }) {
-        title_row.append(&gtk::Image::from_icon_name("rufin-folders-symbolic"));
-    }
     title_row.append(&title_label);
     identity.append(&title_row);
     let metadata = sidebar_pin_metadata(track_count, duration_seconds);
@@ -1426,7 +1348,6 @@ fn sidebar_pin_drag_variant(pin: &SidebarPin) -> glib::Variant {
             source_id,
             playlist_id,
         } => (3, source_id.as_ref(), playlist_id, false),
-        SidebarPin::PlaylistFolder { folder_id } => (4, None, folder_id, false),
     };
     (
         kind,
@@ -1460,9 +1381,6 @@ fn sidebar_pin_from_drag_value(value: &glib::Value) -> Option<SidebarPin> {
             source_id,
             playlist_id: object_id,
         }),
-        4 => Some(SidebarPin::PlaylistFolder {
-            folder_id: object_id,
-        }),
         _ => None,
     }
 }
@@ -1472,37 +1390,6 @@ fn install_playlist_pin_drop(
     shell: &Rc<Shell>,
     pin: &SidebarPinItem,
 ) {
-    if matches!(pin.0.pin, SidebarPin::PlaylistFolder { .. }) {
-        let folder_key = library::PlaylistFolderKey::from_raw(pin.0.key);
-        let menus = Rc::downgrade(&shell.media_menus);
-        let drop = gtk::DropTarget::new(
-            glib::BoxedAnyObject::static_type(),
-            gtk::gdk::DragAction::COPY | gtk::gdk::DragAction::MOVE,
-        );
-        drop.set_preload(true);
-        drop.connect_notify_local(Some("value"), move |drop, _| {
-            if let Some(source) = drop
-                .value()
-                .as_ref()
-                .and_then(gtk_widgets::media_drag::media_drag_source)
-                && !gtk_media_menus::playlist_folders::playlist_drag_matches(&source)
-            {
-                drop.reject();
-            }
-        });
-        gtk_widgets::media_drag::style_order_drop_target(&drop, false, |_| false);
-        drop.connect_drop(move |_, value, _, _| {
-            let (Some(menus), Some(source)) = (
-                menus.upgrade(),
-                gtk_widgets::media_drag::media_drag_source(value),
-            ) else {
-                return false;
-            };
-            gtk_media_menus::playlist_folders::drop_playlist_on_folder(&menus, folder_key, source)
-        });
-        target.add_controller(drop);
-        return;
-    }
     if !matches!(pin.0.pin, SidebarPin::Playlist { .. }) {
         return;
     }
@@ -1637,7 +1524,6 @@ fn sidebar_pin_route_key(route: &Route) -> Option<String> {
         Route::AlbumArtistDetail(id) => Some(format!("sidebar-pin-album-artist:{id}")),
         Route::GenreDetail(id) => Some(format!("sidebar-pin-genre:{id}")),
         Route::PlaylistDetail(id) => Some(format!("sidebar-pin-playlist:{id}")),
-        Route::PlaylistFolder { key, .. } => Some(format!("sidebar-pin-playlist-folder:{key}")),
         _ => None,
     }
 }

@@ -55,5 +55,4 @@
       </object>
     </child>
   </object>
-<object class="GtkStringList" id="folder_labels"><items><item translatable="yes">New folder</item></items></object>
 </interface>

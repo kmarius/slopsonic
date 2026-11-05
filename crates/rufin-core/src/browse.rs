@@ -168,7 +168,7 @@ pub fn library_list_key(route: &Route, category: CollectionCategory) -> LibraryL
         Route::AlbumArtists => LibraryListKey::AlbumArtists,
         Route::Genres => LibraryListKey::Genres,
         Route::Moods => LibraryListKey::Moods,
-        Route::Playlists | Route::PlaylistFolder { .. } => LibraryListKey::Playlists,
+        Route::Playlists => LibraryListKey::Playlists,
         Route::PlaylistDetail(_) => LibraryListKey::PlaylistTracks,
         Route::AlbumDetail(_) => LibraryListKey::AlbumDetailTracks,
         Route::ArtistDiscography(_) | Route::AlbumArtistDiscography(_) => {
@@ -363,7 +363,7 @@ pub enum OpenedCollection {
     },
     Playlists {
         read: ListRead,
-        page: Page<library::PlaylistListRow>,
+        page: Page<library::PlaylistRow>,
     },
     Folders(FolderPage),
     Home(Box<library::HomePage>),
@@ -755,15 +755,9 @@ impl crate::source::SourceOwner {
                 let page = read.page_moods(database, window, cancel).await?;
                 OpenedCollection::Moods { read, page }
             }
-            Route::Playlists | Route::PlaylistFolder { .. } => {
-                let mut read = list(ListKind::Playlists);
-                read.playlist_scope = match route {
-                    Route::PlaylistFolder { key, .. } => {
-                        library::PlaylistScope::Folder { key: *key }
-                    }
-                    _ => library::PlaylistScope::Root,
-                };
-                let page = read.page_playlist_items(database, window, cancel).await?;
+            Route::Playlists => {
+                let read = list(ListKind::Playlists);
+                let page = read.page_playlists(database, window, cancel).await?;
                 OpenedCollection::Playlists { read, page }
             }
             Route::Folders { path } => {

@@ -57,7 +57,6 @@ pub enum Route {
     Folders { path: Vec<FolderPathItem> },
     Playlists,
     PlaylistDetail(PlaylistKey),
-    PlaylistFolder { key: library::PlaylistFolderKey },
 }
 
 impl Route {
@@ -77,8 +76,7 @@ impl Route {
         )
     }
     pub fn uses_selected_source(&self) -> bool {
-        self.requires_selected_source()
-            || matches!(self, Self::Playlists | Self::PlaylistFolder { .. })
+        self.requires_selected_source() || matches!(self, Self::Playlists)
     }
 }
 

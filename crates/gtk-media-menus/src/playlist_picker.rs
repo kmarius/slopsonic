@@ -49,7 +49,6 @@ pub fn populate_context_playlist_picker(
     let activate_popover = popover.downgrade();
     let update = populate_context_picker(
         root,
-        false,
         Rc::new(move |key, destination, skip_duplicates| {
             let Some(ready) = activate_ready.borrow().clone() else {
                 return;
@@ -106,7 +105,6 @@ pub fn populate_context_playlist_picker(
 
 pub(crate) fn populate_context_picker<Key: Clone + 'static>(
     root: &gtk::Box,
-    folders: bool,
     activate: Rc<dyn Fn(Key, String, bool)>,
     create: Rc<dyn Fn(String)>,
 ) -> Rc<dyn Fn(Vec<(Key, String)>)> {
@@ -119,14 +117,8 @@ pub(crate) fn populate_context_picker<Key: Clone + 'static>(
         list: gtk::ListView,
         spinner: gtk::Spinner,
         create_playlist: gtk::Button,
-        create_label: gtk::Label,
-        folder_labels: gtk::StringList,
     });
     gtk_widgets::controls::configure_search_entry(&search);
-    skip_duplicates.set_visible(!folders);
-    if folders {
-        create_label.set_label(folder_labels.string(0).as_deref().unwrap());
-    }
     root.append(&content);
 
     let store = gio::ListStore::new::<glib::BoxedAnyObject>();
@@ -218,29 +210,6 @@ pub(crate) fn populate_context_picker<Key: Clone + 'static>(
             spinner.set_visible(false);
         }
     })
-}
-
-pub(crate) fn folder_picker_dialog() -> (adw::Dialog, gtk::Box) {
-    let resource = crate::ui_resource::PLAYLIST_PICKER_RESOURCE;
-    let builder = crate::ui_resource::builder(resource);
-    gtk_widgets::objects!(builder, resource, {
-        dialog: adw::Dialog, title: adw::WindowTitle, search: gtk::SearchEntry,
-        list: gtk::Box, skip: gtk::CheckButton, cancel: gtk::Button, add: gtk::Button,
-        folder_labels: gtk::StringList,
-    });
-    let label = folder_labels.string(0).unwrap();
-    dialog.set_title(&label);
-    title.set_title(&label);
-    search.set_visible(false);
-    skip.set_visible(false);
-    add.set_visible(false);
-    let close = dialog.downgrade();
-    cancel.connect_clicked(move |_| {
-        if let Some(dialog) = close.upgrade() {
-            dialog.close();
-        }
-    });
-    (dialog, list)
 }
 
 #[derive(Clone)]

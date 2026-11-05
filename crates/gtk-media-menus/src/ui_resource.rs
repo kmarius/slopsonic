@@ -15,7 +15,6 @@ pub const PLAYLIST_PICKER_ROW_RESOURCE: &str =
     "/io/github/screwys/Rufin/ui/routes/playlist_picker_row.ui";
 
 pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
-    PLAYLIST_FOLDER_RESOURCE,
     MEDIA_MENU_HEADER_RESOURCE,
     MEDIA_DETAILS_RESOURCE,
     MEDIA_DETAIL_SECTION_RESOURCE,
@@ -25,5 +24,3 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     PLAYLIST_PICKER_CONTEXT_RESOURCE,
     PLAYLIST_PICKER_ROW_RESOURCE,
 ];
-
-pub const PLAYLIST_FOLDER_RESOURCE: &str = "/io/github/screwys/Rufin/ui/routes/playlist_folder.ui";

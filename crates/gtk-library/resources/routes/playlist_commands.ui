@@ -2,6 +2,5 @@
 <interface domain="rufin">
   <menu id="playlist_commands">
     <item><attribute name="label" translatable="yes">New Playlist</attribute><attribute name="action">win.new-playlist</attribute></item>
-    <item><attribute name="label" translatable="yes">New folder</attribute><attribute name="action">win.new-playlist-folder</attribute></item>
   </menu>
 </interface>

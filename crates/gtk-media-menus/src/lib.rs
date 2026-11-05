@@ -12,5 +12,3 @@ pub fn register_resources() -> Result<(), String> {
         })
         .clone()
 }
-
-pub mod playlist_folders;

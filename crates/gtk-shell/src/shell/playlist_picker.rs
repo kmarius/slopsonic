@@ -149,7 +149,7 @@ fn populate_context_playlist_picker(
             let shell = Rc::downgrade(shell);
             Rc::new(move |name, tracks| {
                 if let Some(shell) = shell.upgrade() {
-                    shell.new_playlist_dialog_in_folder(name, tracks, None);
+                    shell.new_playlist_dialog_with(name, tracks);
                 }
             })
         },
@@ -199,7 +199,7 @@ fn present_playlist_picker(
         Rc::clone(&shell.artwork),
         Rc::new(move |name, tracks| {
             if let Some(shell) = create_shell.upgrade() {
-                shell.new_playlist_dialog_in_folder(name, tracks, None);
+                shell.new_playlist_dialog_with(name, tracks);
             }
         }),
         picker_feedback(shell),

@@ -657,13 +657,13 @@ impl CatalogUi {
     pub fn library_playlists_route(
         self: &Rc<Self>,
         read: library::ListRead,
-        page: library::Page<library::PlaylistListRow>,
+        page: library::Page<library::PlaylistRow>,
     ) -> MountedRoute {
         self.collection_list_route(
             LibraryListKey::Playlists,
             "No playlists yet",
             page,
-            |row: &library::PlaylistListRow| row.key(),
+            |row: &library::PlaylistRow| row.playlist_key,
             read,
         )
     }
