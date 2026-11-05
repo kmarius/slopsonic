@@ -11,7 +11,7 @@ use library::SourceId;
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SourceConfiguration {
     pub source_id: SourceId,
-    pub kind: String,
+    pub kind: SubsonicFlavor,
     pub name: String,
     pub provider_payload: String,
 }
@@ -25,14 +25,11 @@ pub struct CredentialInput {
     pub trust_invalid_cert: bool,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize)]
-#[serde(tag = "type", content = "data", rename_all = "snake_case")]
-pub enum SourceSetup {
-    OpenSubsonic {
-        kind: SubsonicFlavor,
-        authentication: crate::SubsonicAuthentication,
-        credentials: CredentialInput,
-    },
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SourceSetup {
+    pub kind: SubsonicFlavor,
+    pub authentication: crate::SubsonicAuthentication,
+    pub credentials: CredentialInput,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
@@ -44,54 +41,32 @@ pub struct CredentialPreset {
     pub open_subsonic_authentication: Option<crate::SubsonicAuthentication>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize)]
-#[serde(tag = "type", content = "data", rename_all = "snake_case")]
-pub enum SourceSettingsChange {
-    OpenSubsonic {
-        source_id: SourceId,
-        kind: SubsonicFlavor,
-        authentication: crate::SubsonicAuthentication,
-        credentials: CredentialInput,
-    },
-}
-
-impl SourceSettingsChange {
-    pub fn source_id(&self) -> &SourceId {
-        match self {
-            Self::OpenSubsonic { source_id, .. } => source_id,
-        }
-    }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SourceSettingsChange {
+    pub source_id: SourceId,
+    pub kind: SubsonicFlavor,
+    pub authentication: crate::SubsonicAuthentication,
+    pub credentials: CredentialInput,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum EditableSource {
-    Credentials {
-        source_id: SourceId,
-        kind: String,
-        credentials: CredentialPreset,
-    },
+pub struct EditableSource {
+    pub source_id: SourceId,
+    pub kind: SubsonicFlavor,
+    pub credentials: CredentialPreset,
 }
 
 impl SourceConfiguration {
     pub fn server_address(&self) -> Option<String> {
-        let address = match self.kind.as_str() {
-            "navidrome" | "subsonic" => {
-                crate::subsonic::SubsonicSourceConfig::from_configuration(self)
-                    .ok()?
-                    .base_url
-            }
-            _ => return None,
-        };
+        let address = crate::subsonic::SubsonicSourceConfig::from_configuration(self)
+            .ok()?
+            .base_url;
         let mut url = url::Url::parse(&address).ok()?;
         let _ = url.set_username("");
         let _ = url.set_password(None);
         url.set_query(None);
         url.set_fragment(None);
         Some(url.into())
-    }
-
-    pub fn supports_playlist_public(&self) -> bool {
-        matches!(self.kind.as_str(), "navidrome" | "subsonic")
     }
 
     /// Identify the source inputs that determine rebuildable canonical facts.
@@ -110,23 +85,13 @@ impl SourceConfiguration {
         digest.update(b"rufin-source-input");
         digest.update(&1_u32.to_le_bytes());
         digest_part(&mut digest, self.source_id.as_str().as_bytes());
-        digest_part(&mut digest, self.kind.as_bytes());
-        match self.kind.as_str() {
-            "navidrome" | "subsonic" => {
-                let config = crate::subsonic::SubsonicSourceConfig::from_configuration(self)?;
-                digest_part(&mut digest, config.username.as_bytes());
-                let library_version =
-                    navidrome_library_version.unwrap_or(config.navidrome_library_version);
-                if library_version > 0 {
-                    digest_part(&mut digest, b"navidrome-library");
-                    digest.update(&library_version.to_le_bytes());
-                }
-            }
-            kind => {
-                return Err(SourceError::InvalidConfig(format!(
-                    "unknown source kind {kind}"
-                )));
-            }
+        digest_part(&mut digest, self.kind.source_id().as_bytes());
+        let config = crate::subsonic::SubsonicSourceConfig::from_configuration(self)?;
+        digest_part(&mut digest, config.username.as_bytes());
+        let library_version = navidrome_library_version.unwrap_or(config.navidrome_library_version);
+        if library_version > 0 {
+            digest_part(&mut digest, b"navidrome-library");
+            digest.update(&library_version.to_le_bytes());
         }
         Ok(SourceInputIdentity {
             source_id: self.source_id.clone(),
@@ -136,25 +101,18 @@ impl SourceConfiguration {
 
     /// Return the fields Rufin may present when editing this source.
     pub fn editable(&self) -> SourceResult<EditableSource> {
-        match self.kind.as_str() {
-            "navidrome" | "subsonic" => {
-                let config = crate::subsonic::SubsonicSourceConfig::from_configuration(self)?;
-                Ok(EditableSource::Credentials {
-                    source_id: self.source_id.clone(),
-                    kind: self.kind.clone(),
-                    credentials: CredentialPreset {
-                        source_name: self.name.clone(),
-                        server_url: config.base_url,
-                        username: config.username,
-                        trust_invalid_cert: config.trust_invalid_cert,
-                        open_subsonic_authentication: Some(config.authentication),
-                    },
-                })
-            }
-            kind => Err(SourceError::InvalidConfig(format!(
-                "unknown source kind {kind}"
-            ))),
-        }
+        let config = crate::subsonic::SubsonicSourceConfig::from_configuration(self)?;
+        Ok(EditableSource {
+            source_id: self.source_id.clone(),
+            kind: self.kind,
+            credentials: CredentialPreset {
+                source_name: self.name.clone(),
+                server_url: config.base_url,
+                username: config.username,
+                trust_invalid_cert: config.trust_invalid_cert,
+                open_subsonic_authentication: Some(config.authentication),
+            },
+        })
     }
 }
 
@@ -181,13 +139,13 @@ pub(crate) fn require_payload_version(actual: u32, expected: u32) -> SourceResul
 
 pub(crate) fn encode_provider_payload(
     source_id: SourceId,
-    kind: impl Into<String>,
+    kind: SubsonicFlavor,
     name: impl Into<String>,
     provider_payload: serde_json::Value,
 ) -> SourceConfiguration {
     SourceConfiguration {
         source_id,
-        kind: kind.into(),
+        kind,
         name: name.into(),
         provider_payload: provider_payload.to_string(),
     }
@@ -200,10 +158,10 @@ mod tests {
     use super::*;
     use crate::subsonic::SubsonicSourceConfig;
 
-    fn migrated_source(kind: &str, payload: serde_json::Value) -> SourceConfiguration {
+    fn migrated_source(kind: SubsonicFlavor, payload: serde_json::Value) -> SourceConfiguration {
         SourceConfiguration {
-            source_id: SourceId::new(format!("{kind}:server:test")),
-            kind: kind.to_string(),
+            source_id: SourceId::new(format!("{}:server:test", kind.source_id())),
+            kind,
             name: "Test Source".to_string(),
             provider_payload: payload.to_string(),
         }
@@ -212,7 +170,7 @@ mod tests {
     #[test]
     fn provider_payloads_decode_the_credential_free_saved_shape() {
         let subsonic_stored = migrated_source(
-            "subsonic",
+            SubsonicFlavor::Subsonic,
             serde_json::json!({
                 "version": 1,
                 "base_url": "https://subsonic.example",
@@ -234,7 +192,7 @@ mod tests {
         assert_eq!(
             decode_provider_payload::<serde_json::Value>(&encode_provider_payload(
                 subsonic_stored.source_id,
-                "subsonic",
+                SubsonicFlavor::Subsonic,
                 "Test Source",
                 subsonic_payload.clone(),
             ))
@@ -246,7 +204,7 @@ mod tests {
     #[test]
     fn unsupported_provider_payload_version_is_rejected() {
         let stored = migrated_source(
-            "subsonic",
+            SubsonicFlavor::Subsonic,
             serde_json::json!({
                 "version": 2,
                 "base_url": "https://music.example",
@@ -272,18 +230,14 @@ impl SourceConfiguration {
             return None;
         }
         let path = uri.path().strip_prefix(base.path().trim_end_matches('/'))?;
-        let object = if matches!(self.kind.as_str(), "subsonic" | "navidrome") {
-            if !matches!(
-                path,
-                "/rest/stream" | "/rest/stream.view" | "/rest/download" | "/rest/download.view"
-            ) {
-                return None;
-            }
-            let id = uri.query_pairs().find(|(key, _)| key == "id")?.1;
-            format!("{}:track:{id}", self.kind)
-        } else {
+        if !matches!(
+            path,
+            "/rest/stream" | "/rest/stream.view" | "/rest/download" | "/rest/download.view"
+        ) {
             return None;
-        };
+        }
+        let id = uri.query_pairs().find(|(key, _)| key == "id")?.1;
+        let object = format!("{}:track:{id}", self.kind.source_id());
         Some(library::source_entity_uri(
             &self.source_id,
             "track",
@@ -298,7 +252,7 @@ mod locator_tests {
     fn only_captured_adapter_recognizes_its_provider_locator() {
         let config = super::SourceConfiguration {
             source_id: library::SourceId::new("one"),
-            kind: "navidrome".into(),
+            kind: crate::SubsonicFlavor::Navidrome,
             name: "Music".into(),
             provider_payload: r#"{"version":1,"base_url":"https://music.test/server"}"#.into(),
         };

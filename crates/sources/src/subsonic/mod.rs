@@ -85,12 +85,6 @@ pub struct SubsonicSourceConfig {
 
 impl SubsonicSourceConfig {
     pub fn from_configuration(stored: &crate::SourceConfiguration) -> SourceResult<Self> {
-        if !matches!(stored.kind.as_str(), "navidrome" | "subsonic") {
-            return Err(SourceError::InvalidConfig(format!(
-                "expected a Subsonic source, found {}",
-                stored.kind
-            )));
-        }
         let payload: SubsonicSourcePayload = decode_provider_payload(stored)?;
         require_payload_version(payload.version, SOURCE_CONFIG_VERSION)?;
         let username = if payload.username.trim().is_empty() {
@@ -155,11 +149,7 @@ pub(crate) fn open(
     let credential = credential.ok_or_else(|| {
         SourceError::InvalidConfig("saved OpenSubsonic credentials are missing".to_string())
     })?;
-    SubsonicSource::open(
-        SubsonicFlavor::from_source_id(&configuration.kind)?,
-        config,
-        credential,
-    )
+    SubsonicSource::open(configuration.kind, config, credential)
 }
 
 pub(crate) async fn edit(
@@ -168,8 +158,7 @@ pub(crate) async fn edit(
     authentication: SubsonicAuthentication,
     mut credentials: CredentialInput,
 ) -> SourceResult<SourceEditResult> {
-    let flavor = SubsonicFlavor::from_source_id(&current.kind)?;
-    crate::source::require_source_edit(&current, flavor.source_id())?;
+    let flavor = current.kind;
     let saved = SubsonicSourceConfig::from_configuration(&current)?;
     let name = crate::source::edited_source_name(
         credentials.source_name.as_deref().unwrap_or_default(),
@@ -200,7 +189,7 @@ pub(crate) async fn edit(
     let reopen = address_changed || credentials.trust_invalid_cert != saved.trust_invalid_cert;
     let configuration = crate::config::encode_provider_payload(
         current.source_id.clone(),
-        flavor.source_id(),
+        flavor,
         name,
         SubsonicSourceConfig {
             base_url: normalize_base_url(&credentials.server_url)?
@@ -226,11 +215,10 @@ pub(crate) async fn edit(
     )))
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SubsonicFlavor {
     Navidrome,
-    #[serde(rename = "open_subsonic")]
     Subsonic,
 }
 impl SubsonicFlavor {
@@ -245,16 +233,6 @@ impl SubsonicFlavor {
         match self {
             Self::Navidrome => "Navidrome",
             Self::Subsonic => "OpenSubsonic",
-        }
-    }
-
-    pub(crate) fn from_source_id(value: &str) -> SourceResult<Self> {
-        match value {
-            "navidrome" => Ok(Self::Navidrome),
-            "subsonic" => Ok(Self::Subsonic),
-            _ => Err(SourceError::InvalidConfig(format!(
-                "unknown OpenSubsonic source kind {value}"
-            ))),
         }
     }
 }
@@ -399,11 +377,10 @@ impl SubsonicSource {
                 "OpenSubsonic returned an empty canonical username".to_string(),
             ));
         }
-        let source_kind = flavor.source_id();
         let serialized_credential = credential.serialize();
         let configuration = crate::config::encode_provider_payload(
             source_id,
-            source_kind,
+            flavor,
             crate::source::configured_source_name(submitted_name, provider_name),
             SubsonicSourceConfig {
                 base_url: base_url.as_str().trim_end_matches('/').to_string(),

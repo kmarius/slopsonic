@@ -179,3 +179,49 @@ impl Database {
         Ok(())
     }
 }
+
+impl Database {
+    pub async fn catalog_missing_media(
+        &self,
+        media: &[(String, crate::SourceId)],
+    ) -> LibraryResult<Vec<String>> {
+        let mut connection = self.acquire_reader().await?;
+        Ok(sqlx::query_scalar("SELECT json_extract(requested.value,'$[0]') FROM json_each(?1) requested
+            WHERE EXISTS(SELECT 1 FROM main.sources WHERE object_id=json_extract(requested.value,'$[1]') AND catalog_complete=1)
+              AND NOT EXISTS(SELECT 1 FROM main.tracks WHERE media_uri=json_extract(requested.value,'$[0]') AND indexed=1)")
+            .bind(serde_json::to_string(media)?).fetch_all(&mut *connection).await?)
+    }
+
+    pub async fn source_counts(
+        &self,
+        source: SourceKey,
+        cancellation: &ReadCancellation,
+    ) -> LibraryResult<(usize, usize)> {
+        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let(album,track)=sqlx::query_as::<_,(i64,i64)>("SELECT (SELECT count(*) FROM albums album WHERE source_key=?1 AND (album.indexed=1 OR EXISTS(SELECT 1 FROM tracks admitted WHERE admitted.album_key=album.album_key AND admitted.indexed=1))),(SELECT count(*) FROM tracks WHERE source_key=?1 AND indexed=1)").bind(source).fetch_one(&mut *connection).await?;
+        Ok((
+            usize::try_from(album).unwrap_or_default(),
+            usize::try_from(track).unwrap_or_default(),
+        ))
+    }
+
+    pub async fn all_source_counts(
+        &self,
+    ) -> LibraryResult<std::collections::HashMap<crate::SourceId, (usize, usize)>> {
+        let mut connection = self.acquire_reader().await?;
+        let rows = sqlx::query_as::<_, (String, i64, i64)>(
+            "SELECT object_id,
+                (SELECT count(*) FROM albums album WHERE source_key=source.source_key AND (album.indexed=1 OR EXISTS(SELECT 1 FROM tracks admitted WHERE admitted.album_key=album.album_key AND admitted.indexed=1))),
+                (SELECT count(*) FROM tracks WHERE source_key=source.source_key AND indexed=1)
+             FROM sources source",
+        )
+        .fetch_all(&mut *connection)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, albums, tracks)| {
+                (crate::SourceId::new(id), (albums as usize, tracks as usize))
+            })
+            .collect())
+    }
+}

@@ -37,7 +37,7 @@ impl SourceOwner {
 
     async fn download_assets(&self) {
         if self.asset_download_enabled() {
-            for configured in self.shared.settings.load().sources.configured {
+            if let Some(configured) = self.shared.settings.load().sources.configured {
                 if let Err(error) = self.download_source_assets(&configured.configuration).await {
                     tracing::warn!(source = %configured.configuration.name, %error, "could not download source assets");
                 }

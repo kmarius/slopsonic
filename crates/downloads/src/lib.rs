@@ -1532,14 +1532,14 @@ impl Actor {
         let encoding = library::media_encoding_key(quality.encoding());
         let previous = self
             .database
-            .connect_media_file(media_uri, &encoding)
+            .download_file(media_uri, &encoding)
             .await
             .map_err(|error| error.to_string())?;
         let mut saved = previous.clone();
         if saved.is_none() && !replace_unknown {
             saved = self
                 .database
-                .connect_media_file(media_uri, "unknown")
+                .download_file(media_uri, "unknown")
                 .await
                 .map_err(|error| error.to_string())?;
         }
@@ -2189,7 +2189,7 @@ impl Actor {
         paths: &DownloadPaths,
         quality: DownloadQuality,
     ) -> Result<DownloadPaths, DownloadFailure> {
-        let mut file = library::ConnectMediaFile {
+        let mut file = library::DownloadFile {
             media_uri: media_uri.into(),
             encoding: library::media_encoding_key(quality.encoding()),
             managed: true,
@@ -2197,7 +2197,7 @@ impl Actor {
         };
         let previous = self
             .database
-            .connect_media_file(media_uri, &file.encoding)
+            .download_file(media_uri, &file.encoding)
             .await
             .map_err(|error| DownloadFailure::NeedsAttention(error.to_string()))?;
         let finished = finalize_download(paths)
@@ -2232,7 +2232,7 @@ impl Actor {
         {
             let used = self
                 .database
-                .connect_media_file_users(previous)
+                .download_file_shared(previous)
                 .await
                 .map_err(|error| DownloadFailure::NeedsAttention(error.to_string()))?;
             if !used {
@@ -2277,10 +2277,7 @@ impl Actor {
         Ok(finished.paths)
     }
 
-    async fn retire_previous_files(
-        &self,
-        file: &mut library::ConnectMediaFile,
-    ) -> Result<(), String> {
+    async fn retire_previous_files(&self, file: &mut library::DownloadFile) -> Result<(), String> {
         let mut retired: Vec<String> = serde_json::from_str(if file.retired_documents.is_empty() {
             "[]"
         } else {
@@ -2288,7 +2285,7 @@ impl Actor {
         })
         .map_err(|error| error.to_string())?;
         while let Some(path) = retired.first() {
-            let old = library::ConnectMediaFile {
+            let old = library::DownloadFile {
                 path: path.clone(),
                 managed: true,
                 ..file.clone()
@@ -2298,7 +2295,7 @@ impl Actor {
             file.retired_documents =
                 serde_json::to_string(&retired).map_err(|error| error.to_string())?;
             self.database
-                .connect_save_media_file(file)
+                .save_download_file(file)
                 .await
                 .map_err(|error| error.to_string())?;
         }
@@ -2617,7 +2614,7 @@ impl Actor {
         let mut removed = 0;
         let mut failed = 0;
         for uri in media_uris {
-            match self.database.connect_media_files(&uri).await {
+            match self.database.download_files(&uri).await {
                 Ok(files) => {
                     for file in files {
                         match self.retire_receipt(&file).await {
@@ -2640,11 +2637,11 @@ impl Actor {
 
     async fn remove_representation_bytes(
         &self,
-        file: &library::ConnectMediaFile,
+        file: &library::DownloadFile,
     ) -> Result<usize, String> {
         let used = self
             .database
-            .connect_media_file_users(file)
+            .download_file_shared(file)
             .await
             .map_err(|error| error.to_string())?;
         if !file.managed || used {
@@ -2654,17 +2651,17 @@ impl Actor {
         remove_download_files(&paths).await.map(usize::from)
     }
 
-    async fn retire_receipt(&self, file: &library::ConnectMediaFile) -> Result<usize, String> {
+    async fn retire_receipt(&self, file: &library::DownloadFile) -> Result<usize, String> {
         let mut file = file.clone();
         self.retire_previous_files(&mut file).await?;
         let removed = self.remove_representation_bytes(&file).await?;
         self.database
-            .connect_forget_media_file(&file)
+            .forget_download_file(&file)
             .await
             .map_err(|error| error.to_string())?;
         let downloaded = !self
             .database
-            .connect_media_files(&file.media_uri)
+            .download_files(&file.media_uri)
             .await
             .map_err(|error| error.to_string())?
             .is_empty();
@@ -2831,7 +2828,7 @@ impl Actor {
 
     async fn store_owners(
         &self,
-        file: &mut library::ConnectMediaFile,
+        file: &mut library::DownloadFile,
         owners: HashSet<DownloadOwner>,
     ) -> Result<(), String> {
         if owners.is_empty() {
@@ -2839,7 +2836,7 @@ impl Actor {
         } else {
             file.owners = serde_json::to_string(&owners).map_err(|error| error.to_string())?;
             self.database
-                .connect_save_media_file(file)
+                .save_download_file(file)
                 .await
                 .map_err(|error| error.to_string())
         }
@@ -3264,7 +3261,7 @@ mod tests {
             .unwrap();
         let receipt = actor
             .database
-            .connect_media_file(&media_uri, "original")
+            .download_file(&media_uri, "original")
             .await
             .unwrap()
             .unwrap();
@@ -3361,12 +3358,7 @@ mod tests {
                 downloaded: true,
             }
         );
-        let access = actor
-            .database
-            .playback_access(&media_uri)
-            .await
-            .unwrap()
-            .map(|(uri, _)| uri);
+        let access = actor.database.playback_access(&media_uri).await.unwrap();
         assert_eq!(
             reqwest::Url::parse(access.as_deref().unwrap())
                 .unwrap()
@@ -3411,12 +3403,7 @@ mod tests {
                 downloaded: false,
             }
         );
-        let access = actor
-            .database
-            .playback_access(&media_uri)
-            .await
-            .unwrap()
-            .map(|(uri, _)| uri);
+        let access = actor.database.playback_access(&media_uri).await.unwrap();
         assert!(access.is_none());
         assert!(!paths.audio.native().unwrap().exists());
         assert_eq!(

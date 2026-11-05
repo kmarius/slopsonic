@@ -221,11 +221,11 @@ where
 
     let stored = settings.load();
 
-    for configured in &stored.sources.configured {
+    if let Some(configured) = &stored.sources.configured {
         if let Err(error) = library
             .reconcile_source(
                 &configured.configuration.source_id,
-                &configured.configuration.kind,
+                configured.configuration.kind.source_id(),
                 &configured.configuration.name,
             )
             .await

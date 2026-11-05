@@ -14,7 +14,7 @@ pub(crate) async fn pragma(
 }
 pub(crate) const STORE_SCHEMA: &str = r#"PRAGMA application_id = 1381320270;
 
-PRAGMA user_version = 59;
+PRAGMA user_version = 60;
 
 CREATE TABLE IF NOT EXISTS queue_contexts (
     context_key INTEGER PRIMARY KEY,
@@ -187,13 +187,12 @@ CREATE TABLE IF NOT EXISTS queue_state (
     shuffled INTEGER NOT NULL DEFAULT 0 CHECK (shuffled IN (0, 1))
 ) STRICT;
 
-CREATE TABLE IF NOT EXISTS connect_media_files (
+CREATE TABLE IF NOT EXISTS download_files (
     media_uri TEXT NOT NULL,
     encoding TEXT NOT NULL,
     revision TEXT NOT NULL,
     path TEXT NOT NULL,
     managed INTEGER NOT NULL,
-    backing_uri TEXT,
     source_id TEXT,
     owners TEXT NOT NULL DEFAULT '[]',
     storage_root TEXT NOT NULL DEFAULT '',
@@ -203,12 +202,10 @@ CREATE TABLE IF NOT EXISTS connect_media_files (
     PRIMARY KEY (media_uri, encoding)
 ) STRICT;
 
-CREATE INDEX IF NOT EXISTS connect_media_files_path_idx ON connect_media_files(path,encoding,revision);
-CREATE INDEX IF NOT EXISTS connect_media_files_backing_idx ON connect_media_files(backing_uri,encoding,revision);
-CREATE INDEX IF NOT EXISTS connect_media_files_missing_backing_idx ON connect_media_files(media_uri) WHERE backing_uri IS NULL;
+CREATE INDEX IF NOT EXISTS download_files_path_idx ON download_files(path,encoding,revision);
 
-CREATE TABLE IF NOT EXISTS local_locators (
-    local_access_file_key INTEGER PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS download_locators (
+    download_access_file_key INTEGER PRIMARY KEY,
     source_key INTEGER REFERENCES sources ON DELETE CASCADE,
     media_uri TEXT NOT NULL CHECK(media_uri<>''),
     origin TEXT NOT NULL CHECK(origin IN ('local','mapping','download','import')),
@@ -216,9 +213,9 @@ CREATE TABLE IF NOT EXISTS local_locators (
     access_uri TEXT NOT NULL CHECK(access_uri<>''),
     UNIQUE(media_uri,origin)
 ) STRICT;
-CREATE INDEX IF NOT EXISTS local_locators_source_idx ON local_locators(source_key,origin);
-CREATE INDEX IF NOT EXISTS local_locators_path_idx ON local_locators(source_key,path);
-CREATE INDEX IF NOT EXISTS local_locators_access_idx ON local_locators(media_uri,origin,local_access_file_key);
+CREATE INDEX IF NOT EXISTS download_locators_source_idx ON download_locators(source_key,origin);
+CREATE INDEX IF NOT EXISTS download_locators_path_idx ON download_locators(source_key,path);
+CREATE INDEX IF NOT EXISTS download_locators_access_idx ON download_locators(media_uri,origin,download_access_file_key);
 
 
 CREATE TABLE IF NOT EXISTS legacy_activity (
@@ -541,7 +538,7 @@ CREATE TABLE IF NOT EXISTS loudness_measurements (
 
 CREATE TABLE IF NOT EXISTS artwork_previews(family TEXT PRIMARY KEY,hash TEXT NOT NULL) WITHOUT ROWID;
 
-CREATE TABLE IF NOT EXISTS local_access_metadata (
+CREATE TABLE IF NOT EXISTS download_access_metadata (
     access_uri TEXT PRIMARY KEY,
     size_bytes INTEGER NOT NULL, mtime_ns INTEGER NOT NULL, device_id INTEGER, inode INTEGER,
     parser_version INTEGER NOT NULL, loudness_analysis_key BLOB
@@ -553,17 +550,17 @@ CREATE TRIGGER IF NOT EXISTS local_play_count_listen_insert AFTER INSERT ON list
          CREATE TRIGGER IF NOT EXISTS local_play_count_listen_delete AFTER DELETE ON listens BEGIN
              UPDATE tracks SET local_play_count=local_play_count-1 WHERE media_uri=OLD.media_uri;
          END;
-CREATE VIEW IF NOT EXISTS local_access_files AS
-          SELECT locator.local_access_file_key,locator.source_key,locator.media_uri,
+CREATE VIEW IF NOT EXISTS download_access_files AS
+          SELECT locator.download_access_file_key,locator.source_key,locator.media_uri,
                  locator.origin,locator.path,locator.root,locator.relative_path,
                  COALESCE(metadata.size_bytes,0) size_bytes,COALESCE(metadata.mtime_ns,0) mtime_ns,
                  metadata.device_id,metadata.inode,COALESCE(metadata.parser_version,1) parser_version,
                  locator.access_uri,
                  metadata.loudness_analysis_key
-          FROM local_locators locator
-          LEFT JOIN local_access_metadata metadata USING(access_uri);
+          FROM download_locators locator
+          LEFT JOIN download_access_metadata metadata USING(access_uri);
 
-CREATE INDEX IF NOT EXISTS download_source_idx ON connect_media_files(source_id,media_uri,encoding);
+CREATE INDEX IF NOT EXISTS download_source_idx ON download_files(source_id,media_uri,encoding);
 
 CREATE TABLE IF NOT EXISTS native_playlist_pending (
     playlist_key INTEGER NOT NULL REFERENCES playlists ON DELETE CASCADE,
@@ -599,11 +596,27 @@ DELETE FROM local_locators WHERE origin<>'download';
 DELETE FROM local_access_metadata WHERE access_uri NOT IN (SELECT access_uri FROM local_locators);
 ";
 
-pub(crate) const SCHEMA_VERSION: i64 = 59;
+const MIGRATE_59: &str = "
+DROP INDEX IF EXISTS connect_media_files_path_idx;
+DROP INDEX IF EXISTS connect_media_files_backing_idx;
+DROP INDEX IF EXISTS connect_media_files_missing_backing_idx;
+DROP INDEX IF EXISTS download_source_idx;
+DROP INDEX IF EXISTS local_locators_source_idx;
+DROP INDEX IF EXISTS local_locators_path_idx;
+DROP INDEX IF EXISTS local_locators_access_idx;
+DROP VIEW IF EXISTS local_access_files;
+ALTER TABLE connect_media_files RENAME TO download_files;
+ALTER TABLE download_files DROP COLUMN backing_uri;
+ALTER TABLE local_locators RENAME TO download_locators;
+ALTER TABLE download_locators RENAME COLUMN local_access_file_key TO download_access_file_key;
+ALTER TABLE local_access_metadata RENAME TO download_access_metadata;
+";
+
+pub(crate) const SCHEMA_VERSION: i64 = 60;
 
 pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> LibraryResult<()> {
     let version = pragma(connection, "user_version").await?;
-    if version != 0 && version != 58 && version != SCHEMA_VERSION {
+    if version != 0 && version != 58 && version != 59 && version != SCHEMA_VERSION {
         return Err(crate::LibraryError::Migration(format!(
             "unsupported library schema {version}"
         )));
@@ -612,11 +625,14 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
     if version == 58 {
         sqlx::raw_sql(MIGRATE_58).execute(&mut *transaction).await?;
     }
+    if version == 58 || version == 59 {
+        sqlx::raw_sql(MIGRATE_59).execute(&mut *transaction).await?;
+    }
     sqlx::raw_sql(STORE_SCHEMA)
         .execute(&mut *transaction)
         .await?;
-    sqlx::raw_sql("UPDATE connect_media_files AS download SET source_id=source.object_id FROM tracks track JOIN sources source USING(source_key) WHERE download.source_id IS NULL AND download.media_uri=track.media_uri;
-        UPDATE local_locators AS locator SET source_key=track.source_key FROM tracks track WHERE locator.source_key IS NULL AND locator.origin='download' AND locator.media_uri=track.media_uri AND track.source_key IS NOT NULL;")
+    sqlx::raw_sql("UPDATE download_files AS download SET source_id=source.object_id FROM tracks track JOIN sources source USING(source_key) WHERE download.source_id IS NULL AND download.media_uri=track.media_uri;
+        UPDATE download_locators AS locator SET source_key=track.source_key FROM tracks track WHERE locator.source_key IS NULL AND locator.origin='download' AND locator.media_uri=track.media_uri AND track.source_key IS NOT NULL;")
         .execute(&mut *transaction).await?;
     if version == 0 {
         crate::smart_playlists::create_default_smart_playlists(&mut transaction).await?;

@@ -1,8 +1,8 @@
 use library::{
-    CatalogSort, LocalAccessOrigin, LocalAccessWrite, PlayedFilter, RadioSeed, RandomCriteria,
-    ReadCancellation, RouteSeedWindow, SearchRequest, SmartPlaylistActivityPeriod,
-    SmartPlaylistDefinition, SmartPlaylistRule, SmartPlaylistRuleField, SmartPlaylistRuleOperator,
-    SmartPlaylistRuleValue, SmartPlaylistSort,
+    CatalogSort, DownloadAccessWrite, PlayedFilter, RadioSeed, RandomCriteria, ReadCancellation,
+    RouteSeedWindow, SearchRequest, SmartPlaylistActivityPeriod, SmartPlaylistDefinition,
+    SmartPlaylistRule, SmartPlaylistRuleField, SmartPlaylistRuleOperator, SmartPlaylistRuleValue,
+    SmartPlaylistSort,
 };
 
 use super::support::{connection, fixture};
@@ -2171,15 +2171,14 @@ async fn downloaded_row_facts_require_download_owned_local_access() {
         .expect("initial Track rows");
     assert!(rows.iter().all(|row| !row.access.is_downloaded));
 
-    for (index, origin) in [(1, LocalAccessOrigin::Download)] {
+    for index in [1] {
         let track = &rows[index];
         fixture
             .database
-            .write_local_access(
+            .write_download_access(
                 Some(fixture.source),
-                &[&LocalAccessWrite {
+                &[&DownloadAccessWrite {
                     media_uri: track.media_uri.clone(),
-                    origin,
                     path: format!(
                         "/validated/{}.flac",
                         track.object_id.as_deref().expect("indexed track object")
@@ -3311,11 +3310,10 @@ async fn completed_direct_download_keeps_access_without_smart_membership() {
         .unwrap();
     fixture
         .database
-        .write_local_access(
+        .write_download_access(
             None,
-            &[&LocalAccessWrite {
+            &[&DownloadAccessWrite {
                 media_uri: direct.clone(),
-                origin: LocalAccessOrigin::Download,
                 path: "/downloads/direct.flac".to_string(),
                 root: "/downloads".to_string(),
                 relative_path: "direct.flac".to_string(),
@@ -3336,7 +3334,6 @@ async fn completed_direct_download_keeps_access_without_smart_membership() {
             .playback_access(&direct)
             .await
             .expect("resolve direct download access")
-            .map(|(uri, _)| uri)
             .as_deref(),
         Some("file:///downloads/direct.flac")
     );
@@ -3550,7 +3547,7 @@ async fn smart_overview_keeps_the_full_order_and_only_the_requested_summary_wind
             .await
             .unwrap();
     };
-    sqlx::query("INSERT INTO local_locators(media_uri,origin,path,root,relative_path,access_uri) VALUES(?1,'download','/music/track.flac','/music','track.flac','file:///music/track.flac')")
+    sqlx::query("INSERT INTO download_locators(media_uri,origin,path,root,relative_path,access_uri) VALUES(?1,'download','/music/track.flac','/music','track.flac','file:///music/track.flac')")
         .bind(&fixture.track_uris[0]).execute(&mut raw).await.unwrap();
     for index in 0..70 {
         let definition = SmartPlaylistDefinition {

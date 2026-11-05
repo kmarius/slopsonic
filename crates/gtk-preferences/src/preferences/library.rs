@@ -6,7 +6,7 @@ use adw::prelude::*;
 use downloads::{DownloadQueueState, DownloadRule};
 use gtk::gio;
 
-use super::{PreferencesNavigationControls, source::configured_source_kind_display_name};
+use super::PreferencesNavigationControls;
 use crate::Preferences;
 use gtk_widgets::source_labels::configured_source_display_name;
 use rufin_core::runtime::source::{SourceCacheSummary, SourceSummary};
@@ -917,7 +917,10 @@ fn source_summary_subtitle(
         .map(|username| format!("User: {username}"))
         .unwrap_or_default();
     let cache = summary.map(source_cache_line).unwrap_or_default();
-    let provider_line = metadata_line([configured_source_kind_display_name(&server.kind), address]);
+    let provider_line = metadata_line([
+        gtk_widgets::source_labels::source_kind_title(server.kind).to_string(),
+        address,
+    ]);
     let folder_line = metadata_line([account, format!("Music Folder: {folder}")]);
     let cache_line = metadata_line([cache]);
     [provider_line, folder_line, cache_line]

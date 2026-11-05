@@ -411,7 +411,7 @@ fn refresh_group(kind: &str, role: i32, entity: &str, album: &str) -> String {
 
 fn display(scope: &str) -> String {
     format!("UPDATE tracks SET displayed_play_count=current.play_count,displayed_last_played=current.last_played,displayed_skip_count=current.skip_count,is_downloaded=current.downloaded_count FROM (
-        SELECT track.track_key,EXISTS(SELECT 1 FROM local_locators WHERE media_uri=track.media_uri AND origin='download') downloaded_count,
+        SELECT track.track_key,EXISTS(SELECT 1 FROM download_locators WHERE media_uri=track.media_uri AND origin='download') downloaded_count,
         CASE WHEN source.kind IN('local','files','webdav','smb','documents') OR track.source_key IS NULL THEN track.local_play_count+coalesce(legacy.play_count,0) ELSE coalesce(native.play_count,0) END play_count,
         CASE WHEN source.kind IN('local','files','webdav','smb','documents') OR track.source_key IS NULL THEN (SELECT max(value) FROM(SELECT max(started_at) value FROM listens WHERE media_uri=track.media_uri UNION ALL SELECT legacy.last_played_at)) ELSE native.last_played END last_played,
         CASE WHEN source.kind IN('local','files','webdav','smb','documents') OR track.source_key IS NULL THEN coalesce((SELECT sum(skipped) FROM listens WHERE media_uri=track.media_uri),0)+coalesce(legacy.skip_count,0) ELSE coalesce(native.skip_count,0) END skip_count
@@ -627,17 +627,17 @@ fn activity_triggers() -> String {
         ),
         (
             "download_insert",
-            "AFTER INSERT ON local_locators WHEN NEW.origin='download'",
+            "AFTER INSERT ON download_locators WHEN NEW.origin='download'",
             "track.media_uri=NEW.media_uri",
         ),
         (
             "download_update",
-            "AFTER UPDATE OF media_uri,origin ON local_locators WHEN (OLD.media_uri,OLD.origin) IS NOT (NEW.media_uri,NEW.origin) AND (OLD.origin='download' OR NEW.origin='download')",
+            "AFTER UPDATE OF media_uri,origin ON download_locators WHEN (OLD.media_uri,OLD.origin) IS NOT (NEW.media_uri,NEW.origin) AND (OLD.origin='download' OR NEW.origin='download')",
             "track.media_uri IN(OLD.media_uri,NEW.media_uri)",
         ),
         (
             "download_delete",
-            "AFTER DELETE ON local_locators WHEN OLD.origin='download'",
+            "AFTER DELETE ON download_locators WHEN OLD.origin='download'",
             "track.media_uri=OLD.media_uri",
         ),
         (

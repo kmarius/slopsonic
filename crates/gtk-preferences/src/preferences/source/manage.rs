@@ -55,25 +55,21 @@ fn manage_server_content(
     clamp.set_maximum_size(large_popup_content_width(MANAGE_SERVER_CLAMP_WIDTH));
     match shell.products.source.editable(server.id.clone()) {
         Ok(Some(saved)) => {
-            if let Some(settings_group) = source_settings_group(shell, &saved) {
-                let settings = match settings_group {
-                    Ok(settings) => settings,
-                    Err(error) => source_settings_error(&error),
-                };
-                content.append(&settings);
-            }
+            let settings = match source_settings_group(shell, &saved) {
+                Ok(settings) => settings,
+                Err(error) => source_settings_error(&error),
+            };
+            content.append(&settings);
         }
         Ok(None) => {}
         Err(error) => content.append(&source_settings_error(&error.to_string())),
     }
 
-    if let Some(half_stars) = super::half_stars_row(shell, &server) {
-        let library = adw::PreferencesGroup::builder()
-            .title("Library".to_string())
-            .build();
-        library.add(&half_stars);
-        content.append(&library);
-    }
+    let library = adw::PreferencesGroup::builder()
+        .title("Library".to_string())
+        .build();
+    library.add(&super::half_stars_row(shell, &server));
+    content.append(&library);
 
     content.append(&server_actions_group(
         shell,
@@ -185,9 +181,7 @@ pub fn confirm_forget_source(
 
 fn server_display_name(server: &SourceSummary) -> String {
     if server.name.trim().is_empty() {
-        source_kind_title(&server.kind)
-            .map(String::from)
-            .unwrap_or_else(|| server.kind.clone())
+        source_kind_title(server.kind).to_string()
     } else {
         server.name.clone()
     }

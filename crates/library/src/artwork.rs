@@ -527,7 +527,7 @@ impl ArtworkCacheRetention<'_> {
             "SELECT track.track_key,{}
              FROM tracks track LEFT JOIN albums album USING(album_key)
              WHERE track.track_key>?1 AND ({}) IS NOT NULL
-               AND (EXISTS(SELECT 1 FROM local_locators locator WHERE locator.media_uri=track.media_uri AND locator.origin='download')
+               AND (EXISTS(SELECT 1 FROM download_locators locator WHERE locator.media_uri=track.media_uri AND locator.origin='download')
                     OR track.media_uri IN (SELECT value FROM json_each(?2)))
              ORDER BY track.track_key LIMIT 128",raw_track_artwork_sql("track"),raw_track_artwork_sql("track"))))
         .bind(self.after)

@@ -6,15 +6,11 @@ use crate::{SourceConfiguration, SourceError, SourceResult};
 
 impl SourceConfiguration {
     pub fn detail_web_url(&self, kind: &str, object_id: &str) -> SourceResult<String> {
-        let id = entity_id(&self.kind, kind, object_id)?;
-        let url = match self.kind.as_str() {
-            "navidrome" | "subsonic" => {
-                let config = crate::subsonic::SubsonicSourceConfig::from_configuration(self)?;
-                subsonic_url(&web_base(&config.base_url)?, &self.kind, kind, id)?
-                    .ok_or(SourceError::NotFound)?
-            }
-            _ => return Err(SourceError::InvalidRequest("Source has no web client")),
-        };
+        let flavor = self.kind.source_id();
+        let id = entity_id(flavor, kind, object_id)?;
+        let config = crate::subsonic::SubsonicSourceConfig::from_configuration(self)?;
+        let url = subsonic_url(&web_base(&config.base_url)?, flavor, kind, id)?
+            .ok_or(SourceError::NotFound)?;
         Ok(url.into())
     }
 }
@@ -74,10 +70,13 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn configuration(kind: &str, payload: serde_json::Value) -> SourceConfiguration {
+    fn configuration(
+        kind: crate::SubsonicFlavor,
+        payload: serde_json::Value,
+    ) -> SourceConfiguration {
         SourceConfiguration {
             source_id: crate::SourceId::new("server"),
-            kind: kind.into(),
+            kind,
             name: "My custom name".into(),
             provider_payload: payload.to_string(),
         }
@@ -86,7 +85,7 @@ mod tests {
     #[test]
     fn server_detail_links_keep_mount_paths_and_encode_item_and_server_ids() {
         let source = configuration(
-            "navidrome",
+            crate::SubsonicFlavor::Navidrome,
             json!({"version":1,"base_url":"https://music.test/navidrome/","username":"listener","trust_invalid_cert":false}),
         );
         assert_eq!(
@@ -146,7 +145,7 @@ mod tests {
         }
         for server in ["airsonic", "gonic", "unknown"] {
             let source = configuration(
-                "subsonic",
+                crate::SubsonicFlavor::Subsonic,
                 json!({"version":1,"base_url":format!("https://music.test/{server}/"),"username":"listener","trust_invalid_cert":false}),
             );
             assert!(source.detail_web_url("album", "subsonic:album:42").is_err());
@@ -166,7 +165,7 @@ mod tests {
             ),
         ] {
             let source = configuration(
-                "subsonic",
+                crate::SubsonicFlavor::Subsonic,
                 json!({"version":1,"base_url":base,"username":"listener","trust_invalid_cert":false}),
             );
             assert_eq!(

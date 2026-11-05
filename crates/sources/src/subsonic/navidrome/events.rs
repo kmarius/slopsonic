@@ -357,7 +357,7 @@ mod tests {
             .mount(&server)
             .await;
         let configuration = crate::SourceConfiguration {
-            source_id: crate::SourceId::new("source"), kind:"navidrome".into(), name:"Source".into(),
+            source_id: crate::SourceId::new("source"), kind:crate::SubsonicFlavor::Navidrome, name:"Source".into(),
             provider_payload: serde_json::json!({"version":SOURCE_CONFIG_VERSION,"base_url":server.uri(),
                 "username":"listener","trust_invalid_cert":false,"navidrome_library_version":NAVIDROME_LIBRARY_VERSION,
                 "authentication":"password"}).to_string(),

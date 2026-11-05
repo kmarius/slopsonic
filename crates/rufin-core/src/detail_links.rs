@@ -15,7 +15,7 @@ pub fn navigation_source_link(
 ) -> Option<DetailLink> {
     let source = source?;
     // Navidrome's player links tracks to their album page.
-    let uri = if source.kind == "navidrome"
+    let uri = if source.kind == sources::SubsonicFlavor::Navidrome
         && library::source_entity_parts(media_uri).is_some_and(|(_, kind, _)| kind == "track")
     {
         album_uri?
@@ -23,20 +23,19 @@ pub fn navigation_source_link(
         media_uri
     };
     let mut link = source_link(source, uri)?;
-    link.title = crate::runtime::source::source_kind_title(&source.kind)?;
+    link.title = crate::runtime::source::source_kind_title(source.kind);
     Some(link)
 }
 
 pub fn source_link(source: &sources::SourceConfiguration, media_uri: &str) -> Option<DetailLink> {
     let (_, kind, object_id) = library::source_entity_parts(media_uri)?;
-    let title = match source.kind.as_str() {
-        "navidrome" => "Open on Navidrome",
-        "subsonic" => "Open on server",
-        _ => return None,
+    let title = match source.kind {
+        sources::SubsonicFlavor::Navidrome => "Open on Navidrome",
+        sources::SubsonicFlavor::Subsonic => "Open on server",
     };
     Some(DetailLink {
         title,
-        icon_name: crate::runtime::source::source_kind_icon_name(&source.kind)?,
+        icon_name: crate::runtime::source::source_kind_icon_name(source.kind),
         url: source.detail_web_url(&kind, &object_id).ok()?,
     })
 }

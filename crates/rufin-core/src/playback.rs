@@ -772,14 +772,14 @@ where
         .await
         .ok()
         .flatten();
-    if let Some((uri, library::LocalAccessOrigin::Download)) = access.as_ref()
+    if let Some(uri) = access.as_ref()
         && !local_access_available(uri).await?
     {
         access = None;
     }
     // Downloads names its owned file using the actual transcoded extension.
     // Mapped and original files still use their parsed source format.
-    let content_type = if let Some((uri, library::LocalAccessOrigin::Download)) = &access {
+    let content_type = if let Some(uri) = &access {
         let path = library::file_media_path(uri);
         path.and_then(|path: std::path::PathBuf| {
             path.extension()
@@ -789,10 +789,7 @@ where
     } else {
         None
     };
-    let access_uri = access.map(|(uri, _)| uri);
-    if let Some(uri) =
-        access_uri.or_else(|| library::normalize_direct_media_uri(&request.media_uri))
-    {
+    if let Some(uri) = access.or_else(|| library::normalize_direct_media_uri(&request.media_uri)) {
         return Ok(audio_processing::ResolvedStream::new(uri).with_content_type(content_type));
     }
     let (source_id, kind, _) = library::source_entity_parts(&request.media_uri)
@@ -1012,11 +1009,10 @@ mod tests {
         std::fs::write(&path, b"downloaded audio").unwrap();
         let uri = url::Url::from_file_path(&path).unwrap().to_string();
         database
-            .write_local_access(
+            .write_download_access(
                 None,
-                &[&library::LocalAccessWrite {
+                &[&library::DownloadAccessWrite {
                     media_uri: occurrence.track.media_uri.clone(),
-                    origin: library::LocalAccessOrigin::Download,
                     path: path.to_string_lossy().into_owned(),
                     root: folder.path().to_string_lossy().into_owned(),
                     relative_path: "track.opus".into(),

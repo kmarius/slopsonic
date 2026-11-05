@@ -675,7 +675,7 @@ pub(super) async fn encode_download(
 }
 
 pub(super) fn download_owners(
-    file: &library::ConnectMediaFile,
+    file: &library::DownloadFile,
 ) -> Result<HashSet<DownloadOwner>, String> {
     let mut owners: HashSet<DownloadOwner> = serde_json::from_str(if file.owners.is_empty() {
         "[]"
@@ -691,7 +691,7 @@ pub(super) fn download_owners(
 
 pub(super) fn completed_download_paths(
     root: &Path,
-    file: &library::ConnectMediaFile,
+    file: &library::DownloadFile,
 ) -> Result<DownloadPaths, String> {
     let source = file.source_id.as_deref().map(SourceId::new);
     let mut paths = download_paths(root, source.as_ref(), &file.media_uri);
@@ -726,7 +726,7 @@ pub(super) async fn download_access(
     media_uri: &str,
     paths: &DownloadPaths,
     completed_size: Option<i64>,
-) -> Result<library::LocalAccessWrite, String> {
+) -> Result<library::DownloadAccessWrite, String> {
     let loudness_analysis_key = database
         .audio_analysis_key(media_uri)
         .await
@@ -737,9 +737,8 @@ pub(super) async fn download_access(
         .await?
         .ok_or("The downloaded file is unavailable")?;
     let (root, relative_path) = local_access_projection(paths)?;
-    Ok(library::LocalAccessWrite {
+    Ok(library::DownloadAccessWrite {
         media_uri: media_uri.into(),
-        origin: library::LocalAccessOrigin::Download,
         path: paths.audio.location()?,
         root,
         relative_path,
@@ -782,12 +781,12 @@ async fn import_download_record(
     }
     let path = paths.audio.access_uri()?;
     let mut file = database
-        .connect_media_files(&record.media_uri)
+        .download_files(&record.media_uri)
         .await
         .map_err(|error| error.to_string())?
         .into_iter()
         .find(|file| file.path == path)
-        .unwrap_or(library::ConnectMediaFile {
+        .unwrap_or(library::DownloadFile {
             media_uri: record.media_uri,
             encoding: record
                 .quality
@@ -1693,13 +1692,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(
-            database
-                .connect_media_files(&identity)
-                .await
-                .unwrap()
-                .is_empty()
-        );
+        assert!(database.download_files(&identity).await.unwrap().is_empty());
         assert!(audio.is_file());
         assert!(
             record_path

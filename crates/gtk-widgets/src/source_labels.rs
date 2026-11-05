@@ -8,13 +8,13 @@ use rufin_core::text::fill;
 pub fn configured_source_display_name(source: &SourceSummary) -> String {
     let name = source.name.trim();
     if name.is_empty() {
-        source_kind_title(&source.kind).map_or_else(|| source.kind.clone(), String::from)
+        source_kind_title(source.kind).to_string()
     } else {
         name.to_string()
     }
 }
 pub fn configured_source_icon_name(source: &SourceSummary) -> &'static str {
-    source_kind_icon_name(&source.kind).unwrap_or("rufin-network-server-symbolic")
+    source_kind_icon_name(source.kind)
 }
 pub fn configure_ownership_toggle(
     button: &gtk::ToggleButton,

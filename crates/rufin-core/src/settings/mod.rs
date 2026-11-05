@@ -103,8 +103,28 @@ pub(crate) struct ConfiguredSource {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) struct SourceSettings {
-    #[serde(default)]
-    pub(crate) configured: Vec<ConfiguredSource>,
+    #[serde(default, with = "single_server")]
+    pub(crate) configured: Option<ConfiguredSource>,
+}
+
+mod single_server {
+    use super::ConfiguredSource;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(
+        value: &Option<ConfiguredSource>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        value.iter().collect::<Vec<_>>().serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<ConfiguredSource>, D::Error> {
+        Ok(Vec::<ConfiguredSource>::deserialize(deserializer)?
+            .into_iter()
+            .next())
+    }
 }
 
 impl SourceSettings {
@@ -1111,6 +1131,28 @@ mod tests {
     use super::*;
     use secrets::{SecretError, SecretResult};
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn configured_servers_are_stored_as_a_list_and_read_back_as_the_first() {
+        let server = |id: &str, kind: &str| {
+            format!(
+                "[[configured]]\nsource_id = \"{id}\"\nkind = \"{kind}\"\nname = \"{id}\"\nprovider_payload = \"{{}}\"\n"
+            )
+        };
+        let stored: SourceSettings =
+            toml::from_str(&(server("one", "navidrome") + &server("two", "subsonic"))).unwrap();
+        let configured = stored.configured.as_ref().unwrap();
+        assert_eq!(configured.configuration.source_id.as_str(), "one");
+        assert_eq!(
+            configured.configuration.kind,
+            sources::SubsonicFlavor::Navidrome
+        );
+        let written = toml::to_string(&stored).unwrap();
+        assert_eq!(written.matches("[[configured]]").count(), 1);
+        let empty: SourceSettings = toml::from_str("").unwrap();
+        assert!(empty.configured.is_none());
+        assert_eq!(toml::to_string(&empty).unwrap().trim(), "configured = []");
+    }
 
     #[test]
     fn pending_settings_update_leaves_committed_values_readable_and_serializes_saves() {

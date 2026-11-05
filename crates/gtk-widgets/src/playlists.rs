@@ -61,9 +61,7 @@ pub fn new_playlist_dialog(
     });
     new_entry.set_text(name);
     configure_ownership_toggle(&new_owner, selected.as_ref(), true);
-    let supports_public = selected
-        .as_ref()
-        .is_some_and(|source| source.supports_playlist_public);
+    let supports_public = selected.is_some();
     new_public_options.set_visible(new_owner.is_active() && supports_public);
     let options = new_public_options.downgrade();
     new_owner.connect_toggled(move |owner| {

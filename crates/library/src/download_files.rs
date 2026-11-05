@@ -1,9 +1,8 @@
-//! Device-local representations of shared collection entries.
 use crate::{Database, LibraryError, LibraryResult};
 use sqlx::Connection;
 
 #[derive(Clone, Debug, Default, sqlx::FromRow)]
-pub struct ConnectMediaFile {
+pub struct DownloadFile {
     pub media_uri: String,
     pub encoding: String,
     pub revision: String,
@@ -47,9 +46,8 @@ mod tests {
             .unwrap();
         let copy = root.path().join("download.mp3");
         std::fs::write(&copy, b"download").unwrap();
-        let access = crate::LocalAccessWrite {
+        let access = crate::DownloadAccessWrite {
             media_uri: item.media_uri.clone(),
-            origin: crate::LocalAccessOrigin::Download,
             path: copy.to_string_lossy().into_owned(),
             root: root.path().to_string_lossy().into_owned(),
             relative_path: "download.mp3".into(),
@@ -61,8 +59,11 @@ mod tests {
             access_uri: url::Url::from_file_path(&copy).unwrap().to_string(),
             loudness_analysis_key: None,
         };
-        database.write_local_access(None, &[&access]).await.unwrap();
-        let receipt = ConnectMediaFile {
+        database
+            .write_download_access(None, &[&access])
+            .await
+            .unwrap();
+        let receipt = DownloadFile {
             media_uri: uri.clone(),
             encoding: "mp3".into(),
             revision: "1".into(),
@@ -70,9 +71,9 @@ mod tests {
             managed: true,
             ..Default::default()
         };
-        database.connect_save_media_file(&receipt).await.unwrap();
+        database.save_download_file(&receipt).await.unwrap();
         assert_eq!(
-            database.playback_access(&uri).await.unwrap().unwrap().0,
+            database.playback_access(&uri).await.unwrap().unwrap(),
             receipt.path
         );
         assert_eq!(
@@ -87,7 +88,7 @@ mod tests {
         );
         let alternative = root.path().join("download.opus");
         std::fs::write(&alternative, b"alternative").unwrap();
-        let alternate = ConnectMediaFile {
+        let alternate = DownloadFile {
             encoding: media_encoding_key(Some(crate::AudioEncoding {
                 codec: crate::AudioCodec::Opus,
                 ..crate::AudioEncoding::mp3()
@@ -107,15 +108,12 @@ mod tests {
             .commit_download(&alternate, None, &alternate_access)
             .await
             .unwrap();
-        database
-            .connect_forget_media_file(&alternate)
-            .await
-            .unwrap();
+        database.forget_download_file(&alternate).await.unwrap();
         assert_eq!(
-            database.playback_access(&uri).await.unwrap().unwrap().0,
+            database.playback_access(&uri).await.unwrap().unwrap(),
             receipt.path
         );
-        database.connect_forget_media_file(&receipt).await.unwrap();
+        database.forget_download_file(&receipt).await.unwrap();
         assert!(database.playback_access(&uri).await.unwrap().is_none());
         assert_eq!(
             {
@@ -131,37 +129,61 @@ mod tests {
 }
 
 impl Database {
-    pub async fn connect_media_files(&self, uri: &str) -> LibraryResult<Vec<ConnectMediaFile>> {
+    pub async fn download_files(&self, uri: &str) -> LibraryResult<Vec<DownloadFile>> {
         let mut reader = self.acquire_reader().await?;
         Ok(
-            sqlx::query_as("SELECT * FROM connect_media_files WHERE media_uri=?1")
+            sqlx::query_as("SELECT * FROM download_files WHERE media_uri=?1")
                 .bind(uri)
                 .fetch_all(&mut *reader)
                 .await?,
         )
     }
 
-    pub async fn connect_forget_media_file(&self, file: &ConnectMediaFile) -> LibraryResult<()> {
+    pub async fn forget_download_file(&self, file: &DownloadFile) -> LibraryResult<()> {
         let mut writer = self.writer().await?;
         let mut transaction = writer
             .as_mut()
             .ok_or(LibraryError::WriterUnavailable)?
             .begin()
             .await?;
-        let removed = sqlx::query("DELETE FROM connect_media_files WHERE media_uri=?1 AND encoding=?2 AND path=?3 AND revision=?4")
+        let removed = sqlx::query("DELETE FROM download_files WHERE media_uri=?1 AND encoding=?2 AND path=?3 AND revision=?4")
             .bind(&file.media_uri).bind(&file.encoding).bind(&file.path).bind(&file.revision).execute(&mut *transaction).await?.rows_affected()>0;
         if removed {
-            let access = sqlx::query("DELETE FROM local_locators WHERE media_uri=?1 AND access_uri=?2 AND origin='download' AND NOT EXISTS(SELECT 1 FROM connect_media_files WHERE media_uri=?1 AND path=?2)")
+            let access = sqlx::query("DELETE FROM download_locators WHERE media_uri=?1 AND access_uri=?2 AND origin='download' AND NOT EXISTS(SELECT 1 FROM download_files WHERE media_uri=?1 AND path=?2)")
                 .bind(&file.media_uri).bind(&file.path).execute(&mut *transaction).await?.rows_affected()>0;
-            if access && let Some(next) = sqlx::query_as::<_, ConnectMediaFile>("SELECT * FROM connect_media_files WHERE media_uri=?1 ORDER BY rowid DESC LIMIT 1")
-                .bind(&file.media_uri).fetch_optional(&mut *transaction).await? {
+            if access
+                && let Some(next) = sqlx::query_as::<_, DownloadFile>(
+                    "SELECT * FROM download_files WHERE media_uri=?1 ORDER BY rowid DESC LIMIT 1",
+                )
+                .bind(&file.media_uri)
+                .fetch_optional(&mut *transaction)
+                .await?
+            {
                 let path = crate::file_media_path(&next.path);
-                let root = if next.storage_root.is_empty() { path.as_deref().and_then(std::path::Path::parent).map(|path|path.to_string_lossy().into_owned()).unwrap_or_else(|| next.path.clone()) } else { next.storage_root.clone() };
-                crate::local::write_local_locator(&mut transaction, &crate::local::LocalLocatorWrite {
-                    source_id: next.source_id.clone(), media_uri: next.media_uri.clone(), origin: "download".into(),
-                    path: path.map(|path|path.to_string_lossy().into_owned()).unwrap_or_else(||next.path.clone()), root, relative_path: next.relative_path.clone(), access_uri: next.path.clone(),
-                }).await?;
-                sqlx::query("INSERT INTO local_access_metadata SELECT ?1,coalesce(?2,size_bytes),0,NULL,NULL,parser_version,loudness_analysis_key FROM local_access_metadata WHERE access_uri=?3 ON CONFLICT(access_uri) DO NOTHING")
+                let root = if next.storage_root.is_empty() {
+                    path.as_deref()
+                        .and_then(std::path::Path::parent)
+                        .map(|path| path.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| next.path.clone())
+                } else {
+                    next.storage_root.clone()
+                };
+                crate::download_access::write_download_locator(
+                    &mut transaction,
+                    &crate::download_access::DownloadLocatorWrite {
+                        source_id: next.source_id.clone(),
+                        media_uri: next.media_uri.clone(),
+                        origin: "download".into(),
+                        path: path
+                            .map(|path| path.to_string_lossy().into_owned())
+                            .unwrap_or_else(|| next.path.clone()),
+                        root,
+                        relative_path: next.relative_path.clone(),
+                        access_uri: next.path.clone(),
+                    },
+                )
+                .await?;
+                sqlx::query("INSERT INTO download_access_metadata SELECT ?1,coalesce(?2,size_bytes),0,NULL,NULL,parser_version,loudness_analysis_key FROM download_access_metadata WHERE access_uri=?3 ON CONFLICT(access_uri) DO NOTHING")
                     .bind(&next.path).bind(next.completed_size).bind(&file.path).execute(&mut *transaction).await?;
             }
         }
@@ -169,14 +191,14 @@ impl Database {
         Ok(())
     }
 
-    pub async fn connect_media_file(
+    pub async fn download_file(
         &self,
         uri: &str,
         encoding: &str,
-    ) -> LibraryResult<Option<ConnectMediaFile>> {
+    ) -> LibraryResult<Option<DownloadFile>> {
         let mut reader = self.acquire_reader().await?;
         Ok(
-            sqlx::query_as("SELECT * FROM connect_media_files WHERE media_uri=?1 AND encoding=?2")
+            sqlx::query_as("SELECT * FROM download_files WHERE media_uri=?1 AND encoding=?2")
                 .bind(uri)
                 .bind(encoding)
                 .fetch_optional(&mut *reader)
@@ -184,40 +206,37 @@ impl Database {
         )
     }
 
-    /// Other tracks can use the same backing file.
-    pub async fn connect_media_file_users(&self, file: &ConnectMediaFile) -> LibraryResult<bool> {
+    pub async fn download_file_shared(&self, file: &DownloadFile) -> LibraryResult<bool> {
         let mut reader = self.acquire_reader().await?;
-        Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM connect_media_files WHERE path=?1 AND (media_uri,encoding,revision)<>(?2,?3,?4))")
+        Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM download_files WHERE path=?1 AND (media_uri,encoding,revision)<>(?2,?3,?4))")
             .bind(&file.path).bind(&file.media_uri).bind(&file.encoding).bind(&file.revision)
             .fetch_one(&mut *reader).await?)
     }
 
-    pub async fn connect_save_media_file(&self, file: &ConnectMediaFile) -> LibraryResult<()> {
-        let backing = file.media_uri.clone();
+    pub async fn save_download_file(&self, file: &DownloadFile) -> LibraryResult<()> {
         let mut writer = self.writer().await?;
         save_download_on(
             writer.as_mut().ok_or(LibraryError::WriterUnavailable)?,
             file,
-            &backing,
         )
         .await
     }
 
     pub async fn commit_download(
         &self,
-        file: &ConnectMediaFile,
+        file: &DownloadFile,
         source: Option<crate::SourceKey>,
-        access: &crate::LocalAccessWrite,
+        access: &crate::DownloadAccessWrite,
     ) -> LibraryResult<()> {
-        let backing = file.media_uri.clone();
         let mut writer = self.writer().await?;
         let mut transaction = writer
             .as_mut()
             .ok_or(LibraryError::WriterUnavailable)?
             .begin()
             .await?;
-        crate::local::write_local_access_on(&mut transaction, source, &[access]).await?;
-        save_download_on(&mut transaction, file, &backing).await?;
+        crate::download_access::write_download_access_on(&mut transaction, source, &[access])
+            .await?;
+        save_download_on(&mut transaction, file).await?;
         transaction.commit().await?;
         Ok(())
     }
@@ -227,20 +246,19 @@ impl Database {
         source: Option<&str>,
         after: &(String, String),
         owner: Option<&str>,
-    ) -> LibraryResult<Vec<ConnectMediaFile>> {
+    ) -> LibraryResult<Vec<DownloadFile>> {
         let mut reader = self.acquire_reader().await?;
-        Ok(sqlx::query_as("SELECT * FROM connect_media_files WHERE source_id IS ?1 AND (media_uri,encoding)>(?2,?3) AND (?4 IS NULL OR EXISTS(SELECT 1 FROM json_each(owners) WHERE value=json_extract(?4,'$'))) ORDER BY media_uri,encoding LIMIT 128")
+        Ok(sqlx::query_as("SELECT * FROM download_files WHERE source_id IS ?1 AND (media_uri,encoding)>(?2,?3) AND (?4 IS NULL OR EXISTS(SELECT 1 FROM json_each(owners) WHERE value=json_extract(?4,'$'))) ORDER BY media_uri,encoding LIMIT 128")
             .bind(source).bind(&after.0).bind(&after.1).bind(owner).fetch_all(&mut *reader).await?)
     }
 }
 
 async fn save_download_on(
     connection: &mut sqlx::SqliteConnection,
-    file: &ConnectMediaFile,
-    backing: &str,
+    file: &DownloadFile,
 ) -> LibraryResult<()> {
-    sqlx::query("INSERT INTO connect_media_files(media_uri,encoding,revision,path,managed,backing_uri,source_id,owners,storage_root,relative_path,completed_size,retired_documents) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12) ON CONFLICT(media_uri,encoding) DO UPDATE SET revision=excluded.revision,path=excluded.path,managed=excluded.managed,backing_uri=excluded.backing_uri,source_id=coalesce(excluded.source_id,connect_media_files.source_id),owners=excluded.owners,storage_root=excluded.storage_root,relative_path=excluded.relative_path,completed_size=excluded.completed_size,retired_documents=excluded.retired_documents")
-        .bind(&file.media_uri).bind(&file.encoding).bind(&file.revision).bind(&file.path).bind(file.managed).bind(backing).bind(&file.source_id)
+    sqlx::query("INSERT INTO download_files(media_uri,encoding,revision,path,managed,source_id,owners,storage_root,relative_path,completed_size,retired_documents) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11) ON CONFLICT(media_uri,encoding) DO UPDATE SET revision=excluded.revision,path=excluded.path,managed=excluded.managed,source_id=coalesce(excluded.source_id,download_files.source_id),owners=excluded.owners,storage_root=excluded.storage_root,relative_path=excluded.relative_path,completed_size=excluded.completed_size,retired_documents=excluded.retired_documents")
+        .bind(&file.media_uri).bind(&file.encoding).bind(&file.revision).bind(&file.path).bind(file.managed).bind(&file.source_id)
         .bind(if file.owners.is_empty() { "[]" } else { &file.owners }).bind(&file.storage_root).bind(&file.relative_path).bind(file.completed_size)
         .bind(if file.retired_documents.is_empty() { "[]" } else { &file.retired_documents }).execute(connection).await?;
     Ok(())

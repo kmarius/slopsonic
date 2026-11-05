@@ -415,7 +415,7 @@ impl SourceOwner {
             stored
                 .sources
                 .configured
-                .first()
+                .as_ref()
                 .map_or(SourceOperation::Idle, |configured| {
                     SourceOperation::Switching {
                         target: configured.configuration.source_id.clone(),
@@ -492,21 +492,11 @@ impl SourceOwner {
         let keep = stored
             .sources
             .configured
-            .first()
+            .as_ref()
             .map(|configured| configured.configuration.source_id.clone());
-        let extras = stored
-            .sources
-            .configured
-            .iter()
-            .map(|configured| configured.configuration.source_id.clone())
-            .filter(|source_id| Some(source_id) != keep.as_ref())
-            .collect::<Vec<_>>();
         if let Some(source_id) = keep {
             let owner = self.clone();
             self.shared.runtime.spawn(async move {
-                for extra in extras {
-                    let _ = owner.forget_source(extra).await;
-                }
                 let _ = owner.select_source(source_id).await;
             });
         }
@@ -644,7 +634,7 @@ impl SourceOwner {
                 .database
                 .reconcile_source(
                     &source_id,
-                    &configured.configuration.kind,
+                    configured.configuration.kind.source_id(),
                     &configured.configuration.name,
                 )
                 .await
@@ -1059,7 +1049,7 @@ impl SourceOwner {
                 .database
                 .reconcile_source(
                     &replacement.configuration.source_id,
-                    &replacement.configuration.kind,
+                    replacement.configuration.kind.source_id(),
                     &replacement.configuration.name,
                 )
                 .await
@@ -1139,11 +1129,7 @@ impl SourceOwner {
             }
         }
         self.shared.settings.update(|stored| {
-            stored
-                .sources
-                .configured
-                .retain(|item| item.configuration.source_id != configured.configuration.source_id);
-            stored.sources.configured.push(configured.clone());
+            stored.sources.configured = Some(configured.clone());
             Ok(())
         })?;
         self.shared
@@ -1157,7 +1143,7 @@ impl SourceOwner {
     }
 
     async fn edit_configured_source(&self, input: SourceSettingsChange) -> Result<(), String> {
-        let source_id = input.source_id().clone();
+        let source_id = input.source_id.clone();
         let configured = configured_source(&self.shared.settings.load().sources, &source_id)?;
         let credential = configured
             .credential
@@ -1202,7 +1188,11 @@ impl SourceOwner {
                 })?;
                 self.shared
                     .database
-                    .reconcile_source(&source_id, &configuration.kind, &configuration.name)
+                    .reconcile_source(
+                        &source_id,
+                        configuration.kind.source_id(),
+                        &configuration.name,
+                    )
                     .await
                     .map_err(string_error)?;
                 Ok(())
@@ -1447,7 +1437,7 @@ impl SourceOwner {
         input: SourceSetup,
     ) -> Receiver<Result<SelectedLibrary, String>> {
         let (sender, receiver) = async_channel::bounded(1);
-        if !self.shared.settings.load().sources.configured.is_empty() {
+        if !self.shared.settings.load().sources.configured.is_some() {
             let _ = sender.try_send(Err("A server is already configured".to_string()));
             return receiver;
         }
@@ -1485,7 +1475,7 @@ impl SourceOwner {
                     .database
                     .reconcile_source(
                         &configuration.source_id,
-                        &configuration.kind,
+                        configuration.kind.source_id(),
                         &configuration.name,
                     )
                     .await
@@ -1690,7 +1680,7 @@ impl SourceOwner {
                     .load()
                     .sources
                     .configured
-                    .first()
+                    .as_ref()
                     .map(|configured| configured.configuration.source_id.clone())
                 {
                     let selected_owner = owner.clone();
@@ -1792,10 +1782,14 @@ impl SourceOwner {
                 owner.shared.warn_nonfatal(error);
             }
             if let Err(error) = owner.shared.settings.update(|stored| {
-                stored
+                if stored
                     .sources
                     .configured
-                    .retain(|item| item.configuration.source_id != source_id);
+                    .as_ref()
+                    .is_some_and(|item| item.configuration.source_id == source_id)
+                {
+                    stored.sources.configured = None;
+                }
                 Ok(())
             }) {
                 owner.shared.warn_nonfatal(&error);
@@ -2349,14 +2343,13 @@ fn configured_sources(
     selected: Option<&SelectedLibrary>,
     counts: &HashMap<SourceId, (usize, usize)>,
 ) -> ConfiguredSources {
-    let configured = stored.sources.configured.first();
+    let configured = stored.sources.configured.as_ref();
     ConfiguredSources {
         source: configured.map(|configured| SourceSummary {
             id: configured.configuration.source_id.clone(),
-            kind: configured.configuration.kind.clone(),
+            kind: configured.configuration.kind,
             name: configured.configuration.name.clone(),
             half_stars_enabled: configured.enable_half_stars,
-            supports_playlist_public: configured.configuration.supports_playlist_public(),
         }),
         cache: configured.map(|configured| SourceCacheSummary {
             selected_music_folder_name: selected
@@ -2398,15 +2391,14 @@ fn source_refresh_error_text(error: &SourceError) -> String {
 }
 
 fn editable_source(configuration: &SourceConfiguration) -> Result<EditableSource, String> {
-    let sources::EditableSource::Credentials { credentials, .. } =
+    let sources::EditableSource { credentials, .. } =
         configuration.editable().map_err(string_error)?;
     Ok(EditableSource {
         source: SourceSummary {
             id: configuration.source_id.clone(),
-            kind: configuration.kind.clone(),
+            kind: configuration.kind,
             name: configuration.name.clone(),
             half_stars_enabled: false,
-            supports_playlist_public: configuration.supports_playlist_public(),
         },
         credentials,
     })
@@ -2456,7 +2448,7 @@ mod source_tests {
     fn subsonic_configuration(source_id: SourceId, name: impl Into<String>) -> SourceConfiguration {
         SourceConfiguration {
             source_id,
-            kind: "subsonic".into(),
+            kind: sources::SubsonicFlavor::Subsonic,
             name: name.into(),
             provider_payload: serde_json::json!({
                 "version": 1,
@@ -2524,7 +2516,7 @@ mod source_tests {
             .shared
             .settings
             .update(|stored| {
-                stored.sources.configured.push(configured.clone());
+                stored.sources.configured = Some(configured.clone());
                 Ok(())
             })
             .unwrap();
@@ -2539,14 +2531,6 @@ mod source_tests {
             .unwrap();
         let mut other = configured.clone();
         other.configuration = subsonic_configuration(other_id.clone(), "Other");
-        owner
-            .shared
-            .settings
-            .update(|stored| {
-                stored.sources.configured.push(other.clone());
-                Ok(())
-            })
-            .unwrap();
         owner.cache_connected(
             &other,
             Arc::new(Source::open(other.configuration.clone(), Some("salt:token".into())).unwrap()),
@@ -2579,7 +2563,13 @@ mod source_tests {
             .shared
             .settings
             .update(|stored| {
-                stored.sources.configured[0].configuration.name = "Renamed".into();
+                stored
+                    .sources
+                    .configured
+                    .as_mut()
+                    .unwrap()
+                    .configuration
+                    .name = "Renamed".into();
                 Ok(())
             })
             .unwrap();
@@ -2867,10 +2857,10 @@ mod source_tests {
                 .await;
             let settings = SettingsFile::memory();
             settings.update(|stored| {
-            stored.sources.configured.push(ConfiguredSource {
+            stored.sources.configured = Some(ConfiguredSource {
                 configuration: SourceConfiguration {
                     source_id: source_id.clone(),
-                    kind: "subsonic".into(),
+                    kind: sources::SubsonicFlavor::Subsonic,
                     name: "Music".into(),
                     provider_payload: serde_json::json!({ "version": 1, "base_url": "http://127.0.0.1:9", "username": "listener", "trust_invalid_cert": false }).to_string(),
                 },
@@ -3140,7 +3130,7 @@ mod source_tests {
             for id in [&first] {
                 settings
                     .update(|stored| {
-                        stored.sources.configured.push(ConfiguredSource {
+                        stored.sources.configured = Some(ConfiguredSource {
                             configuration: subsonic_configuration(id.clone(), id.as_str()),
                             credential: None,
                             music_folder_id: None,
@@ -3270,7 +3260,7 @@ impl SourceOwner {
         credentials: sources::CredentialInput,
     ) -> sources::SourceResult<()> {
         if let Some(source_id) = source_id {
-            self.update_source(SourceSettingsChange::OpenSubsonic {
+            self.update_source(SourceSettingsChange {
                 source_id,
                 kind,
                 authentication,
@@ -3281,7 +3271,7 @@ impl SourceOwner {
             .map_err(|error| SourceError::Other(error.to_string()))?
             .map_err(SourceError::Other)
         } else {
-            self.configure_source(SourceSetup::OpenSubsonic {
+            self.configure_source(SourceSetup {
                 kind,
                 authentication,
                 credentials,

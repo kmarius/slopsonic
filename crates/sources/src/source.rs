@@ -433,13 +433,13 @@ impl Source {
     }
 
     pub async fn connect(source_id: SourceId, input: SourceSetup) -> SourceResult<ConnectedSource> {
-        match input {
-            SourceSetup::OpenSubsonic {
-                kind,
-                authentication,
-                credentials,
-            } => crate::subsonic::connect(source_id, kind, authentication, credentials).await,
-        }
+        crate::subsonic::connect(
+            source_id,
+            input.kind,
+            input.authentication,
+            input.credentials,
+        )
+        .await
     }
 
     pub async fn edit(
@@ -447,30 +447,20 @@ impl Source {
         current_credential: Option<String>,
         input: SourceSettingsChange,
     ) -> SourceResult<SourceEditResult> {
-        match input {
-            SourceSettingsChange::OpenSubsonic {
-                authentication,
-                credentials,
-                ..
-            } => {
-                crate::subsonic::edit(current, current_credential, authentication, credentials)
-                    .await
-            }
-        }
+        crate::subsonic::edit(
+            current,
+            current_credential,
+            input.authentication,
+            input.credentials,
+        )
+        .await
     }
 
     pub fn open(
         configuration: SourceConfiguration,
         credential: Option<String>,
     ) -> SourceResult<Self> {
-        let subsonic = match configuration.kind.as_str() {
-            "navidrome" | "subsonic" => crate::subsonic::open(&configuration, credential)?,
-            kind => {
-                return Err(SourceError::InvalidConfig(format!(
-                    "unknown source kind {kind}"
-                )));
-            }
-        };
+        let subsonic = crate::subsonic::open(&configuration, credential)?;
         Ok(Self::new(configuration.source_id, subsonic))
     }
 
@@ -898,24 +888,10 @@ async fn direct_stream(
         return Ok(None);
     };
     let uri = match database.playback_access(media_uri).await? {
-        Some((uri, _)) => uri,
+        Some(uri) => uri,
         None => uri,
     };
     Ok(Some(ResolvedStream::new(uri)))
-}
-
-pub(crate) fn require_source_edit(
-    current: &SourceConfiguration,
-    expected_kind: &str,
-) -> SourceResult<()> {
-    if current.kind == expected_kind {
-        Ok(())
-    } else {
-        Err(SourceError::InvalidConfig(format!(
-            "expected {expected_kind}, found {}",
-            current.kind
-        )))
-    }
 }
 
 pub(crate) fn configured_source_name(configured: Option<String>, provider: String) -> String {

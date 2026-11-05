@@ -13,18 +13,7 @@ pub struct SourceState {
     pub refresh_feedback_generation: Rc<Cell<u64>>,
 }
 
-pub fn configured_source_kind_display_name(kind: &str) -> String {
-    gtk_widgets::source_labels::source_kind_title(kind)
-        .map_or_else(|| kind.to_string(), String::from)
-}
-
-pub fn half_stars_row(
-    shell: &Rc<crate::Preferences>,
-    source: &SourceSummary,
-) -> Option<adw::SwitchRow> {
-    if !matches!(source.kind.as_str(), "navidrome" | "subsonic") {
-        return None;
-    }
+pub fn half_stars_row(shell: &Rc<crate::Preferences>, source: &SourceSummary) -> adw::SwitchRow {
     let row = adw::SwitchRow::builder()
         .title("Enable partial star ratings".to_string())
         .subtitle("This is not supported natively by this source, but Slopsonic can show partial stars and then round them up for the source".to_string())
@@ -35,5 +24,5 @@ pub fn half_stars_row(
     row.connect_active_notify(move |row| {
         source_handle.set_half_stars(source_id.clone(), row.is_active());
     });
-    Some(row)
+    row
 }

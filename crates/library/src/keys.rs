@@ -183,7 +183,7 @@ integer_key!(PlaylistEntryKey);
 integer_key!(SmartPlaylistKey);
 integer_key!(ListenKey);
 integer_key!(ListenOutboxKey);
-integer_key!(LocalAccessFileKey);
+integer_key!(DownloadAccessFileKey);
 
 #[cfg(test)]
 mod tests {

@@ -1,5 +1,5 @@
 use library::{
-    ListenDeliveryTarget, ListenWrite, LocalAccessWrite, LoudnessMeasurement, QueueProvenance,
+    DownloadAccessWrite, ListenDeliveryTarget, ListenWrite, LoudnessMeasurement, QueueProvenance,
     QueueRepeatMode, ReadCancellation,
 };
 
@@ -500,11 +500,10 @@ async fn loudness_selects_one_unit_and_source_facts_win() {
     assert_eq!(quiet_tags.album_lufs, Some(-13.0));
     fixture
         .database
-        .write_local_access(
+        .write_download_access(
             Some(fixture.source),
-            &[&LocalAccessWrite {
+            &[&DownloadAccessWrite {
                 media_uri: fixture.track_uris[1].clone(),
-                origin: library::LocalAccessOrigin::Download,
                 path: "/generic/local-track.flac".to_string(),
                 root: "/generic".to_string(),
                 relative_path: "local-track.flac".to_string(),
@@ -921,7 +920,7 @@ async fn source_artwork_pages_distinct_bindings() {
         assert!(actual.len() <= expected.len());
     }
     assert_eq!(actual, expected);
-    sqlx::query("INSERT INTO local_locators(media_uri,origin,path,root,relative_path,access_uri) SELECT media_uri,'download',media_uri,'','',media_uri FROM tracks WHERE object_id LIKE 'artwork-%' AND CAST(substr(object_id,9) AS INTEGER)%2=0")
+    sqlx::query("INSERT INTO download_locators(media_uri,origin,path,root,relative_path,access_uri) SELECT media_uri,'download',media_uri,'','',media_uri FROM tracks WHERE object_id LIKE 'artwork-%' AND CAST(substr(object_id,9) AS INTEGER)%2=0")
         .execute(&mut raw).await.unwrap();
     let mut retention = fixture
         .database

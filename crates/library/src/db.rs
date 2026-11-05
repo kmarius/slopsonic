@@ -287,7 +287,7 @@ impl Database {
                     .await?;
             }
         }
-        sqlx::query("DELETE FROM local_access_metadata WHERE access_uri IN (SELECT access_uri FROM main.local_locators locator JOIN sources identity USING(source_key) WHERE identity.object_id=?1) AND NOT EXISTS(SELECT 1 FROM local_locators other WHERE other.access_uri=local_access_metadata.access_uri AND other.source_key IS NOT ?2)").bind(source_id.as_str()).bind(source).execute(&mut *transaction).await?;
+        sqlx::query("DELETE FROM download_access_metadata WHERE access_uri IN (SELECT access_uri FROM main.download_locators locator JOIN sources identity USING(source_key) WHERE identity.object_id=?1) AND NOT EXISTS(SELECT 1 FROM download_locators other WHERE other.access_uri=download_access_metadata.access_uri AND other.source_key IS NOT ?2)").bind(source_id.as_str()).bind(source).execute(&mut *transaction).await?;
         // Referenced metadata survives source removal.
         sqlx::query("UPDATE tracks SET indexed=0,artwork_kind=CASE WHEN native_artwork IS NULL THEN 0 ELSE 1 END,artwork_artist_key=NULL WHERE source_key=?1")
             .bind(source)

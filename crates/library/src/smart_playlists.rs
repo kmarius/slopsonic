@@ -880,7 +880,7 @@ mod source_window_tests {
         // Download metadata is another logical view: loading one row must not
         // materialize every locator even when the catalog owner wins.
         sqlx::raw_sql(
-            "INSERT INTO main.local_locators(media_uri,origin,path,root,relative_path,access_uri)
+            "INSERT INTO main.download_locators(media_uri,origin,path,root,relative_path,access_uri)
           SELECT media_uri,'download',object_id,'',object_id,media_uri FROM tracks;",
         )
         .execute(&mut *connection)

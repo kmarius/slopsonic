@@ -1,17 +1,8 @@
-//! Persists bounded Local observations, dependency paths, and point playback access.
-//! Walking, parsing, retries, and filesystem policy remain owned by Sources.
-
 use sqlx::{Connection, FromRow};
 
 use crate::{
-    Database, LibraryError, LibraryResult, LocalAccessFileKey, ReadCancellation, SourceKey,
+    Database, DownloadAccessFileKey, LibraryError, LibraryResult, ReadCancellation, SourceKey,
 };
-
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct DownloadStatus {
-    pub total: u64,
-    pub downloaded: u64,
-}
 
 #[derive(Debug, FromRow)]
 pub struct DownloadMetadata {
@@ -26,7 +17,7 @@ pub struct DownloadMetadata {
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, FromRow)]
-pub(crate) struct LocalLocatorWrite {
+pub(crate) struct DownloadLocatorWrite {
     pub source_id: Option<String>,
     pub media_uri: String,
     pub origin: String,
@@ -37,9 +28,8 @@ pub(crate) struct LocalLocatorWrite {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct LocalAccessWrite {
+pub struct DownloadAccessWrite {
     pub media_uri: String,
-    pub origin: LocalAccessOrigin,
     pub path: String,
     pub root: String,
     pub relative_path: String,
@@ -52,26 +42,12 @@ pub struct LocalAccessWrite {
     pub loudness_analysis_key: Option<[u8; 32]>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, sqlx::Type)]
-#[sqlx(type_name = "TEXT", rename_all = "lowercase")]
-pub enum LocalAccessOrigin {
-    Download,
-}
-
-impl LocalAccessOrigin {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Download => "download",
-        }
-    }
-}
-
 impl Database {
     pub async fn downloaded_count(&self, source_id: Option<&str>) -> LibraryResult<usize> {
         let (_permit, mut connection) = self.acquire_general(&ReadCancellation::new()).await?;
         let count = if let Some(source_id) = source_id {
             sqlx::query_scalar::<_, i64>(
-                "SELECT count(*) FROM main.local_locators
+                "SELECT count(*) FROM main.download_locators
                  WHERE source_key=(SELECT source_key FROM main.sources WHERE object_id=?1)
                    AND origin='download'",
             )
@@ -80,7 +56,7 @@ impl Database {
             .await
         } else {
             sqlx::query_scalar::<_, i64>(
-                "SELECT count(*) FROM main.local_locators
+                "SELECT count(*) FROM main.download_locators
                  WHERE source_key IS NULL AND origin='download'",
             )
             .fetch_one(&mut *connection)
@@ -104,67 +80,20 @@ impl Database {
         .await?)
     }
 
-    pub async fn playback_access(
-        &self,
-        media_uri: &str,
-    ) -> LibraryResult<Option<(String, LocalAccessOrigin)>> {
+    pub async fn playback_access(&self, media_uri: &str) -> LibraryResult<Option<String>> {
         let mut connection = self.acquire_reader().await?;
-        Ok(sqlx::query_as::<_, (String, LocalAccessOrigin)>(
-            "SELECT access_uri,origin FROM local_access_files WHERE media_uri=?1 ORDER BY local_access_file_key LIMIT 1",
+        Ok(sqlx::query_scalar(
+            "SELECT access_uri FROM download_access_files WHERE media_uri=?1 ORDER BY download_access_file_key LIMIT 1",
         )
         .bind(media_uri)
         .fetch_optional(&mut *connection)
         .await?)
     }
 
-    pub async fn catalog_missing_media(
-        &self,
-        media: &[(String, crate::SourceId)],
-    ) -> LibraryResult<Vec<String>> {
-        let mut connection = self.acquire_reader().await?;
-        Ok(sqlx::query_scalar("SELECT json_extract(requested.value,'$[0]') FROM json_each(?1) requested
-            WHERE EXISTS(SELECT 1 FROM main.sources WHERE object_id=json_extract(requested.value,'$[1]') AND catalog_complete=1)
-              AND NOT EXISTS(SELECT 1 FROM main.tracks WHERE media_uri=json_extract(requested.value,'$[0]') AND indexed=1)")
-            .bind(serde_json::to_string(media)?).fetch_all(&mut *connection).await?)
-    }
-
-    pub async fn source_counts(
-        &self,
-        source: SourceKey,
-        cancellation: &ReadCancellation,
-    ) -> LibraryResult<(usize, usize)> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
-        let(album,track)=sqlx::query_as::<_,(i64,i64)>("SELECT (SELECT count(*) FROM albums album WHERE source_key=?1 AND (album.indexed=1 OR EXISTS(SELECT 1 FROM tracks admitted WHERE admitted.album_key=album.album_key AND admitted.indexed=1))),(SELECT count(*) FROM tracks WHERE source_key=?1 AND indexed=1)").bind(source).fetch_one(&mut *connection).await?;
-        Ok((
-            usize::try_from(album).unwrap_or_default(),
-            usize::try_from(track).unwrap_or_default(),
-        ))
-    }
-
-    pub async fn all_source_counts(
-        &self,
-    ) -> LibraryResult<std::collections::HashMap<crate::SourceId, (usize, usize)>> {
-        let mut connection = self.acquire_reader().await?;
-        let rows = sqlx::query_as::<_, (String, i64, i64)>(
-            "SELECT object_id,
-                (SELECT count(*) FROM albums album WHERE source_key=source.source_key AND (album.indexed=1 OR EXISTS(SELECT 1 FROM tracks admitted WHERE admitted.album_key=album.album_key AND admitted.indexed=1))),
-                (SELECT count(*) FROM tracks WHERE source_key=source.source_key AND indexed=1)
-             FROM sources source",
-        )
-        .fetch_all(&mut *connection)
-        .await?;
-        Ok(rows
-            .into_iter()
-            .map(|(id, albums, tracks)| {
-                (crate::SourceId::new(id), (albums as usize, tracks as usize))
-            })
-            .collect())
-    }
-
-    pub async fn write_local_access(
+    pub async fn write_download_access(
         &self,
         source: Option<SourceKey>,
-        records: &[&LocalAccessWrite],
+        records: &[&DownloadAccessWrite],
     ) -> LibraryResult<()> {
         if records.is_empty() {
             return Ok(());
@@ -172,7 +101,7 @@ impl Database {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
         let mut transaction = connection.begin().await?;
-        write_local_access_on(&mut transaction, source, records).await?;
+        write_download_access_on(&mut transaction, source, records).await?;
         transaction.commit().await?;
         Ok(())
     }
@@ -182,7 +111,7 @@ async fn refresh_access_audio(
     connection: &mut sqlx::SqliteConnection,
     uris: &[&str],
 ) -> LibraryResult<()> {
-    let chosen = "coalesce((SELECT access.loudness_analysis_key FROM local_access_files access WHERE access.media_uri=tracks.media_uri ORDER BY access.local_access_file_key LIMIT 1),source_loudness_analysis_key)";
+    let chosen = "coalesce((SELECT access.loudness_analysis_key FROM download_access_files access WHERE access.media_uri=tracks.media_uri ORDER BY access.download_access_file_key LIMIT 1),source_loudness_analysis_key)";
     let albums = sqlx::query_scalar::<_, Option<crate::AlbumKey>>(sqlx::AssertSqlSafe(format!(
         "UPDATE tracks SET loudness_analysis_key={chosen} WHERE media_uri IN (SELECT value FROM json_each(?1)) AND loudness_analysis_key IS NOT {chosen} RETURNING album_key"
     ))).bind(serde_json::to_string(uris)?).fetch_all(&mut *connection).await?;
@@ -196,7 +125,7 @@ async fn refresh_access_audio(
     Ok(())
 }
 
-fn validate_local_access(access: &LocalAccessWrite) -> LibraryResult<()> {
+fn validate_local_access(access: &DownloadAccessWrite) -> LibraryResult<()> {
     if access.path.is_empty()
         || access.root.is_empty()
         || access.media_uri.is_empty()
@@ -211,12 +140,10 @@ fn validate_local_access(access: &LocalAccessWrite) -> LibraryResult<()> {
     Ok(())
 }
 
-impl Database {}
-
-pub(crate) async fn write_local_locator(
+pub(crate) async fn write_download_locator(
     connection: &mut sqlx::SqliteConnection,
-    locator: &LocalLocatorWrite,
-) -> LibraryResult<LocalAccessFileKey> {
+    locator: &DownloadLocatorWrite,
+) -> LibraryResult<DownloadAccessFileKey> {
     crate::catalog::remember_track(
         connection,
         &crate::TrackReference {
@@ -229,18 +156,14 @@ pub(crate) async fn write_local_locator(
         Some(id) => Some(crate::db::write_source_identity(connection, id).await?),
         None => None,
     };
-    Ok(sqlx::query_scalar("INSERT INTO main.local_locators(source_key,media_uri,origin,path,root,relative_path,access_uri) VALUES(?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(media_uri,origin) DO UPDATE SET source_key=excluded.source_key,path=excluded.path,root=excluded.root,relative_path=excluded.relative_path,access_uri=excluded.access_uri RETURNING local_access_file_key")
+    Ok(sqlx::query_scalar("INSERT INTO main.download_locators(source_key,media_uri,origin,path,root,relative_path,access_uri) VALUES(?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(media_uri,origin) DO UPDATE SET source_key=excluded.source_key,path=excluded.path,root=excluded.root,relative_path=excluded.relative_path,access_uri=excluded.access_uri RETURNING download_access_file_key")
         .bind(source).bind(&locator.media_uri).bind(&locator.origin).bind(&locator.path).bind(&locator.root).bind(&locator.relative_path).bind(&locator.access_uri).fetch_one(connection).await?)
 }
 
-impl Database {}
-
-impl crate::Catalog<'_> {}
-
-pub(crate) async fn write_local_access_on(
+pub(crate) async fn write_download_access_on(
     connection: &mut sqlx::SqliteConnection,
     source: Option<SourceKey>,
-    records: &[&LocalAccessWrite],
+    records: &[&DownloadAccessWrite],
 ) -> LibraryResult<()> {
     for access in records {
         validate_local_access(access)?;
@@ -254,21 +177,21 @@ pub(crate) async fn write_local_access_on(
         None
     };
     for access in records {
-        sqlx::query("DELETE FROM main.local_access_metadata WHERE access_uri IN (SELECT access_uri FROM main.local_locators WHERE media_uri=?1 AND origin=?2 AND path<>?3) AND NOT EXISTS(SELECT 1 FROM local_locators other WHERE other.access_uri=local_access_metadata.access_uri AND (other.media_uri<>?1 OR other.origin<>?2 OR other.path=?3))").bind(&access.media_uri).bind(access.origin.as_str()).bind(&access.path).execute(&mut *connection).await?;
+        sqlx::query("DELETE FROM main.download_access_metadata WHERE access_uri IN (SELECT access_uri FROM main.download_locators WHERE media_uri=?1 AND origin=?2 AND path<>?3) AND NOT EXISTS(SELECT 1 FROM download_locators other WHERE other.access_uri=download_access_metadata.access_uri AND (other.media_uri<>?1 OR other.origin<>?2 OR other.path=?3))").bind(&access.media_uri).bind("download").bind(&access.path).execute(&mut *connection).await?;
         sqlx::query(
-            "DELETE FROM main.local_locators WHERE media_uri=?1 AND origin=?2 AND path<>?3",
+            "DELETE FROM main.download_locators WHERE media_uri=?1 AND origin=?2 AND path<>?3",
         )
         .bind(&access.media_uri)
-        .bind(access.origin.as_str())
+        .bind("download")
         .bind(&access.path)
         .execute(&mut *connection)
         .await?;
-        write_local_locator(
+        write_download_locator(
             &mut *connection,
-            &LocalLocatorWrite {
+            &DownloadLocatorWrite {
                 source_id: source_id.clone(),
                 media_uri: access.media_uri.clone(),
-                origin: access.origin.as_str().to_owned(),
+                origin: "download".to_owned(),
                 path: access.path.clone(),
                 root: access.root.clone(),
                 relative_path: access.relative_path.clone(),
@@ -276,7 +199,7 @@ pub(crate) async fn write_local_access_on(
             },
         )
         .await?;
-        sqlx::query("INSERT INTO main.local_access_metadata(access_uri,size_bytes,mtime_ns,
+        sqlx::query("INSERT INTO main.download_access_metadata(access_uri,size_bytes,mtime_ns,
             device_id,inode,parser_version,loudness_analysis_key) VALUES(?1,?2,?3,?4,?5,?6,?7)
             ON CONFLICT(access_uri) DO UPDATE SET size_bytes=excluded.size_bytes,mtime_ns=excluded.mtime_ns,
             device_id=excluded.device_id,inode=excluded.inode,parser_version=excluded.parser_version,

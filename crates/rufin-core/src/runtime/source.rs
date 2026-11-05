@@ -10,10 +10,9 @@ use sources::{CredentialPreset, SourceId};
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
 pub struct SourceSummary {
     pub id: SourceId,
-    pub kind: String,
+    pub kind: sources::SubsonicFlavor,
     pub name: String,
     pub half_stars_enabled: bool,
-    pub supports_playlist_public: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
@@ -186,18 +185,13 @@ mod tests {
     }
 }
 
-pub fn source_kind_title(kind: &str) -> Option<&'static str> {
-    Some(match kind {
-        "navidrome" => "Navidrome",
-        "subsonic" => "OpenSubsonic",
-        _ => return None,
-    })
+pub fn source_kind_title(kind: sources::SubsonicFlavor) -> &'static str {
+    kind.display_name()
 }
 
-pub fn source_kind_icon_name(kind: &str) -> Option<&'static str> {
-    Some(match kind {
-        "navidrome" => "io.github.kmarius.slopsonic.source.navidrome",
-        "subsonic" => "io.github.kmarius.slopsonic.source.opensubsonic",
-        _ => return None,
-    })
+pub fn source_kind_icon_name(kind: sources::SubsonicFlavor) -> &'static str {
+    match kind {
+        sources::SubsonicFlavor::Navidrome => "io.github.kmarius.slopsonic.source.navidrome",
+        sources::SubsonicFlavor::Subsonic => "io.github.kmarius.slopsonic.source.opensubsonic",
+    }
 }
