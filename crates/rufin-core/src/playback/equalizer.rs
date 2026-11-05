@@ -101,7 +101,6 @@ pub enum EqEdit {
     Treble { value: f64 },
     Crossfeed { value: bool },
     Balance { value: f64 },
-    Mono { value: bool },
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EqPresetSummary {
@@ -129,7 +128,6 @@ pub struct OutputEq {
     pub draft: EqDraft,
     pub crossfeed: bool,
     pub balance: f64,
-    pub mono: bool,
 }
 impl Default for OutputEq {
     fn default() -> Self {
@@ -142,7 +140,6 @@ impl Default for OutputEq {
             },
             crossfeed: false,
             balance: 0.,
-            mono: false,
         }
     }
 }
@@ -167,7 +164,6 @@ pub struct EqView {
     pub assigned: bool,
     pub crossfeed: bool,
     pub balance: f64,
-    pub mono: bool,
     pub sample_rate: Option<u32>,
     pub preamp_db: f64,
     pub peak_db: Vec<f64>,
@@ -320,7 +316,6 @@ impl EqualizerState {
             assigned: self.preferences.outputs.contains_key(&output),
             crossfeed: entry.crossfeed,
             balance: entry.balance,
-            mono: entry.mono,
             sample_rate: facts.and_then(|f| f.sample_rate),
             preamp_db: if profile.automatic_preamp {
                 facts.map_or(0., |f| f.preamp_db)
@@ -455,7 +450,6 @@ impl EqualizerPreferences {
             equalizer: entry.enabled.then(|| self.profile(entry)),
             crossfeed: entry.crossfeed,
             balance: entry.balance,
-            mono: entry.mono,
         }
     }
     fn begin_edit(&mut self, output: &str) {
@@ -494,7 +488,6 @@ impl EqualizerPreferences {
                 equalizer: None,
                 crossfeed: entry.crossfeed,
                 balance: entry.balance,
-                mono: entry.mono,
             }
             .validate()?;
         }
@@ -624,10 +617,7 @@ impl PlaybackOwner {
         let discrete = matches!(edit, EqEdit::Enabled { .. });
         let is_profile = !matches!(
             edit,
-            EqEdit::Enabled { .. }
-                | EqEdit::Crossfeed { .. }
-                | EqEdit::Balance { .. }
-                | EqEdit::Mono { .. }
+            EqEdit::Enabled { .. } | EqEdit::Crossfeed { .. } | EqEdit::Balance { .. }
         );
         if is_profile && entry.selection.is_some() {
             entry.draft = EqDraft {
@@ -646,7 +636,6 @@ impl PlaybackOwner {
             EqEdit::Enabled { value } => entry.enabled = value,
             EqEdit::Crossfeed { value } => entry.crossfeed = value,
             EqEdit::Balance { value } => entry.balance = value,
-            EqEdit::Mono { value } => entry.mono = value,
             EqEdit::BandGain { index, value } => band(profile, index)?.gain_db = value,
             EqEdit::BandFrequency { index, value } => {
                 band(profile, index)?.frequency_hz = value;
@@ -724,7 +713,6 @@ impl PlaybackOwner {
             equalizer: None,
             crossfeed: entry.crossfeed,
             balance: entry.balance,
-            mono: entry.mono,
         }
         .validate()
         .map_err(error)?;

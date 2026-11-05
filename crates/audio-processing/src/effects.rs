@@ -60,7 +60,6 @@ pub struct ProcessingConfig {
     pub equalizer: Option<EqProfile>,
     pub crossfeed: bool,
     pub balance: f64,
-    pub mono: bool,
 }
 fn range(value: f64, min: f64, max: f64, name: &str) -> Result<(), String> {
     if value.is_finite() && (min..=max).contains(&value) {
@@ -102,7 +101,6 @@ impl ProcessingConfig {
     }
     pub fn is_neutral(&self) -> bool {
         !self.crossfeed
-            && !self.mono
             && self.balance == 0.0
             && self.equalizer.as_ref().is_none_or(|p| {
                 p.bass_db == 0.0
@@ -407,7 +405,6 @@ pub struct EffectsBin {
     input: gst::Pad,
     slots: [gst::Element; 5],
     channels: gst::Element,
-    mono_caps: gst::Element,
     state: Arc<Mutex<EffectsState>>,
     requested: ProcessingConfig,
     meter: bool,
@@ -450,11 +447,9 @@ impl EffectsBin {
             element("insertbin", "rufin-meter-slot")?,
         ];
         let channels = element("audioconvert", "rufin-channel-controls")?;
-        let mono = element("audioconvert", "rufin-mono")?;
-        let mono_caps = element("capsfilter", "rufin-mono-caps")?;
         let mut chain = vec![&convert, &floating];
         chain.extend(slots[..4].iter());
-        chain.extend([&channels, &mono, &mono_caps, &slots[4]]);
+        chain.extend([&channels, &slots[4]]);
         root.add_many(&chain).map_err(|e| e.to_string())?;
         gst::Element::link_many(&chain).map_err(|e| e.to_string())?;
         for (name, target) in [
@@ -491,7 +486,6 @@ impl EffectsBin {
         let weak = Arc::downgrade(&state);
         let probe_slots = slots.clone();
         let probe_channels = channels.clone();
-        let probe_mono = mono_caps.clone();
         input.add_probe(
             gst::PadProbeType::EVENT_DOWNSTREAM | gst::PadProbeType::BUFFER,
             move |pad, probe| {
@@ -568,7 +562,7 @@ impl EffectsBin {
                         })
                         .unwrap_or(state.frontier);
                     if let Some(prepared) = state.pending.take() {
-                        install(&mut state, prepared, &probe_slots, &probe_mono, time);
+                        install(&mut state, prepared, &probe_slots, time);
                     }
                     // Equalizer passthrough skips its own controller update. Synchronize before its dirty-coefficient check.
                     for control in &state.controls {
@@ -593,7 +587,6 @@ impl EffectsBin {
             input,
             slots,
             channels,
-            mono_caps,
             state,
             requested: config.clone(),
             meter: false,
@@ -782,22 +775,20 @@ impl EffectsBin {
         }
         if self.root.current_state() < gst::State::Paused || state.block.is_some() {
             let time = state.frontier;
-            install(&mut state, prepared, &self.slots, &self.mono_caps, time);
+            install(&mut state, prepared, &self.slots, time);
         } else {
-            let structural =
-                state.stages != prepared.stages || state.config.mono != prepared.config.mono;
+            let structural = state.stages != prepared.stages;
             state.pending = Some(prepared);
             if structural {
                 let weak = Arc::downgrade(&self.state);
                 let slots = self.slots.clone();
-                let mono = self.mono_caps.clone();
                 self.input
                     .add_probe(gst::PadProbeType::BLOCK_DOWNSTREAM, move |pad, _| {
                         if let Some(state) = weak.upgrade() {
                             let mut state = state.lock().unwrap_or_else(|p| p.into_inner());
                             if let Some(prepared) = state.pending.take() {
                                 let time = state.frontier;
-                                install(&mut state, prepared, &slots, &mono, time);
+                                install(&mut state, prepared, &slots, time);
                                 pad.mark_reconfigure();
                             }
                         }
@@ -881,7 +872,6 @@ fn install(
     state: &mut EffectsState,
     mut prepared: Prepared,
     slots: &[gst::Element; 5],
-    mono: &gst::Element,
     time: gst::ClockTime,
 ) {
     let null = std::ptr::null_mut::<std::ffi::c_void>();
@@ -943,18 +933,6 @@ fn install(
         time + gst::ClockTime::from_mseconds(50),
         prepared.config.balance,
     );
-    if prepared.config.mono != state.config.mono {
-        mono.set_property(
-            "caps",
-            if prepared.config.mono {
-                gst::Caps::builder("audio/x-raw")
-                    .field("channels", 1_i32)
-                    .build()
-            } else {
-                gst::Caps::new_any()
-            },
-        );
-    }
     state.bank_shape = prepared.bank_shape;
     state.config = prepared.config.clone();
     state.stages = prepared.stages;

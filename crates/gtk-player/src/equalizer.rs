@@ -232,7 +232,6 @@ struct Editor {
     balance: gtk::Entry,
     balance_scale: gtk::Scale,
     crossfeed: gtk::Switch,
-    mono: gtk::Switch,
     add: gtk::Button,
     error: gtk::Label,
     graphic_range: Cell<(f64, f64)>,
@@ -287,7 +286,7 @@ impl EqualizerSurface {
             bass: gtk::Entry, bass_scale: gtk::Scale,
             treble: gtk::Entry, treble_scale: gtk::Scale,
             balance: gtk::Entry, balance_scale: gtk::Scale,
-            crossfeed: gtk::Switch, mono: gtk::Switch, add: gtk::Button,
+            crossfeed: gtk::Switch, add: gtk::Button,
             reset: gtk::Button,
             error: gtk::Label,
         });
@@ -346,7 +345,6 @@ impl EqualizerSurface {
             balance,
             balance_scale,
             crossfeed,
-            mono,
             add,
             error,
             graphic_range: Cell::new((-24.0, 12.0)),
@@ -564,11 +562,10 @@ impl Editor {
     }
 
     fn connect(self: &Rc<Self>) {
-        let switches: [(&gtk::Switch, fn(bool) -> EqEdit); 4] = [
+        let switches: [(&gtk::Switch, fn(bool) -> EqEdit); 3] = [
             (&self.enabled, |value| EqEdit::Enabled { value }),
             (&self.automatic, |value| EqEdit::AutomaticPreamp { value }),
             (&self.crossfeed, |value| EqEdit::Crossfeed { value }),
-            (&self.mono, |value| EqEdit::Mono { value }),
         ];
         for (switch, edit) in switches {
             let weak = Rc::downgrade(self);
@@ -1028,7 +1025,6 @@ impl Editor {
             && previous.preset_builtin == view.preset_builtin
             && previous.crossfeed == view.crossfeed
             && previous.balance == view.balance
-            && previous.mono == view.mono
             && previous.sample_rate == view.sample_rate
             && previous.preamp_db == view.preamp_db
             && previous.error == view.error;
@@ -1141,7 +1137,6 @@ impl Editor {
         }
         self.balance_scale.set_value(view.balance);
         self.crossfeed.set_active(view.crossfeed);
-        self.mono.set_active(view.mono);
         self.error.set_visible(view.error.is_some());
         self.error
             .set_text(view.error.as_deref().unwrap_or_default());
