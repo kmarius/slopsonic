@@ -102,8 +102,6 @@ pub struct TagReference {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct NativeGain {
-    pub integrated_lufs: Option<f64>,
-    pub true_peak: Option<f64>,
     pub replay_gain_db: Option<f64>,
     pub replay_gain_peak: Option<f64>,
 }

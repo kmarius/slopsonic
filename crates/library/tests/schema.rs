@@ -364,7 +364,7 @@ async fn upgrading_from_schema_60_drops_recovered_activity_and_its_triggers() {
         .fetch_one(&mut raw)
         .await
         .unwrap();
-    assert_eq!((leftovers, version), (0, 61));
+    assert_eq!((leftovers, version), (0, 62));
 }
 
 #[tokio::test]

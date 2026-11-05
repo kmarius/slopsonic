@@ -825,9 +825,6 @@ impl SourceOwner {
         {
             job.abort();
         }
-        if let Ok(playback) = self.shared.playback() {
-            playback.cancel_loudness_analysis();
-        }
     }
 
     fn start_observer(

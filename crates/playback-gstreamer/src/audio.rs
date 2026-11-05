@@ -572,20 +572,7 @@ fn selected_loudness(
         LoudnessNormalization::Off => None,
         LoudnessNormalization::ReplayGain => measurement
             .replay_gain_db
-            .map(|gain| (gain, measurement.replay_gain_peak))
-            .or_else(|| {
-                measurement
-                    .integrated_lufs
-                    .map(|lufs| (-23.0 - lufs, measurement.true_peak))
-            }),
-        LoudnessNormalization::EbuR128 => measurement
-            .integrated_lufs
-            .map(|lufs| (settings.ebu_r128_target_lufs - lufs, measurement.true_peak))
-            .or_else(|| {
-                measurement
-                    .replay_gain_db
-                    .map(|gain| (gain, measurement.replay_gain_peak))
-            }),
+            .map(|gain| (gain, measurement.replay_gain_peak)),
     }
 }
 
@@ -698,7 +685,7 @@ fn make_element(factory: &str, name: &str) -> Result<gst::Element, String> {
 
 #[cfg(test)]
 mod tests {
-    use library::LoudnessMeasurement;
+    use library::NativeGain;
 
     use super::super::ensure_gstreamer_initialized;
     use super::*;
@@ -707,13 +694,10 @@ mod tests {
         ensure_gstreamer_initialized().expect("initialize GStreamer");
     }
 
-    fn measurement(integrated_lufs: f64, true_peak: Option<f64>) -> LoudnessMeasurement {
-        LoudnessMeasurement {
-            analysis_key: [1; 32],
-            integrated_lufs: Some(integrated_lufs),
-            true_peak,
-            replay_gain_db: None,
-            replay_gain_peak: None,
+    fn measurement(gain_db: f64, peak: Option<f64>) -> NativeGain {
+        NativeGain {
+            replay_gain_db: Some(gain_db),
+            replay_gain_peak: peak,
         }
     }
 
@@ -791,39 +775,6 @@ mod tests {
     }
 
     #[test]
-    fn selected_normalizer_owns_tracks_with_both_fact_families() {
-        initialize_gstreamer();
-        let loudness = TrackLoudness {
-            track: Some(Box::new(LoudnessMeasurement {
-                analysis_key: [1; 32],
-                integrated_lufs: Some(-20.0),
-                true_peak: Some(0.8),
-                replay_gain_db: Some(2.0),
-                replay_gain_peak: Some(0.9),
-            })),
-            album: None,
-        };
-
-        let replay = BackendAudioSettings {
-            loudness_normalization: LoudnessNormalization::ReplayGain,
-            loudness_normalization_scope: LoudnessNormalizationScope::Track,
-            ..BackendAudioSettings::default()
-        };
-        assert_eq!(
-            selected_loudness(&replay, &loudness),
-            Some((2.0, Some(0.9)))
-        );
-
-        let ebu = BackendAudioSettings {
-            loudness_normalization: LoudnessNormalization::EbuR128,
-            loudness_normalization_scope: LoudnessNormalizationScope::Track,
-            ebu_r128_target_lufs: -23.0,
-            ..BackendAudioSettings::default()
-        };
-        assert_eq!(selected_loudness(&ebu, &loudness), Some((-3.0, Some(0.8))));
-    }
-
-    #[test]
     fn no_output_preference_uses_the_system_default_sink() {
         initialize_gstreamer();
         let expected = default_audio_output_factory();
@@ -876,10 +827,10 @@ mod tests {
     }
 
     #[test]
-    fn loudness_scope_and_ebu_target_update_the_audio_graph() {
+    fn loudness_scope_updates_the_audio_graph() {
         initialize_gstreamer();
         let settings = BackendAudioSettings {
-            loudness_normalization: LoudnessNormalization::EbuR128,
+            loudness_normalization: LoudnessNormalization::ReplayGain,
             loudness_normalization_scope: LoudnessNormalizationScope::Track,
             audio_output: Some("fakesink".to_string()),
             ..BackendAudioSettings::default()
@@ -890,8 +841,8 @@ mod tests {
         let volume = bin.by_name("rufin-loudness-normalization").unwrap();
         assert_eq!(volume.property::<f64>("volume"), 1.0);
         let measured = TrackLoudness {
-            track: Some(Box::new(measurement(-28.0, Some(0.1)))),
-            album: Some(Box::new(measurement(-33.0, Some(0.1)))),
+            track: Some(Box::new(measurement(5.0, Some(0.1)))),
+            album: Some(Box::new(measurement(10.0, Some(0.1)))),
         };
         graph.set_loudness(measured.clone());
         *stream.lock().unwrap() = Some(measured);
@@ -903,40 +854,6 @@ mod tests {
         };
         assert!(graph.reconfigure(&album).unwrap());
         assert!((volume.property::<f64>("volume") - 10_f64.powf(10.0 / 20.0)).abs() < 0.001);
-
-        let target = BackendAudioSettings {
-            ebu_r128_target_lufs: -18.0,
-            ..settings
-        };
-        assert!(graph.reconfigure(&target).unwrap());
-    }
-
-    #[test]
-    fn stored_r128_measurement_uses_the_direct_ebu_normalizer() {
-        initialize_gstreamer();
-        let settings = BackendAudioSettings {
-            loudness_normalization: LoudnessNormalization::EbuR128,
-            loudness_normalization_scope: LoudnessNormalizationScope::Album,
-            ebu_r128_target_lufs: -18.0,
-            audio_output: Some("fakesink".to_string()),
-            ..BackendAudioSettings::default()
-        };
-        let loudness = TrackLoudness {
-            track: Some(Box::new(measurement(-21.0, Some(0.4)))),
-            album: Some(Box::new(measurement(-23.0, Some(0.8)))),
-        };
-        let graph =
-            test_graph(&settings, test_stream(loudness)).expect("album normalization graph");
-        let bin = graph.root.downcast_ref::<gst::Bin>().expect("audio bin");
-        let volume = bin
-            .by_name("rufin-loudness-normalization")
-            .expect("direct loudness normalization volume");
-
-        assert_eq!(
-            volume.factory().map(|factory| factory.name().to_string()),
-            Some("volume".to_string())
-        );
-        assert!((volume.property::<f64>("volume") - 1.25).abs() < 0.001);
     }
 
     #[test]
@@ -951,10 +868,7 @@ mod tests {
         let graph = test_graph(
             &settings,
             test_stream(TrackLoudness {
-                track: Some(Box::new(LoudnessMeasurement {
-                    analysis_key: [1; 32],
-                    integrated_lufs: None,
-                    true_peak: None,
+                track: Some(Box::new(NativeGain {
                     replay_gain_db: Some(6.0),
                     replay_gain_peak: Some(0.8),
                 })),
@@ -978,7 +892,7 @@ mod tests {
     fn stored_r128_gain_reaches_the_direct_normalizer_before_audio() {
         initialize_gstreamer();
         let settings = BackendAudioSettings {
-            loudness_normalization: LoudnessNormalization::EbuR128,
+            loudness_normalization: LoudnessNormalization::ReplayGain,
             loudness_normalization_scope: LoudnessNormalizationScope::Track,
             audio_output: Some("fakesink".to_string()),
             ..BackendAudioSettings::default()
@@ -986,7 +900,7 @@ mod tests {
         let graph = test_graph(
             &settings,
             test_stream(TrackLoudness {
-                track: Some(Box::new(measurement(-28.0, Some(0.1)))),
+                track: Some(Box::new(measurement(5.0, Some(0.1)))),
                 album: None,
             }),
         )
@@ -999,18 +913,18 @@ mod tests {
     fn preparing_gapless_loudness_does_not_change_the_current_stream() {
         initialize_gstreamer();
         let settings = BackendAudioSettings {
-            loudness_normalization: LoudnessNormalization::EbuR128,
+            loudness_normalization: LoudnessNormalization::ReplayGain,
             loudness_normalization_scope: LoudnessNormalizationScope::Track,
             audio_output: Some("fakesink".to_string()),
             ..BackendAudioSettings::default()
         };
         let stream = test_stream(TrackLoudness {
-            track: Some(Box::new(measurement(-28.0, Some(0.1)))),
+            track: Some(Box::new(measurement(5.0, Some(0.1)))),
             album: None,
         });
         let graph = test_graph(&settings, Arc::clone(&stream)).expect("normalization graph");
         let next = TrackLoudness {
-            track: Some(Box::new(measurement(-18.0, Some(1.0)))),
+            track: Some(Box::new(measurement(-5.0, Some(1.0)))),
             album: None,
         };
         let observed = observe_direct_gains(&graph, move |index| {
@@ -1032,18 +946,18 @@ mod tests {
     fn stream_start_applies_staged_direct_gain_before_audio() {
         initialize_gstreamer();
         let settings = BackendAudioSettings {
-            loudness_normalization: LoudnessNormalization::EbuR128,
+            loudness_normalization: LoudnessNormalization::ReplayGain,
             loudness_normalization_scope: LoudnessNormalizationScope::Track,
             audio_output: Some("fakesink".to_string()),
             ..BackendAudioSettings::default()
         };
         let stream = test_stream(TrackLoudness {
-            track: Some(Box::new(measurement(-28.0, Some(0.1)))),
+            track: Some(Box::new(measurement(5.0, Some(0.1)))),
             album: None,
         });
         let graph = test_graph(&settings, Arc::clone(&stream)).expect("normalization graph");
         *stream.lock().expect("prepared loudness") = Some(TrackLoudness {
-            track: Some(Box::new(measurement(-18.0, Some(1.0)))),
+            track: Some(Box::new(measurement(-5.0, Some(1.0)))),
             album: None,
         });
         let observed = observe_direct_gains(&graph, |_| {})[0];
@@ -1112,10 +1026,7 @@ mod tests {
     fn switching_stored_and_embedded_gain_preserves_the_first_samples() {
         initialize_gstreamer();
         let loudness = TrackLoudness {
-            track: Some(Box::new(LoudnessMeasurement {
-                analysis_key: [0; 32],
-                integrated_lufs: None,
-                true_peak: None,
+            track: Some(Box::new(NativeGain {
                 replay_gain_db: Some(-6.020599913279624),
                 replay_gain_peak: Some(0.5),
             })),

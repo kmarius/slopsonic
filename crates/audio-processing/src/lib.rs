@@ -4,17 +4,12 @@ use gst::prelude::*;
 use gstreamer as gst;
 use std::sync::OnceLock;
 
-mod decode;
 pub mod effects;
-mod loudness;
 mod media_input;
 pub use media_input::ResolvedStream;
 mod spectrum;
 mod transcode;
 
-pub use loudness::{
-    AnalyzedLoudness, LoudnessAnalysis, album_loudness, analyze_loudness_cancellable,
-};
 pub use transcode::{TranscodeOptions, TranscodedAudioReader, transcode_audio};
 
 pub use spectrum::SpectrumFft;

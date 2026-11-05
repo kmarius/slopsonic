@@ -4,7 +4,6 @@ pub mod browse;
 pub mod detail_links;
 pub mod diagnostics;
 pub mod favorites;
-mod loudness;
 pub mod paths;
 pub mod playback;
 pub mod radio;

@@ -14,7 +14,7 @@ pub(crate) async fn pragma(
 }
 pub(crate) const STORE_SCHEMA: &str = r#"PRAGMA application_id = 1381320270;
 
-PRAGMA user_version = 61;
+PRAGMA user_version = 62;
 
 CREATE TABLE IF NOT EXISTS queue_contexts (
     context_key INTEGER PRIMARY KEY,
@@ -521,14 +521,6 @@ DROP TABLE IF EXISTS fingerprint_cache;
 DROP TABLE IF EXISTS metadata_lookup_cache;
 DROP TABLE IF EXISTS waveform_cache;
 
-CREATE TABLE IF NOT EXISTS loudness_measurements (
-    source_key INTEGER NOT NULL REFERENCES sources ON DELETE CASCADE,
-    entity_kind TEXT NOT NULL, entity_key INTEGER NOT NULL,
-    analysis_key BLOB NOT NULL,
-    integrated_lufs REAL, true_peak REAL,
-    PRIMARY KEY(source_key,entity_kind,entity_key)
-) STRICT;
-
 CREATE TABLE IF NOT EXISTS artwork_previews(family TEXT PRIMARY KEY,hash TEXT NOT NULL) WITHOUT ROWID;
 
 CREATE TABLE IF NOT EXISTS download_access_metadata (
@@ -609,11 +601,20 @@ const MIGRATE_60: &str = "
 DROP TABLE IF EXISTS legacy_activity;
 ";
 
-pub(crate) const SCHEMA_VERSION: i64 = 61;
+const MIGRATE_61: &str = "
+DROP TABLE IF EXISTS loudness_measurements;
+";
+
+pub(crate) const SCHEMA_VERSION: i64 = 62;
 
 pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> LibraryResult<()> {
     let version = pragma(connection, "user_version").await?;
-    if version != 0 && version != 58 && version != 59 && version != 60 && version != SCHEMA_VERSION
+    if version != 0
+        && version != 58
+        && version != 59
+        && version != 60
+        && version != 61
+        && version != SCHEMA_VERSION
     {
         return Err(crate::LibraryError::Migration(format!(
             "unsupported library schema {version}"
@@ -630,6 +631,9 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
         crate::catalog::index::rebuild_triggers_referencing(&mut transaction, "legacy_activity")
             .await?;
         sqlx::raw_sql(MIGRATE_60).execute(&mut *transaction).await?;
+    }
+    if version != 0 && version < 62 {
+        sqlx::raw_sql(MIGRATE_61).execute(&mut *transaction).await?;
     }
     sqlx::raw_sql(STORE_SCHEMA)
         .execute(&mut *transaction)

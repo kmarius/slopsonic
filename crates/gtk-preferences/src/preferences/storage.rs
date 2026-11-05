@@ -41,7 +41,6 @@ pub(super) fn page(
         spinner: gtk::Spinner,
         error: gtk::Label,
         unavailable_text: gtk::Label,
-        loudness_count: gtk::Label, loudness_size: gtk::Label, clear_loudness: gtk::Button,
         artwork_count: gtk::Label, artwork_size: gtk::Label, clear_artwork: gtk::Button,
     });
     navigation_controls.set_navigation(&navigation);
@@ -62,20 +61,12 @@ pub(super) fn page(
         );
     });
 
-    let controls = [
-        (
-            CacheKind::Loudness,
-            Some(loudness_count),
-            loudness_size,
-            clear_loudness,
-        ),
-        (
-            CacheKind::Artwork,
-            Some(artwork_count),
-            artwork_size,
-            clear_artwork,
-        ),
-    ];
+    let controls = [(
+        CacheKind::Artwork,
+        Some(artwork_count),
+        artwork_size,
+        clear_artwork,
+    )];
     let view = Rc::new(StorageView {
         page: storage_page.downgrade(),
         total: total_size.downgrade(),

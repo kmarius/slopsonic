@@ -1627,7 +1627,6 @@ impl Player {
         let audio_configuration_changed = settings.loudness_normalization
             != self.settings.loudness_normalization
             || settings.loudness_normalization_scope != self.settings.loudness_normalization_scope
-            || settings.ebu_r128_target_lufs != self.settings.ebu_r128_target_lufs
             || settings.audio_fade_on_status_change != self.settings.audio_fade_on_status_change;
         self.settings = settings.clone();
         self.dirty = true;

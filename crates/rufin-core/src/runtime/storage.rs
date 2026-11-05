@@ -3,7 +3,6 @@ pub use library::CacheUsage;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CacheKind {
-    Loudness,
     Artwork,
 }
 
@@ -32,7 +31,7 @@ impl ProductHandles {
         {
             summary.errors.push(error);
         }
-        for kind in [CacheKind::Loudness, CacheKind::Artwork] {
+        for kind in [CacheKind::Artwork] {
             let usage = match self.cache_usage(kind).await {
                 Ok(usage) => {
                     summary.total_bytes = summary.total_bytes.map(|total| total + usage.bytes);
@@ -74,11 +73,6 @@ impl ProductHandles {
 
     async fn cache_usage(&self, kind: CacheKind) -> Result<CacheUsage, String> {
         match kind {
-            CacheKind::Loudness => self
-                .library
-                .loudness_cache_usage()
-                .await
-                .map_err(|error| error.to_string()),
             CacheKind::Artwork => self
                 .artwork
                 .cache_usage()
@@ -89,11 +83,6 @@ impl ProductHandles {
 
     pub async fn clear_cached_data(&self, kind: CacheKind) -> Result<(), String> {
         match kind {
-            CacheKind::Loudness => self
-                .library
-                .clear_loudness_cache()
-                .await
-                .map_err(|error| error.to_string()),
             CacheKind::Artwork => self
                 .downloads
                 .clear_artwork_cache()

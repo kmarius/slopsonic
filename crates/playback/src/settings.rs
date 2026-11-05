@@ -1,8 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-pub const DEFAULT_EBU_R128_TARGET_LUFS: f64 = -23.0;
-pub const MIN_EBU_R128_TARGET_LUFS: f64 = -48.0;
-pub const MAX_EBU_R128_TARGET_LUFS: f64 = 0.0;
 pub const MIN_CROSSFADE_SECONDS: u8 = 1;
 pub const MAX_CROSSFADE_SECONDS: u8 = 30;
 pub const DEFAULT_AUTO_DJ_REFILL_THRESHOLD: u8 = 1;
@@ -36,9 +33,10 @@ pub enum PlaybackTransitionMode {
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub enum LoudnessNormalization {
     Off,
+    /// Stored settings from versions with local EBU R128 analysis map here.
     #[default]
+    #[serde(alias = "EbuR128")]
     ReplayGain,
-    EbuR128,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -102,7 +100,6 @@ macro_rules! playback_preference_fields {
             migrated {
                 loudness_normalization: LoudnessNormalization = LoudnessNormalization::ReplayGain => set_loudness_normalization;
                 loudness_normalization_scope: LoudnessNormalizationScope = LoudnessNormalizationScope::Album => set_loudness_normalization_scope;
-                ebu_r128_target_lufs: f64 = DEFAULT_EBU_R128_TARGET_LUFS => set_ebu_r128_target_lufs;
                 volume: f64 = default_volume();
                 volume_scale: VolumeScale = VolumeScale::Perceptual;
             }
@@ -143,16 +140,7 @@ impl PlaybackSettings {
         self.crossfade_seconds = self
             .crossfade_seconds
             .clamp(MIN_CROSSFADE_SECONDS, MAX_CROSSFADE_SECONDS);
-        self.ebu_r128_target_lufs = sanitize_ebu_r128_target(self.ebu_r128_target_lufs);
         self.volume = sanitize_volume(self.volume);
-    }
-}
-
-fn sanitize_ebu_r128_target(target: f64) -> f64 {
-    if target.is_finite() {
-        target.clamp(MIN_EBU_R128_TARGET_LUFS, MAX_EBU_R128_TARGET_LUFS)
-    } else {
-        DEFAULT_EBU_R128_TARGET_LUFS
     }
 }
 
@@ -215,30 +203,18 @@ mod tests {
             restored.loudness_normalization_scope,
             LoudnessNormalizationScope::Album
         );
-        assert_eq!(restored.ebu_r128_target_lufs, DEFAULT_EBU_R128_TARGET_LUFS);
     }
 
     #[test]
-    fn explicit_ebu_settings_round_trip() {
-        let settings = PlaybackSettings {
-            loudness_normalization: LoudnessNormalization::EbuR128,
-            loudness_normalization_scope: LoudnessNormalizationScope::Track,
-            ebu_r128_target_lufs: -21.0,
-            ..PlaybackSettings::default()
-        };
-        let restored = serde_json::from_value::<PlaybackSettings>(
-            serde_json::to_value(settings).expect("serialize EBU settings"),
+    fn stored_ebu_mode_restores_as_replay_gain() {
+        let restored = serde_json::from_str::<PlaybackSettings>(
+            r#"{"loudness_normalization":"EbuR128","ebu_r128_target_lufs":-21.0}"#,
         )
-        .expect("restore EBU settings");
+        .expect("restore settings from a version with EBU R128 analysis");
         assert_eq!(
             restored.loudness_normalization,
-            LoudnessNormalization::EbuR128
+            LoudnessNormalization::ReplayGain
         );
-        assert_eq!(
-            restored.loudness_normalization_scope,
-            LoudnessNormalizationScope::Track
-        );
-        assert_eq!(restored.ebu_r128_target_lufs, -21.0);
     }
 
     #[test]

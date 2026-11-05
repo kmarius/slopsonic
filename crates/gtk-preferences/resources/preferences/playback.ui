@@ -41,18 +41,4 @@
   <object class="AdwSwitchRow" id="clear_queue_row">
     <property name="title" translatable="yes">Clearing queue also clears the current song</property>
   </object>
-  <object class="AdwActionRow" id="ebu_target_row">
-    <property name="title" translatable="yes">Target loudness</property>
-    <property name="subtitle" translatable="yes">EBU R128 reference level</property>
-    <child type="suffix">
-      <object class="GtkScale" id="ebu_target">
-        <property name="orientation">horizontal</property>
-        <property name="width-request">240</property>
-        <property name="valign">center</property>
-        <style>
-          <class name="playback-setting-scale" />
-        </style>
-      </object>
-    </child>
-  </object>
 </interface>

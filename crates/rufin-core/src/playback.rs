@@ -32,7 +32,6 @@ use scrobbling::Scrobbler;
 use state::{AutoDjRequest, ClockSample, Command};
 use tracing::{debug, warn};
 
-use crate::loudness::LoudnessAnalysisOwner;
 use crate::settings::SettingsFile;
 use crate::source::SourceOwner;
 
@@ -41,7 +40,6 @@ pub struct PlaybackOwner {
     settings: SettingsFile,
     runtime: tokio::runtime::Handle,
     pub updates: playback::PlaybackUpdates,
-    loudness: Arc<LoudnessAnalysisOwner>,
     scrobbler: Arc<Scrobbler>,
     source: Mutex<std::sync::Weak<SourceOwner>>,
     active: Mutex<Option<Playback>>,
@@ -138,7 +136,6 @@ impl PlaybackOwner {
             settings,
             runtime: runtime.clone(),
             updates: playback::PlaybackUpdates::default(),
-            loudness: LoudnessAnalysisOwner::new(runtime),
             scrobbler,
             source: Mutex::new(std::sync::Weak::new()),
             active: Mutex::new(None),
@@ -247,7 +244,6 @@ impl PlaybackOwner {
 
     fn take_active(&self) -> Option<Playback> {
         let active = self.active.lock().unwrap_or_else(|p| p.into_inner()).take();
-        self.loudness.cancel();
         self.updates.clear();
         active
     }
@@ -432,15 +428,7 @@ impl PlaybackOwner {
     }
 
     pub(crate) fn playback_settings_changed(&self, settings: playback::PlaybackSettings) {
-        self.loudness.settings_changed(
-            settings.loudness_normalization,
-            settings.loudness_normalization_scope,
-            self.source_owner(),
-        );
         self.send(Command::UpdateSettings(settings));
-    }
-    pub(crate) fn cancel_loudness_analysis(&self) {
-        self.loudness.cancel();
     }
     pub(crate) fn auto_dj_threshold_changed(&self, enabled: bool, threshold: u8) {
         self.send(Command::SetAutoDj {
@@ -454,12 +442,6 @@ impl PlaybackOwner {
     pub(crate) fn catalog_changed(&self) {
         if self.active().is_some() {
             self.send(Command::CatalogChanged);
-            let playback = self.settings.load().ui.playback;
-            self.loudness.library_changed(
-                playback.loudness_normalization,
-                playback.loudness_normalization_scope,
-                self.source_owner(),
-            );
         }
     }
     pub(crate) fn current_media(&self) -> Option<Arc<playback::CurrentMedia>> {

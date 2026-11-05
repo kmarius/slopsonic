@@ -5,11 +5,7 @@ pub const STREAM_QUALITY_TITLE: &str = "Stream quality";
 use gtk_player::equalizer::EqualizerSurface;
 use gtk_player::playback_settings::{transition_rows, volume_scale_from_index, volume_scale_index};
 use gtk_widgets::forms::{controlled_selection_row, quality_selection_row, selection_row};
-use gtk_widgets::scale::{install_scale_scroll_forwarding, install_sliding_value_bubble};
-use std::{
-    cell::{Cell, RefCell},
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
 use super::{
     LASTFM_API_CREATE_URL, LISTENBRAINZ_TOKEN_URL, configure_sidebar_items_expander,
@@ -21,7 +17,7 @@ use adw::prelude::*;
 use playback::StreamQuality;
 use playback::{
     LoudnessNormalization, LoudnessNormalizationScope, MAX_AUTO_DJ_REFILL_THRESHOLD,
-    MAX_EBU_R128_TARGET_LUFS, MIN_AUTO_DJ_REFILL_THRESHOLD, MIN_EBU_R128_TARGET_LUFS,
+    MIN_AUTO_DJ_REFILL_THRESHOLD,
 };
 use rufin_core::runtime::{ScrobblingConnection, ScrobblingConnectionEvent, ScrobblingPreferences};
 use rufin_core::text::fill;
@@ -477,8 +473,6 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
         refill: gtk::SpinButton,
         clear_queue_row: adw::SwitchRow,
         audio_group: adw::PreferencesGroup,
-        ebu_target_row: adw::ActionRow,
-        ebu_target: gtk::Scale,
     });
 
     let (transition_row, crossfade_options) = transition_rows(&shell.player_ui, &settings, 220);
@@ -551,121 +545,29 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
     );
     loudness_scope_row.set_subtitle("Track evens out every song, while Album preserves the intended differences within each album");
 
-    ebu_target.set_range(MIN_EBU_R128_TARGET_LUFS, MAX_EBU_R128_TARGET_LUFS);
-    ebu_target.set_increments(1.0, 10.0);
-    install_scale_scroll_forwarding(&ebu_target);
-    install_sliding_value_bubble(&ebu_target, |value| format!("{value:.0} LUFS"));
-    for mark in [-48.0, -36.0, -30.0, -23.0, -18.0, -12.0, 0.0] {
-        let label = format!("{mark:.0}");
-        ebu_target.add_mark(mark, gtk::PositionType::Bottom, Some(&label));
-    }
-    ebu_target.set_value(settings.ebu_r128_target_lufs);
-    let target_shell = Rc::clone(shell);
-    ebu_target.connect_value_changed(move |scale| {
-        target_shell.player_ui.update_playback_settings(|settings| {
-            settings.ebu_r128_target_lufs = scale.value().round();
-        });
-    });
-    ebu_target_row.set_activatable_widget(Some(&ebu_target));
-
-    let mode_titles = [
-        "Off".to_string(),
-        "ReplayGain".to_string(),
-        "EBU R128".to_string(),
-    ];
+    let mode_titles = ["Off".to_string(), "ReplayGain".to_string()];
     let (loudness_normalization_row, mode_buttons) = controlled_selection_row(
         &String::from(NORMALIZATION_TITLE),
         &mode_titles,
         loudness_normalization_index(settings.loudness_normalization),
     );
-    let weak_mode_buttons: Rc<[gtk::glib::WeakRef<gtk::ToggleButton>]> = mode_buttons
-        .iter()
-        .map(gtk::prelude::ObjectExt::downgrade)
-        .collect();
-    let mode_guard = Rc::new(Cell::new(false));
     for (index, button) in mode_buttons.iter().enumerate() {
         let shell = Rc::clone(shell);
-        let buttons = Rc::clone(&weak_mode_buttons);
-        let guard = Rc::clone(&mode_guard);
         let scope = loudness_scope_row.clone();
-        let target = ebu_target_row.clone();
         button.connect_toggled(move |button| {
-            if !button.is_active() || guard.get() {
+            if !button.is_active() {
                 return;
             }
-            let next = loudness_normalization_from_index(index as u32);
-            let previous = shell
-                .settings
-                .current
-                .borrow()
-                .playback
-                .loudness_normalization;
-            let apply = |mode| {
-                shell.player_ui.update_playback_settings(|settings| {
-                    settings.loudness_normalization = mode;
-                });
-                scope.set_visible(mode != LoudnessNormalization::Off);
-                let ebu = mode == LoudnessNormalization::EbuR128;
-                target.set_visible(ebu);
-            };
-            if next != LoudnessNormalization::EbuR128
-                || previous == LoudnessNormalization::EbuR128
-            {
-                apply(next);
-                return;
-            }
-            guard.set(true);
-            if let Some(button) =
-                buttons[loudness_normalization_index(previous) as usize].upgrade()
-            {
-                button.set_active(true);
-            }
-            guard.set(false);
-            let confirm = adw::AlertDialog::builder()
-                .heading("Enable EBU R128 Analysis?".to_string())
-                .body("Slopsonic will calculate the missing EBU R128 metadata for the whole library. This can use significant CPU, battery, and network bandwidth for a long time.".to_string())
-                .build();
-            confirm.add_response("cancel", "Cancel");
-            confirm.add_response("enable", "Enable");
-            confirm.set_default_response(Some("cancel"));
-            confirm.set_close_response("cancel");
-            let shell = Rc::clone(&shell);
-            let buttons = Rc::clone(&buttons);
-            let guard = Rc::clone(&guard);
-            let scope = scope.clone();
-            let target = target.clone();
-            let window = shell.window.clone();
-            confirm.choose(
-                Some(&window),
-                None::<&gtk::gio::Cancellable>,
-                move |response| {
-                    if response.as_str() != "enable" {
-                        return;
-                    }
-                    shell.player_ui.update_playback_settings(|settings| {
-                        settings.loudness_normalization = LoudnessNormalization::EbuR128;
-                    });
-                    scope.set_visible(true);
-                    target.set_visible(true);
-                    guard.set(true);
-                    if let Some(button) = buttons
-                        [loudness_normalization_index(LoudnessNormalization::EbuR128) as usize]
-                        .upgrade()
-                    {
-                        button.set_active(true);
-                    }
-                    guard.set(false);
-                },
-            );
+            let mode = loudness_normalization_from_index(index as u32);
+            shell.player_ui.update_playback_settings(|settings| {
+                settings.loudness_normalization = mode;
+            });
+            scope.set_visible(mode != LoudnessNormalization::Off);
         });
     }
-    let mode_enabled = settings.loudness_normalization != LoudnessNormalization::Off;
-    let ebu_enabled = settings.loudness_normalization == LoudnessNormalization::EbuR128;
-    loudness_scope_row.set_visible(mode_enabled);
-    ebu_target_row.set_visible(ebu_enabled);
+    loudness_scope_row.set_visible(settings.loudness_normalization != LoudnessNormalization::Off);
     audio_group.add(&loudness_normalization_row);
     audio_group.add(&loudness_scope_row);
-    audio_group.add(&ebu_target_row);
 
     let volume_scale_shell = Rc::clone(shell);
     let volume_scale_row = selection_row(
@@ -764,13 +666,11 @@ pub fn loudness_normalization_index(mode: LoudnessNormalization) -> u32 {
     match mode {
         LoudnessNormalization::Off => 0,
         LoudnessNormalization::ReplayGain => 1,
-        LoudnessNormalization::EbuR128 => 2,
     }
 }
 pub fn loudness_normalization_from_index(index: u32) -> LoudnessNormalization {
     match index {
         1 => LoudnessNormalization::ReplayGain,
-        2 => LoudnessNormalization::EbuR128,
         _ => LoudnessNormalization::Off,
     }
 }

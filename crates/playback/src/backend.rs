@@ -2,7 +2,7 @@ use crate::{
     LoudnessNormalization, LoudnessNormalizationScope, PlaybackSettings, StreamQuality, VolumeScale,
 };
 use audio_processing::ResolvedStream;
-use library::LoudnessMeasurement;
+use library::NativeGain;
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 use std::path::PathBuf;
@@ -33,8 +33,8 @@ impl StreamRequest {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TrackLoudness {
-    pub track: Option<Box<LoudnessMeasurement>>,
-    pub album: Option<Box<LoudnessMeasurement>>,
+    pub track: Option<Box<NativeGain>>,
+    pub album: Option<Box<NativeGain>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -138,7 +138,6 @@ impl PreparedNext {
 pub struct BackendAudioSettings {
     pub loudness_normalization: LoudnessNormalization,
     pub loudness_normalization_scope: LoudnessNormalizationScope,
-    pub ebu_r128_target_lufs: f64,
     pub audio_output: Option<String>,
     pub volume: f64,
     pub volume_scale: VolumeScale,
@@ -164,7 +163,6 @@ impl From<PlaybackSettings> for BackendAudioSettings {
         Self {
             loudness_normalization: settings.loudness_normalization,
             loudness_normalization_scope: settings.loudness_normalization_scope,
-            ebu_r128_target_lufs: settings.ebu_r128_target_lufs,
             audio_output: None,
             volume: settings.volume,
             volume_scale: settings.volume_scale,
