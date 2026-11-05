@@ -14,11 +14,6 @@
           </object>
         </child>
         <child>
-          <object class="AdwSwitchRow" id="keep_running_row">
-            <property name="title" translatable="yes">Keep Slopsonic running after closing the window</property>
-          </object>
-        </child>
-        <child>
           <object class="AdwSwitchRow" id="type_to_search_row">
             <property name="title" translatable="yes">Type to search</property>
           </object>

@@ -43,10 +43,6 @@ tar = "0.4.46"
 chrono = "0.4.45"
 adw = { package = "libadwaita", version = "0.9.1" }
 async-channel = "2.5.0"
-ashpd = { version = "0.13.13", default-features = false, features = [
-    "background",
-    "tokio",
-] }
 base64 = "0.23.0"
 blake3 = "1.8.2"
 blurhash = { version = "0.2.3", default-features = false }

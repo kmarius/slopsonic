@@ -51,7 +51,6 @@
     <child>
       <object class="AdwPreferencesGroup" id="librefm_group">
         <property name="title" translatable="yes">Libre.fm</property>
-        <property name="description" translatable="yes">If the page doesn't load, then Libre.fm blocks your IP range/VPN</property>
         <child>
           <object class="AdwSwitchRow" id="librefm_enabled">
             <property name="title" translatable="yes">Libre.fm scrobbling</property>

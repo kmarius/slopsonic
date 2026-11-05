@@ -14,7 +14,6 @@ impl Shell {
             Effect::PlaylistPickerChanged => {
                 crate::shell::playlist_picker::refresh_context_playlist_picker(self)
             }
-            Effect::KeepRunningAfterClose(enabled) => self.set_keep_running_after_close(enabled),
             Effect::Quit(reason) => self.request_quit(reason),
             Effect::ResetStorage(request) => {
                 self.storage_reset.replace(Some(Ok(*request)));

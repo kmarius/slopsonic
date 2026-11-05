@@ -54,6 +54,31 @@ pub fn scrobbling_page(
         listenbrainz_token: adw::PasswordEntryRow,
         listenbrainz_now_playing: adw::SwitchRow,
     });
+    collapse_unless_enabled(
+        &lastfm_enabled,
+        &[
+            lastfm_api_help.upcast_ref(),
+            lastfm_api_key.upcast_ref(),
+            lastfm_api_secret.upcast_ref(),
+            lastfm_connection.upcast_ref(),
+            lastfm_now_playing.upcast_ref(),
+        ],
+    );
+    collapse_unless_enabled(
+        &librefm_enabled,
+        &[
+            librefm_connection.upcast_ref(),
+            librefm_now_playing.upcast_ref(),
+        ],
+    );
+    collapse_unless_enabled(
+        &listenbrainz_enabled,
+        &[
+            listenbrainz_token_help.upcast_ref(),
+            listenbrainz_token.upcast_ref(),
+            listenbrainz_now_playing.upcast_ref(),
+        ],
+    );
 
     {
         let settings = shell.settings.current.borrow().clone();
@@ -379,6 +404,15 @@ pub fn scrobbling_page(
         }
     });
     page
+}
+
+fn collapse_unless_enabled(enabled: &adw::SwitchRow, rows: &[&gtk::Widget]) {
+    for row in rows {
+        enabled
+            .bind_property("active", *row, "visible")
+            .sync_create()
+            .build();
+    }
 }
 
 fn bind_scrobbling_switch(

@@ -765,7 +765,6 @@ fn general_page(shell: &Rc<Preferences>) -> gtk::Widget {
         prefer_distinct_track_covers_row: adw::SwitchRow,
         starting_page_row: adw::ComboRow,
         window_group: adw::PreferencesGroup,
-        keep_running_row: adw::SwitchRow,
         type_to_search_row: adw::SwitchRow,
         control_notifications_row: adw::SwitchRow,
     });
@@ -824,12 +823,7 @@ fn general_page(shell: &Rc<Preferences>) -> gtk::Widget {
                 &mut settings.application.starting_page
             });
     });
-    keep_running_row.set_active(settings.keep_running_after_close);
     type_to_search_row.set_active(settings.type_to_search_enabled);
-    let keep_running_shell = Rc::clone(shell);
-    keep_running_row.connect_active_notify(move |row| {
-        (keep_running_shell.effects)(crate::Effect::KeepRunningAfterClose(row.is_active()));
-    });
     let type_to_search_shell = Rc::clone(shell);
     type_to_search_row.connect_active_notify(move |row| {
         type_to_search_shell.settings.set_app_setting(

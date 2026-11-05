@@ -196,8 +196,6 @@ pub struct Settings {
     pub downloads: Vec<SourceDownloadSettings>,
     #[serde(default = "default_true")]
     pub show_bottom_bar_rating: bool,
-    #[serde(default, alias = "exit_to_tray")]
-    pub keep_running_after_close: bool,
     #[serde(default = "default_true")]
     pub type_to_search_enabled: bool,
     #[serde(default)]
@@ -233,7 +231,6 @@ impl Default for Settings {
             sidebar: SidebarSettings::default(),
             downloads: Vec::new(),
             show_bottom_bar_rating: true,
-            keep_running_after_close: false,
             type_to_search_enabled: true,
             lastfm_api_key: String::new(),
             auto_dj_enabled: false,

@@ -39,7 +39,7 @@ Do not implement or expand:
 - **Partial star ratings** — whole stars only
 - **Local loudness analysis** — no EBU R128 scanning; only server and embedded ReplayGain are applied
 - **Mono downmix**
-- **Tray icon and start minimized**
+- **Tray icon, start minimized and keep running after closing the window** — closing the window quits the app
 - **Desktop notifications** — no now-playing notifications
 - **System keyring** — credentials are stored in the config file only
 - **Custom themes** — only light/dark/system color scheme plus an accent color

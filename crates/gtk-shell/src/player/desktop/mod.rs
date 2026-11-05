@@ -1,12 +1,10 @@
 pub(crate) mod lifecycle;
 
-use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::mpsc::{TryRecvError, channel};
 use std::time::{Duration, Instant};
 
 use adw::prelude::*;
-use ashpd::desktop::background::Background;
 use gtk::glib;
 use playback::{CurrentMedia, PositionDiscontinuity};
 use tracing::{info, warn};
@@ -17,17 +15,8 @@ use gtk_widgets::artwork::THUMB_COVER_SIZE;
 const QUIT_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const QUIT_TIMEOUT: Duration = Duration::from_secs(5);
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum BackgroundAccess {
-    Unavailable,
-    Pending,
-    Granted,
-    Denied,
-}
-
 pub(crate) struct DesktopState {
     pub(crate) media_controls: Rc<desktop_integration::MediaControls>,
-    background_access: Cell<BackgroundAccess>,
 }
 
 impl DesktopState {
@@ -42,7 +31,6 @@ impl DesktopState {
                     application.open(&[gtk::gio::File::for_uri(uri)], "");
                 }
             }),
-            background_access: Cell::new(BackgroundAccess::Unavailable),
         }
     }
 }
@@ -161,142 +149,12 @@ impl Shell {
             .ok()
             .map(|uri| uri.to_string())
     }
-
-    pub(crate) fn set_keep_running_after_close(self: &Rc<Self>, enabled: bool) {
-        if self
-            .settings
-            .update_app_settings("keep running after close setting", |settings| {
-                if settings.keep_running_after_close == enabled {
-                    return false;
-                }
-                settings.keep_running_after_close = enabled;
-                true
-            })
-            .is_none()
-        {
-            return;
-        }
-        if enabled {
-            self.request_background_access();
-        }
-    }
-
-    fn request_background_access(self: &Rc<Self>) {
-        let settings = self.settings.current.borrow();
-        if !ashpd::is_sandboxed()
-            || !settings.keep_running_after_close
-            || matches!(
-                self.desktop.background_access.get(),
-                BackgroundAccess::Pending | BackgroundAccess::Granted
-            )
-        {
-            return;
-        }
-        self.desktop
-            .background_access
-            .set(BackgroundAccess::Pending);
-        let shell = Rc::downgrade(self);
-        glib::MainContext::default().spawn_local(async move {
-            let reason = "Keep Slopsonic running after closing the window".to_string();
-            let access = match Background::request()
-                .reason(reason.as_str())
-                .auto_start(false)
-                .send()
-                .await
-                .and_then(|request| request.response())
-            {
-                Ok(response) if response.run_in_background() => {
-                    info!("background access granted");
-                    BackgroundAccess::Granted
-                }
-                Ok(_) => {
-                    warn!("background access was not granted");
-                    BackgroundAccess::Denied
-                }
-                Err(error) => {
-                    warn!(%error, "could not request background access");
-                    BackgroundAccess::Denied
-                }
-            };
-            let Some(shell) = shell.upgrade() else {
-                return;
-            };
-            shell.desktop.background_access.set(access);
-            if access == BackgroundAccess::Denied
-                && shell.settings.current.borrow().keep_running_after_close
-                && !shell.chrome.window.is_visible()
-            {
-                shell.request_quit("background access denied");
-            }
-        });
-    }
-
-    fn background_access_available(&self) -> bool {
-        matches!(
-            self.desktop.background_access.get(),
-            BackgroundAccess::Pending | BackgroundAccess::Granted
-        )
-    }
 }
 
 pub(crate) fn install_desktop_lifecycle(shell: &Rc<Shell>) {
-    let settings = shell.settings.current.borrow().clone();
-    if settings.keep_running_after_close {
-        shell.request_background_access();
-    }
     let close_shell = Rc::clone(shell);
-    shell
-        .chrome
-        .window
-        .connect_close_request(move |_| close_window(&close_shell));
-}
-
-fn close_window(shell: &Rc<Shell>) -> glib::Propagation {
-    let settings = shell.settings.current.borrow().clone();
-    if settings.keep_running_after_close {
-        shell.request_background_access();
-    }
-    if close_should_hide(
-        settings.keep_running_after_close,
-        host_is_sandboxed(),
-        shell.background_access_available(),
-    ) {
-        shell.save_window_state();
-        shell.chrome.window.set_visible(false);
-    } else {
-        shell.request_quit("window close");
-    }
-    glib::Propagation::Stop
-}
-
-fn close_should_hide(
-    keep_running: bool,
-    sandboxed: bool,
-    background_access_available: bool,
-) -> bool {
-    if !keep_running {
-        return false;
-    }
-    !sandboxed || background_access_available
-}
-
-fn host_is_sandboxed() -> bool {
-    ashpd::is_sandboxed()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::close_should_hide;
-
-    #[test]
-    fn close_setting_off_never_hides() {
-        assert!(!close_should_hide(false, false, true));
-    }
-
-    #[test]
-    fn background_running_needs_native_or_portal_support() {
-        assert!(close_should_hide(true, false, false));
-        assert!(close_should_hide(true, true, true));
-        assert!(!close_should_hide(true, true, false));
-    }
+    shell.chrome.window.connect_close_request(move |_| {
+        close_shell.request_quit("window close");
+        glib::Propagation::Stop
+    });
 }

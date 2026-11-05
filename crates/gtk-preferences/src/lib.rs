@@ -32,7 +32,6 @@ pub enum Effect {
     RefreshHome,
     MediaControlsChanged,
     PlaylistPickerChanged,
-    KeepRunningAfterClose(bool),
     Quit(&'static str),
     ResetStorage(Box<rufin_core::settings::StorageResetRequest>),
 }
