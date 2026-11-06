@@ -747,28 +747,3 @@ pub(crate) async fn initialize(connection: &mut SqliteConnection) -> LibraryResu
         .await?;
     Ok(())
 }
-
-/// Recreates stored triggers that still reference a table dropped by a migration.
-pub(crate) async fn rebuild_triggers_referencing(
-    connection: &mut SqliteConnection,
-    table: &str,
-) -> LibraryResult<()> {
-    let stale = sqlx::query_scalar::<_, String>(
-        "SELECT name FROM sqlite_master WHERE type='trigger' AND instr(sql,?1)>0",
-    )
-    .bind(table)
-    .fetch_all(&mut *connection)
-    .await?;
-    for name in stale {
-        sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
-            "DROP TRIGGER IF EXISTS \"{}\"",
-            name.replace('"', "\"\"")
-        )))
-        .execute(&mut *connection)
-        .await?;
-    }
-    sqlx::raw_sql(sqlx::AssertSqlSafe(triggers()))
-        .execute(connection)
-        .await?;
-    Ok(())
-}

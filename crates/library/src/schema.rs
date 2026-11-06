@@ -529,118 +529,16 @@ CREATE TABLE IF NOT EXISTS native_playlist_pending (
 ) STRICT;
 "#;
 
-const MIGRATE_58: &str = "
-DROP INDEX IF EXISTS local_locators_precedence_idx;
-DROP INDEX IF EXISTS tracks_local_file_idx;
-DROP INDEX IF EXISTS tracks_source_cue_idx;
-DROP INDEX IF EXISTS tracks_raw_album_year_idx;
-DROP INDEX IF EXISTS tracks_raw_album_release_idx;
-DROP INDEX IF EXISTS tracks_album_metadata_order_idx;
-DROP VIEW IF EXISTS observed_file_dependencies;
-DROP VIEW IF EXISTS local_track_access;
-DROP VIEW IF EXISTS observed_local_files;
-DROP TABLE IF EXISTS local_file_dependencies;
-DROP TABLE IF EXISTS local_file_observations;
-DROP TABLE IF EXISTS local_file_access_roots;
-ALTER TABLE tracks DROP COLUMN local_file_key;
-ALTER TABLE tracks DROP COLUMN cue_path;
-ALTER TABLE tracks DROP COLUMN cue_start_millis;
-ALTER TABLE tracks DROP COLUMN cue_end_millis;
-DROP TABLE IF EXISTS local_files;
-DROP TABLE IF EXISTS playlist_file_links;
-DROP TABLE IF EXISTS playlist_file_ignored;
-DROP TABLE IF EXISTS playlist_file_settings;
-CREATE INDEX tracks_album_metadata_order_idx ON tracks(album_key,source_path,disc_number,track_number,object_id) WHERE indexed=1;
-DELETE FROM local_locators WHERE origin<>'download';
-DELETE FROM local_access_metadata WHERE access_uri NOT IN (SELECT access_uri FROM local_locators);
-";
-
-const MIGRATE_59: &str = "
-DROP INDEX IF EXISTS connect_media_files_path_idx;
-DROP INDEX IF EXISTS connect_media_files_backing_idx;
-DROP INDEX IF EXISTS connect_media_files_missing_backing_idx;
-DROP INDEX IF EXISTS download_source_idx;
-DROP INDEX IF EXISTS local_locators_source_idx;
-DROP INDEX IF EXISTS local_locators_path_idx;
-DROP INDEX IF EXISTS local_locators_access_idx;
-DROP VIEW IF EXISTS local_access_files;
-ALTER TABLE connect_media_files RENAME TO download_files;
-ALTER TABLE download_files DROP COLUMN backing_uri;
-ALTER TABLE local_locators RENAME TO download_locators;
-ALTER TABLE download_locators RENAME COLUMN local_access_file_key TO download_access_file_key;
-ALTER TABLE local_access_metadata RENAME TO download_access_metadata;
-";
-
-const MIGRATE_60: &str = "
-DROP TABLE IF EXISTS legacy_activity;
-";
-
-const MIGRATE_61: &str = "
-DROP TABLE IF EXISTS loudness_measurements;
-";
-
-const MIGRATE_63: &str = "
-DROP INDEX IF EXISTS playlists_folder_idx;
-DROP TRIGGER IF EXISTS playlists_folder_cover_update;
-DROP TRIGGER IF EXISTS playlists_folder_cover_delete;
-UPDATE playlists SET playlist_folder_key=NULL;
-DELETE FROM playlist_folders;
-";
-
-const MIGRATE_62: &str = "
-DROP TRIGGER IF EXISTS playlists_folder_cover_update;
-DROP TRIGGER IF EXISTS playlists_folder_cover_delete;
-DELETE FROM playlist_folders WHERE smart=1;
-CREATE TABLE playlist_folders_new (
-    folder_key INTEGER PRIMARY KEY,
-    object_id TEXT NOT NULL UNIQUE,
-    name TEXT NOT NULL,
-    playlist_cover_key INTEGER REFERENCES playlists ON DELETE SET NULL
-) STRICT;
-INSERT INTO playlist_folders_new SELECT folder_key,object_id,name,playlist_cover_key FROM playlist_folders;
-DROP TABLE playlist_folders;
-ALTER TABLE playlist_folders_new RENAME TO playlist_folders;
-DROP TABLE IF EXISTS smart_playlists;
-";
-
 pub(crate) const SCHEMA_VERSION: i64 = 64;
 
 pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> LibraryResult<()> {
     let version = pragma(connection, "user_version").await?;
-    if version != 0
-        && version != 58
-        && version != 59
-        && version != 60
-        && version != 61
-        && version != 62
-        && version != 63
-        && version != SCHEMA_VERSION
-    {
+    if version != 0 && version != SCHEMA_VERSION {
         return Err(crate::LibraryError::Migration(format!(
             "unsupported library schema {version}"
         )));
     }
     let mut transaction = connection.begin().await?;
-    if version == 58 {
-        sqlx::raw_sql(MIGRATE_58).execute(&mut *transaction).await?;
-    }
-    if version == 58 || version == 59 {
-        sqlx::raw_sql(MIGRATE_59).execute(&mut *transaction).await?;
-    }
-    if version != 0 && version < 61 {
-        crate::catalog::index::rebuild_triggers_referencing(&mut transaction, "legacy_activity")
-            .await?;
-        sqlx::raw_sql(MIGRATE_60).execute(&mut *transaction).await?;
-    }
-    if version != 0 && version < 62 {
-        sqlx::raw_sql(MIGRATE_61).execute(&mut *transaction).await?;
-    }
-    if version != 0 && version < 63 {
-        sqlx::raw_sql(MIGRATE_62).execute(&mut *transaction).await?;
-    }
-    if version != 0 && version < 64 {
-        sqlx::raw_sql(MIGRATE_63).execute(&mut *transaction).await?;
-    }
     sqlx::raw_sql(STORE_SCHEMA)
         .execute(&mut *transaction)
         .await?;
