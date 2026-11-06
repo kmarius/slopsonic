@@ -10,7 +10,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_channel::{Receiver, Sender};
 use audio_processing::ResolvedStream;
-use library::{Database, FolderKey, SourceKey, TrackKey};
+use library::{Database, FolderKey, SourceKey};
 use serde::{Deserialize, Serialize};
 use sources::{DownloadQuality, ResolvedDownload};
 use sources::{Source, SourceError, SourceId};
@@ -162,49 +162,6 @@ struct QueueFile<T = Vec<DownloadJob>> {
     jobs: T,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq)]
-enum ReleasedDownloadSubject {
-    Rule(DownloadRule),
-    Track(serde_json::Value),
-    Album(serde_json::Value),
-    Artist(serde_json::Value),
-    Genre(serde_json::Value),
-    Mood(serde_json::Value),
-    Playlist(serde_json::Value),
-    SmartPlaylist(serde_json::Value),
-    Prepared {
-        context_id: String,
-        title: Option<String>,
-    },
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq)]
-enum ReleasedDownloadOwner {
-    Subject(ReleasedDownloadSubject),
-    Retained,
-}
-
-#[derive(Debug, Deserialize)]
-struct ReleasedDownloadJob {
-    id: String,
-    subject: ReleasedDownloadSubject,
-    #[serde(deserialize_with = "quality::deserialize")]
-    quality: DownloadQuality,
-    #[serde(rename = "total_tracks")]
-    _total_tracks: usize,
-    #[serde(default)]
-    completed: Vec<serde_json::Value>,
-    remaining: Vec<serde_json::Value>,
-    state: DownloadQueueState,
-}
-
-#[derive(Debug, Deserialize)]
-struct ReleasedQueueFile {
-    version: u32,
-    source_id: SourceId,
-    jobs: Vec<ReleasedDownloadJob>,
-}
-
 async fn persist_queue(
     root: &Path,
     source_id: Option<&SourceId>,
@@ -252,89 +209,22 @@ fn read_queue_file(
     }
 }
 
-async fn load_queue(
-    root: &Path,
-    source_id: &SourceId,
-    database: &Database,
-    source_key: SourceKey,
-    custom_directory: Option<&DownloadDirectory>,
-) -> Result<Vec<DownloadJob>, String> {
+async fn load_queue(root: &Path, source_id: &SourceId) -> Result<Vec<DownloadJob>, String> {
     let Some((bytes, recovered, path, part)) = read_queue_file(root, Some(source_id))? else {
         return Ok(Vec::new());
     };
-    let jobs = if let Ok(queue) = serde_json::from_slice::<QueueFile>(&bytes) {
-        if queue.version != QUEUE_VERSION {
-            return Err("the saved download queue has an unsupported version".to_string());
-        }
-        queue.jobs
-    } else {
-        let released = serde_json::from_slice::<ReleasedQueueFile>(&bytes)
-            .map_err(|error| format!("could not decode {}: {error}", path.display()))?;
-        if !matches!(released.version, 1 | 2) || released.source_id != *source_id {
-            return Err("the saved download queue does not match this source".to_string());
-        }
-        let cancellation = library::ReadCancellation::new();
-        let mut rebound = Vec::new();
-        for job in released.jobs {
-            let mut completed = Vec::new();
-            let mut remaining = Vec::new();
-            for identity in job.completed {
-                if let Some((media_uri, _)) =
-                    released_queue_media_uri(database, source_key, &identity, &cancellation).await?
-                {
-                    completed.push(media_uri);
-                }
-            }
-            for identity in job.remaining {
-                if let Some((media_uri, staging_identity)) =
-                    released_queue_media_uri(database, source_key, &identity, &cancellation).await?
-                {
-                    migrate_released_staging(
-                        root,
-                        source_id,
-                        &staging_identity,
-                        &media_uri,
-                        custom_directory,
-                    )
-                    .await?;
-                    remaining.push(media_uri);
-                }
-            }
-            if !remaining.is_empty() {
-                let subject = rebind_released_subject(
-                    job.subject,
-                    &completed
-                        .iter()
-                        .chain(&remaining)
-                        .cloned()
-                        .collect::<Vec<_>>(),
-                );
-                rebound.push(DownloadJob {
-                    id: job.id,
-                    subject,
-                    quality: job.quality,
-                    replace_unknown: false,
-                    completed,
-                    failed: false,
-                    remaining: remaining.into(),
-                    state: job.state,
-                });
-            }
-        }
-        persist_queue(root, Some(source_id), &rebound).await?;
-        rebound
-    };
+    let queue = serde_json::from_slice::<QueueFile>(&bytes)
+        .map_err(|error| format!("could not decode {}: {error}", path.display()))?;
+    if queue.version != QUEUE_VERSION {
+        return Err("the saved download queue has an unsupported version".to_string());
+    }
     if recovered && let Err(error) = std::fs::rename(&part, &path) {
         warn!(%error, path = %part.display(), "could not finish recovering the download queue");
     }
-    Ok(jobs)
+    Ok(queue.jobs)
 }
 
-async fn load_direct_queue(
-    root: &Path,
-    database: &Database,
-    settings: &HashMap<SourceId, SourceDownloadSettings>,
-) -> Result<Vec<DownloadJob>, String> {
+async fn load_direct_queue(root: &Path, database: &Database) -> Result<Vec<DownloadJob>, String> {
     let Some((bytes, recovered, path, part)) = read_queue_file(root, None)? else {
         return Ok(Vec::new());
     };
@@ -374,15 +264,7 @@ async fn load_direct_queue(
     let direct = grouped.remove(&None).unwrap_or_default();
     for (source, jobs) in grouped {
         let source = source.unwrap();
-        let key = database
-            .source_identity_key(&source)
-            .await
-            .map_err(|error| error.to_string())?
-            .ok_or("The download source is unavailable")?;
-        let directory = settings
-            .get(&source)
-            .and_then(|settings| settings.directory.as_ref());
-        let mut saved = load_queue(root, &source, database, key, directory).await?;
+        let mut saved = load_queue(root, &source).await?;
         for job in jobs {
             if let Some(existing) = saved.iter_mut().find(|existing| existing.id == job.id) {
                 let mut completed = existing.completed.iter().cloned().collect::<HashSet<_>>();
@@ -415,47 +297,6 @@ async fn load_direct_queue(
     Ok(direct)
 }
 
-async fn released_queue_media_uri(
-    database: &Database,
-    source: SourceKey,
-    identity: &serde_json::Value,
-    cancellation: &library::ReadCancellation,
-) -> Result<Option<(String, String)>, String> {
-    let (key, staging_identity) = if let Some(object_id) = identity.as_str() {
-        let Some(key) = database
-            .catalog_keys(
-                library::CatalogKind::Track,
-                Some(source),
-                &[(object_id).to_string()],
-                cancellation,
-            )
-            .await
-            .map(|keys| keys.into_iter().next().map(library::TrackKey::from_raw))
-            .map_err(|error| error.to_string())?
-        else {
-            return Ok(None);
-        };
-        (key, object_id.to_string())
-    } else if let Some(raw) = identity.as_i64() {
-        (TrackKey::from_raw(raw), raw.to_string())
-    } else {
-        return Err("the saved download queue has an invalid media identity".to_string());
-    };
-    Ok(database
-        .selected_track_uris(
-            &library::MemberSelection::Keys {
-                source: Some(source),
-                keys: [key].into(),
-            },
-            None,
-            cancellation,
-        )
-        .await
-        .map_err(|error| error.to_string())?
-        .pop()
-        .map(|uri| (uri, staging_identity)))
-}
-
 async fn media_source_id(database: &Database, media_uri: &str) -> Option<SourceId> {
     if let Some((source, _, _)) = library::source_entity_parts(media_uri) {
         return Some(source);
@@ -465,68 +306,6 @@ async fn media_source_id(database: &Database, media_uri: &str) -> Option<SourceI
         .await
         .ok()
         .flatten()
-}
-
-fn rebind_released_subject(
-    subject: ReleasedDownloadSubject,
-    media_uris: &[String],
-) -> DownloadSubject {
-    match subject {
-        ReleasedDownloadSubject::Rule(rule) => DownloadSubject::Rule(rule),
-        ReleasedDownloadSubject::Prepared { context_id, title } => {
-            DownloadSubject::Prepared { context_id, title }
-        }
-        ReleasedDownloadSubject::Track(_) => {
-            DownloadSubject::for_media_uris("track", Some("Track"), media_uris)
-        }
-        ReleasedDownloadSubject::Album(_) => {
-            DownloadSubject::for_media_uris("album", Some("Album"), media_uris)
-        }
-        ReleasedDownloadSubject::Artist(_) => {
-            DownloadSubject::for_media_uris("artist", Some("Artist"), media_uris)
-        }
-        ReleasedDownloadSubject::Genre(_) => {
-            DownloadSubject::for_media_uris("genre", Some("Genre"), media_uris)
-        }
-        ReleasedDownloadSubject::Mood(_) => {
-            DownloadSubject::for_media_uris("mood", Some("Mood"), media_uris)
-        }
-        ReleasedDownloadSubject::Playlist(_) => {
-            DownloadSubject::for_media_uris("playlist", Some("Playlist"), media_uris)
-        }
-        ReleasedDownloadSubject::SmartPlaylist(_) => {
-            DownloadSubject::for_media_uris("smart-playlist", Some("Smart Playlist"), media_uris)
-        }
-    }
-}
-
-async fn migrate_released_staging(
-    root: &Path,
-    source_id: &SourceId,
-    track_object_id: &str,
-    media_uri: &str,
-    custom_directory: Option<&DownloadDirectory>,
-) -> Result<(), String> {
-    let (old_part, old_checkpoint) =
-        released_staging_paths(root, source_id, track_object_id, custom_directory);
-    let current = staging_paths(root, Some(source_id), media_uri, custom_directory);
-    for (old, new) in [
-        (old_part, current.audio_part),
-        (old_checkpoint, current.checkpoint),
-    ] {
-        if old == new || !old.exists() || new.exists() {
-            continue;
-        }
-        if let Some(parent) = new.parent() {
-            tokio::fs::create_dir_all(parent)
-                .await
-                .map_err(|error| error.to_string())?;
-        }
-        tokio::fs::rename(&old, &new)
-            .await
-            .map_err(|error| format!("could not preserve {}: {error}", old.display()))?;
-    }
-    Ok(())
 }
 
 enum DownloadFailure {
@@ -969,7 +748,7 @@ async fn run(mut actor: Actor, receiver: Receiver<Command>, rule_results: Receiv
     if let Err(error) = migrate_download_records(&actor.root, &actor.database, None, None).await {
         warn!(%error, "could not restore direct download access");
     }
-    match load_direct_queue(&actor.root, &actor.database, &actor.settings).await {
+    match load_direct_queue(&actor.root, &actor.database).await {
         Ok(jobs) if !jobs.is_empty() => {
             actor.jobs.insert(None, jobs);
         }
@@ -1472,15 +1251,7 @@ impl Actor {
         let mut jobs = if let Some(jobs) = self.jobs.get(&group) {
             jobs.clone()
         } else {
-            match load_queue(
-                &self.root,
-                &source_id,
-                &self.database,
-                source_key,
-                directory.as_ref(),
-            )
-            .await
-            {
+            match load_queue(&self.root, &source_id).await {
                 Ok(jobs) => jobs,
                 Err(error) => {
                     warn!(%error, %source_id, "could not load the download queue");
@@ -3086,6 +2857,7 @@ fn reorder_jobs(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use library::TrackKey;
 
     async fn download_fixture(
         source_id: &str,
@@ -3209,13 +2981,12 @@ mod tests {
         std::fs::create_dir_all(old.audio_part.parent().unwrap()).unwrap();
         std::fs::write(&old.audio_part, b"old partial").unwrap();
         std::fs::write(&http.audio_part, b"http partial").unwrap();
-        let settings = HashMap::new();
         for _ in 0..2 {
-            let direct_queue = load_direct_queue(root.path(), &database, &settings)
+            let direct_queue = load_direct_queue(root.path(), &database)
                 .await
                 .unwrap();
             assert_eq!(direct_queue[0].remaining, std::slice::from_ref(&direct));
-            let ordinary = load_queue(root.path(), &source_id, &database, source, None)
+            let ordinary = load_queue(root.path(), &source_id)
                 .await
                 .unwrap();
             assert_eq!(ordinary.len(), 1);
@@ -3494,170 +3265,6 @@ mod tests {
                 }
             }
         }
-    }
-
-    #[tokio::test]
-    async fn released_completed_and_partial_downloads_rebind_on_attach() {
-        let (_database_directory, database, source_key, _track_key) =
-            download_fixture("source", "track-object").await;
-        let downloads = tempfile::tempdir().expect("temporary Downloads root");
-        let source_id = SourceId::new("source");
-        let directory = source_directory(downloads.path(), Some(&source_id));
-        std::fs::create_dir_all(&directory).expect("create source Downloads directory");
-        let released_stem = hash_id_bytes(b"track-object");
-        let audio = directory.join(format!("{released_stem}.{AUDIO_EXTENSION}"));
-        std::fs::write(&audio, b"released audio").expect("write released audio");
-        let record = directory.join(format!("{released_stem}.{RECORD_EXTENSION}"));
-        std::fs::write(
-            &record,
-            serde_json::to_vec(&serde_json::json!({
-                "version": 3,
-                "source_id": source_id,
-                "track_id": "track-object",
-                "owners": ["Retained"]
-            }))
-            .expect("encode released record"),
-        )
-        .expect("write released record");
-
-        let (released_part, released_checkpoint) =
-            released_staging_paths(downloads.path(), &source_id, "track-object", None);
-        std::fs::write(&released_part, b"partial").expect("write released partial");
-        std::fs::write(&released_checkpoint, b"checkpoint").expect("write released checkpoint");
-        std::fs::write(
-            directory.join(QUEUE_FILE),
-            serde_json::to_vec(&serde_json::json!({
-                "version": 1,
-                "source_id": source_id,
-                "jobs": [{
-                    "id": "job",
-                    "subject": {"Track": "track-object"},
-                    "quality": "Original",
-                    "total_tracks": 1,
-                    "completed": [],
-                    "remaining": ["track-object"],
-                    "state": "Queued"
-                }]
-            }))
-            .expect("encode released Queue"),
-        )
-        .expect("write released Queue");
-
-        migrate_download_records(
-            downloads.path(),
-            &database,
-            Some((source_key, &source_id)),
-            None,
-        )
-        .await
-        .expect("attach released download");
-        let records = database
-            .download_files_page(
-                Some(source_id.as_str()),
-                &(String::new(), String::new()),
-                None,
-            )
-            .await
-            .expect("load migrated records");
-        let migrated = records.first().expect("migrated record");
-        assert_eq!(
-            migrated.media_uri,
-            library::source_entity_uri(&source_id, "track", "track-object")
-        );
-        assert_eq!(migrated.completed_size, Some(14));
-        assert_eq!(
-            Path::new(&migrated.relative_path),
-            audio.file_name().map(Path::new).unwrap()
-        );
-        assert!(
-            !record.exists(),
-            "released record is replaced by the completed registry"
-        );
-        assert!(audio.is_file());
-
-        let jobs = load_queue(downloads.path(), &source_id, &database, source_key, None)
-            .await
-            .expect("migrate released Queue");
-        assert_eq!(
-            jobs[0].remaining[0],
-            library::source_entity_uri(&source_id, "track", "track-object")
-        );
-        let identity = jobs[0].remaining[0].clone();
-        let current = staging_paths(downloads.path(), Some(&source_id), &identity, None);
-        assert_eq!(
-            std::fs::read(current.audio_part).expect("read migrated partial"),
-            b"partial"
-        );
-        assert_eq!(
-            std::fs::read(current.checkpoint).expect("read migrated checkpoint"),
-            b"checkpoint"
-        );
-    }
-
-    #[tokio::test]
-    async fn released_custom_download_is_authorized_by_current_configuration() {
-        let (_database_directory, database, source_key, _track_key) =
-            download_fixture("custom-source", "custom-track").await;
-        let downloads = tempfile::tempdir().expect("temporary Downloads root");
-        let custom = tempfile::tempdir().expect("configured custom root");
-        let source_id = SourceId::new("custom-source");
-        let directory = source_directory(downloads.path(), Some(&source_id));
-        std::fs::create_dir_all(&directory).expect("create source Downloads directory");
-        let relative = PathBuf::from("Artist/Album/custom.audio");
-        let audio = custom.path().join(&relative);
-        std::fs::create_dir_all(audio.parent().expect("custom audio parent"))
-            .expect("create custom audio parent");
-        std::fs::write(&audio, b"custom audio").expect("write custom audio");
-        let record = directory.join(format!(
-            "{}.{RECORD_EXTENSION}",
-            hash_id_bytes(b"custom-track")
-        ));
-        std::fs::write(
-            record,
-            serde_json::to_vec(&serde_json::json!({
-                "version": 3,
-                "source_id": source_id,
-                "track_id": "custom-track",
-                "owners": [{"Subject": {"Rule": "Favorites"}}],
-                "audio_root": custom.path(),
-                "audio_path": audio
-            }))
-            .expect("encode released custom record"),
-        )
-        .expect("write released custom record");
-
-        migrate_download_records(
-            downloads.path(),
-            &database,
-            Some((source_key, &source_id)),
-            Some(&DownloadDirectory::Native(custom.path().to_owned())),
-        )
-        .await
-        .expect("attach released custom download");
-        let records = database
-            .download_files_page(
-                Some(source_id.as_str()),
-                &(String::new(), String::new()),
-                None,
-            )
-            .await
-            .expect("load migrated custom record");
-        let migrated = records.first().expect("migrated custom record");
-        assert_eq!(
-            migrated.media_uri,
-            library::source_entity_uri(&source_id, "track", "custom-track")
-        );
-        assert_eq!(Path::new(&migrated.storage_root), custom.path());
-        assert!(
-            download_owners(migrated)
-                .unwrap()
-                .contains(&DownloadOwner::Subject(DownloadSubject::Rule(
-                    DownloadRule::Favorites
-                )))
-        );
-        assert_eq!(Path::new(&migrated.relative_path), relative.as_path());
-        assert_eq!(migrated.completed_size, Some(12));
-        assert!(custom.path().join(relative).is_file());
     }
 
     fn actor_for_test(

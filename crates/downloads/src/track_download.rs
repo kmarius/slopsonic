@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use audio_processing::ResolvedStream;
-use library::{Database, SourceKey, TrackKey};
+use library::{Database, SourceKey};
 use reqwest::header::{
     ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE, DATE, ETAG, IF_RANGE,
     LAST_MODIFIED, RANGE,
@@ -16,7 +16,7 @@ use tokio::sync::oneshot;
 use tracing::warn;
 
 use crate::storage::DownloadAudio;
-use crate::{DownloadDirectory, DownloadOwner, ReleasedDownloadOwner, rebind_released_subject};
+use crate::{DownloadDirectory, DownloadOwner};
 
 pub(super) const RECORD_VERSION: u32 = 5;
 pub(super) const AUDIO_EXTENSION: &str = "audio";
@@ -54,34 +54,6 @@ pub(super) enum RecordedAudio {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         relative_audio_path: Option<PathBuf>,
     },
-}
-
-#[derive(Debug, Deserialize)]
-struct ReleasedDownloadRecordV4 {
-    version: u32,
-    source_id: SourceId,
-    track_id: TrackKey,
-    #[serde(default)]
-    owners: HashSet<ReleasedDownloadOwner>,
-    #[serde(default)]
-    custom_storage: bool,
-    #[serde(default)]
-    relative_audio_path: Option<PathBuf>,
-    #[serde(default)]
-    completed_size: Option<u64>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ReleasedDownloadRecordV3 {
-    version: u32,
-    source_id: SourceId,
-    track_id: String,
-    #[serde(default)]
-    owners: HashSet<ReleasedDownloadOwner>,
-    #[serde(default)]
-    audio_root: Option<PathBuf>,
-    #[serde(default)]
-    audio_path: Option<PathBuf>,
 }
 
 #[derive(Clone)]
@@ -839,9 +811,6 @@ pub(super) async fn migrate_download_records(
     source: Option<(SourceKey, &SourceId)>,
     custom_directory: Option<&DownloadDirectory>,
 ) -> Result<(), String> {
-    if let Some((key, id)) = source {
-        migrate_released_download_records(root, database, key, id, custom_directory).await?;
-    }
     let directory = source_directory(root, source.map(|(_, id)| id));
     let mut entries = match tokio::fs::read_dir(&directory).await {
         Ok(entries) => entries,
@@ -902,229 +871,6 @@ pub(super) async fn migrate_download_records(
         }
     }
     Ok(())
-}
-
-async fn migrate_released_download_records(
-    root: &Path,
-    database: &Database,
-    source_key: SourceKey,
-    source_id: &SourceId,
-    custom_directory: Option<&DownloadDirectory>,
-) -> Result<(), String> {
-    let directory = source_directory(root, Some(source_id));
-    let entries = match std::fs::read_dir(&directory) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => {
-            return Err(format!(
-                "could not read downloads at {}: {error}",
-                directory.display()
-            ));
-        }
-    };
-    let cancellation = library::ReadCancellation::new();
-    for entry in entries {
-        let entry = entry.map_err(|error| format!("could not read a download entry: {error}"))?;
-        let path = entry.path();
-        if !managed_record_file(&path) {
-            continue;
-        }
-        let bytes = match std::fs::read(&path) {
-            Ok(bytes) => bytes,
-            Err(error) => {
-                warn!(%error, path = %path.display(), "could not read a released download record");
-                continue;
-            }
-        };
-        if serde_json::from_slice::<ReleasedDownloadRecord>(&bytes).is_ok() {
-            continue;
-        }
-        if let Ok(released) = serde_json::from_slice::<ReleasedDownloadRecordV4>(&bytes)
-            && released.version == 4
-            && released.source_id == *source_id
-        {
-            let Some(media_uri) = database
-                .tracks(&[released.track_id], &cancellation)
-                .await
-                .map_err(|error| error.to_string())?
-                .into_iter()
-                .find(|track| track.source_key == Some(source_key))
-                .map(|track| track.media_uri)
-            else {
-                continue;
-            };
-            let owners = released
-                .owners
-                .into_iter()
-                .map(|owner| match owner {
-                    ReleasedDownloadOwner::Retained => DownloadOwner::Retained,
-                    ReleasedDownloadOwner::Subject(subject) => DownloadOwner::Subject(
-                        rebind_released_subject(subject, std::slice::from_ref(&media_uri)),
-                    ),
-                })
-                .collect();
-            let record = ReleasedDownloadRecord {
-                version: RECORD_VERSION,
-                media_uri,
-                quality: None,
-                owners,
-                audio: RecordedAudio::Native {
-                    storage_root: None,
-                    custom_storage: released.custom_storage,
-                    relative_audio_path: released.relative_audio_path,
-                },
-                retired_documents: Vec::new(),
-                completed_size: released.completed_size,
-            };
-            import_download_record(
-                root,
-                database,
-                Some((source_key, source_id)),
-                record,
-                custom_directory,
-            )
-            .await?;
-            std::fs::remove_file(&path).map_err(|error| error.to_string())?;
-            continue;
-        }
-        let released = match serde_json::from_slice::<ReleasedDownloadRecordV3>(&bytes) {
-            Ok(record) if record.version == 3 && record.source_id == *source_id => record,
-            _ => continue,
-        };
-        let (custom_storage, relative_audio_path) = match released_audio_location(
-            root,
-            source_id,
-            &released,
-            custom_directory,
-        ) {
-            Ok(location) => location,
-            Err(error) => {
-                warn!(%error, path = %path.display(), "quarantined an unsafe released download record");
-                quarantine_record(&path);
-                continue;
-            }
-        };
-        let storage_root = if custom_storage {
-            custom_directory
-                .and_then(DownloadDirectory::native)
-                .expect("custom released storage was authorized")
-        } else {
-            directory.as_path()
-        };
-        let audio = authorize_existing_audio(storage_root, &relative_audio_path)?;
-        let completed_size = std::fs::metadata(&audio)
-            .map_err(|error| format!("could not inspect {}: {error}", audio.display()))?
-            .len();
-        let media_uri = library::source_entity_uri(source_id, "track", &released.track_id);
-        let mut owners = HashSet::new();
-        for owner in released.owners {
-            match owner {
-                ReleasedDownloadOwner::Retained => {
-                    owners.insert(DownloadOwner::Retained);
-                }
-                ReleasedDownloadOwner::Subject(subject) => {
-                    owners.insert(DownloadOwner::Subject(rebind_released_subject(
-                        subject,
-                        std::slice::from_ref(&media_uri),
-                    )));
-                }
-            }
-        }
-        if owners.is_empty() {
-            owners.insert(DownloadOwner::Retained);
-        }
-        let record = ReleasedDownloadRecord {
-            version: RECORD_VERSION,
-            media_uri,
-            quality: None,
-            owners,
-            audio: RecordedAudio::Native {
-                storage_root: None,
-                custom_storage,
-                relative_audio_path: Some(relative_audio_path),
-            },
-            retired_documents: Vec::new(),
-            completed_size: Some(completed_size),
-        };
-        let paths = record_download_paths(root, Some(source_id), &record, custom_directory)?;
-        if let Some(parent) = paths.record.parent() {
-            tokio::fs::create_dir_all(parent)
-                .await
-                .map_err(|error| error.to_string())?;
-        }
-        import_download_record(
-            root,
-            database,
-            Some((source_key, source_id)),
-            record,
-            custom_directory,
-        )
-        .await?;
-        std::fs::remove_file(&path).map_err(|error| error.to_string())?;
-    }
-    Ok(())
-}
-
-fn released_audio_location(
-    root: &Path,
-    source_id: &SourceId,
-    record: &ReleasedDownloadRecordV3,
-    custom_directory: Option<&DownloadDirectory>,
-) -> Result<(bool, PathBuf), String> {
-    let internal = source_directory(root, Some(source_id));
-    let Some(stored_audio) = record.audio_path.as_deref() else {
-        return Ok((
-            false,
-            PathBuf::from(format!("{}.{}", hash_id(&record.track_id), AUDIO_EXTENSION)),
-        ));
-    };
-    if stored_audio.is_absolute() {
-        for (custom, approved) in [
-            (false, Some(internal.as_path())),
-            (true, custom_directory.and_then(DownloadDirectory::native)),
-        ] {
-            let Some(approved) = approved else { continue };
-            if let Ok(relative) = stored_audio.strip_prefix(approved)
-                && normal_relative_path(relative)
-                && authorize_existing_audio(approved, relative).is_ok()
-            {
-                return Ok((custom, relative.to_path_buf()));
-            }
-        }
-        return Err("the released download path is outside configured storage".to_string());
-    }
-    if !normal_relative_path(stored_audio) {
-        return Err("the released download path is not a normal relative path".to_string());
-    }
-    let custom = match record.audio_root.as_deref() {
-        None => false,
-        Some(stored_root) if same_approved_root(stored_root, &internal) => false,
-        Some(stored_root)
-            if custom_directory
-                .and_then(DownloadDirectory::native)
-                .is_some_and(|approved| same_approved_root(stored_root, approved)) =>
-        {
-            true
-        }
-        Some(_) => return Err("the released download root is not currently configured".to_string()),
-    };
-    let approved = if custom {
-        custom_directory
-            .and_then(DownloadDirectory::native)
-            .expect("custom released storage was selected")
-    } else {
-        internal.as_path()
-    };
-    authorize_existing_audio(approved, stored_audio)?;
-    Ok((custom, stored_audio.to_path_buf()))
-}
-
-fn same_approved_root(left: &Path, right: &Path) -> bool {
-    left == right
-        || std::fs::canonicalize(left)
-            .ok()
-            .zip(std::fs::canonicalize(right).ok())
-            .is_some_and(|(left, right)| left == right)
 }
 
 pub(super) async fn remove_download_files(paths: &DownloadPaths) -> Result<bool, String> {
@@ -1210,30 +956,6 @@ pub(super) fn staging_paths(
     ));
     paths.checkpoint = checkpoint_path(&paths.audio_part);
     paths
-}
-
-pub(super) fn released_staging_paths(
-    root: &Path,
-    source_id: &SourceId,
-    track_object_id: &str,
-    directory: Option<&DownloadDirectory>,
-) -> (PathBuf, PathBuf) {
-    let staging = directory
-        .and_then(DownloadDirectory::native)
-        .map(|directory| {
-            directory
-                .join(CUSTOM_STAGING_DIRECTORY)
-                .join(hash_id(source_id.as_str()))
-        })
-        .unwrap_or_else(|| source_directory(root, Some(source_id)));
-    let audio_part = staging.join(format!(
-        "{}.{}.{}",
-        hash_id(track_object_id),
-        AUDIO_EXTENSION,
-        PART_EXTENSION
-    ));
-    let checkpoint = checkpoint_path(&audio_part);
-    (audio_part, checkpoint)
 }
 
 pub(super) fn new_download_paths(
