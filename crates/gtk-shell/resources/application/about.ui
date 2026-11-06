@@ -6,10 +6,11 @@
   <object class="AdwAboutDialog" id="dialog">
     <property name="developer-name">Claude</property>
     <property name="developers">screwys
+kmarius
 Claude</property>
     <property name="website">https://github.com/kmarius/slopsonic</property>
     <property name="issue-url">https://github.com/kmarius/slopsonic/issues</property>
-    <property name="copyright">© 2026 screwy</property>
+    <property name="copyright">© 2026 screwy, kmarius</property>
     <property name="license-type">custom</property>
     <property name="license">This application comes with absolutely no warranty and is licensed under GNU General Public Licence, version 3 or later.</property>
     <property name="comments" translatable="yes">Thank you for trying out Slopsonic! If you have problems or suggestions, please open an issue in Github.</property>
