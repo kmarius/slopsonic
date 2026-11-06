@@ -232,8 +232,9 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
                 .any(|category| {
                     slopsonic_core::browse::uses_activity(
                         &current,
-                        &settings
-                            .library_list(slopsonic_core::browse::library_list_key(&current, category)),
+                        &settings.library_list(slopsonic_core::browse::library_list_key(
+                            &current, category,
+                        )),
                     )
                 });
             drop(settings);

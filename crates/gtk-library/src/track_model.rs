@@ -345,7 +345,8 @@ mod tests {
             access: Default::default(),
             links: Default::default(),
         };
-        let settings = LibraryListSettings::for_key(slopsonic_core::settings::LibraryListKey::History);
+        let settings =
+            LibraryListSettings::for_key(slopsonic_core::settings::LibraryListKey::History);
         let query = library::MemberRead {
             sort: Some(settings.sort_key.catalog_sort()),
             descending: settings.descending,

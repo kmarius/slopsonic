@@ -28,18 +28,20 @@ impl Shell {
                 }
                 Err(_) => return,
             };
-            let public =
-                match slopsonic_core::playlists::playlist_public(&shell.products.source, playlist_id)
-                    .recv()
-                    .await
-                {
-                    Ok(Ok(public)) => public,
-                    Ok(Err(error)) => {
-                        shell.control_feedback.show_feedback_toast(error);
-                        None
-                    }
-                    Err(_) => return,
-                };
+            let public = match slopsonic_core::playlists::playlist_public(
+                &shell.products.source,
+                playlist_id,
+            )
+            .recv()
+            .await
+            {
+                Ok(Ok(public)) => public,
+                Ok(Err(error)) => {
+                    shell.control_feedback.show_feedback_toast(error);
+                    None
+                }
+                Err(_) => return,
+            };
             gtk_widgets::objects!(builder, resource, {
                 edit_dialog: adw::Dialog, name_entry: gtk::Entry,
                 save_edit: gtk::Button, cancel_edit: gtk::Button,
@@ -53,7 +55,9 @@ impl Shell {
                 editing,
                 &editor_content,
                 &save_edit,
-                move |owner| slopsonic_core::playlists::regenerate_playlist_artwork(owner, playlist_id),
+                move |owner| {
+                    slopsonic_core::playlists::regenerate_playlist_artwork(owner, playlist_id)
+                },
             );
             editor_layout.insert_child_after(&artwork.frame, None::<&gtk::Widget>);
             playlist_options.append(&artwork.status);

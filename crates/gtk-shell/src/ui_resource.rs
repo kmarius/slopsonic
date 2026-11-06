@@ -3,12 +3,15 @@ pub(crate) const SHOWCASE_CSS_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/
 pub(crate) const ABOUT_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/application/about.ui";
 pub(crate) const STARTUP_ERROR_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/application/startup_error.ui";
-pub(crate) const RANDOM_PLAY_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/player/random_play.ui";
+pub(crate) const RANDOM_PLAY_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/player/random_play.ui";
 
-pub(crate) const DIAGNOSTICS_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/shell/diagnostics.ui";
+pub(crate) const DIAGNOSTICS_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/shell/diagnostics.ui";
 pub(crate) const CONTENT_CHROME_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/shell/content_chrome.ui";
-pub(crate) const ROUTE_ERROR_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/shell/route_error.ui";
+pub(crate) const ROUTE_ERROR_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/shell/route_error.ui";
 pub(crate) const TOPBAR_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/shell/topbar.ui";
 pub(crate) const SEARCH_POPOVER_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/shell/search_popover.ui";

@@ -162,7 +162,10 @@ impl TrackListProjection {
         context: &'static str,
         changed: impl Fn() + 'static,
     ) -> Rc<
-        LatestMountedRouteRead<Result<slopsonic_core::browse::MemberPage, String>, library::MemberRead>,
+        LatestMountedRouteRead<
+            Result<slopsonic_core::browse::MemberPage, String>,
+            library::MemberRead,
+        >,
     > {
         let runtime = shell.runtime.clone();
         let database = Arc::clone(&shell.library);
@@ -585,7 +588,10 @@ impl CatalogUi {
         self.track_page_route(options, projection, favorites_only)
     }
 
-    pub fn history_route(self: &Rc<Self>, initial: slopsonic_core::browse::MemberPage) -> MountedRoute {
+    pub fn history_route(
+        self: &Rc<Self>,
+        initial: slopsonic_core::browse::MemberPage,
+    ) -> MountedRoute {
         let key = LibraryListKey::History;
         let projection = self.searchable_track_collection(
             initial,

@@ -8,7 +8,8 @@ pub const MEDIA_DETAIL_FIELD_RESOURCE: &str =
 pub const MEDIA_DETAIL_METRIC_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/routes/media_detail_metric.ui";
 pub use gtk_widgets::ui_resource::{builder, object};
-pub const PLAYLIST_PICKER_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/playlist_picker.ui";
+pub const PLAYLIST_PICKER_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/routes/playlist_picker.ui";
 pub const PLAYLIST_PICKER_CONTEXT_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/routes/playlist_picker_context.ui";
 pub const PLAYLIST_PICKER_ROW_RESOURCE: &str =

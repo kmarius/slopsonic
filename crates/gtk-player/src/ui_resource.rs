@@ -21,7 +21,8 @@ pub const FULLSCREEN_SETTINGS_RESOURCE: &str =
 pub const EQUALIZER_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/player/equalizer.ui";
 
 pub const RIGHT_PANEL_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/player/right_panel.ui";
-pub const QUEUE_SETTINGS_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/player/queue_settings.ui";
+pub const QUEUE_SETTINGS_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/player/queue_settings.ui";
 
 pub const TRANSITION_SETTINGS_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/player/transition_settings.ui";
@@ -41,7 +42,8 @@ mod resource_tests {
     }
 }
 
-pub const EQUALIZER_BAND_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/player/equalizer-band.ui";
+pub const EQUALIZER_BAND_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/player/equalizer-band.ui";
 pub const EQUALIZER_FILTER_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/player/equalizer-filter.ui";
 pub const EQUALIZER_DIALOGS_RESOURCE: &str =

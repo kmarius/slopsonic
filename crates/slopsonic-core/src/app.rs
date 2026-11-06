@@ -275,5 +275,8 @@ fn temporary_artwork_dir() -> std::path::PathBuf {
     let started = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |duration| duration.as_nanos());
-    std::env::temp_dir().join(format!("slopsonic-artwork-{}-{started}", std::process::id()))
+    std::env::temp_dir().join(format!(
+        "slopsonic-artwork-{}-{started}",
+        std::process::id()
+    ))
 }

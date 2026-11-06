@@ -294,7 +294,11 @@ fn request_from_settings(
     let genre = settings
         .selected_genre_id(source_id, music_folder_id)
         .and_then(|selected| genres.iter().find(|genre| genre.object_id == selected));
-    slopsonic_core::radio::random_play_request(settings, genre.map(|genre| genre.genre_key), placement)
+    slopsonic_core::radio::random_play_request(
+        settings,
+        genre.map(|genre| genre.genre_key),
+        placement,
+    )
 }
 
 pub(crate) fn play_saved_random(shell: &Rc<Shell>, placement: QueuePlacement) {

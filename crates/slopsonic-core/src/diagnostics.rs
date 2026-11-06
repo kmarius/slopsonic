@@ -1146,8 +1146,11 @@ mod tests {
     fn previous_crash_is_imported_into_the_next_session_log() {
         let directory = tempfile::tempdir().expect("temporary log directory");
         let panic_path = directory.path().join(PANIC_FILE);
-        fs::write(&panic_path, "panic at /home/example/Slopsonic/src/main.rs:20")
-            .expect("pending panic report");
+        fs::write(
+            &panic_path,
+            "panic at /home/example/Slopsonic/src/main.rs:20",
+        )
+        .expect("pending panic report");
         let mut output = DiagnosticOutput::default();
 
         import_previous_panic_report(directory.path(), &mut output);

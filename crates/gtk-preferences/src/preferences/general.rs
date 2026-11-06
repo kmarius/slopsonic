@@ -19,7 +19,9 @@ use playback::{
     LoudnessNormalization, LoudnessNormalizationScope, MAX_AUTO_DJ_REFILL_THRESHOLD,
     MIN_AUTO_DJ_REFILL_THRESHOLD,
 };
-use slopsonic_core::runtime::{ScrobblingConnection, ScrobblingConnectionEvent, ScrobblingPreferences};
+use slopsonic_core::runtime::{
+    ScrobblingConnection, ScrobblingConnectionEvent, ScrobblingPreferences,
+};
 use slopsonic_core::text::fill;
 
 pub(super) type ScrobblingCredentialDrafts = Rc<RefCell<ScrobblingPreferences>>;
@@ -342,7 +344,9 @@ pub fn scrobbling_page(
         let token = row.text().trim().to_string();
         listenbrainz_token_shell.save_scrobbling_credential(
             "ListenBrainz token setting",
-            slopsonic_core::scrobbling::ScrobblingCredentialEdit::ListenBrainz { user_token: token },
+            slopsonic_core::scrobbling::ScrobblingCredentialEdit::ListenBrainz {
+                user_token: token,
+            },
         );
     });
     listenbrainz_now_playing.set_active(settings.listenbrainz.now_playing_enabled);

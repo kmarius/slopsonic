@@ -111,7 +111,8 @@ impl ArtworkEditor {
                         let Some(owner) = owner.upgrade() else {
                             return Ok(None);
                         };
-                        let result = slopsonic_core::metadata::prepare_artwork(&owner, bytes.to_vec());
+                        let result =
+                            slopsonic_core::metadata::prepare_artwork(&owner, bytes.to_vec());
                         drop(owner);
                         result
                             .recv()

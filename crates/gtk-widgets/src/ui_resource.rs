@@ -115,10 +115,12 @@ pub const COLUMN_VIEW_HEADER_CELL_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/routes/column_view_header_cell.ui";
 pub const TABLE_FRAME_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/table_frame.ui";
 
-pub const DISPLAY_SETTINGS_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/preferences/display.ui";
+pub const DISPLAY_SETTINGS_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/preferences/display.ui";
 pub const TEXT_SLIDE_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/text_slide.ui";
 
-pub const TRACK_ROW_INDEX_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/track_row_index.ui";
+pub const TRACK_ROW_INDEX_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/routes/track_row_index.ui";
 
 pub const PLAY_MENU_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/play_menu.ui";
 

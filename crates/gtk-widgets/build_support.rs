@@ -65,7 +65,9 @@ fn verify_ui_resources() {
 
 fn collect_ui_sources(root: &Path, directory: &Path, sources: &mut Vec<String>) {
     for entry in fs::read_dir(directory).expect("read Slopsonic interface resource directory") {
-        let path = entry.expect("read Slopsonic interface resource entry").path();
+        let path = entry
+            .expect("read Slopsonic interface resource entry")
+            .path();
         if path.is_dir() {
             collect_ui_sources(root, &path, sources);
         } else if matches!(

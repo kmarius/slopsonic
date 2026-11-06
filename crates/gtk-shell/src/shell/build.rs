@@ -139,7 +139,8 @@ pub async fn build(
     let defer_initial_route = source_status.is_some();
     let settings_state = Rc::new(SettingsState::new(settings.clone(), settings_handle));
     let navigation = NavigationState::new(
-        slopsonic_core::route::sidebar_route_descriptor(settings.application.starting_page).root_route,
+        slopsonic_core::route::sidebar_route_descriptor(settings.application.starting_page)
+            .root_route,
     );
     let selected_ui = SelectedUiState::new();
     let source = Rc::new(SourceState {

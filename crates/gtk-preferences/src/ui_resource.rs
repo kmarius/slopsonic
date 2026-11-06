@@ -8,15 +8,21 @@ pub const PLAYBACK_PREFERENCES_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/preferences/playback.ui";
 pub const PREFERENCES_REORDER_ROW_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/preferences/reorder_row.ui";
-pub const LIBRARY_PREFERENCES_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/preferences/library.ui";
-pub const INTEGRATIONS_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/preferences/integrations.ui";
-pub const PREFERENCES_DIALOG_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/preferences/dialog.ui";
-pub const GENERAL_PREFERENCES_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/preferences/general.ui";
+pub const LIBRARY_PREFERENCES_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/preferences/library.ui";
+pub const INTEGRATIONS_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/preferences/integrations.ui";
+pub const PREFERENCES_DIALOG_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/preferences/dialog.ui";
+pub const GENERAL_PREFERENCES_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/preferences/general.ui";
 pub const APPEARANCE_PREFERENCES_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/preferences/appearance.ui";
 pub const THEME_PREFERENCES_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/preferences/theme.ui";
-pub const STORAGE_PREFERENCES_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/preferences/storage.ui";
-pub const SOURCE_CHOICE_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/preferences/source/choice.ui";
+pub const STORAGE_PREFERENCES_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/preferences/storage.ui";
+pub const SOURCE_CHOICE_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/preferences/source/choice.ui";
 pub const SOURCE_CHOICE_SELECTOR_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/preferences/source/choice_selector.ui";
 pub const CONNECTION_PROGRESS_RESOURCE: &str =

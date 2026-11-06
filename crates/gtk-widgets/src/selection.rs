@@ -354,7 +354,9 @@ mod tests {
     }
 }
 
-pub fn collection_play_request(scope: library::Collection) -> slopsonic_core::playback::PlayRequest {
+pub fn collection_play_request(
+    scope: library::Collection,
+) -> slopsonic_core::playback::PlayRequest {
     let context = match &scope {
         library::Collection::Source(key) => format!("tracks:{key}"),
         library::Collection::Objects { source, .. } => format!("objects:{source}"),

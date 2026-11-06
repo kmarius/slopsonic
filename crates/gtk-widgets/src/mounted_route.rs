@@ -479,7 +479,10 @@ impl MountedRoute {
         self
     }
 
-    pub fn apply_favorite_settlement(&self, settlement: slopsonic_core::runtime::FavoriteSettlement) {
+    pub fn apply_favorite_settlement(
+        &self,
+        settlement: slopsonic_core::runtime::FavoriteSettlement,
+    ) {
         if let Some(apply) = &self.favorite_settlement {
             apply(settlement);
         }

@@ -265,7 +265,11 @@ mod tests {
                     "Slopsonic Last.fm API secret",
                 ),
                 ("scrobbling", "lastfm-session", "Slopsonic Last.fm session",),
-                ("scrobbling", "librefm-session", "Slopsonic Libre.fm session",),
+                (
+                    "scrobbling",
+                    "librefm-session",
+                    "Slopsonic Libre.fm session",
+                ),
                 (
                     "scrobbling",
                     "listenbrainz-token",

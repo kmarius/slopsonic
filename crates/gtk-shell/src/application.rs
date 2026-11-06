@@ -240,7 +240,8 @@ fn register_resources() -> Result<(), String> {
     static REGISTERED: OnceLock<Result<(), String>> = OnceLock::new();
     REGISTERED
         .get_or_init(|| {
-            gio::resources_register_include!("slopsonic.gresource").map_err(|error| error.to_string())
+            gio::resources_register_include!("slopsonic.gresource")
+                .map_err(|error| error.to_string())
         })
         .clone()
 }

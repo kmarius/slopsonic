@@ -770,7 +770,10 @@ fn opaque_account_id(service: DeliveryService, identity: &str) -> String {
         DeliveryService::LibreFm => "librefm",
         DeliveryService::ListenBrainz => "listenbrainz",
     };
-    let value = format!("slopsonic-scrobbling-account\0{service}\0{}", identity.trim());
+    let value = format!(
+        "slopsonic-scrobbling-account\0{service}\0{}",
+        identity.trim()
+    );
     format!("{:x}", Md5::digest(value))
 }
 

@@ -45,7 +45,10 @@ pub(crate) fn source_entity_prefix(source: &SourceId, entity_kind: &str) -> Stri
         entity_kind,
         "track" | "album" | "artist" | "genre" | "mood" | "folder"
     ));
-    format!("slopsonic:source/{entity_kind}/{}/", encode(source.as_str()))
+    format!(
+        "slopsonic:source/{entity_kind}/{}/",
+        encode(source.as_str())
+    )
 }
 
 pub fn source_entity_parts(uri: &str) -> Option<(SourceId, String, String)> {
