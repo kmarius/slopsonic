@@ -51,7 +51,6 @@ pub async fn build(
     settings: slopsonic_core::settings::Settings,
     bootstrap: impl std::future::Future<Output = Result<RuntimeInputs, String>>,
     quitting: Rc<Cell<bool>>,
-    storage_reset: crate::application::StorageResetResult,
 ) -> Result<(), String> {
     let appearance = Rc::new(gtk_preferences::appearance::ApplicationAppearance::install());
 
@@ -412,7 +411,6 @@ pub async fn build(
                 Rc::clone(&artwork),
             ),
             quitting,
-            storage_reset,
             diagnostics,
             settings: Rc::clone(&settings_state),
             navigation,

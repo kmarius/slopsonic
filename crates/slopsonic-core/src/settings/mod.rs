@@ -11,8 +11,6 @@ mod library_lists;
 mod pins;
 pub mod presentation;
 pub mod right_panel;
-mod storage_reset;
-pub use storage_reset::{StorageReset, StorageResetRequest};
 pub mod sidebar;
 
 pub use app::{
@@ -366,19 +364,16 @@ impl StoredSettings {
 #[derive(Clone)]
 pub struct SettingsOwner {
     file: SettingsFile,
-    secrets: Arc<dyn SecretStore>,
     on_change: Arc<dyn Fn(&StoredSettings, &StoredSettings, bool) + Send + Sync>,
 }
 
 impl SettingsOwner {
     pub(crate) fn new(
         file: SettingsFile,
-        secrets: Arc<dyn SecretStore>,
         on_change: impl Fn(&StoredSettings, &StoredSettings, bool) + Send + Sync + 'static,
     ) -> Arc<Self> {
         Arc::new(Self {
             file,
-            secrets,
             on_change: Arc::new(on_change),
         })
     }
@@ -663,10 +658,6 @@ pub(crate) fn load_provider_secret_or_none(
             None
         }
     }
-}
-
-pub(crate) fn scrobbling_secret_key(descriptor: scrobbling::SecretDescriptor) -> SecretKey {
-    SecretKey::namespaced(descriptor.namespace(), descriptor.kind())
 }
 
 pub(crate) fn read_scrobbling(

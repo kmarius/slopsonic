@@ -20,7 +20,6 @@ struct StorageView {
     error: gtk::glib::WeakRef<gtk::Label>,
     unavailable: gtk::glib::GString,
     rows: Vec<CacheRow>,
-    reset_buttons: Vec<gtk::glib::WeakRef<gtk::Button>>,
     products: ProductHandles,
 }
 
@@ -33,9 +32,6 @@ pub(super) fn page(
     gtk_widgets::objects!(builder, resource, {
         navigation: adw::NavigationView,
         storage_page: adw::PreferencesPage,
-        reset_group: adw::PreferencesGroup,
-        clear_all_cache: gtk::Button,
-        clear_all_data: gtk::Button,
         artwork_download: adw::ComboRow,
         total_size: gtk::Label,
         spinner: gtk::Spinner,
@@ -47,7 +43,6 @@ pub(super) fn page(
     navigation_controls.set_nested_page_visible(false);
     let controls = navigation_controls.clone();
     navigation.connect_popped(move |_, _| controls.set_nested_page_visible(false));
-    storage_page.add(&reset_group);
     let settings = shell.settings.persistence.load();
     artwork_download.set_selected(u32::from(
         settings.application.download_artwork_automatically,
@@ -82,59 +77,11 @@ pub(super) fn page(
                 clear: clear.downgrade(),
             })
             .collect(),
-        reset_buttons: vec![clear_all_cache.downgrade(), clear_all_data.downgrade()],
         products: shell.products.clone(),
     });
     for (kind, _, _, button) in controls {
         let view = view.clone();
         button.connect_clicked(move |_| view.confirm_clear(kind));
-    }
-    for (button, kind, confirmation) in [
-        (
-            clear_all_cache,
-            slopsonic_core::settings::StorageReset::KeepCredentials,
-            "clear_cache_confirmation",
-        ),
-        (
-            clear_all_data,
-            slopsonic_core::settings::StorageReset::AllData,
-            "clear_data_confirmation",
-        ),
-    ] {
-        let weak = Rc::downgrade(shell);
-        let view = view.clone();
-        button.connect_clicked(move |_| {
-            let view = view.clone();
-            let weak = weak.clone();
-            gtk::glib::spawn_future_local(async move {
-                let Some(page) = view.page.upgrade() else {
-                    return;
-                };
-                let resource = crate::ui_resource::STORAGE_PREFERENCES_RESOURCE;
-                let builder = gtk_widgets::ui_resource::builder(resource);
-                let dialog: adw::AlertDialog =
-                    gtk_widgets::ui_resource::object(&builder, resource, confirmation);
-                if dialog.choose_future(Some(&page)).await != "clear" {
-                    return;
-                }
-                view.set_busy(true);
-                let result = view.products.prepare_storage_reset(kind);
-                match result {
-                    Ok(request) => {
-                        if let Some(shell) = weak.upgrade() {
-                            (shell.effects)(crate::Effect::ResetStorage(Box::new(request)));
-                        }
-                    }
-                    Err(message) => {
-                        view.set_busy(false);
-                        if let Some(error) = view.error.upgrade() {
-                            error.set_label(&message);
-                            error.set_visible(true);
-                        }
-                    }
-                }
-            });
-        });
     }
     let mut operation = shell.products.source.operation();
     let downloads = Rc::downgrade(&view);
@@ -255,11 +202,6 @@ impl StorageView {
     }
 
     fn set_busy(&self, busy: bool) {
-        for button in &self.reset_buttons {
-            if let Some(button) = button.upgrade() {
-                button.set_sensitive(!busy);
-            }
-        }
         if let Some(spinner) = self.spinner.upgrade() {
             spinner.set_spinning(busy);
             spinner.set_visible(busy);

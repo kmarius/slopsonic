@@ -46,15 +46,6 @@ pub struct Downloads {
     status: tokio::sync::watch::Receiver<DownloadStatus>,
 }
 
-/// Holds the existing download actor at a completed command boundary during restore.
-pub struct DownloadSuspension(Sender<()>);
-
-impl Drop for DownloadSuspension {
-    fn drop(&mut self) {
-        let _ = self.0.try_send(());
-    }
-}
-
 enum Command {
     ClearArtworkCache(Sender<Result<(), String>>),
     Page {
@@ -97,10 +88,6 @@ enum Command {
         job_id: String,
     },
     SetPaused(bool),
-    Suspend {
-        ready: Sender<()>,
-        resume: Receiver<()>,
-    },
     Move {
         source_id: SourceId,
         job_id: String,
@@ -521,26 +508,6 @@ impl Downloads {
 
     pub fn clear_job(&self, source_id: SourceId, job_id: String) {
         self.send(Command::ClearJob { source_id, job_id });
-    }
-
-    pub async fn shutdown(&self) -> Result<(), String> {
-        let _suspended = self.suspend().await?;
-        self.commands.close();
-        Ok(())
-    }
-
-    pub async fn suspend(&self) -> Result<DownloadSuspension, String> {
-        let (ready, completed) = async_channel::bounded(1);
-        let (resume, release) = async_channel::bounded(1);
-        self.commands
-            .send(Command::Suspend {
-                ready,
-                resume: release,
-            })
-            .await
-            .map_err(|error| error.to_string())?;
-        completed.recv().await.map_err(|error| error.to_string())?;
-        Ok(DownloadSuspension(resume))
     }
 
     pub fn set_paused(&self, paused: bool) {

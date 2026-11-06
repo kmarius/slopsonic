@@ -51,9 +51,18 @@ fn application_starts_on_a_worker_and_reopens_saved_settings_without_a_ui() {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, b"old database").unwrap();
     }
-    slopsonic_core::settings::StorageResetRequest::Database
-        .apply(&paths)
-        .unwrap();
+    // The user recovers by deleting the unreadable Store files while the app is closed.
+    for path in [paths.store_file(), paths.catalog_file()] {
+        for suffix in ["", "-wal", "-shm"] {
+            let mut file = path.as_os_str().to_os_string();
+            file.push(suffix);
+            match std::fs::remove_file(file) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => panic!("{error}"),
+            }
+        }
+    }
     assert!(!paths.store_file().exists());
     assert!(!paths.catalog_file().exists());
     assert_eq!(std::fs::read(paths.settings_file()).unwrap(), settings);

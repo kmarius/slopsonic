@@ -48,29 +48,6 @@ impl ProductHandles {
         summary
     }
 
-    pub fn prepare_storage_reset(
-        &self,
-        reset: crate::settings::StorageReset,
-    ) -> Result<crate::settings::StorageResetRequest, String> {
-        self.settings.prepare_storage_reset(reset)
-    }
-
-    pub async fn close_storage(&self) -> Result<(), String> {
-        self.source.close_storage().await;
-        self.downloads.shutdown().await?;
-        let settings = self.settings.clone();
-        self.runtime
-            .spawn_blocking(move || settings.flush())
-            .await
-            .map_err(|e| e.to_string())??;
-        self.library
-            .as_ref()
-            .clone()
-            .close()
-            .await
-            .map_err(|error| error.to_string())
-    }
-
     async fn cache_usage(&self, kind: CacheKind) -> Result<CacheUsage, String> {
         match kind {
             CacheKind::Artwork => self

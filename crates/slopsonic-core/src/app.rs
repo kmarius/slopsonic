@@ -179,7 +179,6 @@ where
     let settings_runtime = runtime.clone();
     let settings_handle = SettingsOwner::new(
         settings.clone(),
-        Arc::clone(&secrets),
         move |previous, current, credentials_changed| {
             if previous.ui.application.prefer_distinct_track_covers
                 != current.ui.application.prefer_distinct_track_covers

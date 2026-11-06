@@ -244,12 +244,6 @@ impl Actor {
             Command::ClearJob { source_id, job_id } => {
                 self.clear_job(&source_id, &job_id, active).await;
             }
-            Command::Suspend { ready, resume } => {
-                self.abort_matching(active, true, |_| true).await;
-                if ready.send(()).await.is_ok() {
-                    let _ = resume.recv().await;
-                }
-            }
             Command::SetPaused(paused) => {
                 if self.paused == paused {
                     return;

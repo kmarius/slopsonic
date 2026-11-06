@@ -19,25 +19,15 @@ struct ApplicationOptions {
     decoration_layout: Option<String>,
 }
 
-pub struct ApplicationExit {
-    pub code: ExitCode,
-    pub storage_reset: Option<Result<slopsonic_core::settings::StorageResetRequest, String>>,
-}
-
-pub(crate) type StorageResetResult =
-    Rc<RefCell<Option<Result<slopsonic_core::settings::StorageResetRequest, String>>>>;
-
 pub fn run_application<F, Fut>(
     settings: slopsonic_core::settings::Settings,
     bootstrap: F,
-) -> ApplicationExit
+) -> ExitCode
 where
     F: FnOnce() -> Fut + 'static,
     Fut: std::future::Future<Output = Result<RuntimeInputs, String>> + 'static,
 {
     let (app, options) = application();
-    let storage_reset = StorageResetResult::default();
-    let reset_result = Rc::clone(&storage_reset);
     connect_startup_configuration(&app, Rc::clone(&options));
     let bootstrap = Rc::new(RefCell::new(Some(bootstrap)));
     let quitting = Rc::new(Cell::new(false));
@@ -59,20 +49,13 @@ where
         let hold = app.hold();
         let settings = settings.clone();
         let quitting = Rc::clone(&quitting);
-        let storage_reset = Rc::clone(&storage_reset);
         gtk::glib::spawn_future_local(async move {
             let _hold = hold;
-            if let Err(error) = crate::shell::build::build(
-                &app,
-                settings,
-                bootstrap(),
-                quitting,
-                Rc::clone(&storage_reset),
-            )
-            .await
+            if let Err(error) =
+                crate::shell::build::build(&app, settings, bootstrap(), quitting).await
             {
                 error!(%error, "failed to start Slopsonic");
-                present_startup_error(&app, &error, storage_reset);
+                present_startup_error(&app, &error);
             }
         });
     });
@@ -81,32 +64,24 @@ where
     for window in app.windows() {
         window.destroy();
     }
-    ApplicationExit {
-        code,
-        storage_reset: reset_result.take(),
-    }
+    code
 }
 
-pub fn run_startup_error_application(error: String) -> ApplicationExit {
+pub fn run_startup_error_application(error: String) -> ExitCode {
     let (app, options) = application();
-    let storage_reset = StorageResetResult::default();
-    let reset_result = Rc::clone(&storage_reset);
     connect_startup_configuration(&app, Rc::clone(&options));
     app.connect_activate(move |app| {
         if let Some(window) = app.active_window() {
             present_window(&window);
         } else {
-            present_startup_error(app, &error, Rc::clone(&storage_reset));
+            present_startup_error(app, &error);
         }
     });
     let code = app.run().into();
     for window in app.windows() {
         window.destroy();
     }
-    ApplicationExit {
-        code,
-        storage_reset: reset_result.take(),
-    }
+    code
 }
 
 fn application() -> (adw::Application, Rc<RefCell<ApplicationOptions>>) {
@@ -181,41 +156,17 @@ pub(crate) fn application_window(
         .upcast()
 }
 
-fn present_startup_error(app: &adw::Application, error: &str, storage_reset: StorageResetResult) {
+fn present_startup_error(app: &adw::Application, error: &str) {
     let resource = crate::ui_resource::STARTUP_ERROR_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
         content: gtk::Box,
         status: adw::StatusPage,
-        reset_database: gtk::Button,
     });
     status.set_icon_name(Some(STABLE_APP_ID));
     status.set_title(DISPLAY_NAME);
     status.set_description(Some(error));
     let window = application_window(app, DISPLAY_NAME, 480, 320, &content);
-    let resetting_window = window.downgrade();
-    let app = app.downgrade();
-    reset_database.connect_clicked(move |_| {
-        let Some(window) = resetting_window.upgrade() else {
-            return;
-        };
-        let Some(app) = app.upgrade() else {
-            return;
-        };
-        let storage_reset = Rc::clone(&storage_reset);
-        gtk::glib::spawn_future_local(async move {
-            let builder = gtk_widgets::ui_resource::builder(resource);
-            let dialog: adw::AlertDialog =
-                gtk_widgets::ui_resource::object(&builder, resource, "reset_confirmation");
-            if dialog.choose_future(Some(&window)).await != "reset" {
-                return;
-            }
-            storage_reset.replace(Some(Ok(
-                slopsonic_core::settings::StorageResetRequest::Database,
-            )));
-            app.quit();
-        });
-    });
     present_window(&window);
 }
 

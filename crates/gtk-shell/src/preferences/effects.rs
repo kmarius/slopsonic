@@ -15,10 +15,6 @@ impl Shell {
                 crate::shell::playlist_picker::refresh_context_playlist_picker(self)
             }
             Effect::Quit(reason) => self.request_quit(reason),
-            Effect::ResetStorage(request) => {
-                self.storage_reset.replace(Some(Ok(*request)));
-                self.request_quit("storage reset");
-            }
         }
     }
 }

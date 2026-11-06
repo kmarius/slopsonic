@@ -505,69 +505,6 @@ async fn pausing_cancels_active_work_and_keeps_the_job_queued() {
 }
 
 #[tokio::test]
-async fn restore_suspension_drains_active_work_and_holds_following_commands() {
-    let (_library, database, source_key, track) = download_fixture("suspend", "track").await;
-    let root = tempfile::tempdir().expect("Downloads root");
-    let source_id = SourceId::new("suspend");
-    let mut actor = actor_for_test(root.path(), database, &source_id, source_key);
-    let media_uri = test_media(&source_id, source_key, track);
-    actor
-        .jobs
-        .insert(Some(source_id.clone()), vec![test_job(media_uri.clone())]);
-    let paths = download_paths(root.path(), Some(&source_id), &media_uri);
-    let (cancel, cancelled) = tokio::sync::oneshot::channel();
-    let task = tokio::spawn(async move {
-        let _ = cancelled.await;
-        Err(DownloadFailure::Retry("cancelled".to_string()))
-    });
-    let mut active = vec![ActiveDownload {
-        source_id: Some(source_id.clone()),
-        job_id: "job".to_string(),
-        media_uri: media_uri.clone(),
-        subject: DownloadSubject::for_media_uris(
-            "track",
-            Some("Track"),
-            std::slice::from_ref(&media_uri),
-        ),
-        paths,
-        quality: DownloadQuality::Original,
-        cancellation: Some(cancel),
-        task,
-    }];
-
-    let (ready, acknowledged) = async_channel::bounded(1);
-    let (resume, released) = async_channel::bounded(1);
-    let work = tokio::spawn(async move {
-        actor
-            .apply(
-                Command::Suspend {
-                    ready,
-                    resume: released,
-                },
-                &mut active,
-            )
-            .await;
-        (actor, active)
-    });
-    acknowledged.recv().await.unwrap();
-    assert!(
-        !work.is_finished(),
-        "Store replacement retains the command boundary"
-    );
-    drop(DownloadSuspension(resume));
-    let (actor, active) = work.await.unwrap();
-    assert!(
-        !actor.paused,
-        "restoring does not change the user's pause preference"
-    );
-    assert!(active.is_empty());
-    assert_eq!(
-        actor.jobs[&Some(source_id)][0].state,
-        DownloadQueueState::Queued
-    );
-}
-
-#[tokio::test]
 async fn cancelling_removes_the_job_and_reconciles_its_staging_file() {
     let (_library, database, source_key, track) = download_fixture("cancel", "track").await;
     let root = tempfile::tempdir().expect("Downloads root");

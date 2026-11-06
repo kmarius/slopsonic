@@ -237,15 +237,6 @@ impl ScrobblingOwner {
         }
     }
 
-    pub fn storage_reset(&self) {
-        if let Err(error) = self
-            .scrobbler
-            .update_credentials(self.settings.load().scrobbling_runtime_settings())
-        {
-            warn!(%error, "could not reset scrobbling credentials");
-        }
-    }
-
     pub fn shutdown(&self) {
         self.scrobbler.shutdown();
     }

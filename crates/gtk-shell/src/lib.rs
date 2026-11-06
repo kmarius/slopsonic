@@ -10,6 +10,6 @@ mod ratings;
 mod shell;
 mod ui_resource;
 
-pub use application::{ApplicationExit, run_application, run_startup_error_application};
+pub use application::{run_application, run_startup_error_application};
 
 use slopsonic_core::settings::*;

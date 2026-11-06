@@ -502,26 +502,6 @@ impl SourceOwner {
         Ok(())
     }
 
-    pub(crate) async fn close_storage(&self) {
-        self.shared.started.store(false, Ordering::Release);
-        let task = self
-            .shared
-            .asset_download
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .take();
-        if let Some(task) = task {
-            task.abort();
-            let _ = task.await;
-        }
-        self.release_selected().await;
-        self.shared
-            .clients
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .clear();
-    }
-
     async fn remove_source_resources(&self, source_id: &SourceId) {
         self.shared
             .clients

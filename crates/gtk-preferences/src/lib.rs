@@ -33,7 +33,6 @@ pub enum Effect {
     MediaControlsChanged,
     PlaylistPickerChanged,
     Quit(&'static str),
-    ResetStorage(Box<slopsonic_core::settings::StorageResetRequest>),
 }
 
 pub fn register_resources() -> Result<(), String> {
