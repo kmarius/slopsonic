@@ -263,7 +263,7 @@ impl Database {
     ) -> LibraryResult<Vec<String>> {
         let (_permit, mut connection) = self.acquire_general(cancellation).await?;
         Ok(sqlx::query_scalar(
-            "SELECT object_id FROM playlists WHERE source_key=?1 AND name IS NOT NULL AND (owner='rufin' OR indexed) ORDER BY sort_text,playlist_key",
+            "SELECT object_id FROM playlists WHERE source_key=?1 AND name IS NOT NULL AND (owner='slopsonic' OR indexed) ORDER BY sort_text,playlist_key",
         )
         .bind(source)
         .fetch_all(&mut *connection)
@@ -351,7 +351,7 @@ impl Database {
              artwork_mime=CASE WHEN ?4 THEN ?6 ELSE artwork_mime END,
              artwork_revision=CASE WHEN ?4 THEN ?7 ELSE artwork_revision END,
              artwork_binding=CASE WHEN ?4 THEN ?8 ELSE artwork_binding END
-             WHERE source_key IS ?1 AND owner='rufin'
+             WHERE source_key IS ?1 AND owner='slopsonic'
                AND playlist_key=?2 AND metadata_writable AND ((?3 IS NOT NULL AND name IS NOT ?3) OR (?4 AND artwork_revision IS NOT ?7))",
         ).bind(source).bind(playlist).bind(name).bind(artwork.is_some())
             .bind(image.map(|(bytes, _)| bytes)).bind(image.and_then(|(_, mime)| mime)).bind(revision).bind(binding)
@@ -376,7 +376,7 @@ impl Database {
         let mut transaction = connection.begin().await?;
         let visible = sqlx::query_as::<_, (PlaylistKey, i64)>(
             "SELECT playlist_key,position FROM playlists
-             WHERE name IS NOT NULL AND (owner='rufin' OR indexed) AND (?1 IS NULL OR source_key=?1 OR source_key IS NULL)
+             WHERE name IS NOT NULL AND (owner='slopsonic' OR indexed) AND (?1 IS NULL OR source_key=?1 OR source_key IS NULL)
              ORDER BY position,playlist_key",
         )
         .bind(source)
@@ -416,7 +416,7 @@ impl Database {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
         let mut transaction = connection.begin().await?;
-        let identity:Option<String> = sqlx::query_scalar("DELETE FROM playlists WHERE source_key IS ?1 AND owner='rufin' AND playlist_key=?2 RETURNING json_array((SELECT object_id FROM sources WHERE source_key=playlists.source_key),object_id)")
+        let identity:Option<String> = sqlx::query_scalar("DELETE FROM playlists WHERE source_key IS ?1 AND owner='slopsonic' AND playlist_key=?2 RETURNING json_array((SELECT object_id FROM sources WHERE source_key=playlists.source_key),object_id)")
             .bind(source).bind(playlist).fetch_optional(&mut *transaction).await?;
         transaction.commit().await?;
         Ok(identity.is_some())
@@ -608,7 +608,7 @@ async fn editable_playlist_exists(
     Ok(sqlx::query_scalar::<_, i64>(
         "SELECT 1 FROM playlists
          WHERE ((?1 IS NULL AND source_key IS NULL) OR source_key=?1)
-           AND playlist_key=?2 AND owner='rufin' AND writable",
+           AND playlist_key=?2 AND owner='slopsonic' AND writable",
     )
     .bind(source)
     .bind(playlist)
@@ -819,7 +819,7 @@ pub(crate) async fn create_playlist_identity(
         "INSERT INTO main.playlists(source_key,object_id,name,normalized_name,sort_text,position)
          SELECT ?1,id,?2,lower(?2),lower(?2),
                 (SELECT coalesce(max(position)+1,0) FROM playlists)
-         FROM (SELECT 'rufin:playlist:'||lower(hex(randomblob(16))) id)
+         FROM (SELECT 'slopsonic:playlist:'||lower(hex(randomblob(16))) id)
          RETURNING playlist_key,object_id",
     )
     .bind(source)
@@ -838,7 +838,7 @@ async fn insert_playlist_tracks(
 ) -> LibraryResult<usize> {
     let accepted = sqlx::query(
         "INSERT INTO playlist_entries(playlist_key,object_id,track_key,position)
-        SELECT ?1,'rufin:entry:'||lower(hex(randomblob(16))),requested.value,
+        SELECT ?1,'slopsonic:entry:'||lower(hex(randomblob(16))),requested.value,
                ?2+row_number() OVER (ORDER BY CAST(requested.key AS INTEGER))-1
         FROM json_each(?3) requested WHERE NOT ?4 OR NOT EXISTS(
             SELECT 1 FROM playlist_entries existing WHERE existing.playlist_key=?1
@@ -942,7 +942,7 @@ pub(crate) fn playlist_list_query(
         },
     );
     let mut predicate = format!(
-        "playlist.name IS NOT NULL AND (playlist.owner='rufin' OR playlist.indexed) AND {source_scope}"
+        "playlist.name IS NOT NULL AND (playlist.owner='slopsonic' OR playlist.indexed) AND {source_scope}"
     );
     if !filter.trim().is_empty() {
         predicate.push_str(&format!(

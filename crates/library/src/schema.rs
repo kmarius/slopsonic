@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS queue_positions (
 CREATE TABLE IF NOT EXISTS playlists (
     playlist_key INTEGER PRIMARY KEY,
     observed_stamp INTEGER NOT NULL DEFAULT 0,
-    owner TEXT NOT NULL DEFAULT 'rufin' CHECK(owner IN ('rufin','source')),
+    owner TEXT NOT NULL DEFAULT 'slopsonic' CHECK(owner IN ('slopsonic','source')),
     indexed INTEGER NOT NULL DEFAULT 1 CHECK(indexed IN (0,1)),
     source_key INTEGER REFERENCES sources ON DELETE CASCADE,
     object_id TEXT NOT NULL CHECK (object_id <> ''),

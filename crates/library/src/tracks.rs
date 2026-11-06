@@ -412,7 +412,7 @@ mod tests {
         .fetch_one(&mut connection)
         .await
         .expect("insert source");
-        let artist = sqlx::query_scalar::<_, ArtistKey>("INSERT INTO artists(source_key,object_id,media_uri,metadata) VALUES (?1,'artist','rufin:source/artist/%73%6F%75%72%63%65/%61%72%74%69%73%74',jsonb(json_object('name','Artist','sort_text','artist'))) RETURNING artist_key")
+        let artist = sqlx::query_scalar::<_, ArtistKey>("INSERT INTO artists(source_key,object_id,media_uri,metadata) VALUES (?1,'artist','slopsonic:source/artist/%73%6F%75%72%63%65/%61%72%74%69%73%74',jsonb(json_object('name','Artist','sort_text','artist'))) RETURNING artist_key")
             .bind(source).fetch_one(&mut connection).await.expect("insert Artist");
         let genre = sqlx::query_scalar::<_, GenreKey>("INSERT INTO genres(source_key,object_id,media_uri,metadata) VALUES (?1,'genre','genre:one',jsonb(json_object('name','Genre','sort_text','genre'))) RETURNING genre_key")
             .bind(source).fetch_one(&mut connection).await.expect("insert Genre");

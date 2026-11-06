@@ -1655,9 +1655,9 @@ mod tests {
     #[test]
     fn nested_routes_leave_root_sidebar_items_unselected() {
         let routes = [
-            Route::AlbumDetail("rufin:album".to_string()),
-            Route::ArtistDetail("rufin:artist".to_string()),
-            Route::AlbumArtistTracks("rufin:artist".to_string()),
+            Route::AlbumDetail("slopsonic:album".to_string()),
+            Route::ArtistDetail("slopsonic:artist".to_string()),
+            Route::AlbumArtistTracks("slopsonic:artist".to_string()),
             Route::GenreDetail(library::GenreKey::from_raw(1)),
             Route::MoodDetail(library::MoodKey::from_raw(1)),
             Route::Folders {

@@ -67,7 +67,7 @@ impl SourceConfiguration {
         navidrome_library_version: Option<u32>,
     ) -> SourceResult<SourceInputIdentity> {
         let mut digest = blake3::Hasher::new();
-        digest.update(b"rufin-source-input");
+        digest.update(b"slopsonic-source-input");
         digest.update(&1_u32.to_le_bytes());
         digest_part(&mut digest, self.source_id.as_str().as_bytes());
         digest_part(&mut digest, self.kind.source_id().as_bytes());

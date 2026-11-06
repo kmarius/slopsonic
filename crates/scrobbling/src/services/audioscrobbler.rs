@@ -418,7 +418,7 @@ mod tests {
         );
         assert_eq!(
             auth_url(Service::LibreFm, LIBREFM_API_KEY, "auth-token"),
-            "https://libre.fm/api/auth/?api_key=rufin&token=auth-token"
+            "https://libre.fm/api/auth/?api_key=slopsonic&token=auth-token"
         );
     }
 

@@ -1445,7 +1445,7 @@ impl Editor {
         let output = self.output();
         crate::preset_transfer::export(
             &root,
-            &["equalizer.rufin-eq.json", "equalizer.txt"],
+            &["equalizer.slopsonic-eq.json", "equalizer.txt"],
             move |apo| {
                 owner
                     .export_equalizer(output.clone(), preset_format(apo))

@@ -356,7 +356,7 @@ pub(super) fn audio_key(
     duration_seconds: u32,
 ) -> [u8; 32] {
     let mut hash = blake3::Hasher::new();
-    hash.update(b"rufin-subsonic-audio-v1\0");
+    hash.update(b"slopsonic-subsonic-audio-v1\0");
     hash.update(object_id.as_bytes());
     hash.update(path.unwrap_or_default().as_bytes());
     hash.update(format.unwrap_or_default().as_bytes());

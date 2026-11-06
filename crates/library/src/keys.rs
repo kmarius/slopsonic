@@ -45,11 +45,11 @@ pub(crate) fn source_entity_prefix(source: &SourceId, entity_kind: &str) -> Stri
         entity_kind,
         "track" | "album" | "artist" | "genre" | "mood" | "folder"
     ));
-    format!("rufin:source/{entity_kind}/{}/", encode(source.as_str()))
+    format!("slopsonic:source/{entity_kind}/{}/", encode(source.as_str()))
 }
 
 pub fn source_entity_parts(uri: &str) -> Option<(SourceId, String, String)> {
-    let mut parts = uri.strip_prefix("rufin:source/")?.split('/');
+    let mut parts = uri.strip_prefix("slopsonic:source/")?.split('/');
     let kind = parts.next()?;
     if !matches!(kind, "track" | "album" | "artist") {
         return None;
@@ -100,7 +100,7 @@ pub fn document_fragment_parts(fragment: &str) -> Option<(String, String)> {
 
 pub fn document_locator_parts(locator: &str) -> Option<(String, String)> {
     let uri = url::Url::parse(locator).ok()?;
-    if uri.scheme() != "rufin-document" {
+    if uri.scheme() != "slopsonic-document" {
         return None;
     }
     document_fragment_parts(uri.fragment()?)
@@ -111,11 +111,11 @@ pub fn document_access_uri(locator: &str) -> Option<String> {
 }
 
 pub fn document_media_uri(native_id: &str) -> String {
-    format!("rufin:document/{}", encode(native_id))
+    format!("slopsonic:document/{}", encode(native_id))
 }
 
 pub fn document_media_id(uri: &str) -> Option<String> {
-    let id = uri.strip_prefix("rufin:document/")?;
+    let id = uri.strip_prefix("slopsonic:document/")?;
     if id.is_empty() {
         return None;
     }

@@ -44,7 +44,7 @@ pub fn roots() -> Paths {
 }
 
 const STORE_DIRECTORY: &str = "store";
-const STORE_FILE: &str = "rufin-store.sqlite";
+const STORE_FILE: &str = "slopsonic-store.sqlite";
 const SETTINGS_FILE: &str = "settings.toml";
 const ARTWORK_DIRECTORY: &str = "covers";
 const DOWNLOADS_DIRECTORY: &str = "downloads";
@@ -80,7 +80,7 @@ impl Paths {
     pub fn catalog_file(&self) -> PathBuf {
         self.cache_dir()
             .join(STORE_DIRECTORY)
-            .join("rufin-catalog.sqlite")
+            .join("slopsonic-catalog.sqlite")
     }
 
     pub fn legacy_store_file(&self) -> PathBuf {

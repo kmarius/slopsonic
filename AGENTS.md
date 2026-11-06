@@ -28,7 +28,7 @@ Do not implement or expand:
 - **Playing from disk** — No mapping server paths to local music folders; playback streams from the server or uses downloads
 - **Rufin Connect / sync / casting** — No cross-device sync, remote control, or UPnP/Chromecast casting
 - **Headless/controller mode** — This is a desktop GUI application
-- **Windows/macOS/Android builds** — Linux only. Android, macOS and Windows support was removed because it can not be tested; some cross-platform and Android-specific code may remain and should be removed
+- **Windows/macOS/Android builds** — Linux only. Android, macOS and Windows support was removed because it can not be tested
 - **Backup and restore**
 - **Audio fingerprinting and external metadata lookup** — no AcoustID/MusicBrainz or other third-party lookups
 - **Lyrics, visualizer, waveform seekbar**
@@ -51,7 +51,7 @@ Do not implement or expand:
 
 - `crates/` — Rust workspace with modular crates
 - Single server: the app talks to exactly one Navidrome or OpenSubsonic server. Both share the one Subsonic client in `crates/sources/src/subsonic/`; Navidrome-only features are gated on the flavor. Do not add provider abstractions, multi-server selection or per-source UI
-- Settings keep a list of configured servers on disk, but the app enforces at most one
+- Settings store the single configured server
 - The library schema is versioned in `crates/library/src/schema.rs` (`SCHEMA_VERSION`); add migrations in `initialize_durable`
 - Dead code is a build error (`-D warnings`); remove unused code and dependencies rather than leaving them
 

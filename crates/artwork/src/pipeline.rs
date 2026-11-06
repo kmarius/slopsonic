@@ -625,7 +625,7 @@ fn resolve_request(
     let missing = shared.cache.is_missing(candidate);
     let entry = shared.cache.ready_entry(candidate).map(|entry| (entry, true)).or_else(|| {
         if missing || matches!(&candidate.image, library::ArtworkImage::Local { path, .. }
-            if Path::new(path).is_absolute() || path.starts_with("content:") || path.starts_with("rufin-document:"))
+            if Path::new(path).is_absolute() || path.starts_with("content:") || path.starts_with("slopsonic-document:"))
         { None } else { resolve_peer_cache(shared, work, candidate) }
     });
     if let Some((entry, original)) = entry {

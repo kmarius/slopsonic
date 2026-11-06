@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-pub const LIBREFM_API_KEY: &str = "rufin";
-pub const LIBREFM_API_SECRET: &str = "rufin";
+pub const LIBREFM_API_KEY: &str = "slopsonic";
+pub const LIBREFM_API_SECRET: &str = "slopsonic";
 
 const SECRET_NAMESPACE: &str = "scrobbling";
 
