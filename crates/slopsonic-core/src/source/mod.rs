@@ -1400,7 +1400,7 @@ impl SourceOwner {
         input: SourceSetup,
     ) -> Receiver<Result<SelectedLibrary, String>> {
         let (sender, receiver) = async_channel::bounded(1);
-        if !self.shared.settings.load().sources.configured.is_some() {
+        if self.shared.settings.load().sources.configured.is_some() {
             let _ = sender.try_send(Err("A server is already configured".to_string()));
             return receiver;
         }
@@ -2309,6 +2309,76 @@ mod source_tests {
 
     use super::*;
     use secrets::SecretStore;
+
+    #[tokio::test]
+    async fn adding_the_first_server_connects() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            loop {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                tokio::spawn(async move {
+                    let mut buffer = [0_u8; 4096];
+                    let _ = socket.read(&mut buffer).await;
+                    let body = r#"{"subsonic-response":{"status":"ok","version":"1.16.1","type":"navidrome","user":{"username":"listener"}}}"#;
+                    let _ = socket
+                        .write_all(
+                            format!(
+                                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                                body.len()
+                            )
+                            .as_bytes(),
+                        )
+                        .await;
+                });
+            }
+        });
+        let directory = tempfile::tempdir().unwrap();
+        let database = Arc::new(
+            Database::open(directory.path().join("library.sqlite"))
+                .await
+                .unwrap(),
+        );
+        let runtime = tokio::runtime::Handle::current();
+        let (events, _receiver) = async_channel::unbounded();
+        let owner = SourceOwner::open_dormant(
+            Artwork::new(directory.path().join("artwork"), runtime.clone()).unwrap(),
+            Arc::clone(&database),
+            Downloads::new(
+                artwork::Artwork::new(directory.path().join("downloads/artwork"), runtime.clone())
+                    .unwrap(),
+                directory.path().join("downloads"),
+                database.as_ref().clone(),
+                runtime.clone(),
+                async_channel::unbounded().0,
+                Vec::new(),
+            ),
+            SettingsFile::memory(),
+            Arc::new(secrets::MemorySecretStore::new()),
+            runtime,
+            SourceOutputs { events },
+        );
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(20),
+            owner
+                .configure_source(SourceSetup {
+                    kind: sources::SubsonicFlavor::Navidrome,
+                    authentication: sources::SubsonicAuthentication::Password,
+                    credentials: sources::CredentialInput {
+                        source_name: None,
+                        server_url: format!("http://127.0.0.1:{port}"),
+                        username: "listener".into(),
+                        secret: "pw".into(),
+                        trust_invalid_cert: false,
+                    },
+                })
+                .recv(),
+        )
+        .await;
+        let outcome = result.map(|r| r.map(|r| r.map(|_| ())));
+        assert!(matches!(outcome, Ok(Ok(Ok(())))), "{outcome:?}");
+    }
 
     #[tokio::test]
     async fn acquisition_progress_belongs_to_its_source() {
