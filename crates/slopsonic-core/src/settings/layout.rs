@@ -1,6 +1,5 @@
 use serde::{Deserialize, Deserializer, Serialize};
 
-pub const LIBRARY_LIST_LAYOUT_VERSION: u8 = 17;
 pub const DEFAULT_WINDOW_WIDTH: i32 = 1_500;
 pub const DEFAULT_WINDOW_HEIGHT: i32 = 900;
 pub const MIN_RESTORED_WINDOW_WIDTH: i32 = 450;
@@ -523,8 +522,6 @@ pub struct LibraryListSettings {
     pub detail_track_fields: Vec<LibraryField>,
     pub sort_key: LibraryField,
     pub descending: bool,
-    #[serde(default)]
-    pub layout_version: u8,
 }
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct LibraryListSettingsEntry {
@@ -541,12 +538,10 @@ impl LibraryListSettings {
             detail_track_fields: default_detail_track_fields(),
             sort_key: default_sort_key(key),
             descending: default_descending(key),
-            layout_version: LIBRARY_LIST_LAYOUT_VERSION,
         }
     }
 
     pub fn sanitize(&mut self, key: LibraryListKey) {
-        self.migrate_defaults(key);
         if !key.supports_layout(self.layout) {
             self.layout = key.default_layout();
         }
@@ -566,324 +561,6 @@ impl LibraryListSettings {
         if !available_sort_fields(key).contains(&self.sort_key) {
             self.sort_key = default_sort_key(key);
             self.descending = default_descending(key);
-        }
-        self.layout_version = LIBRARY_LIST_LAYOUT_VERSION;
-    }
-
-    fn migrate_defaults(&mut self, key: LibraryListKey) {
-        if self.layout_version >= LIBRARY_LIST_LAYOUT_VERSION {
-            return;
-        }
-
-        if key == LibraryListKey::Playlists {
-            if self.row_fields
-                == [
-                    LibraryField::Image,
-                    LibraryField::Title,
-                    LibraryField::SongCount,
-                    LibraryField::Duration,
-                ]
-            {
-                self.row_fields = combined_row_fields(key);
-            }
-            if self.grid_fields == [LibraryField::SongCount, LibraryField::Duration] {
-                self.grid_fields = default_grid_fields(key);
-            }
-        }
-
-        if key.supports_layout(LibraryLayout::Detail)
-            && self.layout_version < 5
-            && self
-                .detail_track_fields
-                .iter()
-                .any(|field| !available_detail_track_fields().contains(field))
-        {
-            self.detail_track_fields = default_detail_track_fields();
-        }
-
-        if self.layout_version < 6 {
-            match key {
-                LibraryListKey::Albums | LibraryListKey::ArtistAlbums => {
-                    let previous_default = [
-                        LibraryField::TitleMerged,
-                        LibraryField::Year,
-                        LibraryField::Favorite,
-                    ];
-                    let duplicate_artist_default = [
-                        LibraryField::TitleMerged,
-                        LibraryField::AlbumArtist,
-                        LibraryField::Year,
-                        LibraryField::Favorite,
-                    ];
-                    if self.row_fields == previous_default
-                        || self.row_fields == duplicate_artist_default
-                    {
-                        self.row_fields = combined_row_fields(key);
-                    }
-                }
-                LibraryListKey::ArtistTracks => {
-                    let previous_default = [
-                        LibraryField::RowIndex,
-                        LibraryField::TitleMerged,
-                        LibraryField::Album,
-                        LibraryField::Duration,
-                        LibraryField::Favorite,
-                    ];
-                    if self.row_fields == previous_default {
-                        self.row_fields = combined_row_fields(key);
-                    }
-                }
-                LibraryListKey::Queue
-                | LibraryListKey::FullscreenTracks
-                | LibraryListKey::Artists
-                | LibraryListKey::AlbumArtists
-                | LibraryListKey::Tracks
-                | LibraryListKey::Folders
-                | LibraryListKey::FavoriteTracks
-                | LibraryListKey::History
-                | LibraryListKey::Genres
-                | LibraryListKey::Moods
-                | LibraryListKey::Playlists
-                | LibraryListKey::AlbumDetailTracks
-                | LibraryListKey::GenreTracks
-                | LibraryListKey::MoodTracks
-                | LibraryListKey::PlaylistTracks => {}
-            }
-        }
-
-        if self.layout_version < 7 {
-            match key {
-                LibraryListKey::Albums => {
-                    let previous_default = [
-                        LibraryField::TitleMerged,
-                        LibraryField::PlayCount,
-                        LibraryField::Year,
-                        LibraryField::Favorite,
-                    ];
-                    if self.layout == LibraryLayout::Row && self.row_fields == previous_default {
-                        self.layout = key.default_layout();
-                    }
-                }
-                LibraryListKey::FavoriteTracks | LibraryListKey::ArtistTracks => {
-                    let previous_default = [
-                        LibraryField::TitleMerged,
-                        LibraryField::Album,
-                        LibraryField::Year,
-                        LibraryField::Favorite,
-                    ];
-                    if self.row_fields == previous_default {
-                        self.row_fields = combined_row_fields(key);
-                    }
-                }
-                LibraryListKey::Queue
-                | LibraryListKey::FullscreenTracks
-                | LibraryListKey::Artists
-                | LibraryListKey::AlbumArtists
-                | LibraryListKey::Tracks
-                | LibraryListKey::Folders
-                | LibraryListKey::History
-                | LibraryListKey::Genres
-                | LibraryListKey::Moods
-                | LibraryListKey::Playlists
-                | LibraryListKey::AlbumDetailTracks
-                | LibraryListKey::ArtistAlbums
-                | LibraryListKey::GenreTracks
-                | LibraryListKey::MoodTracks
-                | LibraryListKey::PlaylistTracks => {}
-            }
-        }
-
-        if self.layout_version < 8 {
-            let defaults = combined_row_fields(key);
-            let standard_track_default = matches!(
-                key,
-                LibraryListKey::Tracks
-                    | LibraryListKey::FavoriteTracks
-                    | LibraryListKey::ArtistTracks
-            ) && self.row_fields == defaults[1..];
-            let album_detail_default = key == LibraryListKey::AlbumDetailTracks
-                && self.row_fields
-                    == [
-                        LibraryField::TrackNumber,
-                        LibraryField::Title,
-                        LibraryField::Duration,
-                    ];
-            if standard_track_default || album_detail_default {
-                self.row_fields = defaults;
-            }
-
-            if self.detail_track_fields
-                == [
-                    LibraryField::TrackNumber,
-                    LibraryField::Title,
-                    LibraryField::Duration,
-                ]
-            {
-                self.detail_track_fields = default_detail_track_fields();
-            }
-        }
-
-        if self.layout_version < 9 && key == LibraryListKey::History {
-            if self.row_fields
-                == [
-                    LibraryField::RowIndex,
-                    LibraryField::TitleMerged,
-                    LibraryField::Album,
-                    LibraryField::Duration,
-                    LibraryField::Favorite,
-                ]
-            {
-                self.row_fields = combined_row_fields(key);
-            }
-            if self.grid_fields
-                == [
-                    LibraryField::Artist,
-                    LibraryField::Album,
-                    LibraryField::Duration,
-                ]
-            {
-                self.grid_fields = default_grid_fields(key);
-            }
-        }
-        if self.layout_version < 10 {
-            for fields in [&mut self.row_fields, &mut self.detail_track_fields] {
-                for field in fields.iter_mut() {
-                    if *field == LibraryField::Favorite {
-                        *field = LibraryField::Tools;
-                    }
-                }
-                if matches!(
-                    key,
-                    LibraryListKey::Queue | LibraryListKey::FullscreenTracks
-                ) {
-                    fields.retain(|field| *field != LibraryField::Tools);
-                } else if !fields.contains(&LibraryField::Tools) {
-                    fields.push(LibraryField::Tools);
-                }
-            }
-        }
-        if self.layout_version < 11
-            && key == LibraryListKey::ArtistTracks
-            && self.row_fields
-                == [
-                    LibraryField::RowIndex,
-                    LibraryField::TitleMerged,
-                    LibraryField::Album,
-                    LibraryField::Year,
-                    LibraryField::PlayCount,
-                    LibraryField::Tools,
-                ]
-        {
-            self.row_fields = combined_row_fields(key);
-        }
-        if self.layout_version < 12
-            && matches!(
-                key,
-                LibraryListKey::Albums
-                    | LibraryListKey::ArtistAlbums
-                    | LibraryListKey::Artists
-                    | LibraryListKey::AlbumArtists
-                    | LibraryListKey::Genres
-                    | LibraryListKey::Moods
-                    | LibraryListKey::Playlists
-            )
-        {
-            let defaults = combined_row_fields(key);
-            if self.row_fields == defaults[1..] {
-                self.row_fields = defaults;
-            }
-        }
-        if self.layout_version < 13
-            && key == LibraryListKey::History
-            && self.row_fields
-                == [
-                    LibraryField::RowIndex,
-                    LibraryField::TitleMerged,
-                    LibraryField::Album,
-                    LibraryField::LastPlayed,
-                    LibraryField::Tools,
-                ]
-        {
-            self.row_fields = combined_row_fields(key);
-        }
-        if self.layout_version < 14
-            && key == LibraryListKey::FavoriteTracks
-            && self.row_fields
-                == [
-                    LibraryField::RowIndex,
-                    LibraryField::TitleMerged,
-                    LibraryField::Album,
-                    LibraryField::Year,
-                    LibraryField::PlayCount,
-                    LibraryField::Tools,
-                ]
-        {
-            self.row_fields = combined_row_fields(key);
-        }
-        if self.layout_version < 15 {
-            let removed = match key {
-                LibraryListKey::Albums | LibraryListKey::ArtistAlbums => {
-                    Some((2, LibraryField::PlayCount))
-                }
-                LibraryListKey::Artists | LibraryListKey::AlbumArtists => {
-                    Some((3, LibraryField::AlbumCount))
-                }
-                LibraryListKey::Genres => Some((2, LibraryField::AlbumCount)),
-                LibraryListKey::Moods => Some((3, LibraryField::Duration)),
-                LibraryListKey::Playlists => Some((3, LibraryField::SongCount)),
-                LibraryListKey::Tracks
-                | LibraryListKey::Folders
-                | LibraryListKey::FavoriteTracks => Some((3, LibraryField::Year)),
-                LibraryListKey::GenreTracks
-                | LibraryListKey::MoodTracks
-                | LibraryListKey::PlaylistTracks => Some((3, LibraryField::Duration)),
-                _ => None,
-            };
-            if let Some((index, field)) = removed {
-                let defaults = combined_row_fields(key);
-                let mut previous = defaults.clone();
-                previous.insert(index, field);
-                if self.row_fields == previous
-                    || (self.layout_version < 12
-                        && matches!(
-                            key,
-                            LibraryListKey::Albums
-                                | LibraryListKey::ArtistAlbums
-                                | LibraryListKey::Artists
-                                | LibraryListKey::AlbumArtists
-                                | LibraryListKey::Genres
-                                | LibraryListKey::Moods
-                                | LibraryListKey::Playlists
-                        )
-                        && self.row_fields == previous[1..])
-                {
-                    self.row_fields = defaults;
-                }
-            }
-        }
-        if self.layout_version < 16
-            && key == LibraryListKey::Albums
-            && self.detail_track_fields
-                == [
-                    LibraryField::RowIndex,
-                    LibraryField::Title,
-                    LibraryField::Duration,
-                    LibraryField::Tools,
-                ]
-        {
-            self.detail_track_fields = default_detail_track_fields();
-        }
-        if self.layout_version < 17 {
-            for fields in [&mut self.row_fields, &mut self.detail_track_fields] {
-                if available_row_fields(key).contains(&LibraryField::Favorite)
-                    && !fields.contains(&LibraryField::Favorite)
-                    && let Some(position) = fields
-                        .iter()
-                        .position(|field| *field == LibraryField::Tools)
-                {
-                    fields.insert(position, LibraryField::Favorite);
-                }
-            }
         }
     }
 }
@@ -1383,52 +1060,9 @@ mod disc_tests {
     }
 
     #[test]
-    fn history_migrates_album_column_out_of_defaults() {
-        let mut settings = LibraryListSettings::for_key(LibraryListKey::History);
-        settings.row_fields = vec![
-            LibraryField::RowIndex,
-            LibraryField::TitleMerged,
-            LibraryField::Album,
-            LibraryField::LastPlayed,
-            LibraryField::Tools,
-        ];
-        settings.layout_version = 12;
-        settings.sanitize(LibraryListKey::History);
-        assert_eq!(
-            settings.row_fields,
-            [
-                LibraryField::RowIndex,
-                LibraryField::TitleMerged,
-                LibraryField::LastPlayed,
-                LibraryField::Favorite,
-                LibraryField::Tools,
-            ]
-        );
-    }
-
-    #[test]
     fn favorite_tracks_row_fields_match_tracks_route_defaults() {
         assert_eq!(
             default_row_fields(LibraryListKey::FavoriteTracks),
-            default_row_fields(LibraryListKey::Tracks)
-        );
-    }
-
-    #[test]
-    fn favorite_tracks_migrates_play_count_column_out_of_defaults() {
-        let mut settings = LibraryListSettings::for_key(LibraryListKey::FavoriteTracks);
-        settings.row_fields = vec![
-            LibraryField::RowIndex,
-            LibraryField::TitleMerged,
-            LibraryField::Album,
-            LibraryField::Year,
-            LibraryField::PlayCount,
-            LibraryField::Tools,
-        ];
-        settings.layout_version = 13;
-        settings.sanitize(LibraryListKey::FavoriteTracks);
-        assert_eq!(
-            settings.row_fields,
             default_row_fields(LibraryListKey::Tracks)
         );
     }

@@ -83,21 +83,6 @@ impl StorageResetRequest {
         } else {
             let mut keys = vec![super::settings_encryption_key()];
             keys.extend(
-                stored
-                    .sources
-                    .connections()
-                    .filter_map(|source| source.credential.as_ref())
-                    .filter(|credential| matches!(credential, super::Credential::Legacy(_)))
-                    .map(super::provider_secret_key),
-            );
-            keys.extend(
-                stored
-                    .scrobbling_credentials
-                    .values()
-                    .filter(|credential| matches!(credential, super::Credential::Legacy(_)))
-                    .map(super::provider_secret_key),
-            );
-            keys.extend(
                 scrobbling::secret_descriptors()
                     .iter()
                     .copied()
@@ -127,7 +112,6 @@ fn retained_connections(previous: StoredSettings) -> StoredSettings {
     let mut next = StoredSettings {
         sources: previous.sources,
         scrobbling: previous.scrobbling,
-        scrobbling_secrets_present: previous.scrobbling_secrets_present,
         scrobbling_credentials: previous.scrobbling_credentials,
         secret_scope_id: previous.secret_scope_id,
         ..StoredSettings::default()

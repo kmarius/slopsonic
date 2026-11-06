@@ -519,11 +519,7 @@ impl SourceOwner {
             .clear();
     }
 
-    async fn remove_source_resources(
-        &self,
-        source_id: &SourceId,
-        credential: Option<crate::settings::Credential>,
-    ) {
+    async fn remove_source_resources(&self, source_id: &SourceId) {
         self.shared
             .clients
             .lock()
@@ -537,29 +533,6 @@ impl SourceOwner {
         self.shared.downloads.clear(source_id.clone(), false);
         if let Err(error) = self.shared.artwork.invalidate_source(source_id) {
             self.shared.warn_nonfatal(&error.to_string());
-        }
-        if let Some(reference) = credential
-            && !self
-                .shared
-                .settings
-                .load()
-                .sources
-                .configured
-                .iter()
-                .any(|source| {
-                    &source.configuration.source_id != source_id
-                        && source.credential.as_ref() == Some(&reference)
-                })
-        {
-            if let crate::settings::Credential::Legacy(reference) = reference {
-                let secrets = Arc::clone(&self.shared.secrets);
-                self.shared.runtime.spawn_blocking(move || {
-                    let _ = secrets::SecretStore::delete_secret(
-                        secrets.as_ref(),
-                        &secrets::SecretKey::provider_token(&reference),
-                    );
-                });
-            }
         }
     }
 
@@ -1592,13 +1565,6 @@ impl SourceOwner {
         }
         let (sender, receiver) = async_channel::bounded(1);
         self.spawn_serialized(move |owner| async move {
-            let stored = owner.shared.settings.load();
-            let configured = stored
-                .sources
-                .configured
-                .iter()
-                .find(|item| item.configuration.source_id == source_id)
-                .cloned();
             let selected = owner
                 .shared
                 .selected()
@@ -1648,9 +1614,7 @@ impl SourceOwner {
                 let _ = sender.try_send(Err(error));
                 return;
             }
-            owner
-                .remove_source_resources(&source_id, configured.and_then(|item| item.credential))
-                .await;
+            owner.remove_source_resources(&source_id).await;
             owner
                 .shared
                 .send(SourceEvent::Configured(owner.shared.source_status(None)))
@@ -2683,20 +2647,28 @@ mod source_tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn cached_selection_is_published_while_credentials_are_held() {
         struct HeldSecrets {
+            inner: secrets::MemorySecretStore,
             started: Sender<()>,
             release: Mutex<std::sync::mpsc::Receiver<()>>,
         }
         impl SecretStore for HeldSecrets {
-            fn load_secret(&self, _: &secrets::SecretKey) -> secrets::SecretResult<Option<String>> {
+            fn load_secret(
+                &self,
+                key: &secrets::SecretKey,
+            ) -> secrets::SecretResult<Option<String>> {
                 let _ = self.started.try_send(());
                 let _ = self.release.lock().unwrap().recv();
-                Ok(Some("salt:token".into()))
+                self.inner.load_secret(key)
             }
-            fn save_secret(&self, _: &secrets::SecretKey, _: &str) -> secrets::SecretResult<()> {
-                Ok(())
+            fn save_secret(
+                &self,
+                key: &secrets::SecretKey,
+                secret: &str,
+            ) -> secrets::SecretResult<()> {
+                self.inner.save_secret(key, secret)
             }
-            fn delete_secret(&self, _: &secrets::SecretKey) -> secrets::SecretResult<()> {
-                Ok(())
+            fn delete_secret(&self, key: &secrets::SecretKey) -> secrets::SecretResult<()> {
+                self.inner.delete_secret(key)
             }
         }
         {
@@ -2706,6 +2678,9 @@ mod source_tests {
                     .await
                     .unwrap(),
             );
+            let held_inner = secrets::MemorySecretStore::new();
+            let held_credential =
+                crate::settings::seal_credential(&held_inner, "salt:token").unwrap();
             let source_id = SourceId::new("held-credential-source");
             database
                 .reconcile_source(&source_id, "subsonic", "Music")
@@ -2763,7 +2738,7 @@ mod source_tests {
                     name: "Music".into(),
                     provider_payload: serde_json::json!({ "version": 1, "base_url": "http://127.0.0.1:9", "username": "listener", "trust_invalid_cert": false }).to_string(),
                 },
-                credential: Some(crate::settings::Credential::new("held")),
+                credential: Some(held_credential),
                 music_folder_id: None,
             });
             Ok(())
@@ -2772,6 +2747,7 @@ mod source_tests {
             let (started, started_receiver) = async_channel::bounded(1);
             let (release, release_receiver) = std::sync::mpsc::channel();
             let secrets: Arc<dyn SecretStore> = Arc::new(HeldSecrets {
+                inner: held_inner,
                 started,
                 release: Mutex::new(release_receiver),
             });
