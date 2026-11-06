@@ -188,7 +188,7 @@ fn source_downloads_group(
             .map(|directory| {
                 directory
                     .native()
-                    .map(desktop_integration::display_path)
+                    .map(|path| path.to_string_lossy().into_owned())
                     .unwrap_or_else(|| directory.to_string())
             })
             .unwrap_or_else(|| String::from(DEFAULT_DOWNLOAD_DIRECTORY_SUBTITLE)),
@@ -241,7 +241,7 @@ fn source_downloads_group(
                 .is_some()
             {
                 if let Some(row) = row.upgrade() {
-                    row.set_subtitle(&desktop_integration::display_path(&path));
+                    row.set_subtitle(&path.to_string_lossy());
                 }
                 if let Some(reset) = reset.upgrade() {
                     reset.set_visible(true);
@@ -774,7 +774,10 @@ fn add_download_queue(
                 "Continue".to_string(),
             )
         } else {
-            ("slopsonic-media-playback-pause-symbolic", "Pause".to_string())
+            (
+                "slopsonic-media-playback-pause-symbolic",
+                "Pause".to_string(),
+            )
         };
         pause.set_icon_name(icon);
         pause.set_tooltip_text(Some(&label));
