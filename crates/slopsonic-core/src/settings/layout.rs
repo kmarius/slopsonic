@@ -145,16 +145,6 @@ impl StoredRightSidebarMode {
             RightSidebarMode::Visible
         }
     }
-
-    fn preferred_width(self) -> Option<i32> {
-        match self {
-            Self::Hidden => None,
-            Self::Compact => Some(250),
-            Self::Default => Some(300),
-            Self::Comfortable => Some(400),
-            Self::Spacious => Some(500),
-        }
-    }
 }
 
 impl<'de> Deserialize<'de> for StoredRightSidebarMode {
@@ -180,8 +170,6 @@ struct StoredLayoutProfile {
     left_sidebar: LeftSidebarMode,
     #[serde(default)]
     right_sidebar: StoredRightSidebarMode,
-    #[serde(default)]
-    last_visible_right_sidebar: StoredRightSidebarMode,
 }
 
 impl Default for StoredLayoutProfile {
@@ -189,7 +177,6 @@ impl Default for StoredLayoutProfile {
         Self {
             left_sidebar: LeftSidebarMode::Full,
             right_sidebar: StoredRightSidebarMode::Default,
-            last_visible_right_sidebar: StoredRightSidebarMode::Default,
         }
     }
 }
@@ -223,17 +210,6 @@ impl<'de> Deserialize<'de> for LayoutSettings {
         D: Deserializer<'de>,
     {
         let stored = StoredLayoutSettings::deserialize(deserializer)?;
-        let legacy_right_width = stored
-            .default_profile
-            .right_sidebar
-            .preferred_width()
-            .or_else(|| {
-                stored
-                    .default_profile
-                    .last_visible_right_sidebar
-                    .preferred_width()
-            })
-            .unwrap_or(DEFAULT_RIGHT_SIDEBAR_WIDTH);
         let mut settings = Self {
             default_profile: LayoutProfile::new(
                 stored.default_profile.left_sidebar,
@@ -250,7 +226,7 @@ impl<'de> Deserialize<'de> for LayoutSettings {
                 .unwrap_or(DEFAULT_LEFT_SIDEBAR_WIDTH),
             preferred_right_sidebar_width: stored
                 .preferred_right_sidebar_width
-                .unwrap_or(legacy_right_width),
+                .unwrap_or(DEFAULT_RIGHT_SIDEBAR_WIDTH),
         };
         settings.sanitize();
         Ok(settings)

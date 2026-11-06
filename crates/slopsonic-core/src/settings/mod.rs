@@ -120,9 +120,6 @@ impl Default for StoredSettings {
 
 impl StoredSettings {
     pub(crate) fn migrate_defaults(&mut self) {
-        if self.ui.lastfm_api_key.trim().is_empty() && !self.scrobbling.lastfm.api_key.is_empty() {
-            self.ui.lastfm_api_key = self.scrobbling.lastfm.api_key.clone();
-        }
         self.scrobbling.lastfm.api_key.clear();
         self.scrobbling.sanitize();
         app::migrate_library_lists(&mut self.ui.library_lists);

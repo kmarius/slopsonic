@@ -36,12 +36,6 @@ impl SecretKey {
         }
     }
 
-    pub fn provider_token(source_namespace: &str) -> Self {
-        Self {
-            config_key: format!("provider-token:{source_namespace}"),
-        }
-    }
-
     fn config_key(&self) -> &str {
         &self.config_key
     }
@@ -62,18 +56,6 @@ pub trait SecretStore: Send + Sync {
     /// Whether successful writes survive the end of this process.
     fn is_persistent(&self) -> bool {
         true
-    }
-
-    fn save_token(&self, source_namespace: &str, token: &str) -> SecretResult<()> {
-        self.save_secret(&SecretKey::provider_token(source_namespace), token)
-    }
-
-    fn load_token(&self, source_namespace: &str) -> SecretResult<Option<String>> {
-        self.load_secret(&SecretKey::provider_token(source_namespace))
-    }
-
-    fn delete_token(&self, source_namespace: &str) -> SecretResult<()> {
-        self.delete_secret(&SecretKey::provider_token(source_namespace))
     }
 }
 
@@ -294,6 +276,10 @@ mod tests {
 
     const SOURCE: &str = "source-1";
 
+    fn token_key() -> SecretKey {
+        SecretKey::namespaced(SOURCE, "token")
+    }
+
     fn example_session_key() -> SecretKey {
         SecretKey::namespaced("example", "session")
     }
@@ -306,13 +292,15 @@ mod tests {
     fn memory_token_roundtrip() {
         let store = MemorySecretStore::new();
 
-        store.save_token(SOURCE, "token").expect("save token");
+        store
+            .save_secret(&token_key(), "token")
+            .expect("save token");
         assert_eq!(
-            store.load_token(SOURCE).expect("load token"),
+            store.load_secret(&token_key()).expect("load token"),
             Some("token".to_string())
         );
-        store.delete_token(SOURCE).expect("delete token");
-        assert_eq!(store.load_token(SOURCE).expect("load token"), None);
+        store.delete_secret(&token_key()).expect("delete token");
+        assert_eq!(store.load_secret(&token_key()).expect("load token"), None);
     }
 
     #[test]
@@ -320,14 +308,16 @@ mod tests {
         let store = MemorySecretStore::new();
 
         store
-            .save_token(SOURCE, "provider-token")
+            .save_secret(&token_key(), "provider-token")
             .expect("save provider token");
         store
             .save_secret(&example_session_key(), "example-session")
             .expect("save namespaced session");
 
         assert_eq!(
-            store.load_token(SOURCE).expect("load provider token"),
+            store
+                .load_secret(&token_key())
+                .expect("load provider token"),
             Some("provider-token".to_string())
         );
         assert_eq!(
@@ -351,14 +341,16 @@ mod tests {
         let store = ConfigSecretStore::new(path.clone());
 
         store
-            .save_token(SOURCE, "provider-secret-value")
+            .save_secret(&token_key(), "provider-secret-value")
             .expect("save provider token");
         store
             .save_secret(&example_session_key(), "namespaced-secret-value")
             .expect("save namespaced secret");
 
         assert_eq!(
-            store.load_token(SOURCE).expect("load provider token"),
+            store
+                .load_secret(&token_key())
+                .expect("load provider token"),
             Some("provider-secret-value".to_string())
         );
         assert_eq!(
@@ -373,7 +365,7 @@ mod tests {
         assert!(!raw.contains("namespaced-secret-value"));
         let file: serde_json::Value = serde_json::from_str(&raw).expect("config secret json");
         let stored = file["secrets"].as_object().expect("stored secrets");
-        assert!(stored.contains_key("provider-token:source-1"));
+        assert!(stored.contains_key("source-1:token"));
         assert!(stored.contains_key("example:session"));
 
         {
@@ -394,12 +386,12 @@ mod tests {
         let path = dir.path().join("secrets.json");
 
         ConfigSecretStore::new(path.clone())
-            .save_token(SOURCE, "legacy-token")
+            .save_secret(&token_key(), "legacy-token")
             .expect("save legacy token");
 
         assert_eq!(
             ConfigSecretStore::with_scope(path, "")
-                .load_token(SOURCE)
+                .load_secret(&token_key())
                 .expect("load legacy token"),
             Some("legacy-token".to_string())
         );
@@ -411,21 +403,21 @@ mod tests {
         let path = dir.path().join("secrets.json");
 
         ConfigSecretStore::new(path.clone())
-            .save_token(SOURCE, "legacy-token")
+            .save_secret(&token_key(), "legacy-token")
             .expect("save legacy token");
         ConfigSecretStore::with_scope(path.clone(), "new-scope")
-            .save_token(SOURCE, "scoped-token")
+            .save_secret(&token_key(), "scoped-token")
             .expect("save scoped token");
 
         assert_eq!(
             ConfigSecretStore::new(path.clone())
-                .load_token(SOURCE)
+                .load_secret(&token_key())
                 .expect("load legacy token"),
             Some("legacy-token".to_string())
         );
         assert_eq!(
             ConfigSecretStore::with_scope(path, "other-scope")
-                .load_token(SOURCE)
+                .load_secret(&token_key())
                 .expect("load other scope token"),
             None
         );
@@ -477,17 +469,19 @@ mod tests {
     fn cached_token_reuse() {
         let inner = Arc::new(CountingSecretStore::default());
         inner
-            .save_token(SOURCE, "provider-token")
+            .save_secret(&token_key(), "provider-token")
             .expect("seed provider token");
         let store = CachedSecretStore::new(Arc::<CountingSecretStore>::clone(&inner));
 
         assert_eq!(
-            store.load_token(SOURCE).expect("load provider token"),
+            store
+                .load_secret(&token_key())
+                .expect("load provider token"),
             Some("provider-token".to_string())
         );
         assert_eq!(
             store
-                .load_token(SOURCE)
+                .load_secret(&token_key())
                 .expect("load cached provider token"),
             Some("provider-token".to_string())
         );
@@ -500,16 +494,23 @@ mod tests {
         let store = CachedSecretStore::new(Arc::<CountingSecretStore>::clone(&inner));
 
         store
-            .save_token(SOURCE, "first-token")
+            .save_secret(&token_key(), "first-token")
             .expect("save provider token");
         assert_eq!(
-            store.load_token(SOURCE).expect("load provider token"),
+            store
+                .load_secret(&token_key())
+                .expect("load provider token"),
             Some("first-token".to_string())
         );
         assert_eq!(inner.load_count(), 0);
 
-        store.delete_token(SOURCE).expect("delete provider token");
-        assert_eq!(store.load_token(SOURCE).expect("load after delete"), None);
+        store
+            .delete_secret(&token_key())
+            .expect("delete provider token");
+        assert_eq!(
+            store.load_secret(&token_key()).expect("load after delete"),
+            None
+        );
         assert_eq!(inner.load_count(), 0);
     }
 }
