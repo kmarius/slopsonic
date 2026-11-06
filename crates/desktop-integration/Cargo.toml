@@ -14,7 +14,6 @@ publish.workspace = true
 app-identity.workspace = true
 gio.workspace = true
 glib = { workspace = true, features = ["v2_66"] }
-library.workspace = true
 blake3.workspace = true
 playback.workspace = true
 slopsonic-core.workspace = true
@@ -23,6 +22,9 @@ url.workspace = true
 
 [dependencies.mpris-server]
 workspace = true
+
+[dev-dependencies]
+library.workspace = true
 
 [lints]
 workspace = true

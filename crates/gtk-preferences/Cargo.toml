@@ -11,7 +11,6 @@ readme.workspace = true
 publish.workspace = true
 
 [dependencies]
-desktop-integration.workspace = true
 gtk-player.workspace = true
 gtk-widgets.workspace = true
 slopsonic-core.workspace = true

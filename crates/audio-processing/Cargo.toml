@@ -14,7 +14,6 @@ publish.workspace = true
 serde.workspace = true
 gstreamer-controller = { workspace = true, features = ["v1_26"] }
 url.workspace = true
-ebur128.workspace = true
 library.workspace = true
 gstreamer = { workspace = true, features = ["v1_26"] }
 gstreamer-app = { workspace = true, features = ["v1_26"] }

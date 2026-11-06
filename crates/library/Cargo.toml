@@ -12,7 +12,6 @@ publish.workspace = true
 autotests = false
 
 [dependencies]
-chrono.workspace = true
 tempfile.workspace = true
 futures-util.workspace = true
 blake3.workspace = true
