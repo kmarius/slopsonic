@@ -1,4 +1,4 @@
-//! Rufin application composition and concrete product operations.
+//! Slopsonic application composition and concrete product operations.
 pub mod app;
 pub mod browse;
 pub mod detail_links;

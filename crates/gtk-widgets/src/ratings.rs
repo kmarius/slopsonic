@@ -142,9 +142,9 @@ fn set_rating_icons(stars: &[gtk::Image; 5], rating: u8) {
             star.add_css_class("rated");
         }
         star.set_icon_name(Some(match value {
-            0 => "rufin-non-starred-symbolic",
-            1 => "rufin-semi-starred-symbolic",
-            _ => "rufin-starred-symbolic",
+            0 => "slopsonic-non-starred-symbolic",
+            1 => "slopsonic-semi-starred-symbolic",
+            _ => "slopsonic-starred-symbolic",
         }));
     }
 }

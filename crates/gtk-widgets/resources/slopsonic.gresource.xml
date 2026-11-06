@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/io/github/kmarius/Slopsonic/icons">
+    <file>hicolor/512x512/apps/io.github.kmarius.slopsonic.png</file>
+    <file>hicolor/64x64/apps/io.github.kmarius.slopsonic.external.lastfm.png</file>
+    <file>hicolor/64x64/apps/io.github.kmarius.slopsonic.external.musicbrainz.png</file>
+    <file>hicolor/64x64/apps/io.github.kmarius.slopsonic.source.navidrome.png</file>
+    <file>hicolor/64x64/apps/io.github.kmarius.slopsonic.source.opensubsonic.png</file>
+    <file>hicolor/scalable/actions/slopsonic-shuffle-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-keyboard-enter-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-repeat-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-repeat-one-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-auto-dj-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-random-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-go-last-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-mail-forward-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-media-skip-backward-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-media-skip-forward-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-audio-only-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-heart-filled-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-heart-outline-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-list-drag-handle-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-reorder-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-more-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-player-more-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-album-artists-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-albums-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-artists-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-folders-selected-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-folders-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-tag-outline-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-history-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-home-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-moods-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-playlists-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-search-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-tracks-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-library-music-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-music-queue-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-sidebar-hide-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-sort-name-descending-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-sort-name-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-view-list-details-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-view-grid-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-view-list-ordered-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-view-list-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-external-link-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-external-link-compact-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-appointment-new-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-image-x-generic-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-dialog-information-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-pan-down-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-preferences-desktop-appearance-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-applications-system-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-application-exit-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-audio-volume-high-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-audio-volume-low-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-audio-volume-medium-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-audio-volume-muted-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-audio-x-generic-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-document-edit-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-document-save-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-drive-harddisk-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-edit-clear-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-document-open-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-document-send-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-download-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-edit-undo-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-edit-copy-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-folder-download-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-folder-music-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-folder-new-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-go-down-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-go-next-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-go-previous-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-go-up-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-help-about-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-list-add-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-list-remove-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-media-playback-pause-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-media-playback-start-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-network-server-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-network-hotspot-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-network-workgroup-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-queue-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-view-pin-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-filter-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-library-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-speaker-front-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-non-starred-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-object-select-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-open-menu-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-preferences-desktop-keyboard-shortcuts-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-preferences-system-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-preferences-system-time-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-process-stop-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-playlists-compact-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-sidebar-collapse-right-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-sidebar-expand-right-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-sidebar-show-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-semi-starred-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-starred-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-system-lock-screen-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-user-trash-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-utilities-terminal-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-value-decrease-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-video-display-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-view-fullscreen-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-view-more-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-view-refresh-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-window-close-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-x-office-calendar-symbolic.svg</file>
+    <file>hicolor/scalable/apps/io.github.kmarius.slopsonic.svg</file>
+    <file>hicolor/symbolic/apps/io.github.kmarius.slopsonic-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-sliders-vertical-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-spring-graph-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-sound-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-text-center-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-text-justify-center-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-view-switch-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-compass-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-sliders-2-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-view-restore-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-view-restore-corners-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-view-fullscreen-corners-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-toggle-group-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-mixer-sliders-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-view-dual-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-pane-left-focus-symbolic.svg</file>
+    <file>hicolor/scalable/actions/slopsonic-pane-right-focus-symbolic.svg</file>
+  </gresource>
+  <gresource prefix="/io/github/kmarius/Slopsonic/ui">
+    <file compressed="true">preferences/display.ui</file>
+    <file compressed="true">routes/text_slide.ui</file>
+    <file compressed="true">routes/play_menu.ui</file>
+    <file compressed="true">preferences/source/manage_server.ui</file>
+    <file compressed="true">routes/recycled_artwork_cell.ui</file>
+    <file compressed="true">routes/recycled_badged_text_cell.ui</file>
+    <file compressed="true">routes/recycled_folder_cell.ui</file>
+    <file compressed="true">routes/recycled_merged_cell.ui</file>
+    <file compressed="true">routes/recycled_text_cell.ui</file>
+    <file compressed="true">routes/track_row_index.ui</file>
+    <file compressed="true">routes/row_actions.ui</file>
+    <file compressed="true">routes/column_view_header.ui</file>
+    <file compressed="true">routes/column_view_header_cell.ui</file>
+    <file compressed="true">routes/table_frame.ui</file>
+    <file compressed="true">preferences/dialogs/playlist_name.ui</file>
+    <file compressed="true">preferences/dialogs/playlist_delete.ui</file>
+  </gresource>
+</gresources>

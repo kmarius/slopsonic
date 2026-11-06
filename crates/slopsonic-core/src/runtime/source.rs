@@ -1,6 +1,6 @@
 //! User intent and presentation for configured music sources.
 //!
-//! Provider configuration and lifecycle policy stay in Rufin and Sources. UI
+//! Provider configuration and lifecycle policy stay in Slopsonic and Sources. UI
 //! sees only form values, settings-derived summaries, and one operation state.
 
 use std::sync::Arc;

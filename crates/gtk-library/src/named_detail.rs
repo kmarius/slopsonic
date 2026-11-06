@@ -1,4 +1,4 @@
-use rufin_core::browse::{DetailContent, DetailPage, DetailSummary};
+use slopsonic_core::browse::{DetailContent, DetailPage, DetailSummary};
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
@@ -7,8 +7,8 @@ use std::{
 use adw::prelude::*;
 use artwork::ArtworkBinding;
 use library::{GenreKey, GenreView, MoodKey, MoodView, RadioSeed, ReadCancellation};
-use rufin_core::playback::RadioPlayRequest;
-use rufin_core::text::track_count_text;
+use slopsonic_core::playback::RadioPlayRequest;
+use slopsonic_core::text::track_count_text;
 
 use crate::CatalogUi;
 use crate::LibraryListKey;
@@ -309,12 +309,12 @@ fn named_kind_controls(shell: &Rc<CatalogUi>, id: NamedDetailId) -> Vec<gtk::Wid
 
 fn named_summary_items(summary: &NamedDetailSummary) -> Vec<(&'static str, String)> {
     let mut items = vec![(
-        "rufin-tracks-symbolic",
+        "slopsonic-tracks-symbolic",
         track_count_text(summary.track_count().max(0) as u64),
     )];
     if summary.duration_millis() > 0 {
         items.push((
-            "rufin-preferences-system-time-symbolic",
+            "slopsonic-preferences-system-time-symbolic",
             format_duration_units(
                 (summary.duration_millis() / 1_000)
                     .try_into()

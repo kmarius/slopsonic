@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use adw::prelude::*;
-use rufin_core::runtime::source::{SourceOperation, SourceProgressStage, source_download_text};
-use rufin_core::runtime::{CacheKind, CacheUsage, ProductHandles, StorageSummary};
+use slopsonic_core::runtime::source::{SourceOperation, SourceProgressStage, source_download_text};
+use slopsonic_core::runtime::{CacheKind, CacheUsage, ProductHandles, StorageSummary};
 
 use crate::Preferences;
 
@@ -92,12 +92,12 @@ pub(super) fn page(
     for (button, kind, confirmation) in [
         (
             clear_all_cache,
-            rufin_core::settings::StorageReset::KeepCredentials,
+            slopsonic_core::settings::StorageReset::KeepCredentials,
             "clear_cache_confirmation",
         ),
         (
             clear_all_data,
-            rufin_core::settings::StorageReset::AllData,
+            slopsonic_core::settings::StorageReset::AllData,
             "clear_data_confirmation",
         ),
     ] {
@@ -277,7 +277,7 @@ impl CacheRow {
         if let Some(count) = self.count.upgrade() {
             let text = usage
                 .map(|usage| {
-                    rufin_core::text::fill_plural(
+                    slopsonic_core::text::fill_plural(
                         "{count} entry",
                         "{count} entries",
                         usage.entries,

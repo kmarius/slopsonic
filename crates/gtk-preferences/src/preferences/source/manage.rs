@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use gtk::{gio, glib};
-use rufin_core::runtime::source::SourceSummary;
+use slopsonic_core::runtime::source::SourceSummary;
 
 use sources::SourceId;
 

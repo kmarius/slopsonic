@@ -6,7 +6,7 @@ use playback::{CurrentMediaId, PlaybackView};
 
 use gtk_widgets::detail_links::{DetailLinks, track_artist_links};
 use gtk_widgets::route::Route;
-use rufin_core::settings::presentation::now_playing_labels;
+use slopsonic_core::settings::presentation::now_playing_labels;
 
 #[derive(Default)]
 pub struct PlaybackState {

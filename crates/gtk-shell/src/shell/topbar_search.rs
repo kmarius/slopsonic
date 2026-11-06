@@ -5,7 +5,7 @@ use adw::prelude::*;
 use gtk::{gdk, glib, subclass::prelude::ObjectSubclassIsExt};
 use gtk_widgets::artwork::ArtworkTile;
 use gtk_widgets::route::{CollectionCategory, Route};
-use rufin_core::settings::app::{RecentSearchKind, RecentSearchResult};
+use slopsonic_core::settings::app::{RecentSearchKind, RecentSearchResult};
 
 use super::Shell;
 
@@ -14,8 +14,8 @@ const SEARCH_COVER_SIZE: i32 = 48;
 gtk_widgets::composite_box!(
     pub SearchPreviewRow,
     search_preview_row_imp,
-    "RufinSearchPreviewRow",
-    "/io/github/screwys/Rufin/ui/shell/search_row.ui",
+    "SlopsonicSearchPreviewRow",
+    "/io/github/kmarius/Slopsonic/ui/shell/search_row.ui",
     { cover_host: gtk::Box, title_row: gtk::Box, title: gtk::Label, subtitle: gtk::Label, separator: gtk::Label, kind: gtk::Stack, remove: gtk::Button, play: gtk::Button, menu: gtk::Button }
 );
 
@@ -57,9 +57,9 @@ impl PreviewRow {
         gtk_widgets::recycled_cells::set_track_playing(self.row.upcast_ref(), current, paused);
         let playing = current && !paused;
         imp.play.set_icon_name(if playing {
-            "rufin-media-playback-pause-symbolic"
+            "slopsonic-media-playback-pause-symbolic"
         } else {
-            "rufin-media-playback-start-symbolic"
+            "slopsonic-media-playback-start-symbolic"
         });
         (*imp.play).set_tooltip_text(Some(if playing { "Pause" } else { "Play" }));
     }
@@ -405,7 +405,7 @@ impl SearchPopup {
                         gtk_library::SearchSession::play_recent(
                             &result,
                             &catalog,
-                            rufin_core::playback::QueuePlacement::Now,
+                            slopsonic_core::playback::QueuePlacement::Now,
                         );
                         popup.render();
                     }
@@ -681,7 +681,7 @@ impl SearchPopup {
         }
         let empty = !query.is_empty() && status == "results" && count == 0;
         if empty {
-            self.empty_results.set_text(&rufin_core::text::fill(
+            self.empty_results.set_text(&slopsonic_core::text::fill(
                 "No results for \"{query}\"",
                 &[("query", &query)],
             ));

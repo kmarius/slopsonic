@@ -4,7 +4,7 @@ use adw::prelude::*;
 use gtk::glib;
 use gtk_widgets::artwork::ArtworkTile;
 use gtk_widgets::interactions::ContextMenuSurface;
-use rufin_core::metadata::{MediaDetails, MediaDetailsItem};
+use slopsonic_core::metadata::{MediaDetails, MediaDetailsItem};
 
 use crate::media_menus::MediaMenus;
 
@@ -45,7 +45,7 @@ pub(crate) fn append_header(
             .borrow()
             .application
             .context_menu
-            .is_visible(rufin_core::settings::ContextMenuItem::Favorites),
+            .is_visible(slopsonic_core::settings::ContextMenuItem::Favorites),
     );
     favorite.set_action_name(Some(&format!("{group}.favorite")));
     details.set_action_name(Some(&format!("{group}.details")));
@@ -87,7 +87,7 @@ fn present(parent: &gtk::Window, menus: &Rc<MediaMenus>, item: MediaDetailsItem)
     let menus = menus.clone();
     let parent = parent.downgrade();
     let load = glib::spawn_future_local(async move {
-        let result = rufin_core::metadata::media_details(source, playback, item.clone()).await;
+        let result = slopsonic_core::metadata::media_details(source, playback, item.clone()).await;
         let Some(dialog) = weak_dialog.upgrade() else {
             return;
         };

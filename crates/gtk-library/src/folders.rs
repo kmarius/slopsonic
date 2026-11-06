@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 use adw::prelude::*;
 use gtk::subclass::prelude::ObjectSubclassIsExt;
 use library::ReadCancellation;
-use rufin_core::playback::QueuePlacement;
+use slopsonic_core::playback::QueuePlacement;
 
 use crate::{CatalogUi, LibraryField, LibraryListKey};
 use gtk_widgets::interactions::install_context_menu_openers;
@@ -12,15 +12,15 @@ use gtk_widgets::mounted_route::{LatestMountedRouteRead, MountedRoute};
 use gtk_widgets::route::{FolderPathItem, Route};
 use gtk_widgets::sparse_model::{SparseSource, connect_sparse_bind};
 
-type FolderLink = rufin_core::browse::FolderEntry;
+type FolderLink = slopsonic_core::browse::FolderEntry;
 
 type FolderResume = Rc<dyn Fn()>;
 
 gtk_widgets::composite_box!(
     pub FoldersRouteView,
     folders_route_view_imp,
-    "RufinFoldersRouteView",
-    "/io/github/screwys/Rufin/ui/routes/folders.ui",
+    "SlopsonicFoldersRouteView",
+    "/io/github/kmarius/Slopsonic/ui/routes/folders.ui",
     {
         toolbar_host: gtk::Box,
         breadcrumb_host: gtk::Box,
@@ -37,8 +37,8 @@ impl CatalogUi {
     pub fn folders_route(
         self: &Rc<Self>,
         path: Vec<FolderPathItem>,
-        selected: &rufin_core::runtime::SelectedLibrary,
-        prepared: Result<rufin_core::browse::FolderPage, String>,
+        selected: &slopsonic_core::runtime::SelectedLibrary,
+        prepared: Result<slopsonic_core::browse::FolderPage, String>,
     ) -> MountedRoute {
         let wrapper = FoldersRouteView::new();
         let search = gtk::SearchEntry::new();
@@ -107,10 +107,10 @@ enum FolderTableRow {
 
 fn folder_page(
     shell: &Rc<CatalogUi>,
-    selected: &rufin_core::runtime::SelectedLibrary,
+    selected: &slopsonic_core::runtime::SelectedLibrary,
     path: Vec<FolderPathItem>,
     search: gtk::SearchEntry,
-    prepared: rufin_core::browse::FolderPage,
+    prepared: slopsonic_core::browse::FolderPage,
 ) -> (
     gtk::Widget,
     FolderResume,
@@ -121,7 +121,7 @@ fn folder_page(
     search.set_visible(true);
     let route_width = (shell.route_width)();
 
-    let rufin_core::browse::FolderPage {
+    let slopsonic_core::browse::FolderPage {
         projection: source,
         read: query,
         folder_count,
@@ -263,7 +263,7 @@ fn folder_page(
         let stack = table_stack.clone();
         Rc::new(
             move |_: (library::MemberRead, library::RouteSeedWindow),
-                  result: library::LibraryResult<rufin_core::browse::FolderPage>| {
+                  result: library::LibraryResult<slopsonic_core::browse::FolderPage>| {
                 let Ok(page) = result else { return };
                 stack.set_visible_child_name(if page.folder_count + page.track_count == 0 {
                     "empty"
@@ -312,7 +312,7 @@ fn folder_page(
             let database = Arc::clone(&database);
             let source = source.clone();
             Box::pin(async move {
-                rufin_core::browse::FolderPage::load(
+                slopsonic_core::browse::FolderPage::load(
                     &database,
                     source_key,
                     source,
@@ -472,7 +472,7 @@ fn folder_table(
                 let anchor = position.saturating_sub(folder_count);
                 let input = applied_query.borrow().clone().selection();
                 activate_shell.playback.play_selection(
-                    rufin_core::playback::PlayRequest::captured(
+                    slopsonic_core::playback::PlayRequest::captured(
                         input,
                         anchor,
                         QueuePlacement::Now,
@@ -590,7 +590,7 @@ fn folder_merged_column(shell: &Rc<CatalogUi>, path: Vec<FolderPathItem>) -> gtk
         );
         cell.subtitle().add_css_class("artist-label");
         cell.subtitle().add_css_class("table-link-label");
-        let icon = gtk::Image::from_icon_name("rufin-folders-symbolic");
+        let icon = gtk::Image::from_icon_name("slopsonic-folders-symbolic");
         icon.set_pixel_size(20);
         icon.set_size_request(32, 32);
         icon.set_valign(gtk::Align::Center);
@@ -930,7 +930,7 @@ fn folder_path_switcher(shell: &Rc<CatalogUi>, path: &[FolderPathItem]) -> gtk::
     switcher.append(&root);
     for (index, entry) in path.iter().enumerate() {
         let destination = path.iter().take(index + 1).cloned().collect::<Vec<_>>();
-        let separator = gtk::Image::from_icon_name("rufin-go-next-symbolic");
+        let separator = gtk::Image::from_icon_name("slopsonic-go-next-symbolic");
         separator.add_css_class("folder-path-separator");
         separator.set_pixel_size(16);
         separator.set_valign(gtk::Align::Center);

@@ -13,7 +13,7 @@ impl Shell {
         let source = self.products.source.clone();
         let shell = Rc::downgrade(self);
         gtk::glib::spawn_future_local(async move {
-            let result = rufin_core::playlists::create_playlist(
+            let result = slopsonic_core::playlists::create_playlist(
                 &source,
                 source_id,
                 name,

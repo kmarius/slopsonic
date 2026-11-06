@@ -8,13 +8,13 @@ use std::rc::Rc;
 pub struct CatalogUi {
     pub library: std::sync::Arc<library::Database>,
     pub runtime: tokio::runtime::Handle,
-    pub source: rufin_core::runtime::SourceHandle,
-    pub playback: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
+    pub source: slopsonic_core::runtime::SourceHandle,
+    pub playback: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
     pub settings: Rc<gtk_widgets::settings::SettingsState>,
     pub artwork: Rc<gtk_widgets::artwork::ArtworkState>,
     pub downloads: Rc<gtk_widgets::downloads::DownloadsState>,
     pub media_menus: Rc<gtk_media_menus::media_menus::MediaMenus>,
-    pub selected: Option<rufin_core::runtime::SelectedLibrary>,
+    pub selected: Option<slopsonic_core::runtime::SelectedLibrary>,
     pub favorites: Option<Rc<gtk_widgets::favorites::FavoriteSessionState>>,
     pub window: gtk::glib::WeakRef<gtk::ApplicationWindow>,
     pub route_width: Rc<dyn Fn() -> i32>,
@@ -36,7 +36,7 @@ pub struct CatalogUi {
     >,
     pub has_current_track: bool,
     pub add_current_to_playlist: Rc<dyn Fn(library::PlaylistKey, String)>,
-    pub refresh_home_section: Rc<dyn Fn(rufin_core::settings::HomeSectionKind)>,
+    pub refresh_home_section: Rc<dyn Fn(slopsonic_core::settings::HomeSectionKind)>,
     pub set_favorite_category: Rc<dyn Fn(gtk_widgets::route::CollectionCategory)>,
     pub cycle_favorite_category: Rc<dyn Fn()>,
     pub history_source_name: Option<String>,
@@ -130,7 +130,7 @@ impl CatalogUi {
 }
 
 impl CatalogUi {
-    pub fn selected_library(&self) -> Option<&rufin_core::runtime::SelectedLibrary> {
+    pub fn selected_library(&self) -> Option<&slopsonic_core::runtime::SelectedLibrary> {
         self.selected.as_ref()
     }
     pub fn route_navigation(&self) -> Rc<dyn Fn(gtk_widgets::route::Route)> {
@@ -141,8 +141,8 @@ impl CatalogUi {
     }
     pub fn update_library_list_settings(
         &self,
-        key: rufin_core::settings::LibraryListKey,
-        update: impl FnOnce(&mut rufin_core::settings::LibraryListSettings),
+        key: slopsonic_core::settings::LibraryListKey,
+        update: impl FnOnce(&mut slopsonic_core::settings::LibraryListSettings),
     ) {
         if self.settings.update_library_list_settings(key, update) {
             (self.reconcile)();

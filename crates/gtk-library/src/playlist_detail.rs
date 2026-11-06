@@ -1,4 +1,4 @@
-use rufin_core::browse::{DetailContent, DetailPage, DetailSummary};
+use slopsonic_core::browse::{DetailContent, DetailPage, DetailSummary};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -6,7 +6,7 @@ use adw::prelude::*;
 use artwork::ArtworkBinding;
 use gtk::glib;
 use library::{PlaylistKey, PlaylistRow, ReadCancellation};
-use rufin_core::text::track_count_text;
+use slopsonic_core::text::track_count_text;
 
 use crate::CatalogUi;
 use crate::{LibraryListKey, LibraryListSettings};
@@ -240,11 +240,11 @@ impl CatalogUi {
         self.append_playlist_detail_kind_controls(&showcase_view, &owner);
         showcase_view.replace_summary(&[
             (
-                "rufin-tracks-symbolic",
+                "slopsonic-tracks-symbolic",
                 track_count_text(owner.track_count().max(0) as u64),
             ),
             (
-                "rufin-preferences-system-time-symbolic",
+                "slopsonic-preferences-system-time-symbolic",
                 format_duration_units((owner.duration_millis().max(0) / 1_000) as u32),
             ),
         ]);
@@ -344,11 +344,11 @@ impl CatalogUi {
                     showcase.set_title(next.name());
                     showcase.replace_summary(&[
                         (
-                            "rufin-tracks-symbolic",
+                            "slopsonic-tracks-symbolic",
                             track_count_text(next.track_count().max(0) as u64),
                         ),
                         (
-                            "rufin-preferences-system-time-symbolic",
+                            "slopsonic-preferences-system-time-symbolic",
                             format_duration_units((next.duration_millis().max(0) / 1_000) as u32),
                         ),
                     ]);
@@ -416,7 +416,7 @@ impl CatalogUi {
         let controller = self.playback.clone();
         let key = owner.key;
         radio.connect_clicked(move |_| {
-            controller.play_radio(rufin_core::playback::RadioPlayRequest::now(
+            controller.play_radio(slopsonic_core::playback::RadioPlayRequest::now(
                 library::RadioSeed::Playlist(key),
             ));
         });

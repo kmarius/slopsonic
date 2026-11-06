@@ -10,8 +10,8 @@ use audio_processing::effects::{
 };
 use gtk::glib;
 use gtk::subclass::prelude::*;
-use rufin_core::playback::PlaybackOwner;
-use rufin_core::{EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView};
+use slopsonic_core::playback::PlaybackOwner;
+use slopsonic_core::{EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView};
 
 pub fn equalizer_preset_title(name: &str) -> String {
     match name {
@@ -42,7 +42,7 @@ mod plot_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for EqualizerPlot {
-        const NAME: &'static str = "RufinEqualizerPlot";
+        const NAME: &'static str = "SlopsonicEqualizerPlot";
         type Type = super::EqualizerPlot;
         type ParentType = gtk::Widget;
     }
@@ -80,7 +80,7 @@ mod gain_track_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for GainTrackLayout {
-        const NAME: &'static str = "RufinGainTrackLayout";
+        const NAME: &'static str = "SlopsonicGainTrackLayout";
         type Type = super::GainTrackLayout;
         type ParentType = gtk::LayoutManager;
     }
@@ -1205,9 +1205,9 @@ impl Editor {
         self.parametric.set_visible(parametric);
         self.mode.set_active(parametric);
         self.mode.set_icon_name(if parametric {
-            "rufin-sliders-vertical-symbolic"
+            "slopsonic-sliders-vertical-symbolic"
         } else {
-            "rufin-spring-graph-symbolic"
+            "slopsonic-spring-graph-symbolic"
         });
         let title = self
             .mode_titles

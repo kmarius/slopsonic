@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
 <object class="GtkAspectFrame" id="artwork_frame">
   <property name="ratio">1</property>
   <property name="obey-child">false</property>
@@ -32,9 +32,9 @@
           <property name="margin-end">8</property>
           <property name="margin-bottom">8</property>
           <property name="spacing">6</property>
-          <child><object class="GtkButton" id="add_image"><property name="icon-name">rufin-document-open-symbolic</property><property name="tooltip-text" translatable="yes">Add image</property><style><class name="circular"/><class name="osd"/></style></object></child>
-          <child><object class="GtkButton" id="regenerate_image"><property name="icon-name">rufin-view-refresh-symbolic</property><property name="tooltip-text" translatable="yes">Regenerate</property><style><class name="circular"/><class name="osd"/></style></object></child>
-          <child><object class="GtkButton" id="delete_image"><property name="icon-name">rufin-user-trash-symbolic</property><property name="tooltip-text" translatable="yes">Delete</property><style><class name="circular"/><class name="osd"/></style></object></child>
+          <child><object class="GtkButton" id="add_image"><property name="icon-name">slopsonic-document-open-symbolic</property><property name="tooltip-text" translatable="yes">Add image</property><style><class name="circular"/><class name="osd"/></style></object></child>
+          <child><object class="GtkButton" id="regenerate_image"><property name="icon-name">slopsonic-view-refresh-symbolic</property><property name="tooltip-text" translatable="yes">Regenerate</property><style><class name="circular"/><class name="osd"/></style></object></child>
+          <child><object class="GtkButton" id="delete_image"><property name="icon-name">slopsonic-user-trash-symbolic</property><property name="tooltip-text" translatable="yes">Delete</property><style><class name="circular"/><class name="osd"/></style></object></child>
         </object>
       </child>
     </object>

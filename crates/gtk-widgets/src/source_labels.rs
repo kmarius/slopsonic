@@ -1,9 +1,9 @@
-pub use rufin_core::runtime::source::{source_kind_icon_name, source_kind_title};
+pub use slopsonic_core::runtime::source::{source_kind_icon_name, source_kind_title};
 
 use adw::prelude::*;
 use app_identity::{DISPLAY_NAME, STABLE_APP_ID};
-use rufin_core::runtime::source::SourceSummary;
-use rufin_core::text::fill;
+use slopsonic_core::runtime::source::SourceSummary;
+use slopsonic_core::text::fill;
 
 pub fn configured_source_display_name(source: &SourceSummary) -> String {
     let name = source.name.trim();
@@ -33,9 +33,9 @@ pub fn configure_ownership_toggle(
             STABLE_APP_ID
         });
         if current {
-            button.remove_css_class("rufin-ownership-icon");
+            button.remove_css_class("slopsonic-ownership-icon");
         } else {
-            button.add_css_class("rufin-ownership-icon");
+            button.add_css_class("slopsonic-ownership-icon");
         }
         let tooltip = if current {
             fill(

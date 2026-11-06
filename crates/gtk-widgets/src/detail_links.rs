@@ -4,7 +4,7 @@ use gtk::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub use rufin_core::route::detail_links::{
+pub use slopsonic_core::route::detail_links::{
     DetailLinks, album_artist_links, joined_credits, metadata_links, track_album_artist_links,
     track_artist_album_links, track_artist_links,
 };

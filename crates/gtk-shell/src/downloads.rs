@@ -6,7 +6,7 @@ use std::time::Duration;
 use adw::prelude::*;
 use downloads::{DownloadEvent, DownloadFeedbackKind};
 use gtk::glib;
-use rufin_core::text::track_count_text;
+use slopsonic_core::text::track_count_text;
 
 use crate::shell::Shell;
 

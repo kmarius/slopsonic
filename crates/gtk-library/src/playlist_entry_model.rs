@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use library::{PlaylistEntryKey, PlaylistEntryView, PlaylistKey};
 
-use rufin_core::settings::LibraryListSettings;
+use slopsonic_core::settings::LibraryListSettings;
 
 use gtk_widgets::sparse_model::{SparseObjectModel, SparseRouteModel, SparseSource};
 
@@ -213,7 +213,7 @@ impl PlaylistEntryModel {
     pub fn activate(
         &self,
         position: u32,
-        queue: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
+        queue: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
     ) {
         let Some(_row) = self.ready(position) else {
             return;
@@ -221,7 +221,7 @@ impl PlaylistEntryModel {
         self.play(
             position as usize,
             queue,
-            rufin_core::playback::QueuePlacement::Now,
+            slopsonic_core::playback::QueuePlacement::Now,
             false,
             false,
         );
@@ -230,8 +230,8 @@ impl PlaylistEntryModel {
     pub fn play(
         &self,
         position: usize,
-        queue: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
-        placement: rufin_core::playback::QueuePlacement,
+        queue: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
+        placement: slopsonic_core::playback::QueuePlacement,
         collection_start: bool,
         shuffled: bool,
     ) {
@@ -239,9 +239,9 @@ impl PlaylistEntryModel {
             return;
         }
         let constructor = if collection_start {
-            rufin_core::playback::PlayRequest::ordered
+            slopsonic_core::playback::PlayRequest::ordered
         } else {
-            rufin_core::playback::PlayRequest::captured
+            slopsonic_core::playback::PlayRequest::captured
         };
         let mut request = constructor(
             self.inner.applied.borrow().query.clone().selection(),

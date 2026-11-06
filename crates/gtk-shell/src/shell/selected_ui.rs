@@ -6,7 +6,7 @@ use adw::prelude::*;
 
 use gtk_widgets::favorites::FavoriteSessionState;
 use gtk_widgets::popup::present_light_dismiss_dialog;
-use rufin_core::runtime::SelectedLibrary;
+use slopsonic_core::runtime::SelectedLibrary;
 
 use super::Shell;
 

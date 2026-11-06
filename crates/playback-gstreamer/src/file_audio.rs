@@ -2,7 +2,7 @@ use super::*;
 use gst::subclass::prelude::*;
 use std::sync::{LazyLock, OnceLock};
 
-const FACTORY: &str = "rufinfileaudioparse";
+const FACTORY: &str = "slopsonicfileaudioparse";
 // MIDI enters before midiparse so each file also owns its event renderer.
 const INPUTS: &[&str] = &[
     "gmedec",
@@ -61,7 +61,7 @@ mod imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for FileAudioParse {
-        const NAME: &'static str = "RufinFileAudioParse";
+        const NAME: &'static str = "SlopsonicFileAudioParse";
         type Type = super::FileAudioParse;
         type ParentType = gst::Bin;
     }
@@ -161,7 +161,7 @@ mod imp {
                     "File audio parser",
                     "Codec/Parser/Audio",
                     "Parse file audio into timed samples for URI playback",
-                    "Rufin",
+                    "Slopsonic",
                 )
             });
             Some(&METADATA)

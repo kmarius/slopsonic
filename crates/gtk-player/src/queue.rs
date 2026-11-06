@@ -16,8 +16,8 @@ use gtk_widgets::{
     sparse_model::{SparseObjectItem, connect_sparse_bind},
 };
 use library::QueueRow;
-use rufin_core::playback::{QueueReorderTarget, QueueSelection};
-use rufin_core::settings::layout::{LibraryField, LibraryListKey, LibraryListSettings};
+use slopsonic_core::playback::{QueueReorderTarget, QueueSelection};
+use slopsonic_core::settings::layout::{LibraryField, LibraryListKey, LibraryListSettings};
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -981,7 +981,7 @@ impl crate::PlayerUi {
                 }
             },
         );
-        display.set_layout(Some(rufin_core::settings::LibraryLayout::Row));
+        display.set_layout(Some(slopsonic_core::settings::LibraryLayout::Row));
         page.remove(&fields_group);
         page.add(&display.group);
         page.add(&fields_group);

@@ -1,7 +1,7 @@
 //! Native music providers and file access.
 //!
 //! Providers own authentication, HTTP or filesystem work, paging, wire
-//! translation, and bounded Library updates. Rufin owns source lifecycle,
+//! translation, and bounded Library updates. Slopsonic owns source lifecycle,
 //! artwork preparation, and publication of committed catalog changes.
 
 #[cfg(test)]

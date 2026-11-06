@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <object class="AdwPreferencesDialog" id="dialog">
     <property name="title" translatable="yes">Customize display</property>
     <property name="search-enabled">false</property>

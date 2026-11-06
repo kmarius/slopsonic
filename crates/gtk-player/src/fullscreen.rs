@@ -39,10 +39,10 @@ impl PaneLayout {
 
     fn icon_name(self, collapsed: bool) -> &'static str {
         match self {
-            Self::Both if collapsed => "rufin-pane-left-focus-symbolic",
-            Self::Both => "rufin-view-dual-symbolic",
-            Self::First => "rufin-pane-left-focus-symbolic",
-            Self::Second => "rufin-pane-right-focus-symbolic",
+            Self::Both if collapsed => "slopsonic-pane-left-focus-symbolic",
+            Self::Both => "slopsonic-view-dual-symbolic",
+            Self::First => "slopsonic-pane-left-focus-symbolic",
+            Self::Second => "slopsonic-pane-right-focus-symbolic",
         }
     }
 }
@@ -272,7 +272,7 @@ fn present_fullscreen_settings(shell: &Rc<crate::PlayerUi>) {
     let Some(window) = shell.window.upgrade() else {
         return;
     };
-    let key = rufin_core::settings::LibraryListKey::FullscreenTracks;
+    let key = slopsonic_core::settings::LibraryListKey::FullscreenTracks;
     let resource = crate::ui_resource::FULLSCREEN_SETTINGS_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
@@ -322,7 +322,7 @@ fn present_fullscreen_settings(shell: &Rc<crate::PlayerUi>) {
             }
         },
     );
-    display.set_layout(Some(rufin_core::settings::LibraryLayout::Row));
+    display.set_layout(Some(slopsonic_core::settings::LibraryLayout::Row));
     display.prepend_rows(&[&dynamic_background, &background_image]);
     page.remove(&fields_group);
     page.add(&display.group);
@@ -621,7 +621,7 @@ impl crate::PlayerUi {
         gtk_widgets::display::apply(
             &parts.root,
             &settings
-                .library_list(rufin_core::settings::LibraryListKey::FullscreenTracks)
+                .library_list(slopsonic_core::settings::LibraryListKey::FullscreenTracks)
                 .display,
         );
         drop(settings);
@@ -1018,7 +1018,7 @@ mod playback_refresh_tests {
             ["2026", "MP3", "Streaming"]
         );
         assert_eq!(
-            rufin_core::settings::presentation::now_playing_labels(
+            slopsonic_core::settings::presentation::now_playing_labels(
                 streaming.transport.current.as_ref(),
                 Some("Living room")
             ),

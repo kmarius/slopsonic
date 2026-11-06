@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use playback::{BackendCommand, BackendError, BackendEvent, PlaybackBackend};
-use rufin_core::{app, diagnostics::Diagnostics, paths::Paths};
+use slopsonic_core::{app, diagnostics::Diagnostics, paths::Paths};
 
 struct IdleBackend;
 
@@ -51,7 +51,7 @@ fn application_starts_on_a_worker_and_reopens_saved_settings_without_a_ui() {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, b"old database").unwrap();
     }
-    rufin_core::settings::StorageResetRequest::Database
+    slopsonic_core::settings::StorageResetRequest::Database
         .apply(&paths)
         .unwrap();
     assert!(!paths.store_file().exists());

@@ -17,7 +17,7 @@ downloads.workspace = true
 
 tracing.workspace = true
 gtk-widgets.workspace = true
-rufin-core.workspace = true
+slopsonic-core.workspace = true
 library.workspace = true
 artwork.workspace = true
 gtk = { workspace = true, features = ["v4_20"] }

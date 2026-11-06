@@ -135,7 +135,7 @@ pub(super) fn items(shell: &Preferences) -> Vec<PreferencesSearchItem> {
         ),
         (
             "home_blocks",
-            rufin_core::settings::HomeBlockKind::all()
+            slopsonic_core::settings::HomeBlockKind::all()
                 .iter()
                 .map(|item| String::from(gtk_widgets::settings::home_block_title(*item)))
                 .collect(),

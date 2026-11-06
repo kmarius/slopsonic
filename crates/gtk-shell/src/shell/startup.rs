@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 
-use rufin_core::runtime::source::source_operation_text;
+use slopsonic_core::runtime::source::source_operation_text;
 
 use super::Shell;
 
@@ -47,7 +47,7 @@ impl Shell {
 }
 
 fn library_loading_status(
-    operation: &rufin_core::runtime::source::SourceOperation,
+    operation: &slopsonic_core::runtime::source::SourceOperation,
     initial_launch: bool,
 ) -> Option<String> {
     if initial_launch {
@@ -59,7 +59,7 @@ fn library_loading_status(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rufin_core::runtime::source::{SourceOperation, SourceProgress, SourceProgressStage};
+    use slopsonic_core::runtime::source::{SourceOperation, SourceProgress, SourceProgressStage};
 
     #[test]
     fn launch_is_preparing_while_an_explicit_change_is_switching() {

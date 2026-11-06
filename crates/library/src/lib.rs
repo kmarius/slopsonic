@@ -1,4 +1,4 @@
-//! Rufin's SQLite-owned music library and its concrete persistence operations.
+//! Slopsonic's SQLite-owned music library and its concrete persistence operations.
 //! Provider acquisition, playback transport, and presentation remain outside this crate.
 
 pub type LibraryIndex = usize;

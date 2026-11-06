@@ -1,4 +1,4 @@
-use rufin_core::browse::{DetailContent, DetailPage, DetailSummary};
+use slopsonic_core::browse::{DetailContent, DetailPage, DetailSummary};
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
@@ -17,8 +17,8 @@ use gtk_widgets::favorites::{
 };
 use gtk_widgets::format_duration_units;
 use gtk_widgets::mounted_route::MountedRoute;
-use rufin_core::playback::RadioPlayRequest;
-use rufin_core::text::track_count_text;
+use slopsonic_core::playback::RadioPlayRequest;
+use slopsonic_core::text::track_count_text;
 
 use super::collections::library_route_inset;
 use super::detail_showcase::{
@@ -275,7 +275,7 @@ impl CatalogUi {
 fn album_summary_items(summary: &AlbumView) -> Vec<(&'static str, String)> {
     vec![
         (
-            "rufin-x-office-calendar-symbolic",
+            "slopsonic-x-office-calendar-symbolic",
             summary
                 .metadata
                 .year
@@ -283,11 +283,11 @@ fn album_summary_items(summary: &AlbumView) -> Vec<(&'static str, String)> {
                 .unwrap_or_default(),
         ),
         (
-            "rufin-tracks-symbolic",
+            "slopsonic-tracks-symbolic",
             track_count_text(summary.summary.track_count.max(0) as u64),
         ),
         (
-            "rufin-preferences-system-time-symbolic",
+            "slopsonic-preferences-system-time-symbolic",
             format_duration_units((summary.summary.duration_millis.max(0) / 1_000) as u32),
         ),
     ]

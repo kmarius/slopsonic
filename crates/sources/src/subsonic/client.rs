@@ -709,7 +709,7 @@ impl SubsonicSource {
                         ("mediaType", "song".into()),
                         ("positionMs", report.position_millis.to_string()),
                         ("state", state.into()),
-                        // Rufin submits qualified listens separately, using listening time.
+                        // Slopsonic submits qualified listens separately, using listening time.
                         ("ignoreScrobble", "true".into()),
                     ],
                 )

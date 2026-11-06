@@ -5,11 +5,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use ::library::{GenreChoice, PlayedFilter, RandomCriteria, ReadCancellation};
 use adw::prelude::*;
 use gtk::glib;
-use rufin_core::playback::{QueuePlacement, RandomPlayRequest};
+use slopsonic_core::playback::{QueuePlacement, RandomPlayRequest};
 use tracing::warn;
 
 use crate::shell::Shell;
-use rufin_core::settings::{RandomPlayGenreSelection, RandomPlaySettings};
+use slopsonic_core::settings::{RandomPlayGenreSelection, RandomPlaySettings};
 
 const MIN_LIMIT: f64 = 1.0;
 const MAX_LIMIT: f64 = 500.0;
@@ -54,7 +54,7 @@ pub(super) fn present_random_play_dialog(shell: &Rc<Shell>) {
 
 fn present_random_play_dialog_loaded(
     shell: &Rc<Shell>,
-    selected: rufin_core::runtime::SelectedLibrary,
+    selected: slopsonic_core::runtime::SelectedLibrary,
     genres: Vec<GenreChoice>,
 ) {
     let played_filters = [
@@ -211,7 +211,7 @@ fn connect_action(
     dialog: &adw::Dialog,
     controls: &RandomPlayControls,
     genres: &[GenreChoice],
-    selected: &rufin_core::runtime::SelectedLibrary,
+    selected: &slopsonic_core::runtime::SelectedLibrary,
     placement: QueuePlacement,
 ) {
     let shell = Rc::clone(shell);
@@ -294,7 +294,7 @@ fn request_from_settings(
     let genre = settings
         .selected_genre_id(source_id, music_folder_id)
         .and_then(|selected| genres.iter().find(|genre| genre.object_id == selected));
-    rufin_core::radio::random_play_request(settings, genre.map(|genre| genre.genre_key), placement)
+    slopsonic_core::radio::random_play_request(settings, genre.map(|genre| genre.genre_key), placement)
 }
 
 pub(crate) fn play_saved_random(shell: &Rc<Shell>, placement: QueuePlacement) {
@@ -356,7 +356,7 @@ fn selected_genre(genres: &[GenreChoice], selected: u32) -> Option<String> {
 
 fn execute_random(
     shell: &Shell,
-    selected: rufin_core::runtime::SelectedLibrary,
+    selected: slopsonic_core::runtime::SelectedLibrary,
     request: RandomPlayRequest,
 ) {
     let runtime = shell.products.runtime.clone();
@@ -381,11 +381,11 @@ fn report_random_result(shell: &Shell, task: tokio::task::JoinHandle<bool>) {
 
 async fn execute_random_task(
     database: Arc<library::Database>,
-    selected: rufin_core::runtime::SelectedLibrary,
+    selected: slopsonic_core::runtime::SelectedLibrary,
     request: RandomPlayRequest,
-    queue: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
+    queue: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
 ) -> bool {
-    match rufin_core::radio::queue_random(
+    match slopsonic_core::radio::queue_random(
         &database,
         selected.source_key,
         selected.music_folder_key,
@@ -411,7 +411,7 @@ fn random_variation() -> i64 {
 #[cfg(test)]
 mod tests {
     use library::PlayedFilter;
-    use rufin_core::playback::QueuePlacement;
+    use slopsonic_core::playback::QueuePlacement;
     use sources::SourceId;
 
     use super::{RandomPlaySettings, request_from_settings};

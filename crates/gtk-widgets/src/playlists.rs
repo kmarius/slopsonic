@@ -1,7 +1,7 @@
 use crate::source_labels::configure_ownership_toggle;
 use adw::prelude::*;
 use library::PlaylistKey;
-use rufin_core::runtime::source::SourceSummary;
+use slopsonic_core::runtime::source::SourceSummary;
 use std::rc::Rc;
 
 pub fn delete_playlist_dialog(name: &str, delete: impl Fn() + 'static) -> adw::AlertDialog {
@@ -17,7 +17,7 @@ pub fn delete_playlists_dialog(count: usize, delete: impl Fn() + 'static) -> adw
     let resource = crate::ui_resource::PLAYLIST_DELETE_DIALOG_RESOURCE;
     let builder = crate::ui_resource::builder(resource);
     crate::objects!(builder, resource, { selection_dialog: adw::AlertDialog });
-    selection_dialog.set_body(&rufin_core::text::fill_plural(
+    selection_dialog.set_body(&slopsonic_core::text::fill_plural(
         "Delete {count} playlist?",
         "Delete {count} playlists?",
         count as u64,
@@ -28,7 +28,7 @@ pub fn delete_playlists_dialog(count: usize, delete: impl Fn() + 'static) -> adw
 }
 
 pub fn add_media_to_playlist(
-    source: &rufin_core::source::SourceOwner,
+    source: &slopsonic_core::source::SourceOwner,
     playlist: PlaylistKey,
     selection: library::MemberSelection,
     skip_existing: bool,
@@ -36,7 +36,7 @@ pub fn add_media_to_playlist(
 ) {
     let source = source.clone();
     gtk::glib::spawn_future_local(async move {
-        let accepted = rufin_core::playlists::add_playlist_tracks(
+        let accepted = slopsonic_core::playlists::add_playlist_tracks(
             &source,
             playlist,
             selection.into(),

@@ -3,7 +3,7 @@ use gtk_media_menus::media_menus::MediaMenus;
 use std::rc::{Rc, Weak};
 pub(super) fn build(
     weak: &Weak<Shell>,
-    products: &rufin_core::runtime::ProductHandles,
+    products: &slopsonic_core::runtime::ProductHandles,
     settings: Rc<gtk_widgets::settings::SettingsState>,
     artwork: Rc<gtk_widgets::artwork::ArtworkState>,
 ) -> Rc<MediaMenus> {

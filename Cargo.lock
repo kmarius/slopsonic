@@ -916,7 +916,7 @@ dependencies = [
  "library",
  "mpris-server",
  "playback",
- "rufin-core",
+ "slopsonic-core",
  "tracing",
  "url",
 ]
@@ -1851,7 +1851,7 @@ dependencies = [
  "gtk4",
  "libadwaita",
  "library",
- "rufin-core",
+ "slopsonic-core",
  "sources",
 ]
 
@@ -1867,7 +1867,7 @@ dependencies = [
  "gtk4",
  "libadwaita",
  "library",
- "rufin-core",
+ "slopsonic-core",
  "sources",
  "tempfile",
  "tokio",
@@ -1884,7 +1884,7 @@ dependencies = [
  "gtk4",
  "libadwaita",
  "library",
- "rufin-core",
+ "slopsonic-core",
  "sources",
  "tokio",
 ]
@@ -1903,7 +1903,7 @@ dependencies = [
  "library",
  "playback",
  "regex",
- "rufin-core",
+ "slopsonic-core",
  "tokio",
 ]
 
@@ -1921,7 +1921,7 @@ dependencies = [
  "library",
  "playback",
  "roxmltree",
- "rufin-core",
+ "slopsonic-core",
  "sources",
  "tracing",
 ]
@@ -1945,8 +1945,8 @@ dependencies = [
  "libadwaita",
  "library",
  "playback",
- "rufin-core",
  "serde_json",
+ "slopsonic-core",
  "sources",
  "tokio",
  "tracing",
@@ -1968,7 +1968,7 @@ dependencies = [
  "playback",
  "process-memory",
  "proptest",
- "rufin-core",
+ "slopsonic-core",
  "sources",
  "tempfile",
  "tokio",
@@ -3751,52 +3751,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rufin"
-version = "0.0.1"
-dependencies = [
- "app-identity",
- "gtk-shell",
- "playback",
- "playback-gstreamer",
- "process-memory",
- "rufin-core",
- "tracing",
-]
-
-[[package]]
-name = "rufin-core"
-version = "0.0.1"
-dependencies = [
- "age",
- "app-identity",
- "artwork",
- "async-channel",
- "audio-processing",
- "base64 0.23.1",
- "directories",
- "downloads",
- "futures-util",
- "getrandom 0.4.3",
- "glib",
- "image",
- "library",
- "playback",
- "scrobbling",
- "secrets",
- "serde",
- "serde_json",
- "sources",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tokio-util",
- "toml 1.1.3+spec-1.1.0",
- "tracing",
- "tracing-subscriber",
- "url",
-]
-
-[[package]]
 name = "rust-embed"
 version = "8.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4279,6 +4233,52 @@ name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
+
+[[package]]
+name = "slopsonic"
+version = "0.0.1"
+dependencies = [
+ "app-identity",
+ "gtk-shell",
+ "playback",
+ "playback-gstreamer",
+ "process-memory",
+ "slopsonic-core",
+ "tracing",
+]
+
+[[package]]
+name = "slopsonic-core"
+version = "0.0.1"
+dependencies = [
+ "age",
+ "app-identity",
+ "artwork",
+ "async-channel",
+ "audio-processing",
+ "base64 0.23.1",
+ "directories",
+ "downloads",
+ "futures-util",
+ "getrandom 0.4.3",
+ "glib",
+ "image",
+ "library",
+ "playback",
+ "scrobbling",
+ "secrets",
+ "serde",
+ "serde_json",
+ "sources",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
+ "toml 1.1.3+spec-1.1.0",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+]
 
 [[package]]
 name = "smallvec"

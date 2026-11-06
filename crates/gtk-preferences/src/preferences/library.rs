@@ -9,10 +9,10 @@ use gtk::gio;
 use super::PreferencesNavigationControls;
 use crate::Preferences;
 use gtk_widgets::source_labels::configured_source_display_name;
-use rufin_core::runtime::source::{SourceCacheSummary, SourceSummary};
-use rufin_core::text::{album_count_text, track_count_text};
+use slopsonic_core::runtime::source::{SourceCacheSummary, SourceSummary};
+use slopsonic_core::text::{album_count_text, track_count_text};
 
-const DOWNLOAD_JOB_DRAG_PREFIX: &str = "rufin-download-job:";
+const DOWNLOAD_JOB_DRAG_PREFIX: &str = "slopsonic-download-job:";
 const DEFAULT_DOWNLOAD_DIRECTORY_SUBTITLE: &str = "Default";
 
 pub(super) fn library_page(
@@ -77,7 +77,7 @@ fn library_sources_page(
                 ))
                 .subtitle_lines(4)
                 .build();
-            row.add_suffix(&gtk::Image::from_icon_name("rufin-go-next-symbolic"));
+            row.add_suffix(&gtk::Image::from_icon_name("slopsonic-go-next-symbolic"));
             row.set_activatable(true);
             let settings_shell = Rc::clone(shell);
             let navigation = navigation.downgrade();
@@ -328,7 +328,7 @@ fn add_download_rules(
     shell: &Rc<Preferences>,
     preferences_dialog: &adw::Dialog,
     source_id: &sources::SourceId,
-    rules: rufin_core::settings::DownloadRules,
+    rules: slopsonic_core::settings::DownloadRules,
 ) -> gtk::MenuButton {
     let mut rows = Vec::new();
     for rule in DownloadRule::ALL {
@@ -349,7 +349,7 @@ fn add_download_rules(
         artwork.set_margin_bottom(6);
         row.add_prefix(&artwork);
         let more = gtk::MenuButton::new();
-        more.set_icon_name("rufin-view-more-symbolic");
+        more.set_icon_name("slopsonic-view-more-symbolic");
         more.add_css_class("flat");
         more.set_valign(gtk::Align::Center);
         more.set_tooltip_text(Some("Rule actions"));
@@ -439,7 +439,7 @@ fn add_download_rules(
     let add = gtk::MenuButton::new();
     add.set_child(Some(&row_action_content(
         "New download rule",
-        "rufin-list-add-symbolic",
+        "slopsonic-list-add-symbolic",
     )));
     add.add_css_class("flat");
     add.set_halign(gtk::Align::Fill);
@@ -770,11 +770,11 @@ fn add_download_queue(
         pause.set_visible(count > 0);
         let (icon, label) = if state.paused {
             (
-                "rufin-media-playback-start-symbolic",
+                "slopsonic-media-playback-start-symbolic",
                 "Continue".to_string(),
             )
         } else {
-            ("rufin-media-playback-pause-symbolic", "Pause".to_string())
+            ("slopsonic-media-playback-pause-symbolic", "Pause".to_string())
         };
         pause.set_icon_name(icon);
         pause.set_tooltip_text(Some(&label));

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <requires lib="gtk" version="4.20" />
   <requires lib="libadwaita" version="1.9" />
   <object class="AdwPreferencesPage" id="appearance_page">
     <property name="title" translatable="yes">Customization</property>
-    <property name="icon-name">rufin-preferences-desktop-appearance-symbolic</property>
+    <property name="icon-name">slopsonic-preferences-desktop-appearance-symbolic</property>
     <child>
       <object class="AdwPreferencesGroup">
         <property name="title" translatable="yes">Accessibility</property>

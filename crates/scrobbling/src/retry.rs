@@ -209,7 +209,7 @@ impl Worker {
         let pending = Arc::new(Mutex::new(PendingWork::default()));
         let worker_pending = Arc::clone(&pending);
         let thread = std::thread::Builder::new()
-            .name("rufin-scrobbling".to_string())
+            .name("slopsonic-scrobbling".to_string())
             .spawn(move || run_worker(client, database, runtime, state, receiver, worker_pending))
             .map_err(|error| error.to_string())?;
         Ok(Self {

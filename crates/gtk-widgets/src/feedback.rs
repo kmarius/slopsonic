@@ -78,7 +78,7 @@ pub fn icon_action(button: &gtk::Widget, icon: &gtk::Image) -> impl Fn() + use<>
             source.remove();
         }
         if let Some(icon) = icon.upgrade() {
-            icon.set_icon_name(Some("rufin-object-select-symbolic"));
+            icon.set_icon_name(Some("slopsonic-object-select-symbolic"));
         }
         let icon = icon.clone();
         let pending = reset.clone();

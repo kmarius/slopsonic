@@ -1,10 +1,10 @@
 use gtk::{gio, glib, prelude::*, subclass::prelude::*};
 use library::PlaylistKey;
-use rufin_core::playback::QueuePlacement;
+use slopsonic_core::playback::QueuePlacement;
 use std::{cell::RefCell, sync::Arc};
 pub(crate) type CollectionSelection = Box<
     dyn Fn(
-        &rufin_core::playback::PlayRequest,
+        &slopsonic_core::playback::PlayRequest,
         &gtk::Bitset,
     ) -> Option<crate::media_drag::CollectionTargets>,
 >;
@@ -22,7 +22,7 @@ mod position_selection_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for PositionSelectionModel {
-        const NAME: &'static str = "RufinPositionSelectionModel";
+        const NAME: &'static str = "SlopsonicPositionSelectionModel";
         type Type = super::PositionSelectionModel;
         type Interfaces = (gio::ListModel, gtk::SelectionModel, gtk::SectionModel);
     }
@@ -233,7 +233,7 @@ impl PositionSelectionModel {
 
     pub(crate) fn collection_selection(
         &self,
-        target: &rufin_core::playback::PlayRequest,
+        target: &slopsonic_core::playback::PlayRequest,
         positions: &gtk::Bitset,
     ) -> Option<crate::media_drag::CollectionTargets> {
         if let Some(capture) = self.imp().collection_selection.borrow().as_ref() {
@@ -256,12 +256,12 @@ pub struct TrackSelectionSnapshot {
 impl TrackSelectionSnapshot {
     pub fn play(
         &self,
-        queue: &rufin_core::playback::PlaybackOwner,
+        queue: &slopsonic_core::playback::PlaybackOwner,
         placement: QueuePlacement,
         shuffled: bool,
     ) {
         queue.play_selection(
-            rufin_core::playback::PlayRequest::ordered(self.input.clone(), 0, placement, false)
+            slopsonic_core::playback::PlayRequest::ordered(self.input.clone(), 0, placement, false)
                 .shuffled(shuffled),
         );
     }
@@ -291,12 +291,12 @@ impl PlaylistEntrySelectionSnapshot {
 
     pub fn play(
         &self,
-        queue: &rufin_core::playback::PlaybackOwner,
+        queue: &slopsonic_core::playback::PlaybackOwner,
         placement: QueuePlacement,
         shuffled: bool,
     ) {
         queue.play_selection(
-            rufin_core::playback::PlayRequest::ordered(self.input.clone(), 0, placement, false)
+            slopsonic_core::playback::PlayRequest::ordered(self.input.clone(), 0, placement, false)
                 .shuffled(shuffled),
         );
     }
@@ -354,7 +354,7 @@ mod tests {
     }
 }
 
-pub fn collection_play_request(scope: library::Collection) -> rufin_core::playback::PlayRequest {
+pub fn collection_play_request(scope: library::Collection) -> slopsonic_core::playback::PlayRequest {
     let context = match &scope {
         library::Collection::Source(key) => format!("tracks:{key}"),
         library::Collection::Objects { source, .. } => format!("objects:{source}"),
@@ -372,7 +372,7 @@ pub fn collection_play_request(scope: library::Collection) -> rufin_core::playba
         library::Collection::Playlist(key) => format!("playlist:{key}"),
         library::Collection::History { source } => format!("history:{source:?}"),
     };
-    rufin_core::playback::PlayRequest::ordered(
+    slopsonic_core::playback::PlayRequest::ordered(
         library::MemberRead::new(scope).selection(),
         0,
         QueuePlacement::Now,
@@ -381,8 +381,8 @@ pub fn collection_play_request(scope: library::Collection) -> rufin_core::playba
     .with_context(context.into())
 }
 
-pub fn track_play_request(key: library::TrackKey) -> rufin_core::playback::PlayRequest {
-    rufin_core::playback::PlayRequest::ordered(
+pub fn track_play_request(key: library::TrackKey) -> slopsonic_core::playback::PlayRequest {
+    slopsonic_core::playback::PlayRequest::ordered(
         library::MemberSelection::Keys {
             source: None,
             keys: (vec![key.raw()])
@@ -397,8 +397,8 @@ pub fn track_play_request(key: library::TrackKey) -> rufin_core::playback::PlayR
     )
 }
 
-pub fn album_play_request(row: &library::AlbumView) -> rufin_core::playback::PlayRequest {
-    rufin_core::playback::PlayRequest::ordered(
+pub fn album_play_request(row: &library::AlbumView) -> slopsonic_core::playback::PlayRequest {
+    slopsonic_core::playback::PlayRequest::ordered(
         library::MemberRead::new(library::Collection::Album(row.album_key)).selection(),
         0,
         QueuePlacement::Now,
@@ -410,8 +410,8 @@ pub fn album_play_request(row: &library::AlbumView) -> rufin_core::playback::Pla
 pub fn artist_play_request(
     row: &library::ArtistView,
     album_artist: bool,
-) -> rufin_core::playback::PlayRequest {
-    rufin_core::playback::PlayRequest::ordered(
+) -> slopsonic_core::playback::PlayRequest {
+    slopsonic_core::playback::PlayRequest::ordered(
         library::MemberRead::new(library::Collection::Artist {
             key: row.artist_key,
             album_artist,

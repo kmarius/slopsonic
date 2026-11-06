@@ -23,7 +23,7 @@ mod imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for Background {
-        const NAME: &'static str = "RufinFullscreenBackground";
+        const NAME: &'static str = "SlopsonicFullscreenBackground";
         type Type = super::FullscreenBackground;
         type ParentType = gtk::Widget;
     }

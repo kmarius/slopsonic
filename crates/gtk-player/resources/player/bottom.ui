@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <requires lib="gtk" version="4.20"/>
 
   <object class="GtkBox" id="root">
@@ -35,7 +35,7 @@
         <property name="valign">center</property>
         <style><class name="player-title-row"/></style>
         <child>
-          <object class="RufinTextFade" id="title_fade">
+          <object class="SlopsonicTextFade" id="title_fade">
             <property name="hexpand">false</property>
             <child>
               <object class="GtkScrolledWindow" id="title_slide">
@@ -69,7 +69,7 @@
         </child>
         <child>
           <object class="GtkButton" id="menu_button">
-            <property name="icon-name">rufin-player-more-symbolic</property>
+            <property name="icon-name">slopsonic-player-more-symbolic</property>
             <property name="valign">center</property>
             <property name="sensitive">false</property>
             <style><class name="icon-button"/><class name="flat"/><class name="circular"/><class name="player-title-menu-button"/></style>
@@ -78,7 +78,7 @@
       </object>
     </child>
     <child>
-      <object class="RufinTextFade" id="artist_fade">
+      <object class="SlopsonicTextFade" id="artist_fade">
         <property name="hexpand">true</property>
         <child>
           <object class="GtkScrolledWindow" id="artist_slide">
@@ -110,7 +110,7 @@
       </object>
     </child>
     <child>
-      <object class="RufinTextFade" id="album_fade">
+      <object class="SlopsonicTextFade" id="album_fade">
         <property name="hexpand">true</property>
         <child>
           <object class="GtkScrolledWindow" id="album_slide">
@@ -243,7 +243,7 @@
         <property name="halign">end</property><property name="valign">center</property>
         <child>
           <object class="GtkMenuButton" id="settings_button">
-            <property name="icon-name">rufin-mixer-sliders-symbolic</property><property name="direction">up</property><property name="has-frame">false</property><property name="valign">center</property>
+            <property name="icon-name">slopsonic-mixer-sliders-symbolic</property><property name="direction">up</property><property name="has-frame">false</property><property name="valign">center</property>
             <style><class name="icon-button"/><class name="flat"/><class name="circular"/><class name="player-settings-button"/></style>
           </object>
         </child>

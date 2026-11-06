@@ -19,7 +19,7 @@ use gtk_widgets::feedback::ControlFeedbackState;
 use gtk_widgets::settings::SettingsState;
 use layout::ShellLayoutState;
 use navigation::{NavigationState, NavigationWidgets};
-use rufin_core::runtime::{DiagnosticsHandle, ProductHandles};
+use slopsonic_core::runtime::{DiagnosticsHandle, ProductHandles};
 use startup::StartupState;
 
 pub(crate) mod actions;

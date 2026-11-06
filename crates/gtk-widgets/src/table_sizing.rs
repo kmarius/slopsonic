@@ -5,7 +5,7 @@ use std::{
 
 use adw::prelude::*;
 
-use rufin_core::settings::layout::MIN_TABLE_COLUMN_WIDTH;
+use slopsonic_core::settings::layout::MIN_TABLE_COLUMN_WIDTH;
 
 const TABLE_TARGET_WIDTH: i32 = 44;
 pub const FITTED_TABLE_WIDTH_PADDING: i32 = 2;

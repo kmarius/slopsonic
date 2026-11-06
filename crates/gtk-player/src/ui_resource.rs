@@ -12,22 +12,22 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     FULLSCREEN_SETTINGS_RESOURCE,
     BOTTOM_PLAYER_RESOURCE,
 ];
-pub const BOTTOM_PLAYER_RESOURCE: &str = "/io/github/screwys/Rufin/ui/player/bottom.ui";
+pub const BOTTOM_PLAYER_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/player/bottom.ui";
 
-pub const FULLSCREEN_PLAYER_RESOURCE: &str = "/io/github/screwys/Rufin/ui/player/fullscreen.ui";
+pub const FULLSCREEN_PLAYER_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/player/fullscreen.ui";
 pub const FULLSCREEN_SETTINGS_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/player/fullscreen_settings.ui";
+    "/io/github/kmarius/Slopsonic/ui/player/fullscreen_settings.ui";
 
-pub const EQUALIZER_RESOURCE: &str = "/io/github/screwys/Rufin/ui/player/equalizer.ui";
+pub const EQUALIZER_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/player/equalizer.ui";
 
-pub const RIGHT_PANEL_RESOURCE: &str = "/io/github/screwys/Rufin/ui/player/right_panel.ui";
-pub const QUEUE_SETTINGS_RESOURCE: &str = "/io/github/screwys/Rufin/ui/player/queue_settings.ui";
+pub const RIGHT_PANEL_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/player/right_panel.ui";
+pub const QUEUE_SETTINGS_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/player/queue_settings.ui";
 
 pub const TRANSITION_SETTINGS_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/player/transition_settings.ui";
+    "/io/github/kmarius/Slopsonic/ui/player/transition_settings.ui";
 
 pub const PLAYBACK_SETTINGS_POPOVER_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/player/playback_settings.ui";
+    "/io/github/kmarius/Slopsonic/ui/player/playback_settings.ui";
 
 #[cfg(test)]
 mod resource_tests {
@@ -41,11 +41,11 @@ mod resource_tests {
     }
 }
 
-pub const EQUALIZER_BAND_RESOURCE: &str = "/io/github/screwys/Rufin/ui/player/equalizer-band.ui";
+pub const EQUALIZER_BAND_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/player/equalizer-band.ui";
 pub const EQUALIZER_FILTER_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/player/equalizer-filter.ui";
+    "/io/github/kmarius/Slopsonic/ui/player/equalizer-filter.ui";
 pub const EQUALIZER_DIALOGS_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/player/equalizer-dialogs.ui";
+    "/io/github/kmarius/Slopsonic/ui/player/equalizer-dialogs.ui";
 
 pub const EQUALIZER_BAND_ITEM_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/player/equalizer-band-item.ui";
+    "/io/github/kmarius/Slopsonic/ui/player/equalizer-band-item.ui";

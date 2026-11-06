@@ -16,8 +16,8 @@ pub const ROW_ACTIONS_WIDTH: i32 = 44;
 crate::composite_box!(
     pub RowActions,
     row_actions_imp,
-    "RufinRowActions",
-    "/io/github/screwys/Rufin/ui/routes/row_actions.ui",
+    "SlopsonicRowActions",
+    "/io/github/kmarius/Slopsonic/ui/routes/row_actions.ui",
     { menu: gtk::Button }
 );
 
@@ -31,8 +31,8 @@ impl RowActions {
     }
 }
 
-pub fn row_action_cell(field: rufin_core::settings::LibraryField, label: &str) -> gtk::Widget {
-    if field == rufin_core::settings::LibraryField::Favorite {
+pub fn row_action_cell(field: slopsonic_core::settings::LibraryField, label: &str) -> gtk::Widget {
+    if field == slopsonic_core::settings::LibraryField::Favorite {
         crate::favorites::row_favorite_icon_button(label).upcast()
     } else {
         RowActions::menu_only().upcast()
@@ -40,10 +40,10 @@ pub fn row_action_cell(field: rufin_core::settings::LibraryField, label: &str) -
 }
 
 pub fn row_action_column(
-    field: rufin_core::settings::LibraryField,
+    field: slopsonic_core::settings::LibraryField,
     factory: &gtk::SignalListItemFactory,
 ) -> gtk::ColumnViewColumn {
-    if field == rufin_core::settings::LibraryField::Favorite {
+    if field == slopsonic_core::settings::LibraryField::Favorite {
         let column = gtk::ColumnViewColumn::new(
             Some(crate::settings::library_field_title(field)),
             Some(factory.clone()),
@@ -73,7 +73,7 @@ pub mod artwork_imp {
     use super::*;
 
     #[derive(CompositeTemplate, Default)]
-    #[template(resource = "/io/github/screwys/Rufin/ui/routes/recycled_artwork_cell.ui")]
+    #[template(resource = "/io/github/kmarius/Slopsonic/ui/routes/recycled_artwork_cell.ui")]
     pub struct RecycledArtworkCell {
         #[template_child]
         area: TemplateChild<gtk::Overlay>,
@@ -84,7 +84,7 @@ pub mod artwork_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for RecycledArtworkCell {
-        const NAME: &'static str = "RufinRecycledArtworkCell";
+        const NAME: &'static str = "SlopsonicRecycledArtworkCell";
         type Type = super::RecycledArtworkCell;
         type ParentType = gtk::Widget;
 
@@ -165,7 +165,7 @@ pub mod text_imp {
     use super::*;
 
     #[derive(CompositeTemplate, Default)]
-    #[template(resource = "/io/github/screwys/Rufin/ui/routes/recycled_text_cell.ui")]
+    #[template(resource = "/io/github/kmarius/Slopsonic/ui/routes/recycled_text_cell.ui")]
     pub struct RecycledTextCell {
         #[template_child]
         pub(super) label: TemplateChild<gtk::Label>,
@@ -174,7 +174,7 @@ pub mod text_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for RecycledTextCell {
-        const NAME: &'static str = "RufinRecycledTextCell";
+        const NAME: &'static str = "SlopsonicRecycledTextCell";
         type Type = super::RecycledTextCell;
         type ParentType = gtk::Box;
 
@@ -237,8 +237,8 @@ impl RecycledTextCell {
 crate::composite_box!(
     pub RecycledBadgedTextCell,
     badged_text_imp,
-    "RufinRecycledBadgedTextCell",
-    "/io/github/screwys/Rufin/ui/routes/recycled_badged_text_cell.ui",
+    "SlopsonicRecycledBadgedTextCell",
+    "/io/github/kmarius/Slopsonic/ui/routes/recycled_badged_text_cell.ui",
     {
         label: gtk::Label,
         downloaded: gtk::Image,
@@ -270,7 +270,7 @@ pub mod merged_imp {
     use super::*;
 
     #[derive(CompositeTemplate, Default)]
-    #[template(resource = "/io/github/screwys/Rufin/ui/routes/recycled_merged_cell.ui")]
+    #[template(resource = "/io/github/kmarius/Slopsonic/ui/routes/recycled_merged_cell.ui")]
     pub struct RecycledMergedCell {
         #[template_child]
         pub(super) cover: TemplateChild<RecycledArtworkCell>,
@@ -288,7 +288,7 @@ pub mod merged_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for RecycledMergedCell {
-        const NAME: &'static str = "RufinRecycledMergedCell";
+        const NAME: &'static str = "SlopsonicRecycledMergedCell";
         type Type = super::RecycledMergedCell;
         type ParentType = gtk::Box;
 
@@ -383,7 +383,7 @@ pub mod folder_imp {
     use super::*;
 
     #[derive(CompositeTemplate, Default)]
-    #[template(resource = "/io/github/screwys/Rufin/ui/routes/recycled_folder_cell.ui")]
+    #[template(resource = "/io/github/kmarius/Slopsonic/ui/routes/recycled_folder_cell.ui")]
     pub struct RecycledFolderCell {
         #[template_child]
         pub(super) icon: TemplateChild<gtk::Image>,
@@ -395,7 +395,7 @@ pub mod folder_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for RecycledFolderCell {
-        const NAME: &'static str = "RufinRecycledFolderCell";
+        const NAME: &'static str = "SlopsonicRecycledFolderCell";
         type Type = super::RecycledFolderCell;
         type ParentType = gtk::Box;
 
@@ -492,9 +492,9 @@ pub fn track_row_index_cell(text: &str, activate: impl Fn(&gtk::Button) + 'stati
         let playing =
             cell.has_css_class("track-row-playing") && !cell.has_css_class("track-row-paused");
         play.set_icon_name(if playing {
-            "rufin-media-playback-pause-symbolic"
+            "slopsonic-media-playback-pause-symbolic"
         } else {
-            "rufin-media-playback-start-symbolic"
+            "slopsonic-media-playback-start-symbolic"
         });
         play.set_tooltip_text(Some(if playing { "Pause" } else { "Play track" }));
     });

@@ -24,7 +24,7 @@ mod allocation_owner_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for AllocationOwner {
-        const NAME: &'static str = "RufinAllocationOwner";
+        const NAME: &'static str = "SlopsonicAllocationOwner";
         type Type = super::AllocationOwner;
         type ParentType = gtk::Widget;
     }

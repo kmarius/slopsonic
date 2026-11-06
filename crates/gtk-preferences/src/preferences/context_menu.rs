@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::Preferences;
-use rufin_core::settings::ContextMenuItem;
+use slopsonic_core::settings::ContextMenuItem;
 
 pub fn configure_context_menus(shell: &Rc<Preferences>, builder: &gtk::Builder) {
     let resource = crate::ui_resource::APPEARANCE_PREFERENCES_RESOURCE;

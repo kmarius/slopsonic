@@ -215,7 +215,7 @@ mod tests {
     #[test]
     fn file_operation_paths_decode_spaces_unicode_and_literal_percent_signs() {
         let path = std::env::temp_dir()
-            .join("Rufin music")
+            .join("Slopsonic music")
             .join("Björk 100% #1.flac");
         let uri = url::Url::from_file_path(&path).unwrap();
         assert_eq!(file_media_path(uri.as_str()), Some(path));

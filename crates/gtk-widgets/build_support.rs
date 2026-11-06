@@ -5,7 +5,7 @@ pub fn build(include_icons: bool, output: &str) {
     // Embed the checkout path so Cargo rebuilds this script when worktrees share a target directory.
     let resources = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources");
     println!("cargo:rerun-if-changed={}", resources.display());
-    println!("cargo:rerun-if-changed=resources/rufin.gresource.xml");
+    println!("cargo:rerun-if-changed=resources/slopsonic.gresource.xml");
     println!("cargo:rerun-if-changed=../gtk-widgets/build_support.rs");
     verify_ui_resources();
     let mut roots = vec!["resources"];
@@ -14,12 +14,12 @@ pub fn build(include_icons: bool, output: &str) {
         verify_symbolic_icons(Path::new("../../resources/icons"));
         roots.push("../../resources/icons");
     }
-    glib_build_tools::compile_resources(&roots, "resources/rufin.gresource.xml", output);
+    glib_build_tools::compile_resources(&roots, "resources/slopsonic.gresource.xml", output);
 }
 
 fn verify_symbolic_icons(directory: &Path) {
-    for entry in fs::read_dir(directory).expect("read Rufin icon directory") {
-        let path = entry.expect("read Rufin icon entry").path();
+    for entry in fs::read_dir(directory).expect("read Slopsonic icon directory") {
+        let path = entry.expect("read Slopsonic icon entry").path();
         if path.is_dir() {
             verify_symbolic_icons(&path);
             continue;
@@ -31,7 +31,7 @@ fn verify_symbolic_icons(directory: &Path) {
         {
             continue;
         }
-        let svg = fs::read_to_string(&path).expect("read Rufin symbolic icon");
+        let svg = fs::read_to_string(&path).expect("read Slopsonic symbolic icon");
         assert!(
             !svg.contains("<image") && !svg.contains("data:image"),
             "symbolic icon embeds raster artwork: {}",
@@ -42,8 +42,8 @@ fn verify_symbolic_icons(directory: &Path) {
 
 fn verify_ui_resources() {
     let root = Path::new("resources");
-    let manifest = fs::read_to_string("resources/rufin.gresource.xml")
-        .expect("read Rufin interface resource manifest");
+    let manifest = fs::read_to_string("resources/slopsonic.gresource.xml")
+        .expect("read Slopsonic interface resource manifest");
     let mut sources = Vec::new();
     collect_ui_sources(root, root, &mut sources);
     sources.sort();
@@ -64,8 +64,8 @@ fn verify_ui_resources() {
 }
 
 fn collect_ui_sources(root: &Path, directory: &Path, sources: &mut Vec<String>) {
-    for entry in fs::read_dir(directory).expect("read Rufin interface resource directory") {
-        let path = entry.expect("read Rufin interface resource entry").path();
+    for entry in fs::read_dir(directory).expect("read Slopsonic interface resource directory") {
+        let path = entry.expect("read Slopsonic interface resource entry").path();
         if path.is_dir() {
             collect_ui_sources(root, &path, sources);
         } else if matches!(

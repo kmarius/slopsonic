@@ -19,8 +19,8 @@ use playback::{
     LoudnessNormalization, LoudnessNormalizationScope, MAX_AUTO_DJ_REFILL_THRESHOLD,
     MIN_AUTO_DJ_REFILL_THRESHOLD,
 };
-use rufin_core::runtime::{ScrobblingConnection, ScrobblingConnectionEvent, ScrobblingPreferences};
-use rufin_core::text::fill;
+use slopsonic_core::runtime::{ScrobblingConnection, ScrobblingConnectionEvent, ScrobblingPreferences};
+use slopsonic_core::text::fill;
 
 pub(super) type ScrobblingCredentialDrafts = Rc<RefCell<ScrobblingPreferences>>;
 
@@ -173,7 +173,7 @@ pub fn scrobbling_page(
         let api_key = row.text().trim().to_string();
         lastfm_api_shell.save_scrobbling_credential(
             "Last.fm API key setting",
-            rufin_core::scrobbling::ScrobblingCredentialEdit::LastFm {
+            slopsonic_core::scrobbling::ScrobblingCredentialEdit::LastFm {
                 api_key: Some(api_key),
                 api_secret: None,
             },
@@ -189,7 +189,7 @@ pub fn scrobbling_page(
         let api_secret = row.text().trim().to_string();
         lastfm_secret_shell.save_scrobbling_credential(
             "Last.fm shared secret setting",
-            rufin_core::scrobbling::ScrobblingCredentialEdit::LastFm {
+            slopsonic_core::scrobbling::ScrobblingCredentialEdit::LastFm {
                 api_key: None,
                 api_secret: Some(api_secret),
             },
@@ -342,7 +342,7 @@ pub fn scrobbling_page(
         let token = row.text().trim().to_string();
         listenbrainz_token_shell.save_scrobbling_credential(
             "ListenBrainz token setting",
-            rufin_core::scrobbling::ScrobblingCredentialEdit::ListenBrainz { user_token: token },
+            slopsonic_core::scrobbling::ScrobblingCredentialEdit::ListenBrainz { user_token: token },
         );
     });
     listenbrainz_now_playing.set_active(settings.listenbrainz.now_playing_enabled);

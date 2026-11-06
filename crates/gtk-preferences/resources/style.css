@@ -1386,7 +1386,7 @@ headerbar.preferences-header:backdrop,
   opacity: 1;
 }
 
-button.rufin-ownership-icon image {
+button.slopsonic-ownership-icon image {
   -gtk-icon-size: 20px;
 }
 
@@ -2525,16 +2525,16 @@ scale.equalizer-surface-scale > trough > slider {
   background: color-mix(in srgb, var(--accent-bg-color) 14%, transparent);
 }
 
-popover.rufin-primary-menu label.title {
+popover.slopsonic-primary-menu label.title {
   padding-right: 12px;
   padding-left: 12px;
 }
 
-modelbutton.rufin-menu-selected:dir(ltr) {
+modelbutton.slopsonic-menu-selected:dir(ltr) {
   box-shadow: inset 2px 0 var(--accent-color);
 }
 
-modelbutton.rufin-menu-selected:dir(rtl) {
+modelbutton.slopsonic-menu-selected:dir(rtl) {
   box-shadow: inset -2px 0 var(--accent-color);
 }
 .rating-stars {

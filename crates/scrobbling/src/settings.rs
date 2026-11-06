@@ -65,22 +65,22 @@ impl SecretDescriptor {
 pub const LASTFM_API_SECRET: SecretDescriptor = SecretDescriptor::new(
     SecretField::LastFmApiSecret,
     "lastfm-api-secret",
-    "Rufin Last.fm API secret",
+    "Slopsonic Last.fm API secret",
 );
 pub const LASTFM_SESSION: SecretDescriptor = SecretDescriptor::new(
     SecretField::LastFmSession,
     "lastfm-session",
-    "Rufin Last.fm session",
+    "Slopsonic Last.fm session",
 );
 pub const LIBREFM_SESSION: SecretDescriptor = SecretDescriptor::new(
     SecretField::LibreFmSession,
     "librefm-session",
-    "Rufin Libre.fm session",
+    "Slopsonic Libre.fm session",
 );
 pub const LISTENBRAINZ_TOKEN: SecretDescriptor = SecretDescriptor::new(
     SecretField::ListenBrainzToken,
     "listenbrainz-token",
-    "Rufin ListenBrainz token",
+    "Slopsonic ListenBrainz token",
 );
 
 const SECRET_DESCRIPTORS: [SecretDescriptor; 4] = [
@@ -262,14 +262,14 @@ mod tests {
                 (
                     "scrobbling",
                     "lastfm-api-secret",
-                    "Rufin Last.fm API secret",
+                    "Slopsonic Last.fm API secret",
                 ),
-                ("scrobbling", "lastfm-session", "Rufin Last.fm session",),
-                ("scrobbling", "librefm-session", "Rufin Libre.fm session",),
+                ("scrobbling", "lastfm-session", "Slopsonic Last.fm session",),
+                ("scrobbling", "librefm-session", "Slopsonic Libre.fm session",),
                 (
                     "scrobbling",
                     "listenbrainz-token",
-                    "Rufin ListenBrainz token",
+                    "Slopsonic ListenBrainz token",
                 ),
             ]
         );

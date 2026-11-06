@@ -1,10 +1,10 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <requires lib="gtk" version="4.20" />
   <requires lib="libadwaita" version="1.9" />
   <object class="AdwPreferencesPage" id="integrations_page">
     <property name="title" translatable="yes">Integrations</property>
-    <property name="icon-name">rufin-network-workgroup-symbolic</property>
+    <property name="icon-name">slopsonic-network-workgroup-symbolic</property>
     <child>
       <object class="AdwPreferencesGroup" id="lastfm_group">
         <property name="title" translatable="yes">Last.fm</property>

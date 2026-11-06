@@ -263,13 +263,13 @@ use crate::{LeftSidebarMode, RightSidebarMode};
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gtk::{CompositeTemplate, TemplateChild, glib};
-use rufin_core::settings::HomeBlockKind;
+use slopsonic_core::settings::HomeBlockKind;
 
 mod reorder_row_imp {
     use super::*;
 
     #[derive(CompositeTemplate, Default)]
-    #[template(resource = "/io/github/screwys/Rufin/ui/preferences/reorder_row.ui")]
+    #[template(resource = "/io/github/kmarius/Slopsonic/ui/preferences/reorder_row.ui")]
     pub(super) struct PreferencesReorderRow {
         #[template_child]
         pub(super) drag: TemplateChild<gtk::Image>,
@@ -283,7 +283,7 @@ mod reorder_row_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for PreferencesReorderRow {
-        const NAME: &'static str = "RufinPreferencesReorderRow";
+        const NAME: &'static str = "SlopsonicPreferencesReorderRow";
         type Type = super::PreferencesReorderRow;
         type ParentType = adw::ActionRow;
 

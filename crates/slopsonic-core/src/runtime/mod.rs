@@ -1,4 +1,4 @@
-//! Commands, updates, and startup data exchanged between application clients and Rufin.
+//! Commands, updates, and startup data exchanged between application clients and Slopsonic.
 //!
 //! `app` constructs these handles; the crates behind them implement the behavior.
 

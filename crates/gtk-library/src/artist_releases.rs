@@ -24,7 +24,7 @@ use gtk_widgets::library_fields::COLLECTION_GRID_MIN_CARD_WIDTH;
 use gtk_widgets::sparse_model::{
     SparseObjectItem, SparseRouteModel, SparseSource, connect_sparse_bind,
 };
-use rufin_core::browse::ArtistReleasePage;
+use slopsonic_core::browse::ArtistReleasePage;
 
 const ARTIST_RELEASE_SECTION_GAP: i32 = 18;
 const ARTIST_RELEASE_HEADER_GAP: i32 = 10;
@@ -112,7 +112,7 @@ mod artist_rows_model_imp {
     }
     #[glib::object_subclass]
     impl ObjectSubclass for ArtistRowsModel {
-        const NAME: &'static str = "RufinArtistRowsModel";
+        const NAME: &'static str = "SlopsonicArtistRowsModel";
         type Type = super::ArtistRowsModel;
         type Interfaces = (gio::ListModel,);
     }
@@ -218,7 +218,7 @@ mod artist_route_list_cell_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for ArtistRouteListCell {
-        const NAME: &'static str = "RufinArtistRouteListCell";
+        const NAME: &'static str = "SlopsonicArtistRouteListCell";
         type Type = super::ArtistRouteListCell;
         type ParentType = gtk::Box;
     }
@@ -243,7 +243,7 @@ mod artist_table_layout_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for ArtistTableLayout {
-        const NAME: &'static str = "RufinArtistTableLayout";
+        const NAME: &'static str = "SlopsonicArtistTableLayout";
         type Type = super::ArtistTableLayout;
         type ParentType = gtk::LayoutManager;
     }

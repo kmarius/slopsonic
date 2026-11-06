@@ -3,9 +3,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use library::{Database, TrackKey, TrackView};
-use rufin_core::playback::{PlayRequest, QueuePlacement};
+use slopsonic_core::playback::{PlayRequest, QueuePlacement};
 
-use rufin_core::settings::LibraryListSettings;
+use slopsonic_core::settings::LibraryListSettings;
 
 use gtk_widgets::library_fields::TrackPresentation;
 use gtk_widgets::sparse_model::{SparseObjectModel, SparseRouteModel, SparseSource};
@@ -54,7 +54,7 @@ impl TrackCollectionModel {
     pub fn new(
         database: Arc<Database>,
         runtime: tokio::runtime::Handle,
-        page: rufin_core::browse::MemberPage,
+        page: slopsonic_core::browse::MemberPage,
     ) -> Self {
         let rows = page
             .page
@@ -193,7 +193,7 @@ impl TrackCollectionModel {
         query.descending = settings.descending;
     }
 
-    pub fn replace_page(&self, page: rufin_core::browse::MemberPage) -> bool {
+    pub fn replace_page(&self, page: slopsonic_core::browse::MemberPage) -> bool {
         if *self.0.query.borrow() != TrackRead::Members(page.read.clone()) {
             return false;
         }
@@ -241,7 +241,7 @@ impl TrackCollectionModel {
 
     pub fn play(
         &self,
-        queue: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
+        queue: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
         anchor_index: usize,
         placement: QueuePlacement,
         context_base: &str,
@@ -269,7 +269,7 @@ impl TrackCollectionModel {
 
     pub fn play_source(
         &self,
-        queue: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
+        queue: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
         placement: QueuePlacement,
         context_id: String,
         shuffled: bool,
@@ -345,7 +345,7 @@ mod tests {
             access: Default::default(),
             links: Default::default(),
         };
-        let settings = LibraryListSettings::for_key(rufin_core::settings::LibraryListKey::History);
+        let settings = LibraryListSettings::for_key(slopsonic_core::settings::LibraryListKey::History);
         let query = library::MemberRead {
             sort: Some(settings.sort_key.catalog_sort()),
             descending: settings.descending,
@@ -358,7 +358,7 @@ mod tests {
         let model = TrackCollectionModel::new(
             Arc::new(database),
             runtime.handle().clone(),
-            rufin_core::browse::MemberPage {
+            slopsonic_core::browse::MemberPage {
                 read: query,
                 page: library::Page {
                     count: 1,
@@ -382,12 +382,12 @@ mod tests {
             None
         );
         let mut presentation = settings.clone();
-        presentation.layout = rufin_core::settings::LibraryLayout::Grid;
+        presentation.layout = slopsonic_core::settings::LibraryLayout::Grid;
         presentation.row_fields.reverse();
         model.apply_settings(&presentation);
         let mut updated = row;
         updated.metadata.title = "After".into();
-        let prepared = rufin_core::browse::MemberPage {
+        let prepared = slopsonic_core::browse::MemberPage {
             disc_sections: Vec::new(),
             page: library::Page {
                 count: 1,
@@ -405,7 +405,7 @@ mod tests {
 
         // A later catalog publication has the same query but new row data.
         updated.metadata.title = "Catalog update".into();
-        assert!(model.replace_page(rufin_core::browse::MemberPage {
+        assert!(model.replace_page(slopsonic_core::browse::MemberPage {
             disc_sections: Vec::new(),
             page: library::Page {
                 rows: vec![library::MemberRow::Track(updated)],

@@ -1,11 +1,11 @@
-use rufin_core::browse::{DetailContent, DetailPage, DetailSummary};
+use slopsonic_core::browse::{DetailContent, DetailPage, DetailSummary};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use adw::prelude::*;
 use artwork::ArtworkBinding;
 use library::{ArtistKey, ArtistView, RadioSeed};
-use rufin_core::playback::RadioPlayRequest;
-use rufin_core::text::{album_count_text, track_count_text};
+use slopsonic_core::playback::RadioPlayRequest;
+use slopsonic_core::text::{album_count_text, track_count_text};
 
 use crate::CatalogUi;
 use crate::{LibraryListKey, LibraryListSettings};
@@ -193,8 +193,8 @@ impl CatalogUi {
                 let favorite_query = favorite.query();
                 let route = artist_detail_route(artist_uri.clone(), album_artist);
                 let task = shell.runtime.spawn(async move {
-                    let options = rufin_core::browse::OpenOptions {
-                        category: rufin_core::route::CollectionCategory::Albums,
+                    let options = slopsonic_core::browse::OpenOptions {
+                        category: slopsonic_core::route::CollectionCategory::Albums,
                         filter: favorite_query.filter,
                         release_filters: Some(filters),
                         ..Default::default()
@@ -209,7 +209,7 @@ impl CatalogUi {
                         )
                         .await?
                     {
-                        rufin_core::browse::OpenedCollection::Detail(detail) => {
+                        slopsonic_core::browse::OpenedCollection::Detail(detail) => {
                             Ok::<_, library::LibraryError>(detail)
                         }
                         _ => unreachable!("artist overview"),
@@ -460,7 +460,7 @@ impl CatalogUi {
         self: &Rc<Self>,
         artist: ArtistKey,
         summary: ArtistView,
-        page: rufin_core::browse::MemberPage,
+        page: slopsonic_core::browse::MemberPage,
         album_artist: bool,
         favorites_only: bool,
     ) -> MountedRoute {
@@ -567,7 +567,7 @@ fn request_artist_releases(
     let (generation, cancellation) = lane.begin();
     let database = Arc::clone(&owner.library);
     let task = owner.runtime.spawn(async move {
-        rufin_core::browse::ArtistReleasePage::load(
+        slopsonic_core::browse::ArtistReleasePage::load(
             &database,
             query,
             library::RouteSeedWindow::top(),
@@ -674,7 +674,7 @@ fn artist_detail_header_restored(
     counts.add_css_class("artist-count-row");
     counts.set_halign(gtk::Align::Start);
     let (albums, album_count) = artist_count_button(
-        "rufin-albums-symbolic",
+        "slopsonic-albums-symbolic",
         &album_count_text(artist.summary.album_count.max(0) as u64),
     );
     let album_shell = Rc::clone(shell);
@@ -684,7 +684,7 @@ fn artist_detail_header_restored(
     });
     counts.append(&albums);
     let (tracks, track_count) = artist_count_button(
-        "rufin-tracks-symbolic",
+        "slopsonic-tracks-symbolic",
         &track_count_text(artist.summary.track_count.max(0) as u64),
     );
     let track_shell = Rc::clone(shell);

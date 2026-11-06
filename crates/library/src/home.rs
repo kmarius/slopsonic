@@ -1,4 +1,4 @@
-//! Owns one bounded, consistent Home read over provider and Rufin-defined sections.
+//! Owns one bounded, consistent Home read over provider and Slopsonic-defined sections.
 
 use serde::{Deserialize, Serialize};
 use sqlx::{Connection, SqliteConnection};

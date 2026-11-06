@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <requires lib="gtk" version="4.20"/>
 
-  <template class="RufinRecycledMergedCell" parent="GtkBox">
+  <template class="SlopsonicRecycledMergedCell" parent="GtkBox">
     <property name="spacing">10</property>
     <property name="valign">center</property>
     <child>
-      <object class="RufinRecycledArtworkCell" id="cover"/>
+      <object class="SlopsonicRecycledArtworkCell" id="cover"/>
     </child>
     <child>
       <object class="GtkBox" id="labels">

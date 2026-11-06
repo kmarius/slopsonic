@@ -12,4 +12,4 @@ mod ui_resource;
 
 pub use application::{ApplicationExit, run_application, run_startup_error_application};
 
-use rufin_core::settings::*;
+use slopsonic_core::settings::*;

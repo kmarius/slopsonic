@@ -1,16 +1,16 @@
 use adw::prelude::*;
 
-pub const PLAY_ICON: &str = "rufin-media-playback-start-symbolic";
-pub const PLAY_NEXT_ICON: &str = "rufin-mail-forward-symbolic";
-pub const PLAY_LATER_ICON: &str = "rufin-go-last-symbolic";
-pub const EDIT_ICON: &str = "rufin-document-edit-symbolic";
-pub const ADD_ICON: &str = "rufin-list-add-symbolic";
-pub const REMOVE_ICON: &str = "rufin-list-remove-symbolic";
-pub const DELETE_ICON: &str = "rufin-process-stop-symbolic";
-pub const TRASH_ICON: &str = "rufin-user-trash-symbolic";
-pub const MORE_ICON: &str = "rufin-more-symbolic";
-const SORT_ORDER_ICON: &str = "rufin-sort-name-symbolic";
-const SORT_ORDER_DESCENDING_ICON: &str = "rufin-sort-name-descending-symbolic";
+pub const PLAY_ICON: &str = "slopsonic-media-playback-start-symbolic";
+pub const PLAY_NEXT_ICON: &str = "slopsonic-mail-forward-symbolic";
+pub const PLAY_LATER_ICON: &str = "slopsonic-go-last-symbolic";
+pub const EDIT_ICON: &str = "slopsonic-document-edit-symbolic";
+pub const ADD_ICON: &str = "slopsonic-list-add-symbolic";
+pub const REMOVE_ICON: &str = "slopsonic-list-remove-symbolic";
+pub const DELETE_ICON: &str = "slopsonic-process-stop-symbolic";
+pub const TRASH_ICON: &str = "slopsonic-user-trash-symbolic";
+pub const MORE_ICON: &str = "slopsonic-more-symbolic";
+const SORT_ORDER_ICON: &str = "slopsonic-sort-name-symbolic";
+const SORT_ORDER_DESCENDING_ICON: &str = "slopsonic-sort-name-descending-symbolic";
 
 pub fn configure_dialog_header(header: &adw::HeaderBar) {
     if let Some(settings) = gtk::Settings::default() {
@@ -26,7 +26,7 @@ pub fn configure_search_entry(entry: &gtk::SearchEntry) {
         .first_child()
         .and_downcast::<gtk::Image>()
         .expect("search entry icon")
-        .set_icon_name(Some("rufin-search-symbolic"));
+        .set_icon_name(Some("slopsonic-search-symbolic"));
     let click = gtk::GestureClick::new();
     click.set_button(1);
     click.set_propagation_phase(gtk::PropagationPhase::Capture);

@@ -4,14 +4,14 @@ mod download_quality;
 pub mod preferences;
 pub mod ui_resource;
 
-use rufin_core::settings::*;
+use slopsonic_core::settings::*;
 use std::rc::Rc;
 
 pub struct Preferences {
     pub settings: Rc<gtk_widgets::settings::SettingsState>,
     pub source: Rc<preferences::source::SourceState>,
     pub state: preferences::PreferencesState,
-    pub products: rufin_core::runtime::ProductHandles,
+    pub products: slopsonic_core::runtime::ProductHandles,
     pub player_ui: Rc<gtk_player::PlayerUi>,
     pub downloads: Rc<gtk_widgets::downloads::DownloadsState>,
     pub artwork: Rc<gtk_widgets::artwork::ArtworkState>,
@@ -33,7 +33,7 @@ pub enum Effect {
     MediaControlsChanged,
     PlaylistPickerChanged,
     Quit(&'static str),
-    ResetStorage(Box<rufin_core::settings::StorageResetRequest>),
+    ResetStorage(Box<slopsonic_core::settings::StorageResetRequest>),
 }
 
 pub fn register_resources() -> Result<(), String> {

@@ -1,4 +1,4 @@
-//! Constructs Rufin's product owners and connects their concrete event lanes.
+//! Constructs Slopsonic's product owners and connects their concrete event lanes.
 
 use std::sync::Arc;
 
@@ -14,7 +14,7 @@ use crate::scrobbling::ScrobblingOwner;
 use crate::settings::{SettingsFile, SettingsOwner, platform_secret_store};
 use crate::source::{SourceOutputs, SourceOwner};
 
-/// Runs an application host with Rufin's worker runtime available on its calling thread.
+/// Runs an application host with Slopsonic's worker runtime available on its calling thread.
 /// The host shuts down playback before returning; workers are stopped afterwards.
 pub fn with_runtime<T>(host: impl FnOnce(&tokio::runtime::Runtime) -> T) -> std::io::Result<T> {
     let runtime = worker_runtime()?;
@@ -29,7 +29,7 @@ pub fn with_runtime<T>(host: impl FnOnce(&tokio::runtime::Runtime) -> T) -> std:
 pub fn worker_runtime() -> std::io::Result<tokio::runtime::Runtime> {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .thread_name("rufin-async")
+        .thread_name("slopsonic-async")
         .build()
 }
 
@@ -56,7 +56,7 @@ where
         Err(error) if error.is_store_unavailable() => {
             warn!(%error, path=%store_path.display(), "could not access the durable Store; startup will continue with temporary storage");
             let directory = tempfile::Builder::new()
-                .prefix("rufin-store-")
+                .prefix("slopsonic-store-")
                 .tempdir()
                 .map_err(string_error)?
                 .keep();
@@ -275,5 +275,5 @@ fn temporary_artwork_dir() -> std::path::PathBuf {
     let started = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |duration| duration.as_nanos());
-    std::env::temp_dir().join(format!("rufin-artwork-{}-{started}", std::process::id()))
+    std::env::temp_dir().join(format!("slopsonic-artwork-{}-{started}", std::process::id()))
 }

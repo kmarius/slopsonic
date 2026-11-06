@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
-  <template class="RufinSearchPreviewRow" parent="GtkBox">
+<interface domain="slopsonic">
+  <template class="SlopsonicSearchPreviewRow" parent="GtkBox">
     <property name="spacing">12</property>
     <style><class name="search-preview-row"/></style>
     <child><object class="GtkOverlay" id="cover_overlay">
@@ -8,7 +8,7 @@
       <property name="valign">center</property>
       <property name="child"><object class="GtkBox" id="cover_host"/></property>
       <child type="overlay"><object class="GtkButton" id="play">
-        <property name="icon-name">rufin-media-playback-start-symbolic</property>
+        <property name="icon-name">slopsonic-media-playback-start-symbolic</property>
         <property name="tooltip-text" translatable="yes">Play</property>
         <property name="focus-on-click">false</property>
         <style><class name="flat"/><class name="search-preview-play"/></style>
@@ -48,13 +48,13 @@
       </object></child>
     </object></child>
     <child><object class="GtkButton" id="menu">
-      <property name="icon-name">rufin-more-symbolic</property>
+      <property name="icon-name">slopsonic-more-symbolic</property>
       <property name="tooltip-text" translatable="yes">Options</property>
       <property name="focus-on-click">false</property><property name="valign">center</property>
       <style><class name="flat"/><class name="row-menu-button"/></style>
     </object></child>
     <child><object class="GtkButton" id="remove">
-      <property name="icon-name">rufin-window-close-symbolic</property>
+      <property name="icon-name">slopsonic-window-close-symbolic</property>
       <property name="tooltip-text" translatable="yes">Remove search</property>
       <property name="focus-on-click">false</property><property name="valign">center</property>
       <property name="visible">false</property>

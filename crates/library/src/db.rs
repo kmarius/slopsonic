@@ -366,7 +366,7 @@ pub(crate) async fn open_writer(path: &Path) -> LibraryResult<SqliteConnection> 
     let options = base_options(path)
         .create_if_missing(true)
         .statement_cache_capacity(WRITER_STATEMENTS)
-        .thread_name(|id| format!("rufin-library-writer-{id}"));
+        .thread_name(|id| format!("slopsonic-library-writer-{id}"));
     let mut connection = SqliteConnection::connect_with(&options).await?;
     {
         let mut handle = connection.lock_handle().await?;
@@ -405,7 +405,7 @@ fn reader_options(path: &Path) -> SqliteConnectOptions {
         .read_only(true)
         .create_if_missing(false)
         .statement_cache_capacity(READER_STATEMENTS)
-        .thread_name(|id| format!("rufin-library-reader-{id}"))
+        .thread_name(|id| format!("slopsonic-library-reader-{id}"))
 }
 
 fn base_options(path: &Path) -> SqliteConnectOptions {

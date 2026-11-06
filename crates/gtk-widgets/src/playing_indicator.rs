@@ -21,7 +21,7 @@ mod imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for PlayingIndicator {
-        const NAME: &'static str = "RufinPlayingIndicator";
+        const NAME: &'static str = "SlopsonicPlayingIndicator";
         type Type = super::PlayingIndicator;
         type ParentType = gtk::Widget;
 

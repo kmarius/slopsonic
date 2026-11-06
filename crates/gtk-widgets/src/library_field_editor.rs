@@ -1,7 +1,7 @@
 use crate::library_fields::*;
 use crate::settings::SettingsState;
 use adw::prelude::*;
-use rufin_core::settings::layout::{LibraryField, LibraryListKey};
+use slopsonic_core::settings::layout::{LibraryField, LibraryListKey};
 use std::{cell::RefCell, rc::Rc};
 pub fn populate_library_field_rows(
     settings: &Rc<SettingsState>,
@@ -77,7 +77,7 @@ pub fn library_field_config_row(
         })
         .build();
 
-    let drag = gtk::Image::from_icon_name("rufin-list-drag-handle-symbolic");
+    let drag = gtk::Image::from_icon_name("slopsonic-list-drag-handle-symbolic");
     drag.add_css_class("dim-label");
     drag.set_tooltip_text(Some("Drag to reorder"));
     row.add_prefix(&drag);
@@ -89,14 +89,14 @@ pub fn library_field_config_row(
     row.add_prefix(&check);
     row.set_activatable_widget(Some(&check));
 
-    let up = gtk::Button::from_icon_name("rufin-go-up-symbolic");
+    let up = gtk::Button::from_icon_name("slopsonic-go-up-symbolic");
     up.add_css_class("flat");
     up.set_tooltip_text(Some("Move up"));
     up.set_valign(gtk::Align::Center);
     up.set_sensitive(enabled);
     row.add_suffix(&up);
 
-    let down = gtk::Button::from_icon_name("rufin-go-down-symbolic");
+    let down = gtk::Button::from_icon_name("slopsonic-go-down-symbolic");
     down.add_css_class("flat");
     down.set_tooltip_text(Some("Move down"));
     down.set_valign(gtk::Align::Center);

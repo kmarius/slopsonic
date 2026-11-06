@@ -9,8 +9,8 @@ use std::rc::Rc;
 gtk_widgets::composite_box!(
     pub(crate) PlaylistPickerRowView,
     playlist_picker_row_view_imp,
-    "RufinPlaylistPickerRowView",
-    "/io/github/screwys/Rufin/ui/routes/playlist_picker_row.ui",
+    "SlopsonicPlaylistPickerRowView",
+    "/io/github/kmarius/Slopsonic/ui/routes/playlist_picker_row.ui",
     {
         check: gtk::CheckButton,
         cover_host: gtk::Box,
@@ -37,7 +37,7 @@ struct ReadyPlaylistTracks {
 
 pub fn populate_context_playlist_picker(
     root: &gtk::Box,
-    source: rufin_core::runtime::SourceHandle,
+    source: slopsonic_core::runtime::SourceHandle,
     feedback: Rc<dyn Fn(&OperationFeedback)>,
     popover: &gtk::PopoverMenu,
     new_playlist: Rc<dyn Fn(String, library::MemberSelection)>,
@@ -222,7 +222,7 @@ struct PickerRow {
 
 #[allow(clippy::too_many_arguments)]
 pub fn playlist_picker_dialog(
-    source: rufin_core::runtime::SourceHandle,
+    source: slopsonic_core::runtime::SourceHandle,
     artwork: Rc<gtk_widgets::artwork::ArtworkState>,
     create_playlist: Rc<dyn Fn(String, library::MemberSelection)>,
     feedback: Rc<dyn Fn(&OperationFeedback)>,
@@ -363,7 +363,7 @@ fn replace_picker_rows(
         row.imp().title.set_label(&playlist.name);
         row.imp()
             .track_count
-            .set_label(&rufin_core::text::track_count_text(
+            .set_label(&slopsonic_core::text::track_count_text(
                 playlist.track_count.max(0) as u64,
             ));
         row.imp()

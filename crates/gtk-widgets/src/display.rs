@@ -1,5 +1,5 @@
 use adw::prelude::*;
-use rufin_core::settings::layout::{DisplaySettings, DisplaySize, LibraryLayout};
+use slopsonic_core::settings::layout::{DisplaySettings, DisplaySize, LibraryLayout};
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,

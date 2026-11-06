@@ -22,7 +22,7 @@ pub(crate) struct DesktopState {
 impl DesktopState {
     pub(crate) fn new(
         application: &adw::Application,
-        transport: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
+        transport: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
     ) -> Self {
         let weak = application.downgrade();
         Self {
@@ -52,7 +52,7 @@ impl Shell {
         let products = resetting.then(|| self.products.clone());
         let (completed, completion) = channel();
         if let Err(error) = std::thread::Builder::new()
-            .name("rufin-shutdown".to_string())
+            .name("slopsonic-shutdown".to_string())
             .spawn(move || {
                 transport.shutdown();
                 scrobbling.shutdown();

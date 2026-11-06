@@ -1,7 +1,7 @@
 //! Scrobbling settings, credentials, and account authorization.
 //!
 //! The Scrobbling crate owns service protocols and retry delivery. This owner
-//! joins those operations to Rufin's settings and secret storage while the UI
+//! joins those operations to Slopsonic's settings and secret storage while the UI
 //! sees only editable preferences and connection progress.
 
 use std::sync::{Arc, Mutex};
@@ -18,7 +18,7 @@ use tracing::warn;
 
 use crate::settings::{SettingsFile, load_scrobbling_settings, persist_scrobbling_settings};
 
-const AUTHORIZATION_THREAD_NAME: &str = "rufin-scrobbling-auth";
+const AUTHORIZATION_THREAD_NAME: &str = "slopsonic-scrobbling-auth";
 const AUTHORIZATION_TASK_FAILED: &str = "Scrobbling authorization task failed.";
 
 async fn wait_for_authorization(

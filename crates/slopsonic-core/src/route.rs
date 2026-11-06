@@ -113,18 +113,18 @@ impl SidebarRouteDescriptor {
 #[rustfmt::skip]
     pub fn sidebar_route_descriptor(item: SidebarRouteItem) -> SidebarRouteDescriptor {
         match item {
-            SidebarRouteItem::Home => SidebarRouteDescriptor::new("Home", "Home", "rufin-home-symbolic", None, Route::Home),
-            SidebarRouteItem::Search => SidebarRouteDescriptor::new("Search", "Search", "rufin-search-symbolic", None, Route::Search),
-            SidebarRouteItem::Favorites => SidebarRouteDescriptor::new("Favorites", "Favorites", "rufin-heart-outline-symbolic", Some("rufin-heart-filled-symbolic"), Route::Favorites),
-            SidebarRouteItem::Albums => SidebarRouteDescriptor::new("Albums", "Albums", "rufin-albums-symbolic", None, Route::Albums),
-            SidebarRouteItem::Tracks => SidebarRouteDescriptor::new("Tracks", "Tracks", "rufin-tracks-symbolic", None, Route::Tracks),
-            SidebarRouteItem::Artists => SidebarRouteDescriptor::new("Artists", "Artists", "rufin-artists-symbolic", None, Route::Artists),
-            SidebarRouteItem::AlbumArtists => SidebarRouteDescriptor::new("AlbumArtists", "Album Artists", "rufin-album-artists-symbolic", None, Route::AlbumArtists),
-            SidebarRouteItem::Genres => SidebarRouteDescriptor::new("Genres", "Genres", "rufin-tag-outline-symbolic", None, Route::Genres),
-            SidebarRouteItem::Moods => SidebarRouteDescriptor::new("Moods", "Moods", "rufin-moods-symbolic", None, Route::Moods),
-            SidebarRouteItem::History => SidebarRouteDescriptor::new("History", "History", "rufin-history-symbolic", None, Route::History),
-            SidebarRouteItem::Folders => SidebarRouteDescriptor::new("Folders", "Folders", "rufin-folders-symbolic", Some("rufin-folders-selected-symbolic"), Route::Folders { path: Vec::new() }),
-            SidebarRouteItem::Playlists => SidebarRouteDescriptor::new("Playlists", "Playlists", "rufin-playlists-symbolic", None, Route::Playlists),
+            SidebarRouteItem::Home => SidebarRouteDescriptor::new("Home", "Home", "slopsonic-home-symbolic", None, Route::Home),
+            SidebarRouteItem::Search => SidebarRouteDescriptor::new("Search", "Search", "slopsonic-search-symbolic", None, Route::Search),
+            SidebarRouteItem::Favorites => SidebarRouteDescriptor::new("Favorites", "Favorites", "slopsonic-heart-outline-symbolic", Some("slopsonic-heart-filled-symbolic"), Route::Favorites),
+            SidebarRouteItem::Albums => SidebarRouteDescriptor::new("Albums", "Albums", "slopsonic-albums-symbolic", None, Route::Albums),
+            SidebarRouteItem::Tracks => SidebarRouteDescriptor::new("Tracks", "Tracks", "slopsonic-tracks-symbolic", None, Route::Tracks),
+            SidebarRouteItem::Artists => SidebarRouteDescriptor::new("Artists", "Artists", "slopsonic-artists-symbolic", None, Route::Artists),
+            SidebarRouteItem::AlbumArtists => SidebarRouteDescriptor::new("AlbumArtists", "Album Artists", "slopsonic-album-artists-symbolic", None, Route::AlbumArtists),
+            SidebarRouteItem::Genres => SidebarRouteDescriptor::new("Genres", "Genres", "slopsonic-tag-outline-symbolic", None, Route::Genres),
+            SidebarRouteItem::Moods => SidebarRouteDescriptor::new("Moods", "Moods", "slopsonic-moods-symbolic", None, Route::Moods),
+            SidebarRouteItem::History => SidebarRouteDescriptor::new("History", "History", "slopsonic-history-symbolic", None, Route::History),
+            SidebarRouteItem::Folders => SidebarRouteDescriptor::new("Folders", "Folders", "slopsonic-folders-symbolic", Some("slopsonic-folders-selected-symbolic"), Route::Folders { path: Vec::new() }),
+            SidebarRouteItem::Playlists => SidebarRouteDescriptor::new("Playlists", "Playlists", "slopsonic-playlists-symbolic", None, Route::Playlists),
         }
     }
 
@@ -156,9 +156,9 @@ impl CollectionCategory {
 
     pub const fn icon_name(self) -> &'static str {
         match self {
-            Self::Tracks => "rufin-tracks-symbolic",
-            Self::Albums => "rufin-albums-symbolic",
-            Self::Artists => "rufin-artists-symbolic",
+            Self::Tracks => "slopsonic-tracks-symbolic",
+            Self::Albums => "slopsonic-albums-symbolic",
+            Self::Artists => "slopsonic-artists-symbolic",
         }
     }
 

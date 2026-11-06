@@ -6,8 +6,8 @@ use gtk_widgets::{
     controls::{PLAY_ICON, REMOVE_ICON},
     interactions::ContextMenuSurface,
 };
-use rufin_core::playback::QueueSelection;
-use rufin_core::settings::ContextMenuItem;
+use slopsonic_core::playback::QueueSelection;
+use slopsonic_core::settings::ContextMenuItem;
 use std::rc::Rc;
 
 pub(crate) fn connect_queue_playlist_button(shell: &Rc<Shell>) {

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <object class="AdwPreferencesGroup" id="section">
     <child><object class="GtkListBox" id="fields"><property name="selection-mode">none</property><style><class name="boxed-list"/></style></object></child>
   </object>

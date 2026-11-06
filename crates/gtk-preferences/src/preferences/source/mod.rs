@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use rufin_core::runtime::source::{SourceOperation, SourceStatus};
+use slopsonic_core::runtime::source::{SourceOperation, SourceStatus};
 
 pub mod login;
 pub(super) mod manage;

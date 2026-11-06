@@ -4,7 +4,7 @@
 //! away from GTK, then builds and mounts its GTK model. Home and playlist
 //! detail have narrow point-update hooks because those operations are
 //! intentionally visible without remounting the whole page.
-use rufin_core::browse::{OpenOptions, OpenedCollection};
+use slopsonic_core::browse::{OpenOptions, OpenedCollection};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Instant;
@@ -42,8 +42,8 @@ mod route_stack_tests {
 
     #[test]
     fn initial_route_has_no_navigation_history() {
-        for item in rufin_core::settings::SidebarRouteItem::all() {
-            let initial = rufin_core::route::sidebar_route_descriptor(item).root_route;
+        for item in slopsonic_core::settings::SidebarRouteItem::all() {
+            let initial = slopsonic_core::route::sidebar_route_descriptor(item).root_route;
             let mut routes = RouteStack::new(initial.clone());
             assert_eq!(routes.current(), &initial);
             assert!(!routes.can_back());
@@ -194,7 +194,7 @@ impl Shell {
     fn queue_collection_route(
         self: &Rc<Self>,
         route: Route,
-        selected: Option<rufin_core::runtime::SelectedLibrary>,
+        selected: Option<slopsonic_core::runtime::SelectedLibrary>,
         options: OpenOptions,
         refresh_home: bool,
         render_started: RouteTiming,
@@ -651,7 +651,7 @@ impl Shell {
 
     pub(crate) fn apply_favorite_settlement_to_mounted_route(
         &self,
-        settlement: rufin_core::runtime::FavoriteSettlement,
+        settlement: slopsonic_core::runtime::FavoriteSettlement,
     ) {
         if let Some(view) = self
             .route_viewport
@@ -693,7 +693,7 @@ impl Shell {
     }
 
     fn mounted_catalog_is_current(&self) -> bool {
-        let scope = |selected: &rufin_core::runtime::SelectedLibrary| {
+        let scope = |selected: &slopsonic_core::runtime::SelectedLibrary| {
             (selected.source_key, selected.music_folder_key)
         };
         let source_scoped =

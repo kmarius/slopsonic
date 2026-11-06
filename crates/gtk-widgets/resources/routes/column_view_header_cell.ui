@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <requires lib="gtk" version="4.20"/>
-  <template class="RufinColumnViewHeaderCell" parent="GtkWidget">
+  <template class="SlopsonicColumnViewHeaderCell" parent="GtkWidget">
     <property name="hexpand">false</property>
     <property name="overflow">hidden</property>
     <property name="accessible-role">column-header</property>

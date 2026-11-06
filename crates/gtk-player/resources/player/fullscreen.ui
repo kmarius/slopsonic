@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <requires lib="gtk" version="4.20" />
   <requires lib="libadwaita" version="1.9" />
   <object class="GtkOverlay" id="root">
@@ -25,7 +25,7 @@
             <property name="margin-bottom">2</property>
             <child>
               <object class="GtkButton" id="close_button">
-                <property name="icon-name">rufin-go-down-symbolic</property>
+                <property name="icon-name">slopsonic-go-down-symbolic</property>
                 <property name="tooltip-text" translatable="yes">Close fullscreen player</property>
                 <style>
                   <class name="flat" />
@@ -35,7 +35,7 @@
 
             <child>
               <object class="GtkButton" id="pane_button">
-                <property name="icon-name">rufin-view-dual-symbolic</property>
+                <property name="icon-name">slopsonic-view-dual-symbolic</property>
                 <property name="tooltip-text" translatable="yes">Switch pane</property>
                 <style>
                   <class name="flat" />
@@ -44,7 +44,7 @@
             </child>
             <child>
               <object class="GtkButton" id="customize_button">
-                <property name="icon-name">rufin-sliders-2-symbolic</property>
+                <property name="icon-name">slopsonic-sliders-2-symbolic</property>
                 <property name="tooltip-text" translatable="yes">Customize display</property>
                 <style>
                   <class name="flat" />
@@ -104,7 +104,7 @@
                             <property name="spacing">6</property>
                             <child>
                               <object class="GtkImage">
-                                <property name="icon-name">rufin-queue-symbolic</property>
+                                <property name="icon-name">slopsonic-queue-symbolic</property>
                               </object>
                             </child>
                             <child>
@@ -124,7 +124,7 @@
                             <property name="spacing">6</property>
                             <child>
                               <object class="GtkImage">
-                                <property name="icon-name">rufin-compass-symbolic</property>
+                                <property name="icon-name">slopsonic-compass-symbolic</property>
                               </object>
                             </child>
                             <child>
@@ -144,7 +144,7 @@
                             <property name="spacing">6</property>
                             <child>
                               <object class="GtkImage">
-                                <property name="icon-name">rufin-sliders-vertical-symbolic</property>
+                                <property name="icon-name">slopsonic-sliders-vertical-symbolic</property>
                               </object>
                             </child>
                             <child>
@@ -265,7 +265,7 @@
                                   <class name="fullscreen-player-details" />
                                 </style>
                                 <child>
-                                  <object class="RufinTextFade" id="title_fade">
+                                  <object class="SlopsonicTextFade" id="title_fade">
                                     <property name="hexpand">true</property>
                                     <child>
                                       <object class="GtkScrolledWindow" id="title_slide">
@@ -299,7 +299,7 @@
                                   </object>
                                 </child>
                                 <child>
-                                  <object class="RufinTextFade" id="artist_fade">
+                                  <object class="SlopsonicTextFade" id="artist_fade">
                                     <property name="hexpand">true</property>
                                     <child>
                                       <object class="GtkScrolledWindow" id="artist_slide">
@@ -333,7 +333,7 @@
                                   </object>
                                 </child>
                                 <child>
-                                  <object class="RufinTextFade" id="album_fade">
+                                  <object class="SlopsonicTextFade" id="album_fade">
                                     <property name="hexpand">true</property>
                                     <child>
                                       <object class="GtkScrolledWindow" id="album_slide">

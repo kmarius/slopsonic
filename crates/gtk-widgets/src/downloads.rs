@@ -77,7 +77,7 @@ impl DownloadsState {
         image
     }
     pub fn register_download_badge(self: &Rc<Self>, image: &gtk::Image) {
-        image.set_icon_name(Some("rufin-folder-download-symbolic"));
+        image.set_icon_name(Some("slopsonic-folder-download-symbolic"));
         image.add_css_class("downloaded-badge");
         image.set_pixel_size(14);
         image.set_tooltip_text(Some("Downloaded"));

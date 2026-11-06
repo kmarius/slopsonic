@@ -131,15 +131,15 @@ impl PreferencesPageKind {
 
     fn icon_name(self) -> &'static str {
         match self {
-            Self::General => "rufin-preferences-system-symbolic",
-            Self::Customization => "rufin-sliders-2-symbolic",
-            Self::Theme => "rufin-preferences-desktop-appearance-symbolic",
-            Self::Playback => "rufin-music-queue-symbolic",
-            Self::Equalizer => "rufin-sliders-vertical-symbolic",
-            Self::Library => "rufin-library-symbolic",
-            Self::Downloads => "rufin-download-symbolic",
-            Self::Storage => "rufin-drive-harddisk-symbolic",
-            Self::Integrations => "rufin-network-workgroup-symbolic",
+            Self::General => "slopsonic-preferences-system-symbolic",
+            Self::Customization => "slopsonic-sliders-2-symbolic",
+            Self::Theme => "slopsonic-preferences-desktop-appearance-symbolic",
+            Self::Playback => "slopsonic-music-queue-symbolic",
+            Self::Equalizer => "slopsonic-sliders-vertical-symbolic",
+            Self::Library => "slopsonic-library-symbolic",
+            Self::Downloads => "slopsonic-download-symbolic",
+            Self::Storage => "slopsonic-drive-harddisk-symbolic",
+            Self::Integrations => "slopsonic-network-workgroup-symbolic",
         }
     }
 
@@ -582,7 +582,7 @@ fn build_preferences_dialog(
                 .activatable(true)
                 .build();
             row.add_prefix(&gtk::Image::from_icon_name(item.page.icon_name()));
-            row.add_suffix(&gtk::Image::from_icon_name("rufin-go-next-symbolic"));
+            row.add_suffix(&gtk::Image::from_icon_name("slopsonic-go-next-symbolic"));
             let page = item.page;
             let item = item.clone();
             let target_slot = page_slots
@@ -1161,7 +1161,7 @@ fn open_folder(shell: &Rc<Preferences>, folder: gtk::gio::File) {
             {
                 shell
                     .control_feedback
-                    .show_feedback_toast(rufin_core::text::fill(
+                    .show_feedback_toast(slopsonic_core::text::fill(
                         "Could not open folder: {error}",
                         &[("error", &error.to_string())],
                     ));

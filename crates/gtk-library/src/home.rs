@@ -5,8 +5,8 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::{gio, glib};
 use library::{GenreView, HomeAlbumRow, HomePage, HomeSectionRows, HomeTrackRow, RadioSeed};
-use rufin_core::playback::RadioPlayRequest;
-use rufin_core::text::{album_count_text, track_count_text};
+use slopsonic_core::playback::RadioPlayRequest;
+use slopsonic_core::text::{album_count_text, track_count_text};
 
 use crate::CatalogUi;
 use crate::LibraryField;
@@ -18,7 +18,7 @@ use gtk_widgets::favorites::{
 use gtk_widgets::format_duration_units;
 use gtk_widgets::layout::{configure_fill_width_clip, width_allocation_owner};
 use gtk_widgets::mounted_route::MountedRoute;
-use rufin_core::settings::{HomeBlockKind, HomeSectionKind};
+use slopsonic_core::settings::{HomeBlockKind, HomeSectionKind};
 
 use super::collections::library_route_inset;
 use super::detail_showcase::{
@@ -275,7 +275,7 @@ impl HomeRouteProjection {
         let mut previous_provider = None::<gtk::Widget>;
         for provider in &home.provider_sections {
             live_provider_ids.push(provider.section_id.clone());
-            let title = rufin_core::settings::presentation::home_provider_title(
+            let title = slopsonic_core::settings::presentation::home_provider_title(
                 &provider.section_id,
                 provider.title.as_deref(),
             );
@@ -455,7 +455,7 @@ fn clamped_page_start(start: usize, page_size: usize, count: usize) -> usize {
 impl CatalogUi {
     pub fn home_route(
         self: &Rc<Self>,
-        _selected: rufin_core::runtime::SelectedLibrary,
+        _selected: slopsonic_core::runtime::SelectedLibrary,
         home: HomePage,
     ) -> MountedRoute {
         let scroller = gtk::ScrolledWindow::new();
@@ -748,7 +748,7 @@ impl CatalogUi {
         showcase_view.append_detail(&artist_scroll);
         showcase_view.replace_summary(&[
             (
-                "rufin-x-office-calendar-symbolic",
+                "slopsonic-x-office-calendar-symbolic",
                 album
                     .metadata
                     .year
@@ -756,11 +756,11 @@ impl CatalogUi {
                     .unwrap_or_default(),
             ),
             (
-                "rufin-tracks-symbolic",
+                "slopsonic-tracks-symbolic",
                 track_count_text(album.summary.track_count.max(0) as u64),
             ),
             (
-                "rufin-preferences-system-time-symbolic",
+                "slopsonic-preferences-system-time-symbolic",
                 format_duration_units((album.summary.duration_millis.max(0) / 1_000) as u32),
             ),
         ]);
@@ -852,7 +852,7 @@ fn home_item_widget(shell: &Rc<CatalogUi>, item: HomeItem) -> (gtk::Widget, Home
             let play = Rc::new(move |_| {
                 (play_shell.media_menus.play_target)(
                     &track_play_request(play_key),
-                    rufin_core::playback::QueuePlacement::Now,
+                    slopsonic_core::playback::QueuePlacement::Now,
                     false,
                 );
             });
@@ -901,7 +901,7 @@ fn activate_home_item(shell: &Rc<CatalogUi>, item: HomeItem) {
     match item {
         HomeItem::Track(item) => (shell.media_menus.play_target)(
             &track_play_request(item.track.track_key),
-            rufin_core::playback::QueuePlacement::Now,
+            slopsonic_core::playback::QueuePlacement::Now,
             false,
         ),
         HomeItem::Album(item) => shell.navigate(Route::AlbumDetail(item.album.media_uri.clone())),

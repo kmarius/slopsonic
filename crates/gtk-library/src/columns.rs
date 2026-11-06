@@ -18,7 +18,7 @@ use gtk_widgets::favorites::{
 };
 use gtk_widgets::interactions::install_context_menu_openers;
 
-use rufin_core::playback::PlayRequest;
+use slopsonic_core::playback::PlayRequest;
 
 use super::table_links::mapped_track_link_column;
 use gtk_widgets::detail_links::{DetailLinks, album_artist_links};
@@ -83,7 +83,7 @@ mod collection_index_cell_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for CollectionIndexCell {
-        const NAME: &'static str = "RufinCollectionIndexCell";
+        const NAME: &'static str = "SlopsonicCollectionIndexCell";
         type Type = super::CollectionIndexCell;
         type ParentType = gtk::Widget;
 
@@ -265,7 +265,7 @@ mod album_table_cell_imp {
     }
     #[glib::object_subclass]
     impl ObjectSubclass for AlbumTableCell {
-        const NAME: &'static str = "RufinAlbumTableCell";
+        const NAME: &'static str = "SlopsonicAlbumTableCell";
         type Type = super::AlbumTableCell;
         type ParentType = gtk::Widget;
         fn class_init(class: &mut Self::Class) {

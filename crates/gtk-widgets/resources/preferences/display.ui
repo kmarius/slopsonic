@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <object class="AdwPreferencesGroup" id="display_group">
     <property name="title" translatable="yes">Display</property>
     <child><object class="AdwActionRow" id="size_row">

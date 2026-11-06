@@ -179,7 +179,7 @@ mod item_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for SparseObjectItem {
-        const NAME: &'static str = "RufinSparseObjectItem";
+        const NAME: &'static str = "SlopsonicSparseObjectItem";
         type Type = super::SparseObjectItem;
     }
 
@@ -433,7 +433,7 @@ mod imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for SparseObjectModel {
-        const NAME: &'static str = "RufinSparseObjectModel";
+        const NAME: &'static str = "SlopsonicSparseObjectModel";
         type Type = super::SparseObjectModel;
         type Interfaces = (gio::ListModel,);
     }
@@ -495,7 +495,7 @@ impl SparseObjectModel {
 
     pub(crate) fn collection_selection(
         &self,
-        target: &rufin_core::playback::PlayRequest,
+        target: &slopsonic_core::playback::PlayRequest,
         positions: &gtk::Bitset,
     ) -> Option<crate::media_drag::CollectionTargets> {
         use glib::subclass::prelude::ObjectSubclassIsExt;

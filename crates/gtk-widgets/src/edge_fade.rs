@@ -51,7 +51,7 @@ mod imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for TextFade {
-        const NAME: &'static str = "RufinTextFade";
+        const NAME: &'static str = "SlopsonicTextFade";
         type Type = super::TextFade;
         type ParentType = gtk::Box;
     }

@@ -29,7 +29,7 @@ pub const SEARCH_PREVIEW_LIMIT: usize = 30;
 
 /// One current query shared by the header and the Search route.
 pub struct SearchSession {
-    source: rufin_core::runtime::SourceHandle,
+    source: slopsonic_core::runtime::SourceHandle,
     database: Arc<library::Database>,
     runtime: tokio::runtime::Handle,
     selected: RefCell<Option<SelectedLibrary>>,
@@ -46,7 +46,7 @@ pub struct SearchSession {
 
 impl SearchSession {
     pub fn new(
-        source: rufin_core::runtime::SourceHandle,
+        source: slopsonic_core::runtime::SourceHandle,
         database: Arc<library::Database>,
         runtime: tokio::runtime::Handle,
     ) -> Self {
@@ -82,7 +82,7 @@ impl SearchSession {
         if result.kind == RecentSearchKind::Track {
             catalog
                 .playback
-                .play_selection(rufin_core::playback::PlayRequest::uris(
+                .play_selection(slopsonic_core::playback::PlayRequest::uris(
                     vec![result.media_uri.clone()],
                     placement,
                 ));
@@ -244,7 +244,7 @@ impl SearchSession {
         let source = self.source.clone();
         let database = self.database.clone();
         let task = self.runtime.spawn(async move {
-            rufin_core::source::search::acquire_search(
+            slopsonic_core::source::search::acquire_search(
                 &source,
                 &database,
                 selected.as_ref(),

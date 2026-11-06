@@ -6,7 +6,7 @@ use gtk::gdk;
 use gtk::glib;
 use gtk::prelude::{Cast, ObjectExt};
 
-// The byte budget remains authoritative for Rufin's smallest 32px cover while
+// The byte budget remains authoritative for Slopsonic's smallest 32px cover while
 // still bounding anomalous sub-32px texture/object metadata.
 const MAX_TEXTURES: usize = 8_192;
 const MAX_TEXTURE_BYTES: usize = 32 * 1024 * 1024;

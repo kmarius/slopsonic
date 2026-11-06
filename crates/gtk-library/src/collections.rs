@@ -72,7 +72,7 @@ impl CollectionTableProjection {
         TableFrame::new(scroller, Some(&self.header.widget())).widget()
     }
 
-    pub fn apply_display(&self, settings: &rufin_core::settings::layout::DisplaySettings) {
+    pub fn apply_display(&self, settings: &slopsonic_core::settings::layout::DisplaySettings) {
         gtk_widgets::display::apply(&self.table, settings);
         self.header.set_visible(settings.show_header);
     }
@@ -617,7 +617,7 @@ pub fn track_collection_projection(
         play_model.play(
             play_queue.clone(),
             position as usize,
-            rufin_core::playback::QueuePlacement::Now,
+            slopsonic_core::playback::QueuePlacement::Now,
             &play_context_id,
             false,
             false,
@@ -884,7 +884,7 @@ where
             LibraryField::RowIndex => default.sort_key,
             field => field,
         };
-        if !rufin_core::settings::layout::available_sort_fields(key).contains(&field) {
+        if !slopsonic_core::settings::layout::available_sort_fields(key).contains(&field) {
             return;
         }
         header_shell.update_library_list_settings(key, |settings| {
@@ -1093,7 +1093,7 @@ pub fn track_table(
         play_model.play(
             queue.clone(),
             position as usize,
-            rufin_core::playback::QueuePlacement::Now,
+            slopsonic_core::playback::QueuePlacement::Now,
             &context_id,
             false,
             false,

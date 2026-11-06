@@ -1,4 +1,4 @@
-use rufin_core::browse::{MemberPage, OpenedCollection};
+use slopsonic_core::browse::{MemberPage, OpenedCollection};
 use std::{cell::RefCell, rc::Rc, sync::Arc, time::Duration};
 
 use adw::prelude::*;
@@ -91,8 +91,8 @@ impl TrackListProjection {
 
     pub fn play_source(
         &self,
-        queue: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
-        placement: rufin_core::playback::QueuePlacement,
+        queue: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
+        placement: slopsonic_core::playback::QueuePlacement,
         context_id: String,
         shuffled: bool,
     ) {
@@ -130,7 +130,7 @@ impl TrackListProjection {
         });
     }
 
-    pub fn replace_page(&self, prepared: rufin_core::browse::MemberPage) -> bool {
+    pub fn replace_page(&self, prepared: slopsonic_core::browse::MemberPage) -> bool {
         self.model.replace_page(prepared)
     }
 
@@ -162,7 +162,7 @@ impl TrackListProjection {
         context: &'static str,
         changed: impl Fn() + 'static,
     ) -> Rc<
-        LatestMountedRouteRead<Result<rufin_core::browse::MemberPage, String>, library::MemberRead>,
+        LatestMountedRouteRead<Result<slopsonic_core::browse::MemberPage, String>, library::MemberRead>,
     > {
         let runtime = shell.runtime.clone();
         let database = Arc::clone(&shell.library);
@@ -218,7 +218,7 @@ impl CatalogUi {
         self: &Rc<Self>,
         route: Route,
         opened: OpenedCollection,
-        selected: Option<rufin_core::runtime::SelectedLibrary>,
+        selected: Option<slopsonic_core::runtime::SelectedLibrary>,
     ) -> MountedRoute {
         match opened {
             OpenedCollection::Tracks(page) => match route {
@@ -283,7 +283,7 @@ impl CatalogUi {
                 return;
             };
             let settings = shell.settings.current.borrow().library_list(key);
-            read.request_with(rufin_core::browse::list_display(
+            read.request_with(slopsonic_core::browse::list_display(
                 &search_captured,
                 &search.text(),
                 &settings,
@@ -296,7 +296,7 @@ impl CatalogUi {
             let Some(shell) = shell.upgrade() else { return };
             let settings = shell.settings.current.borrow().library_list(key);
             if apply_settings(&settings) {
-                read.request_with(rufin_core::browse::list_display(
+                read.request_with(slopsonic_core::browse::list_display(
                     &captured,
                     &search.text(),
                     &settings,
@@ -336,7 +336,7 @@ impl CatalogUi {
 
     pub fn library_albums_route(
         self: &Rc<Self>,
-        opened: rufin_core::browse::AlbumListPage,
+        opened: slopsonic_core::browse::AlbumListPage,
     ) -> MountedRoute {
         let captured = opened.read;
         let favorites_only = captured.favorites_only;
@@ -379,7 +379,7 @@ impl CatalogUi {
             let applied_settings = Rc::clone(&applied_settings);
             Rc::new(
                 move |request: library::ListRead,
-                      result: Result<rufin_core::browse::AlbumListContent,String>| {
+                      result: Result<slopsonic_core::browse::AlbumListContent,String>| {
                     let Some(shell) = shell.upgrade() else {
                         return;
                     };
@@ -391,7 +391,7 @@ impl CatalogUi {
                             applied_query.replace(request);
                             let settings = shell.settings.current.borrow().library_list(key);
                             let current_models = models.borrow().clone();
-                            let replace_model = current_models.is_detail() != matches!(&albums,rufin_core::browse::AlbumListContent::Detail {..});
+                            let replace_model = current_models.is_detail() != matches!(&albums,slopsonic_core::browse::AlbumListContent::Detail {..});
                             if replace_model {
                                 models.replace(AlbumCollectionModels::new(&shell.library,&shell.runtime,albums,Rc::clone(&applied_query)));
                             } else if !current_models.replace_prepared(albums) {
@@ -414,7 +414,7 @@ impl CatalogUi {
         let source_owner = self.source.clone();
         let reload_read = captured.clone();
         let favorite_captured = captured.clone();
-        let load: ListPageLoad<rufin_core::browse::AlbumListContent> =
+        let load: ListPageLoad<slopsonic_core::browse::AlbumListContent> =
             Arc::new(move |read, cancel| {
                 let source_owner = source_owner.clone();
                 Box::pin(async move {
@@ -446,8 +446,8 @@ impl CatalogUi {
                     != (settings.layout == LibraryLayout::Detail)
                     || previous.sort_key != settings.sort_key
                     || previous.descending != settings.descending
-                    || rufin_core::browse::uses_activity(&Route::Albums, &previous)
-                        != rufin_core::browse::uses_activity(&Route::Albums, settings);
+                    || slopsonic_core::browse::uses_activity(&Route::Albums, &previous)
+                        != slopsonic_core::browse::uses_activity(&Route::Albums, settings);
                 applied_settings.replace(settings.clone());
                 reload
             }
@@ -460,7 +460,7 @@ impl CatalogUi {
             Rc::new(move || {
                 let Some(shell) = shell.upgrade() else { return };
                 let settings = shell.settings.current.borrow().library_list(key);
-                read.request_with(rufin_core::browse::list_display(
+                read.request_with(slopsonic_core::browse::list_display(
                     &captured,
                     &search.text(),
                     &settings,
@@ -517,7 +517,7 @@ impl CatalogUi {
                 models.update_favorite(&album, settlement.effective);
                 let settings = applied_settings.borrow().clone();
                 if favorites_only || settings.sort_key == crate::LibraryField::Favorite {
-                    favorite_read.request_with(rufin_core::browse::list_display(
+                    favorite_read.request_with(slopsonic_core::browse::list_display(
                         &favorite_captured,
                         &favorite_search.text(),
                         &settings,
@@ -528,8 +528,8 @@ impl CatalogUi {
 
     pub fn library_tracks_route(
         self: &Rc<Self>,
-        page: rufin_core::browse::MemberPage,
-        selected: rufin_core::runtime::SelectedLibrary,
+        page: slopsonic_core::browse::MemberPage,
+        selected: slopsonic_core::runtime::SelectedLibrary,
     ) -> MountedRoute {
         self.root_track_route(
             RootTrackRouteOptions {
@@ -545,8 +545,8 @@ impl CatalogUi {
 
     pub fn favorites_route(
         self: &Rc<Self>,
-        page: rufin_core::browse::MemberPage,
-        selected: rufin_core::runtime::SelectedLibrary,
+        page: slopsonic_core::browse::MemberPage,
+        selected: slopsonic_core::runtime::SelectedLibrary,
     ) -> MountedRoute {
         let key = LibraryListKey::FavoriteTracks;
         self.root_track_route(
@@ -564,8 +564,8 @@ impl CatalogUi {
     fn root_track_route(
         self: &Rc<Self>,
         options: RootTrackRouteOptions,
-        page: rufin_core::browse::MemberPage,
-        selected: rufin_core::runtime::SelectedLibrary,
+        page: slopsonic_core::browse::MemberPage,
+        selected: slopsonic_core::runtime::SelectedLibrary,
         favorites_only: bool,
     ) -> MountedRoute {
         let context_id = selected.music_folder_key.as_ref().map_or_else(
@@ -585,7 +585,7 @@ impl CatalogUi {
         self.track_page_route(options, projection, favorites_only)
     }
 
-    pub fn history_route(self: &Rc<Self>, initial: rufin_core::browse::MemberPage) -> MountedRoute {
+    pub fn history_route(self: &Rc<Self>, initial: slopsonic_core::browse::MemberPage) -> MountedRoute {
         let key = LibraryListKey::History;
         let projection = self.searchable_track_collection(
             initial,
@@ -670,7 +670,7 @@ impl CatalogUi {
 
     pub fn searchable_track_collection(
         self: &Rc<Self>,
-        page: rufin_core::browse::MemberPage,
+        page: slopsonic_core::browse::MemberPage,
         key: LibraryListKey,
         options: SearchableTrackOptions,
     ) -> TrackListProjection {
@@ -766,7 +766,7 @@ impl CatalogUi {
         page: super::route_shell::LibraryPageShell,
         read: Rc<
             LatestMountedRouteRead<
-                Result<rufin_core::browse::MemberPage, String>,
+                Result<slopsonic_core::browse::MemberPage, String>,
                 library::MemberRead,
             >,
         >,

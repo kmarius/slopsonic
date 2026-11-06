@@ -23,7 +23,7 @@ pub(super) const AUDIO_EXTENSION: &str = "audio";
 pub(super) const RECORD_EXTENSION: &str = "json";
 pub(super) const PART_EXTENSION: &str = "part";
 const CHECKPOINT_EXTENSION: &str = "resume";
-pub(super) const CUSTOM_STAGING_DIRECTORY: &str = ".rufin-partials";
+pub(super) const CUSTOM_STAGING_DIRECTORY: &str = ".slopsonic-partials";
 
 #[derive(Debug, Deserialize)]
 #[cfg_attr(test, derive(Serialize))]

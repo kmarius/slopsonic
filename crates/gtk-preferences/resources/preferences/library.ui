@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <requires lib="gtk" version="4.20" />
   <requires lib="libadwaita" version="1.9" />
   <object class="AdwPreferencesPage" id="library_page">
     <property name="title" translatable="yes">Library</property>
-    <property name="icon-name">rufin-library-music-symbolic</property>
+    <property name="icon-name">slopsonic-library-music-symbolic</property>
     <child>
       <object class="AdwPreferencesGroup" id="servers_group">
         <property name="title" translatable="yes">Sources</property>
@@ -25,7 +25,7 @@
     <property name="title" translatable="yes">Download Folder</property>
     <child type="suffix">
       <object class="GtkButton" id="reset_folder">
-        <property name="icon-name">rufin-view-refresh-symbolic</property>
+        <property name="icon-name">slopsonic-view-refresh-symbolic</property>
         <property name="tooltip-text" translatable="yes">Use default folder</property>
         <property name="valign">center</property>
         <style>
@@ -35,7 +35,7 @@
     </child>
     <child type="suffix">
       <object class="GtkButton" id="open_folder">
-        <property name="icon-name">rufin-document-open-symbolic</property>
+        <property name="icon-name">slopsonic-document-open-symbolic</property>
         <property name="tooltip-text" translatable="yes">Open Folder</property>
         <property name="valign">center</property>
         <style>
@@ -84,7 +84,7 @@
                 <property name="valign">center</property>
                 <child>
                   <object class="GtkImage">
-                    <property name="icon-name">rufin-user-trash-symbolic</property>
+                    <property name="icon-name">slopsonic-user-trash-symbolic</property>
                   </object>
                 </child>
                 <child>
@@ -127,7 +127,7 @@
         </child>
         <child>
           <object class="GtkButton" id="pause_downloads">
-            <property name="icon-name">rufin-media-playback-pause-symbolic</property>
+            <property name="icon-name">slopsonic-media-playback-pause-symbolic</property>
             <property name="valign">center</property>
             <property name="visible">false</property>
             <style>

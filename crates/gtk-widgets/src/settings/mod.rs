@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use tracing::warn;
 
-use rufin_core::settings::app::{Settings, SettingsHandle};
+use slopsonic_core::settings::app::{Settings, SettingsHandle};
 
 pub struct SettingsState {
     pub current: RefCell<Settings>,
@@ -63,8 +63,8 @@ pub use presentation::{home_block_title, library_field_title, library_list_title
 impl SettingsState {
     pub fn update_library_list_settings(
         &self,
-        key: rufin_core::settings::LibraryListKey,
-        update: impl FnOnce(&mut rufin_core::settings::LibraryListSettings),
+        key: slopsonic_core::settings::LibraryListKey,
+        update: impl FnOnce(&mut slopsonic_core::settings::LibraryListSettings),
     ) -> bool {
         match self.persistence.update_library_list_settings(key, update) {
             Ok(Some(committed)) => {

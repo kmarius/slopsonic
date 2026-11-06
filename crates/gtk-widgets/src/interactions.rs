@@ -5,22 +5,22 @@ use adw::prelude::*;
 use gtk::{gio, glib};
 
 use crate::controls::{PLAY_ICON, PLAY_LATER_ICON, PLAY_NEXT_ICON};
-use rufin_core::settings::context_menu::{ContextMenuItem, ContextMenuSettings};
+use slopsonic_core::settings::context_menu::{ContextMenuItem, ContextMenuSettings};
 
-const NATIVE_MENU_SELECTION_CLASS: &str = "rufin-menu-selection";
-const NATIVE_MENU_SELECTED_CLASS: &str = "rufin-menu-selected";
-const NATIVE_MENU_PARENT_GRAB_CLASS: &str = "rufin-menu-parent-grab";
+const NATIVE_MENU_SELECTION_CLASS: &str = "slopsonic-menu-selection";
+const NATIVE_MENU_SELECTED_CLASS: &str = "slopsonic-menu-selected";
+const NATIVE_MENU_PARENT_GRAB_CLASS: &str = "slopsonic-menu-parent-grab";
 const CONTEXT_MENU_MAX_WIDTH: i32 = 230;
 const CONTEXT_MENU_CASCADE_GAP: i32 = 8;
 pub const CONTEXT_MENU_HOVER_OWNER_CLASS: &str = "context-menu-hover-owner";
 pub const CONTEXT_MENU_HOVER_HELD_CLASS: &str = "context-menu-hover-held";
 
-pub const ADD_TO_PLAYLIST_ICON: &str = "rufin-playlists-compact-symbolic";
-pub const ALBUM_ICON: &str = "rufin-albums-symbolic";
-pub const ARTIST_ICON: &str = "rufin-artists-symbolic";
-pub const DOWNLOAD_ICON: &str = "rufin-download-symbolic";
-pub const GO_TO_ICON: &str = "rufin-external-link-compact-symbolic";
-pub const RADIO_ICON: &str = "rufin-audio-only-symbolic";
+pub const ADD_TO_PLAYLIST_ICON: &str = "slopsonic-playlists-compact-symbolic";
+pub const ALBUM_ICON: &str = "slopsonic-albums-symbolic";
+pub const ARTIST_ICON: &str = "slopsonic-artists-symbolic";
+pub const DOWNLOAD_ICON: &str = "slopsonic-download-symbolic";
+pub const GO_TO_ICON: &str = "slopsonic-external-link-compact-symbolic";
+pub const RADIO_ICON: &str = "slopsonic-audio-only-symbolic";
 
 #[derive(Default)]
 struct ButtonRepeat(RefCell<Option<glib::JoinHandle<()>>>);
@@ -511,7 +511,7 @@ mod context_menu_tests {
     use gio::prelude::MenuModelExt;
     use glib::prelude::IsA;
     use gtk::{gio, glib};
-    use rufin_core::settings::context_menu::{
+    use slopsonic_core::settings::context_menu::{
         ContextMenuItem, ContextMenuItemSettings, ContextMenuSettings,
     };
 
@@ -651,7 +651,7 @@ pub fn go_to_context_submenu(group: &str, artist_names: &[String], has_album: bo
     for (index, artist_name) in artist_names.iter().enumerate() {
         append_menu_action(
             &menu,
-            &rufin_core::text::fill("Go to {artist}", &[("artist", artist_name)]),
+            &slopsonic_core::text::fill("Go to {artist}", &[("artist", artist_name)]),
             &if artist_names.len() == 1 {
                 format!("{group}.go-artist")
             } else {

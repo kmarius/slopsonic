@@ -19,7 +19,7 @@ pub fn register_resources() -> Result<(), String> {
         .clone()
 }
 
-use rufin_core::settings::*;
+use slopsonic_core::settings::*;
 mod album_detail;
 mod album_detail_view;
 mod artist;

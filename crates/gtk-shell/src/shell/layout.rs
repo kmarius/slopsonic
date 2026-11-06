@@ -37,7 +37,7 @@ mod shell_allocation_owner_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for ShellAllocationOwner {
-        const NAME: &'static str = "RufinShellAllocationOwner";
+        const NAME: &'static str = "SlopsonicShellAllocationOwner";
         type Type = super::ShellAllocationOwner;
         type ParentType = gtk::Widget;
     }

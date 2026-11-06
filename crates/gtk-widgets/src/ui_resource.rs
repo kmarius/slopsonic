@@ -80,20 +80,20 @@ where
 }
 
 pub const RECYCLED_ARTWORK_CELL_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/routes/recycled_artwork_cell.ui";
+    "/io/github/kmarius/Slopsonic/ui/routes/recycled_artwork_cell.ui";
 pub const RECYCLED_BADGED_TEXT_CELL_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/routes/recycled_badged_text_cell.ui";
+    "/io/github/kmarius/Slopsonic/ui/routes/recycled_badged_text_cell.ui";
 pub const RECYCLED_FOLDER_CELL_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/routes/recycled_folder_cell.ui";
+    "/io/github/kmarius/Slopsonic/ui/routes/recycled_folder_cell.ui";
 pub const RECYCLED_MERGED_CELL_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/routes/recycled_merged_cell.ui";
+    "/io/github/kmarius/Slopsonic/ui/routes/recycled_merged_cell.ui";
 pub const RECYCLED_TEXT_CELL_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/routes/recycled_text_cell.ui";
+    "/io/github/kmarius/Slopsonic/ui/routes/recycled_text_cell.ui";
 
 pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     TEXT_SLIDE_RESOURCE,
     DISPLAY_SETTINGS_RESOURCE,
-    "/io/github/screwys/Rufin/ui/routes/row_actions.ui",
+    "/io/github/kmarius/Slopsonic/ui/routes/row_actions.ui",
     TRACK_ROW_INDEX_RESOURCE,
     PLAY_MENU_RESOURCE,
     MANAGE_SERVER_RESOURCE,
@@ -110,58 +110,58 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
 ];
 
 pub const COLUMN_VIEW_HEADER_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/routes/column_view_header.ui";
+    "/io/github/kmarius/Slopsonic/ui/routes/column_view_header.ui";
 pub const COLUMN_VIEW_HEADER_CELL_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/routes/column_view_header_cell.ui";
-pub const TABLE_FRAME_RESOURCE: &str = "/io/github/screwys/Rufin/ui/routes/table_frame.ui";
+    "/io/github/kmarius/Slopsonic/ui/routes/column_view_header_cell.ui";
+pub const TABLE_FRAME_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/table_frame.ui";
 
-pub const DISPLAY_SETTINGS_RESOURCE: &str = "/io/github/screwys/Rufin/ui/preferences/display.ui";
-pub const TEXT_SLIDE_RESOURCE: &str = "/io/github/screwys/Rufin/ui/routes/text_slide.ui";
+pub const DISPLAY_SETTINGS_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/preferences/display.ui";
+pub const TEXT_SLIDE_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/text_slide.ui";
 
-pub const TRACK_ROW_INDEX_RESOURCE: &str = "/io/github/screwys/Rufin/ui/routes/track_row_index.ui";
+pub const TRACK_ROW_INDEX_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/track_row_index.ui";
 
-pub const PLAY_MENU_RESOURCE: &str = "/io/github/screwys/Rufin/ui/routes/play_menu.ui";
+pub const PLAY_MENU_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/play_menu.ui";
 
 pub const PLAYLIST_NAME_DIALOG_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/dialogs/playlist_name.ui";
+    "/io/github/kmarius/Slopsonic/ui/preferences/dialogs/playlist_name.ui";
 
 pub const PLAYLIST_DELETE_DIALOG_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/dialogs/playlist_delete.ui";
+    "/io/github/kmarius/Slopsonic/ui/preferences/dialogs/playlist_delete.ui";
 
 pub const MANAGE_SERVER_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/preferences/source/manage_server.ui";
+    "/io/github/kmarius/Slopsonic/ui/preferences/source/manage_server.ui";
 
 pub fn verify_icons() -> Result<(), String> {
     crate::register_resources()?;
     for relative_path in [
         "scalable/apps/io.github.kmarius.slopsonic.svg",
-        "scalable/actions/rufin-drive-harddisk-symbolic.svg",
-        "scalable/actions/rufin-edit-clear-symbolic.svg",
-        "scalable/actions/rufin-go-last-symbolic.svg",
-        "scalable/actions/rufin-audio-only-symbolic.svg",
-        "scalable/actions/rufin-library-music-symbolic.svg",
-        "scalable/actions/rufin-mail-forward-symbolic.svg",
-        "scalable/actions/rufin-media-playback-start-symbolic.svg",
-        "scalable/actions/rufin-media-skip-backward-symbolic.svg",
-        "scalable/actions/rufin-media-skip-forward-symbolic.svg",
-        "scalable/actions/rufin-moods-symbolic.svg",
-        "scalable/actions/rufin-music-queue-symbolic.svg",
-        "scalable/actions/rufin-sliders-vertical-symbolic.svg",
-        "scalable/actions/rufin-sound-symbolic.svg",
-        "scalable/actions/rufin-text-center-symbolic.svg",
-        "scalable/actions/rufin-view-list-ordered-symbolic.svg",
-        "scalable/actions/rufin-text-justify-center-symbolic.svg",
-        "scalable/actions/rufin-open-menu-symbolic.svg",
-        "scalable/actions/rufin-player-more-symbolic.svg",
-        "scalable/actions/rufin-preferences-desktop-appearance-symbolic.svg",
-        "scalable/actions/rufin-search-symbolic.svg",
-        "scalable/actions/rufin-tag-outline-symbolic.svg",
-        "scalable/actions/rufin-x-office-calendar-symbolic.svg",
+        "scalable/actions/slopsonic-drive-harddisk-symbolic.svg",
+        "scalable/actions/slopsonic-edit-clear-symbolic.svg",
+        "scalable/actions/slopsonic-go-last-symbolic.svg",
+        "scalable/actions/slopsonic-audio-only-symbolic.svg",
+        "scalable/actions/slopsonic-library-music-symbolic.svg",
+        "scalable/actions/slopsonic-mail-forward-symbolic.svg",
+        "scalable/actions/slopsonic-media-playback-start-symbolic.svg",
+        "scalable/actions/slopsonic-media-skip-backward-symbolic.svg",
+        "scalable/actions/slopsonic-media-skip-forward-symbolic.svg",
+        "scalable/actions/slopsonic-moods-symbolic.svg",
+        "scalable/actions/slopsonic-music-queue-symbolic.svg",
+        "scalable/actions/slopsonic-sliders-vertical-symbolic.svg",
+        "scalable/actions/slopsonic-sound-symbolic.svg",
+        "scalable/actions/slopsonic-text-center-symbolic.svg",
+        "scalable/actions/slopsonic-view-list-ordered-symbolic.svg",
+        "scalable/actions/slopsonic-text-justify-center-symbolic.svg",
+        "scalable/actions/slopsonic-open-menu-symbolic.svg",
+        "scalable/actions/slopsonic-player-more-symbolic.svg",
+        "scalable/actions/slopsonic-preferences-desktop-appearance-symbolic.svg",
+        "scalable/actions/slopsonic-search-symbolic.svg",
+        "scalable/actions/slopsonic-tag-outline-symbolic.svg",
+        "scalable/actions/slopsonic-x-office-calendar-symbolic.svg",
         "symbolic/apps/io.github.kmarius.slopsonic-symbolic.svg",
     ] {
-        let path = format!("/io/github/screwys/Rufin/icons/hicolor/{relative_path}");
+        let path = format!("/io/github/kmarius/Slopsonic/icons/hicolor/{relative_path}");
         gtk::gio::resources_lookup_data(&path, gtk::gio::ResourceLookupFlags::NONE)
-            .map_err(|error| format!("missing compiled Rufin resource {path}: {error}"))?;
+            .map_err(|error| format!("missing compiled Slopsonic resource {path}: {error}"))?;
     }
     Ok(())
 }
@@ -178,7 +178,7 @@ mod resource_tests {
     }
 
     #[test]
-    fn representative_rufin_icons_are_compiled_resources() {
+    fn representative_slopsonic_icons_are_compiled_resources() {
         super::verify_icons().expect("compiled icon resources");
     }
 }

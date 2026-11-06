@@ -163,7 +163,7 @@ impl GStreamerPlaybackBackend {
         let initial = processing.borrow_and_update().clone();
         let (ready_sender, ready_receiver) = sync_channel(1);
         let thread = thread::Builder::new()
-            .name("rufin-gstreamer-playback".to_string())
+            .name("slopsonic-gstreamer-playback".to_string())
             .spawn(move || run_gstreamer_thread(thread_events, ready_sender, initial))
             .map_err(|error| BackendError::Backend(error.to_string()))?;
         match ready_receiver.recv() {
@@ -424,13 +424,13 @@ impl GstEngine {
         let shared = Arc::new(Mutex::new(SharedBackendState::new()));
         let (input_sender, inputs) = channel();
         let primary = PlayerPipeline::new(
-            "rufin-primary-player",
+            "slopsonic-primary-player",
             Slot::Primary,
             Arc::clone(&shared),
             input_sender.clone(),
         );
         let secondary = PlayerPipeline::new(
-            "rufin-secondary-player",
+            "slopsonic-secondary-player",
             Slot::Secondary,
             Arc::clone(&shared),
             input_sender.clone(),
@@ -4140,7 +4140,7 @@ mod tests {
                 .unwrap();
             let output = engine.primary.audio_output().unwrap();
             let output_bin = output.parent().unwrap().downcast::<gst::Bin>().unwrap();
-            let gain = output_bin.by_name("rufin-output-gain").unwrap();
+            let gain = output_bin.by_name("slopsonic-output-gain").unwrap();
             let downstream = gain
                 .static_pad("src")
                 .unwrap()
@@ -4436,7 +4436,7 @@ mod tests {
                 stream: ResolvedStream::new("https://music.example/current.flac").into(),
             });
             shared.set_pipeline_id(Slot::Primary, Some(current_pipeline));
-            shared.settings.audio_output = Some("rufin-test-missing-output".to_string());
+            shared.settings.audio_output = Some("slopsonic-test-missing-output".to_string());
         }
 
         engine.handle_command(BackendCommand::PrepareNext {

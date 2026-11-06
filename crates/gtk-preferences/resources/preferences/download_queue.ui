@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <object class="GtkScrolledWindow" id="scroll">
     <property name="hscrollbar-policy">never</property>
     <property name="min-content-height">160</property>

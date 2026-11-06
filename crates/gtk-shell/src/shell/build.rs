@@ -24,7 +24,7 @@ use crate::preferences::source::SourceState;
 use gtk_player::state::PlaybackState;
 use gtk_preferences::preferences::PreferencesState;
 use gtk_widgets::settings::SettingsState;
-use rufin_core::runtime::RuntimeInputs;
+use slopsonic_core::runtime::RuntimeInputs;
 
 use super::Shell;
 use super::actions::connect_shell_actions;
@@ -48,7 +48,7 @@ use gtk_widgets::artwork::ArtworkState;
 
 pub async fn build(
     app: &adw::Application,
-    settings: rufin_core::settings::Settings,
+    settings: slopsonic_core::settings::Settings,
     bootstrap: impl std::future::Future<Output = Result<RuntimeInputs, String>>,
     quitting: Rc<Cell<bool>>,
     storage_reset: crate::application::StorageResetResult,
@@ -139,7 +139,7 @@ pub async fn build(
     let defer_initial_route = source_status.is_some();
     let settings_state = Rc::new(SettingsState::new(settings.clone(), settings_handle));
     let navigation = NavigationState::new(
-        rufin_core::route::sidebar_route_descriptor(settings.application.starting_page).root_route,
+        slopsonic_core::route::sidebar_route_descriptor(settings.application.starting_page).root_route,
     );
     let selected_ui = SelectedUiState::new();
     let source = Rc::new(SourceState {

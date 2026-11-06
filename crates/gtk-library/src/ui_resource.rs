@@ -1,6 +1,6 @@
-pub const ROUTE_PLACEHOLDER_RESOURCE: &str = "/io/github/screwys/Rufin/ui/routes/placeholder.ui";
+pub const ROUTE_PLACEHOLDER_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/placeholder.ui";
 pub const PLAYLIST_COMMANDS_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/routes/playlist_commands.ui";
+    "/io/github/kmarius/Slopsonic/ui/routes/playlist_commands.ui";
 pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     PLAYLIST_COMMANDS_RESOURCE,
     DISC_HEADER_RESOURCE,
@@ -17,19 +17,19 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     COLLECTION_GRID_CARD_RESOURCE,
     ROUTE_PLACEHOLDER_RESOURCE,
 ];
-pub const DISC_HEADER_RESOURCE: &str = "/io/github/screwys/Rufin/ui/routes/disc_header.ui";
-pub const SEARCH_ROUTE_RESOURCE: &str = "/io/github/screwys/Rufin/ui/routes/search.ui";
-pub const LIBRARY_TOOLBAR_RESOURCE: &str = "/io/github/screwys/Rufin/ui/routes/library_toolbar.ui";
-pub const LIBRARY_PAGE_RESOURCE: &str = "/io/github/screwys/Rufin/ui/routes/library_page.ui";
-pub const LIBRARY_CONFIG_RESOURCE: &str = "/io/github/screwys/Rufin/ui/routes/library_config.ui";
+pub const DISC_HEADER_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/disc_header.ui";
+pub const SEARCH_ROUTE_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/search.ui";
+pub const LIBRARY_TOOLBAR_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/library_toolbar.ui";
+pub const LIBRARY_PAGE_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/library_page.ui";
+pub const LIBRARY_CONFIG_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/library_config.ui";
 pub const HOME_SECTION_HEADER_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/routes/home_section_header.ui";
-pub const FOLDERS_RESOURCE: &str = "/io/github/screwys/Rufin/ui/routes/folders.ui";
-pub const DETAIL_SHOWCASE_RESOURCE: &str = "/io/github/screwys/Rufin/ui/routes/detail_showcase.ui";
+    "/io/github/kmarius/Slopsonic/ui/routes/home_section_header.ui";
+pub const FOLDERS_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/folders.ui";
+pub const DETAIL_SHOWCASE_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/detail_showcase.ui";
 pub const COLLECTION_GRID_COVER_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/routes/collection_grid_cover.ui";
+    "/io/github/kmarius/Slopsonic/ui/routes/collection_grid_cover.ui";
 pub const COLLECTION_GRID_CARD_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/routes/collection_grid_card.ui";
+    "/io/github/kmarius/Slopsonic/ui/routes/collection_grid_card.ui";
 
 #[cfg(test)]
 mod resource_tests {
@@ -44,6 +44,6 @@ mod resource_tests {
 }
 
 pub const ALBUM_DETAIL_ROW_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/routes/album_detail_row.ui";
+    "/io/github/kmarius/Slopsonic/ui/routes/album_detail_row.ui";
 pub const ALBUM_DETAIL_PANEL_RESOURCE: &str =
-    "/io/github/screwys/Rufin/ui/routes/album_detail_panel.ui";
+    "/io/github/kmarius/Slopsonic/ui/routes/album_detail_panel.ui";

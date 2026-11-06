@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <object class="AdwActionRow" id="mode">
     <property name="title" translatable="yes">Transition mode</property>
     <child type="suffix">

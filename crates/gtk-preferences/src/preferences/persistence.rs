@@ -1,6 +1,6 @@
 use crate::Preferences;
-use rufin_core::runtime::ScrobblingPreferences;
-use rufin_core::settings::HomeBlockKind;
+use slopsonic_core::runtime::ScrobblingPreferences;
+use slopsonic_core::settings::HomeBlockKind;
 use std::rc::Rc;
 use tracing::warn;
 
@@ -22,7 +22,7 @@ impl Preferences {
     pub(super) fn save_scrobbling_credential(
         self: &Rc<Self>,
         warning_action: &'static str,
-        edit: rufin_core::scrobbling::ScrobblingCredentialEdit,
+        edit: slopsonic_core::scrobbling::ScrobblingCredentialEdit,
     ) {
         let shell = Rc::clone(self);
         gtk::glib::spawn_future_local(async move {

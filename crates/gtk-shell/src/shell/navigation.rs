@@ -15,7 +15,7 @@ use gtk_media_menus::media_menus::{
 };
 use gtk_widgets::cover_controls::cover_play_only_hover_controls;
 use gtk_widgets::selection::collection_play_request;
-use rufin_core::playback::PlayRequest;
+use slopsonic_core::playback::PlayRequest;
 
 use crate::{SidebarPin, SidebarRouteItem};
 use adw::prelude::*;
@@ -26,7 +26,7 @@ use gtk_widgets::interactions::{
     replace_native_menu_checkmarks, show_native_menu_icons,
 };
 use gtk_widgets::route::{CollectionCategory, Route};
-use rufin_core::playback::QueuePlacement;
+use slopsonic_core::playback::QueuePlacement;
 use tracing::warn;
 
 use super::{Shell, layout::ResolvedLeftSidebarMode, route::RouteStack};
@@ -45,7 +45,7 @@ const SIDEBAR_PIN_ROW_CLASS: &str = "sidebar-pin-row";
 const SIDEBAR_PIN_PLAYING_CLASS: &str = "playing";
 const SIDEBAR_PIN_COVER_SIZE: i32 = 40;
 const COMPACT_SIDEBAR_PIN_COVER_SIZE: i32 = 56;
-const PRIMARY_MENU_CLASS: &str = "rufin-primary-menu";
+const PRIMARY_MENU_CLASS: &str = "slopsonic-primary-menu";
 pub(crate) struct NavigationState {
     pub(crate) routes: RefCell<RouteStack>,
     pub(crate) favorite_category: Cell<CollectionCategory>,
@@ -442,13 +442,13 @@ fn replace_primary_menu_model(menu: &gio::Menu, shell: &Rc<Shell>) {
         &preferences,
         "Preferences",
         "app.preferences",
-        "rufin-preferences-system-symbolic",
+        "slopsonic-preferences-system-symbolic",
     );
     append_menu_action(
         &preferences,
         "Keyboard Shortcuts",
         "app.show-shortcuts",
-        "rufin-preferences-desktop-keyboard-shortcuts-symbolic",
+        "slopsonic-preferences-desktop-keyboard-shortcuts-symbolic",
     );
     menu.append_section(None, &preferences);
 
@@ -458,16 +458,16 @@ fn replace_primary_menu_model(menu: &gio::Menu, shell: &Rc<Shell>) {
         "Toggle Fullscreen",
         "win.toggle-fullscreen",
         if shell.chrome.window.is_fullscreen() {
-            "rufin-view-restore-symbolic"
+            "slopsonic-view-restore-symbolic"
         } else {
-            "rufin-view-fullscreen-symbolic"
+            "slopsonic-view-fullscreen-symbolic"
         },
     );
     append_menu_action(
         &window,
         &primary_menu_sidebar_toggle_label(shell.as_ref()),
         "win.toggle-left-sidebar",
-        "rufin-sidebar-show-symbolic",
+        "slopsonic-sidebar-show-symbolic",
     );
     menu.append_section(None, &window);
 
@@ -476,13 +476,13 @@ fn replace_primary_menu_model(menu: &gio::Menu, shell: &Rc<Shell>) {
         &information,
         "Troubleshooting",
         "win.troubleshooting",
-        "rufin-utilities-terminal-symbolic",
+        "slopsonic-utilities-terminal-symbolic",
     );
     append_menu_action(
         &information,
         "About Slopsonic",
         "app.about",
-        "rufin-help-about-symbolic",
+        "slopsonic-help-about-symbolic",
     );
     menu.append_section(None, &information);
 }
@@ -1460,7 +1460,7 @@ fn sidebar_pin_metadata(track_count: u32, duration_seconds: u32) -> gtk::Box {
     track_metadata.add_css_class("sidebar-pin-metadata-item");
     track_metadata.set_valign(gtk::Align::Center);
 
-    let tracks_icon = gtk::Image::from_icon_name("rufin-tracks-symbolic");
+    let tracks_icon = gtk::Image::from_icon_name("slopsonic-tracks-symbolic");
     tracks_icon.add_css_class("sidebar-pin-metadata-icon");
     tracks_icon.set_pixel_size(12);
     tracks_icon.set_size_request(12, 12);
@@ -1480,7 +1480,7 @@ fn sidebar_pin_metadata(track_count: u32, duration_seconds: u32) -> gtk::Box {
     duration_metadata.set_valign(gtk::Align::Center);
     duration_metadata.set_overflow(gtk::Overflow::Hidden);
 
-    let duration_icon = gtk::Image::from_icon_name("rufin-preferences-system-time-symbolic");
+    let duration_icon = gtk::Image::from_icon_name("slopsonic-preferences-system-time-symbolic");
     duration_icon.add_css_class("sidebar-pin-metadata-icon");
     duration_icon.set_pixel_size(12);
     duration_icon.set_size_request(12, 12);
@@ -1621,7 +1621,7 @@ mod tests {
 
     #[test]
     fn sidebar_position_uses_visible_configured_route_order() {
-        let mut items = rufin_core::settings::SidebarRouteItem::all()
+        let mut items = slopsonic_core::settings::SidebarRouteItem::all()
             .into_iter()
             .map(|item| crate::SidebarRouteItemSettings {
                 item,

@@ -4,7 +4,7 @@ use adw::prelude::*;
 use app_identity::{APP_ID, DISPLAY_NAME};
 use gtk::{gio, glib};
 use playback::PlaybackTransitionMode;
-use rufin_core::playback::QueuePlacement;
+use slopsonic_core::playback::QueuePlacement;
 
 use crate::player::play_saved_random;
 use crate::preferences::present_preferences_dialog;

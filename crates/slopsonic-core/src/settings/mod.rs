@@ -77,7 +77,7 @@ impl Credential {
 }
 
 pub(crate) fn fresh_source_id() -> Result<sources::SourceId, String> {
-    random_identity("rufin-source-").map(sources::SourceId::new)
+    random_identity("slopsonic-source-").map(sources::SourceId::new)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -302,7 +302,7 @@ impl SettingsFile {
                     .get_or_init(|| {
                         let (sender, receiver) = mpsc::sync_channel::<Self>(1);
                         std::thread::Builder::new()
-                            .name("rufin-settings".into())
+                            .name("slopsonic-settings".into())
                             .spawn(move || {
                                 while let Ok(file) = receiver.recv() {
                                     if let Err(error) = file.flush() {

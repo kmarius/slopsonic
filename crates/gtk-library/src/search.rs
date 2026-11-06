@@ -12,7 +12,7 @@ use artwork::ArtworkBinding;
 use gtk::subclass::prelude::ObjectSubclassIsExt;
 use gtk::{gio, glib};
 use library::{ReadCancellation, SearchResults};
-use rufin_core::playback::QueuePlacement;
+use slopsonic_core::playback::QueuePlacement;
 
 use crate::CatalogUi;
 use crate::{LibraryField, LibraryLayout};
@@ -20,7 +20,7 @@ use gtk_widgets::artwork::ArtworkTile;
 use gtk_widgets::favorites::{favorite_button_is_active, set_favorite_button_active};
 use gtk_widgets::interactions::install_context_menu_openers;
 use gtk_widgets::mounted_route::{MountedRoute, MountedRouteItemNavigation};
-use rufin_core::runtime::SelectedLibrary;
+use slopsonic_core::runtime::SelectedLibrary;
 
 use super::cards;
 use super::collection_context::present_track_context_menu;
@@ -35,7 +35,7 @@ use gtk_media_menus::media_menus::{
     present_album_context_menu, present_artist_context_menu, present_collection_selection_menu,
 };
 use gtk_widgets::library_fields::column_fit_width;
-use rufin_core::settings::app::{RecentSearchKind, RecentSearchResult};
+use slopsonic_core::settings::app::{RecentSearchKind, RecentSearchResult};
 
 use super::route_shell::{LibraryPageShell, LibraryToolbarProjection};
 use super::table_sizing::route_column_view_initial_width;
@@ -92,7 +92,7 @@ impl SearchItem {
     fn drag_source(&self, _: &CatalogUi) -> Option<MediaDragSource> {
         Some(MediaDragSource::capture_target(self.play_request()))
     }
-    fn play_request(&self) -> rufin_core::playback::PlayRequest {
+    fn play_request(&self) -> slopsonic_core::playback::PlayRequest {
         match self {
             Self::Track(row) => gtk_widgets::selection::track_play_request(row.track_key),
             Self::Album(row) => gtk_widgets::selection::album_play_request(row),
@@ -469,8 +469,8 @@ struct SearchPresentation {
 gtk_widgets::composite_box!(
     pub SearchRouteView,
     search_route_view_imp,
-    "RufinSearchRouteView",
-    "/io/github/screwys/Rufin/ui/routes/search.ui",
+    "SlopsonicSearchRouteView",
+    "/io/github/kmarius/Slopsonic/ui/routes/search.ui",
     {
         toolbar_host: gtk::Box,
         category_host: gtk::Box,

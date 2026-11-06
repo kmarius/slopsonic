@@ -117,7 +117,7 @@ mod surface_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for RouteSurface {
-        const NAME: &'static str = "RufinRouteSurface";
+        const NAME: &'static str = "SlopsonicRouteSurface";
         type Type = super::RouteSurface;
         type ParentType = gtk::Widget;
     }

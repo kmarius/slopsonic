@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-  <gresource prefix="/io/github/screwys/Rufin/ui">
+  <gresource prefix="/io/github/kmarius/Slopsonic/ui">
     <file compressed="true">routes/placeholder.ui</file>
     <file compressed="true">routes/album_detail_row.ui</file>
     <file compressed="true">routes/album_detail_panel.ui</file>

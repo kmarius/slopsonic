@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-  <gresource prefix="/io/github/screwys/Rufin/ui">
+  <gresource prefix="/io/github/kmarius/Slopsonic/ui">
     <file compressed="true">preferences/playback.ui</file>
     <file compressed="true">preferences/reorder_row.ui</file>
     <file compressed="true">preferences/library.ui</file>

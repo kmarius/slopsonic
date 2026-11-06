@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <object class="GtkPopover" id="popover">
     <style><class name="search-popover"/></style>
     <property name="position">bottom</property>

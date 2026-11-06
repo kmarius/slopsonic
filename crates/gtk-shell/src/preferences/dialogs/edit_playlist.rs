@@ -14,7 +14,7 @@ impl Shell {
         gtk::glib::spawn_future_local(async move {
             let resource = gtk_widgets::ui_resource::PLAYLIST_NAME_DIALOG_RESOURCE;
             let builder = gtk_widgets::ui_resource::builder(resource);
-            let editing = match rufin_core::playlists::playlist_artwork_editing(
+            let editing = match slopsonic_core::playlists::playlist_artwork_editing(
                 &shell.products.source,
                 playlist_id,
             )
@@ -29,7 +29,7 @@ impl Shell {
                 Err(_) => return,
             };
             let public =
-                match rufin_core::playlists::playlist_public(&shell.products.source, playlist_id)
+                match slopsonic_core::playlists::playlist_public(&shell.products.source, playlist_id)
                     .recv()
                     .await
                 {
@@ -53,7 +53,7 @@ impl Shell {
                 editing,
                 &editor_content,
                 &save_edit,
-                move |owner| rufin_core::playlists::regenerate_playlist_artwork(owner, playlist_id),
+                move |owner| slopsonic_core::playlists::regenerate_playlist_artwork(owner, playlist_id),
             );
             editor_layout.insert_child_after(&artwork.frame, None::<&gtk::Widget>);
             playlist_options.append(&artwork.status);
@@ -97,7 +97,7 @@ impl Shell {
                 gtk::glib::spawn_future_local(async move {
                     let result: Result<(), String> =
                         if change.is_some() || changed_name || changed_public.is_some() {
-                            rufin_core::playlists::update_playlist(
+                            slopsonic_core::playlists::update_playlist(
                                 &shell.products.source,
                                 playlist_id,
                                 changed_name.then_some(name),

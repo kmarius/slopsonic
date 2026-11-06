@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <menu id="playlist_commands">
     <item><attribute name="label" translatable="yes">New Playlist</attribute><attribute name="action">win.new-playlist</attribute></item>
   </menu>

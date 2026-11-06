@@ -4,8 +4,8 @@ use ::library::FavoriteTarget;
 use adw::prelude::*;
 use gtk::glib;
 
-pub const FAVORITE_ADD_ICON: &str = "rufin-heart-outline-symbolic";
-pub const FAVORITE_REMOVE_ICON: &str = "rufin-heart-filled-symbolic";
+pub const FAVORITE_ADD_ICON: &str = "slopsonic-heart-outline-symbolic";
+pub const FAVORITE_REMOVE_ICON: &str = "slopsonic-heart-filled-symbolic";
 pub const FAVORITE_COLUMN_WIDTH: i32 = 44;
 
 pub type FavoriteControlKey = FavoriteTarget;
@@ -18,7 +18,7 @@ struct FavoriteControl {
 #[derive(Default)]
 pub struct FavoriteSessionState {
     controls: RefCell<Vec<FavoriteControl>>,
-    pending_intents: rufin_core::favorites::FavoriteIntents,
+    pending_intents: slopsonic_core::favorites::FavoriteIntents,
 }
 
 pub fn album_favorite_key(media_uri: &str) -> FavoriteControlKey {

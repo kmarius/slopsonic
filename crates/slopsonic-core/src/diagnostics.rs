@@ -105,7 +105,7 @@ impl DiagnosticState {
                     .lock()
                     .unwrap_or_else(|p| p.into_inner())
                     .append(sanitize_free_text(&format!(
-                        "WARN rufin::diagnostics: local log file is unavailable: {error}\n"
+                        "WARN slopsonic::diagnostics: local log file is unavailable: {error}\n"
                     )));
             }
             self.output
@@ -119,7 +119,7 @@ impl DiagnosticState {
 
 const BUFFER_MAX_BYTES: usize = 2 * 1024 * 1024;
 const OMITTED_RECORDS: &str =
-    "WARN rufin::diagnostics: older log records omitted while the file writer was busy\n";
+    "WARN slopsonic::diagnostics: older log records omitted while the file writer was busy\n";
 const LOG_SEGMENT_MAX_BYTES: u64 = 2 * 1024 * 1024;
 const LOG_SEGMENTS: usize = 3;
 const LOG_FILE: &str = "slopsonic.log";
@@ -132,7 +132,7 @@ const NORMAL_FILTER: &str = concat!(
     "library=info,",
     "playback=info,",
     "playback_gstreamer=info,",
-    "rufin=info,",
+    "slopsonic=info,",
     "scrobbling=info,",
     "secrets=info,",
     "sources=info,",
@@ -146,7 +146,7 @@ const DEBUG_FILTER: &str = concat!(
     "library=debug,",
     "playback=debug,",
     "playback_gstreamer=debug,",
-    "rufin=debug,",
+    "slopsonic=debug,",
     "scrobbling=debug,",
     "secrets=debug,",
     "sources=debug,",
@@ -188,7 +188,7 @@ impl Diagnostics {
             .with(terminal)
             .with(stored)
             .try_init()
-            .expect("install Rufin diagnostics subscriber");
+            .expect("install Slopsonic diagnostics subscriber");
 
         install_panic_hook(log_dir, stderr);
         install_glib_log_capture(Arc::clone(&output));
@@ -269,18 +269,18 @@ fn record_glib_log(domain: Option<&str>, level: glib::LogLevel, message: &str) {
     let domain = domain.unwrap_or("GLib");
     match level {
         glib::LogLevel::Error | glib::LogLevel::Critical => {
-            tracing::error!(target: "rufin::native", domain, "{message}")
+            tracing::error!(target: "slopsonic::native", domain, "{message}")
         }
-        glib::LogLevel::Warning => tracing::warn!(target: "rufin::native", domain, "{message}"),
+        glib::LogLevel::Warning => tracing::warn!(target: "slopsonic::native", domain, "{message}"),
         glib::LogLevel::Message | glib::LogLevel::Info => {
-            tracing::info!(target: "rufin::native", domain, "{message}")
+            tracing::info!(target: "slopsonic::native", domain, "{message}")
         }
         glib::LogLevel::Debug
             if domain == "Gtk" && message.starts_with("snapshot symbolic icon ") =>
         {
-            tracing::trace!(target: "rufin::native", domain, "{message}")
+            tracing::trace!(target: "slopsonic::native", domain, "{message}")
         }
-        glib::LogLevel::Debug => tracing::debug!(target: "rufin::native", domain, "{message}"),
+        glib::LogLevel::Debug => tracing::debug!(target: "slopsonic::native", domain, "{message}"),
     }
 }
 
@@ -331,7 +331,7 @@ impl DiagnosticOutput {
             Ok(file) => Some(file),
             Err(error) => {
                 output.append(sanitize_free_text(&format!(
-                    "WARN rufin::diagnostics: local log file is unavailable: {error}\n"
+                    "WARN slopsonic::diagnostics: local log file is unavailable: {error}\n"
                 )));
                 None
             }
@@ -341,7 +341,7 @@ impl DiagnosticOutput {
             && let Err(error) = log.append(output.updates(0).text.as_bytes())
         {
             output.append(sanitize_free_text(&format!(
-                "WARN rufin::diagnostics: local log file is unavailable: {error}\n"
+                "WARN slopsonic::diagnostics: local log file is unavailable: {error}\n"
             )));
             file = None;
         }
@@ -1146,7 +1146,7 @@ mod tests {
     fn previous_crash_is_imported_into_the_next_session_log() {
         let directory = tempfile::tempdir().expect("temporary log directory");
         let panic_path = directory.path().join(PANIC_FILE);
-        fs::write(&panic_path, "panic at /home/example/Rufin/src/main.rs:20")
+        fs::write(&panic_path, "panic at /home/example/Slopsonic/src/main.rs:20")
             .expect("pending panic report");
         let mut output = DiagnosticOutput::default();
 

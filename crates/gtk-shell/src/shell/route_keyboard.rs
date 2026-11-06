@@ -10,7 +10,7 @@ use gtk_media_menus::media_menus::{
     download_playlist_entry_selection, download_track_selection, remove_playlist_entry_selection,
 };
 use gtk_widgets::selection::TrackSelectionSnapshot;
-use rufin_core::playback::{QueuePlacement, QueueSelection};
+use slopsonic_core::playback::{QueuePlacement, QueueSelection};
 use std::rc::Rc;
 #[derive(Clone, Copy)]
 enum SelectionShortcut {
@@ -338,13 +338,13 @@ mod tests {
         assert!(matches!(
             selection_shortcut(gtk::gdk::Key::Return, gtk::gdk::ModifierType::empty()),
             Some(SelectionShortcut::Play(
-                rufin_core::playback::QueuePlacement::Now
+                slopsonic_core::playback::QueuePlacement::Now
             ))
         ));
         assert!(matches!(
             selection_shortcut(gtk::gdk::Key::Return, primary),
             Some(SelectionShortcut::Play(
-                rufin_core::playback::QueuePlacement::Next
+                slopsonic_core::playback::QueuePlacement::Next
             ))
         ));
         assert!(matches!(

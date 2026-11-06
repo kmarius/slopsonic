@@ -5,7 +5,7 @@ use std::{
 };
 
 use adw::prelude::*;
-use rufin_core::source::SourceOwner;
+use slopsonic_core::source::SourceOwner;
 use sources::{ArtworkChange, ImageBytes};
 
 pub struct ArtworkEditor {
@@ -31,7 +31,7 @@ impl ArtworkEditor {
     pub fn new(
         source: &Arc<SourceOwner>,
         artwork: &Rc<gtk_widgets::artwork::ArtworkState>,
-        editing: rufin_core::playlists::PlaylistArtworkEditing,
+        editing: slopsonic_core::playlists::PlaylistArtworkEditing,
         content: &gtk::Box,
         apply: &gtk::Button,
         regenerate: impl Fn(
@@ -111,7 +111,7 @@ impl ArtworkEditor {
                         let Some(owner) = owner.upgrade() else {
                             return Ok(None);
                         };
-                        let result = rufin_core::metadata::prepare_artwork(&owner, bytes.to_vec());
+                        let result = slopsonic_core::metadata::prepare_artwork(&owner, bytes.to_vec());
                         drop(owner);
                         result
                             .recv()

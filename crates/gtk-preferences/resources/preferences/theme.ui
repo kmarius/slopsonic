@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <requires lib="gtk" version="4.20"/>
   <requires lib="libadwaita" version="1.9"/>
   <object class="AdwPreferencesPage" id="theme_page">

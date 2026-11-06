@@ -1,7 +1,7 @@
 use super::Shell;
 use gtk_widgets::media_drag::MediaDragSource;
-use rufin_core::playback::PlayRequest;
-use rufin_core::playback::QueuePlacement;
+use slopsonic_core::playback::PlayRequest;
+use slopsonic_core::playback::QueuePlacement;
 use std::rc::Rc;
 use tracing::warn;
 pub(crate) fn download(payload: &MediaDragSource, shell: &Shell) {

@@ -1,4 +1,4 @@
-pub use rufin_core::settings::presentation::{format_duration, format_duration_units};
+pub use slopsonic_core::settings::presentation::{format_duration, format_duration_units};
 
 #[cfg(test)]
 mod tests {

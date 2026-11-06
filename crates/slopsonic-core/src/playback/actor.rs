@@ -107,7 +107,7 @@ impl Playback {
             .ok_or(PlaybackError::Unavailable)?
             .publish(initial.clone());
         let thread = thread::Builder::new()
-            .name("rufin-playback".into())
+            .name("slopsonic-playback".into())
             .spawn(move || {
                 loop {
                     let message = receiver.recv().map_err(|_| RecvTimeoutError::Disconnected);

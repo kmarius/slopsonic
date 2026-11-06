@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-  <gresource prefix="/io/github/screwys/Rufin/ui">
+  <gresource prefix="/io/github/kmarius/Slopsonic/ui">
     <file compressed="true">player/bottom.ui</file>
     <file compressed="true">player/fullscreen.ui</file>
     <file compressed="true">player/fullscreen_settings.ui</file>

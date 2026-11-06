@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <requires lib="gtk" version="4.20"/>
 
   <object class="GtkBox" id="content">
@@ -43,7 +43,7 @@
       <property name="sensitive">false</property>
       <style><class name="flat"/><class name="context-playlist-submenu-create"/></style>
       <property name="child"><object class="GtkBox"><property name="spacing">6</property><property name="halign">start</property>
-        <child><object class="GtkImage"><property name="icon-name">rufin-list-add-symbolic</property></object></child>
+        <child><object class="GtkImage"><property name="icon-name">slopsonic-list-add-symbolic</property></object></child>
         <child><object class="GtkLabel" id="create_label"><property name="label" translatable="yes">New playlist</property></object></child>
       </object></property>
     </object></child>

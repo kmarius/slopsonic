@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
-  <object class="RufinTextFade" id="fade">
+<interface domain="slopsonic">
+  <object class="SlopsonicTextFade" id="fade">
     <property name="hexpand">true</property>
     <child>
       <object class="GtkScrolledWindow" id="scroll">

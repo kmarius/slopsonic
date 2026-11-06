@@ -17,8 +17,8 @@ pub const PRIMARY_ROUTE_HORIZONTAL_INSET: i32 =
 gtk_widgets::composite_box!(
     pub RoutePlaceholderView,
     route_placeholder_view_imp,
-    "RufinRoutePlaceholderView",
-    "/io/github/screwys/Rufin/ui/routes/placeholder.ui",
+    "SlopsonicRoutePlaceholderView",
+    "/io/github/kmarius/Slopsonic/ui/routes/placeholder.ui",
     {
         heading: gtk::Label,
         body: gtk::Label,

@@ -78,9 +78,9 @@ impl AudioGraph {
         queued_loudness: SharedQueuedLoudness,
     ) -> Result<Self, String> {
         let bin = gst::Bin::new();
-        let convert_in = make_element("audioconvert", "rufin-audio-convert-in")?;
-        let convert_out = make_element("audioconvert", "rufin-audio-convert-out")?;
-        let split = make_element("audiobuffersplit", "rufin-audio-buffer-split")?;
+        let convert_in = make_element("audioconvert", "slopsonic-audio-convert-in")?;
+        let convert_out = make_element("audioconvert", "slopsonic-audio-convert-out")?;
+        let split = make_element("audiobuffersplit", "slopsonic-audio-buffer-split")?;
         // Decoder packets can span half a second. Keep output and analysis paced in
         // short blocks, including for WavPack, without changing the audio samples.
         split.set_property("output-buffer-duration", gst::Fraction::new(1, 60));
@@ -106,12 +106,12 @@ impl AudioGraph {
                     gst::PadProbeReturn::Ok
                 },
             );
-        let resample = make_element("audioresample", "rufin-audio-resample")?;
+        let resample = make_element("audioresample", "slopsonic-audio-resample")?;
         let output = make_audio_output(settings.audio_output.as_deref())?;
         #[cfg(test)]
         configure_test_output(&output);
-        let (gain, gain_curve) = controlled_volume("rufin-output-gain")?;
-        let (transition, transition_curve) = controlled_volume("rufin-transition-gain")?;
+        let (gain, gain_curve) = controlled_volume("slopsonic-output-gain")?;
+        let (transition, transition_curve) = controlled_volume("slopsonic-transition-gain")?;
         let processing = EffectsBin::new(&ProcessingConfig::default())?;
         let sink = gst::Bin::new();
         sink.add_many([
@@ -185,9 +185,9 @@ impl AudioGraph {
             },
         );
         let effects = prepare_effects(settings, &AudioEffects::default())?;
-        let effect_bins = [make_element("insertbin", "rufin-normalization-bin")?];
+        let effect_bins = [make_element("insertbin", "slopsonic-normalization-bin")?];
         apply_effects(&effect_bins, &AudioEffects::default(), &effects);
-        let floating = make_element("capsfilter", "rufin-normalization-floating")?;
+        let floating = make_element("capsfilter", "slopsonic-normalization-floating")?;
         floating.set_property(
             "caps",
             gst::Caps::builder("audio/x-raw")
@@ -461,7 +461,7 @@ fn prepare_effects(
     let volume = if settings.loudness_normalization != LoudnessNormalization::Off {
         Some(match available.volume.as_ref() {
             Some(element) => element.clone(),
-            None => make_element("volume", "rufin-loudness-normalization")?,
+            None => make_element("volume", "slopsonic-loudness-normalization")?,
         })
     } else {
         None
@@ -633,8 +633,8 @@ pub(super) fn configure_test_output(output: &gst::Element) {
 
 pub(super) fn make_audio_output(factory: Option<&str>) -> Result<gst::Element, String> {
     match factory {
-        Some(factory) => make_element(factory, "rufin-audio-output"),
-        None => make_element(default_audio_output_factory(), "rufin-audio-output"),
+        Some(factory) => make_element(factory, "slopsonic-audio-output"),
+        None => make_element(default_audio_output_factory(), "slopsonic-audio-output"),
     }
 }
 
@@ -816,14 +816,14 @@ mod tests {
             })
             .unwrap();
         let sink = graph.sink.downcast_ref::<gst::Bin>().unwrap();
-        let equalizer = sink.by_name("rufin-equalizer").unwrap();
+        let equalizer = sink.by_name("slopsonic-equalizer").unwrap();
         assert_eq!(equalizer_band_gain(&equalizer, 0), Some(5.0));
         graph
             .processing
             .update(&ProcessingConfig::default())
             .unwrap();
         assert_eq!(equalizer_band_gain(&equalizer, 0), Some(0.0));
-        assert_eq!(sink.by_name("rufin-equalizer"), Some(equalizer));
+        assert_eq!(sink.by_name("slopsonic-equalizer"), Some(equalizer));
     }
 
     #[test]
@@ -838,7 +838,7 @@ mod tests {
         let stream = Arc::new(Mutex::new(None));
         let mut graph = test_graph(&settings, stream.clone()).expect("audio graph");
         let bin = graph.root.downcast_ref::<gst::Bin>().unwrap();
-        let volume = bin.by_name("rufin-loudness-normalization").unwrap();
+        let volume = bin.by_name("slopsonic-loudness-normalization").unwrap();
         assert_eq!(volume.property::<f64>("volume"), 1.0);
         let measured = TrackLoudness {
             track: Some(Box::new(measurement(5.0, Some(0.1)))),
@@ -878,7 +878,7 @@ mod tests {
         .expect("provider ReplayGain graph");
         let bin = graph.root.downcast_ref::<gst::Bin>().expect("audio bin");
         let volume = bin
-            .by_name("rufin-loudness-normalization")
+            .by_name("slopsonic-loudness-normalization")
             .expect("direct provider ReplayGain volume");
 
         assert_eq!(
@@ -982,7 +982,7 @@ mod tests {
         graph.root().link(graph.sink()).unwrap();
         let bin = graph.root.downcast_ref::<gst::Bin>().expect("audio bin");
         let volume = bin
-            .by_name("rufin-loudness-normalization")
+            .by_name("slopsonic-loudness-normalization")
             .expect("loudness normalization volume element");
         let observed = Arc::new(Mutex::new(Vec::new()));
         let observed_for_probe = Arc::clone(&observed);

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{SourceError, SourceInputIdentity, SourceResult, subsonic::SubsonicFlavor};
 use library::SourceId;
 
-/// Credential-free source configuration persisted by Rufin Settings.
+/// Credential-free source configuration persisted by Slopsonic Settings.
 ///
 /// The provider payload is opaque outside Sources. Cache health never affects
 /// this value or its separately stored credential reference.
@@ -56,7 +56,7 @@ impl SourceConfiguration {
 
     /// Identify the source inputs that determine rebuildable canonical facts.
     ///
-    /// Credentials and presentation settings do not participate, so Rufin can
+    /// Credentials and presentation settings do not participate, so Slopsonic can
     /// validate an existing cache even when live source access is unavailable.
     pub fn input_identity(&self) -> SourceResult<SourceInputIdentity> {
         self.input_identity_with_reader_versions(None)
@@ -84,7 +84,7 @@ impl SourceConfiguration {
         })
     }
 
-    /// Return the fields Rufin may present when editing this source.
+    /// Return the fields Slopsonic may present when editing this source.
     pub fn editable(&self) -> SourceResult<CredentialPreset> {
         let config = crate::subsonic::SubsonicSourceConfig::from_configuration(self)?;
         Ok(CredentialPreset {

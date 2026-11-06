@@ -7,10 +7,10 @@ use adw::prelude::*;
 use crate::shell::Shell;
 use gtk_widgets::downloads::OperationFeedback;
 use gtk_widgets::interactions::{ADD_TO_PLAYLIST_ICON, ContextMenuSurface};
-use rufin_core::settings::ContextMenuItem;
+use slopsonic_core::settings::ContextMenuItem;
 
 use gtk_widgets::selection::{PlaylistEntrySelectionSnapshot, TrackSelectionSnapshot};
-use rufin_core::playback::PlayRequest;
+use slopsonic_core::playback::PlayRequest;
 
 pub(crate) fn refresh_context_playlist_picker(shell: &Rc<Shell>) {
     shell.refresh_playlist_picker();

@@ -2,7 +2,7 @@
 <!-- Desktop interface definitions and base style. -->
 <gresources>
 
-  <gresource prefix="/io/github/screwys/Rufin/ui">
+  <gresource prefix="/io/github/kmarius/Slopsonic/ui">
     <file alias="showcase.css" compressed="true">../../../resources/showcase.css</file>
     <file compressed="true">application/about.ui</file>
     <file compressed="true">application/startup_error.ui</file>

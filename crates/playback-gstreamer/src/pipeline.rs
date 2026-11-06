@@ -495,7 +495,7 @@ impl PlayerPipeline {
                             // FFmpeg's WMA flush keeps overlap samples from the old file.
                             // Changed caps make its normal set_format reopen the codec.
                             caps.make_mut()
-                                .set("rufin-stream-start", event.seqnum().into_glib());
+                                .set("slopsonic-stream-start", event.seqnum().into_glib());
                             if !pad.send_event(gst::event::Caps::new(&caps)) {
                                 gst::element_error!(
                                     pad.parent_element().expect("WMA decoder owner"),
@@ -724,7 +724,7 @@ impl PlayerPipeline {
                 return gst::PadProbeReturn::Ok;
             };
             let started = match event.view() {
-                // The parsed format, also on decoded streams. Rufin's own CUE
+                // The parsed format, also on decoded streams. Slopsonic's own CUE
                 // boundaries carry no stream, so they never change the mode.
                 gst::EventView::StreamStart(start) => {
                     Some(start.stream().and_then(|stream| stream.caps()))

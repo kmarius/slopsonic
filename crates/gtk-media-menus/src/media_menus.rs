@@ -6,7 +6,7 @@ use gtk::glib;
 use library::{
     AlbumView, ArtistView, FavoriteTarget, GenreView, MoodView, PlaylistRow, RadioSeed, TrackView,
 };
-use rufin_core::playback::{QueuePlacement, RadioPlayRequest};
+use slopsonic_core::playback::{QueuePlacement, RadioPlayRequest};
 
 use gtk_widgets::controls::{ADD_ICON, DELETE_ICON, EDIT_ICON, REMOVE_ICON, TRASH_ICON};
 use gtk_widgets::downloads::{OperationArtwork, OperationFeedback, OperationFeedbackKind};
@@ -15,12 +15,12 @@ use gtk_widgets::interactions::{
     radio_context_submenu,
 };
 use gtk_widgets::ratings::context_rating_row;
-use rufin_core::metadata::MediaDetailsItem;
-use rufin_core::settings::ContextMenuItem;
-use rufin_core::settings::SidebarPin;
+use slopsonic_core::metadata::MediaDetailsItem;
+use slopsonic_core::settings::ContextMenuItem;
+use slopsonic_core::settings::SidebarPin;
 
 use gtk_widgets::selection::{collection_play_request, track_play_request};
-use rufin_core::playback::PlayRequest;
+use slopsonic_core::playback::PlayRequest;
 const PLAY_ACTIONS: [(&str, QueuePlacement, bool); 6] = [
     ("play", QueuePlacement::Now, false),
     ("play-next", QueuePlacement::Next, false),
@@ -83,8 +83,8 @@ pub struct MediaMenus {
     pub artwork: Rc<gtk_widgets::artwork::ArtworkState>,
     pub library: Arc<library::Database>,
     pub runtime: tokio::runtime::Handle,
-    pub source: rufin_core::runtime::SourceHandle,
-    pub playback: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
+    pub source: slopsonic_core::runtime::SourceHandle,
+    pub playback: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
     pub downloads: downloads::Downloads,
     pub settings: Rc<gtk_widgets::settings::SettingsState>,
     pub navigate: Rc<dyn Fn(Route)>,
@@ -214,8 +214,8 @@ fn install_queue_entry_actions(
     occurrence_id: Option<u64>,
 ) {
     let selection = match occurrence_id {
-        Some(id) => rufin_core::playback::QueueSelection::Occurrences(vec![id]),
-        None => rufin_core::playback::QueueSelection::Positions(vec![position]),
+        Some(id) => slopsonic_core::playback::QueueSelection::Occurrences(vec![id]),
+        None => slopsonic_core::playback::QueueSelection::Positions(vec![position]),
     };
     let remove = selection.clone();
     let queue = menus.playback.clone();
@@ -236,7 +236,7 @@ fn install_queue_entry_actions(
     surface.add_action("play-last", move || {
         queue.reorder(
             selection.clone(),
-            rufin_core::playback::QueueReorderTarget::End,
+            slopsonic_core::playback::QueueReorderTarget::End,
         );
     });
 }
@@ -314,7 +314,7 @@ fn install_source_navigation(
     let configuration = source_id
         .as_ref()
         .and_then(|id| menus.source.configuration(id));
-    let Some(link) = rufin_core::detail_links::navigation_source_link(
+    let Some(link) = slopsonic_core::detail_links::navigation_source_link(
         configuration.as_ref(),
         media_uri,
         album_uri,
@@ -536,7 +536,7 @@ fn present_playlist_selection_menu(
                     match collection {
                         library::Collection::Playlist(key) => {
                             if let Err(error) =
-                                rufin_core::playlists::delete_playlist(&source, key).await
+                                slopsonic_core::playlists::delete_playlist(&source, key).await
                             {
                                 failure.get_or_insert_with(|| error.to_string());
                             }
@@ -591,7 +591,7 @@ pub fn remove_playlist_entry_selection(
     if !selection.writable || selection.count == 0 {
         return false;
     }
-    let result = rufin_core::playlists::remove_playlist_entries(
+    let result = slopsonic_core::playlists::remove_playlist_entries(
         &menus.source,
         selection.playlist,
         selection.input,
@@ -1157,7 +1157,7 @@ pub fn present_playlist_context_menu(
     if playlist.writable {
         surface.append_fixed_action("Add current", "add-current", ADD_ICON);
     }
-    if rufin_core::playlists::can_remove_unavailable(&playlist) {
+    if slopsonic_core::playlists::can_remove_unavailable(&playlist) {
         surface.append_fixed_action(
             "Remove unavailable tracks",
             "remove-unavailable",
@@ -1171,7 +1171,7 @@ pub fn present_playlist_context_menu(
             let Some(menus) = cleanup_menus.upgrade() else {
                 return;
             };
-            let result = rufin_core::playlists::remove_unavailable_tracks(&menus.source, key);
+            let result = slopsonic_core::playlists::remove_unavailable_tracks(&menus.source, key);
             let menus = Rc::downgrade(&menus);
             let name = name.clone();
             let artwork = artwork.clone();
@@ -1243,7 +1243,7 @@ pub fn present_playlist_context_menu(
         let dialog = gtk_widgets::playlists::delete_playlist_dialog(&playlist.name, move || {
             let source = menus.source.clone();
             gtk::glib::spawn_future_local(async move {
-                let _ = rufin_core::playlists::delete_playlist(&source, playlist_key).await;
+                let _ = slopsonic_core::playlists::delete_playlist(&source, playlist_key).await;
             });
             (menus.navigate)(Route::Playlists);
         });

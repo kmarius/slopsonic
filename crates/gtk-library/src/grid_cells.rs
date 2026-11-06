@@ -14,14 +14,14 @@ use gtk_widgets::interactions::install_context_menu_openers;
 use gtk_widgets::media_drag::{MediaDragSource, install_compact_media_drag_source};
 use gtk_widgets::mounted_route::{MountedRouteItemNavigation, item_navigation_entry_position};
 use gtk_widgets::sparse_model::{item_at, item_at_from_item};
-use rufin_core::playback::QueuePlacement;
+use slopsonic_core::playback::QueuePlacement;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use super::cards;
 use super::collections::collection_grid_field_label;
 use gtk_widgets::selection::track_play_request;
-use rufin_core::playback::PlayRequest;
+use slopsonic_core::playback::PlayRequest;
 
 use crate::track_selection::TrackSelection;
 use gtk_widgets::detail_links::{DetailLinkBinding, DetailLinks, album_artist_links};
@@ -144,8 +144,8 @@ pub fn install_grid_play<T: 'static>(
 gtk_widgets::composite_box!(
     pub CollectionGridCardView,
     collection_grid_card_view_imp,
-    "RufinCollectionGridCardView",
-    "/io/github/screwys/Rufin/ui/routes/collection_grid_card.ui",
+    "SlopsonicCollectionGridCardView",
+    "/io/github/kmarius/Slopsonic/ui/routes/collection_grid_card.ui",
     {
         title_row: gtk::Box,
         title: gtk::Label,
@@ -165,8 +165,8 @@ pub trait ReusableCollectionGridCell<T>: 'static {
 
 #[derive(Clone)]
 pub struct CollectionGridProjection {
-    display: Rc<RefCell<rufin_core::settings::layout::DisplaySettings>>,
-    apply_display: Rc<dyn Fn(&rufin_core::settings::layout::DisplaySettings)>,
+    display: Rc<RefCell<slopsonic_core::settings::layout::DisplaySettings>>,
+    apply_display: Rc<dyn Fn(&slopsonic_core::settings::layout::DisplaySettings)>,
     surface: gtk::Widget,
     navigation: MountedRouteItemNavigation,
     fields: Rc<RefCell<Vec<LibraryField>>>,
@@ -177,7 +177,7 @@ pub struct CollectionGridProjection {
 #[derive(Clone)]
 struct CollectionGridCacheBound {
     grid: glib::WeakRef<gtk::GridView>,
-    display: Rc<RefCell<rufin_core::settings::layout::DisplaySettings>>,
+    display: Rc<RefCell<slopsonic_core::settings::layout::DisplaySettings>>,
 }
 
 impl CollectionGridCacheBound {
@@ -202,7 +202,7 @@ fn collection_grid_column_limit(
     allocation_width: i32,
     margin_start: i32,
     margin_end: i32,
-    display: &rufin_core::settings::layout::DisplaySettings,
+    display: &slopsonic_core::settings::layout::DisplaySettings,
 ) -> u32 {
     let available_width = allocation_width
         .saturating_sub(margin_start)
@@ -216,9 +216,9 @@ pub fn collection_grid_column_count(available_width: i32) -> usize {
 }
 
 pub fn grid_dimensions(
-    settings: &rufin_core::settings::layout::DisplaySettings,
+    settings: &slopsonic_core::settings::layout::DisplaySettings,
 ) -> (i32, i32, i32) {
-    use rufin_core::settings::layout::DisplaySize;
+    use slopsonic_core::settings::layout::DisplaySize;
     let (minimum, maximum) = match settings.size {
         DisplaySize::Compact => (96, 152),
         DisplaySize::Default => (
@@ -237,7 +237,7 @@ pub fn grid_dimensions(
 
 pub fn grid_column_count(
     available_width: i32,
-    settings: &rufin_core::settings::layout::DisplaySettings,
+    settings: &slopsonic_core::settings::layout::DisplaySettings,
 ) -> usize {
     let (minimum, maximum, inset) = grid_dimensions(settings);
     let minimum_slot_width = minimum.max(1).saturating_add(inset.saturating_mul(2));
@@ -380,7 +380,7 @@ where
 }
 
 impl CollectionGridProjection {
-    pub fn apply_display(&self, settings: &rufin_core::settings::layout::DisplaySettings) {
+    pub fn apply_display(&self, settings: &slopsonic_core::settings::layout::DisplaySettings) {
         if *self.display.borrow() == *settings {
             return;
         }
@@ -461,7 +461,7 @@ where
     let setup_cells = Rc::clone(&cells);
     let setup_fields = Rc::clone(&fields);
     let display = Rc::new(RefCell::new(
-        rufin_core::settings::layout::DisplaySettings::default(),
+        slopsonic_core::settings::layout::DisplaySettings::default(),
     ));
     let setup_display = Rc::clone(&display);
     factory.connect_setup(move |_, item| {

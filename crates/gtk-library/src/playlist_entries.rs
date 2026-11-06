@@ -40,7 +40,7 @@ use gtk_widgets::recycled_cells::{
     RecycledArtworkCell, RecycledMergedCell, RecycledTextCell, list_cell,
 };
 use gtk_widgets::sparse_model::connect_sparse_bind;
-use rufin_core::settings::presentation::track_field;
+use slopsonic_core::settings::presentation::track_field;
 
 #[derive(Clone)]
 pub struct PlaylistEntriesView {
@@ -56,8 +56,8 @@ pub struct PlaylistEntriesView {
 impl PlaylistEntriesView {
     pub fn play(
         &self,
-        queue: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
-        placement: rufin_core::playback::QueuePlacement,
+        queue: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
+        placement: slopsonic_core::playback::QueuePlacement,
         shuffled: bool,
     ) {
         self.model.play(0, queue, placement, true, shuffled);
@@ -793,7 +793,7 @@ fn install_playlist_entry_drag(
             if position == moved.position {
                 return;
             }
-            rufin_core::playlists::move_playlist_entry(
+            slopsonic_core::playlists::move_playlist_entry(
                 &shell.source,
                 playlist,
                 entry,

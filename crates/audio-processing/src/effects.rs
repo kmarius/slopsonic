@@ -423,8 +423,8 @@ impl EffectsBin {
     pub fn new(config: &ProcessingConfig) -> Result<Self, String> {
         Self::validate_available(config)?;
         let root = gst::Bin::new();
-        let convert = element("audioconvert", "rufin-effects-convert")?;
-        let floating = element("capsfilter", "rufin-effects-floating")?;
+        let convert = element("audioconvert", "slopsonic-effects-convert")?;
+        let floating = element("capsfilter", "slopsonic-effects-floating")?;
         floating.set_property(
             "caps",
             gst::Caps::builder("audio/x-raw")
@@ -440,13 +440,13 @@ impl EffectsBin {
                 .build(),
         );
         let slots = [
-            element("insertbin", "rufin-preamp-slot")?,
-            element("insertbin", "rufin-eq-slot")?,
-            element("insertbin", "rufin-tone-slot")?,
-            element("insertbin", "rufin-crossfeed-slot")?,
-            element("insertbin", "rufin-meter-slot")?,
+            element("insertbin", "slopsonic-preamp-slot")?,
+            element("insertbin", "slopsonic-eq-slot")?,
+            element("insertbin", "slopsonic-tone-slot")?,
+            element("insertbin", "slopsonic-crossfeed-slot")?,
+            element("insertbin", "slopsonic-meter-slot")?,
         ];
-        let channels = element("audioconvert", "rufin-channel-controls")?;
+        let channels = element("audioconvert", "slopsonic-channel-controls")?;
         let mut chain = vec![&convert, &floating];
         chain.extend(slots[..4].iter());
         chain.extend([&channels, &slots[4]]);
@@ -657,7 +657,7 @@ impl EffectsBin {
         let preamp_db = profile.map_or(0.0, |p| effective_preamp_db(p, processing_rate));
         // Keep a bypassed bank so enabling it again preserves its native filter history.
         if profile.is_some() && stages[0].is_none() {
-            stages[0] = Some(element("volume", "rufin-eq-preamp")?);
+            stages[0] = Some(element("volume", "slopsonic-eq-preamp")?);
         }
         if let Some(profile) = profile {
             let shape_changed =
@@ -666,17 +666,17 @@ impl EffectsBin {
                 stages[1] = if profile.bands.is_empty() {
                     None
                 } else {
-                    Some(bank("rufin-equalizer", &profile.bands)?)
+                    Some(bank("slopsonic-equalizer", &profile.bands)?)
                 };
             }
             if stages[2].is_none() {
-                stages[2] = Some(bank("rufin-tone", &tone(profile))?);
+                stages[2] = Some(bank("slopsonic-tone", &tone(profile))?);
             }
         }
         if config.crossfeed {
             if info.is_some() {
                 if stages[3].is_none() {
-                    stages[3] = Some(element("bs2b", "rufin-crossfeed")?);
+                    stages[3] = Some(element("bs2b", "slopsonic-crossfeed")?);
                 }
             } else {
                 if gst::ElementFactory::find("bs2b").is_none() {
@@ -689,7 +689,7 @@ impl EffectsBin {
         }
         if self.meter {
             if stages[4].is_none() {
-                let level = element("level", "rufin-processing-level")?;
+                let level = element("level", "slopsonic-processing-level")?;
                 level.set_property("interval", 100_000_000_u64);
                 level.set_property("post-messages", true);
                 stages[4] = Some(level);
@@ -941,7 +941,7 @@ fn install(
     notify_changed(&slots[0]);
 }
 
-const CHANGED: &str = "rufin-effects-changed";
+const CHANGED: &str = "slopsonic-effects-changed";
 
 // Format changes and applied settings need `EffectsBin::poll` on the owning worker.
 fn notify_changed(element: &gst::Element) {

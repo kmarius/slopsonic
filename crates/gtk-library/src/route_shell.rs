@@ -38,8 +38,8 @@ const LIBRARY_TOOLBAR_SORT_WIDTH_SHARE: i32 = 4;
 gtk_widgets::composite_box!(
     pub LibraryPageView,
     library_page_view_imp,
-    "RufinLibraryPageView",
-    "/io/github/screwys/Rufin/ui/routes/library_page.ui",
+    "SlopsonicLibraryPageView",
+    "/io/github/kmarius/Slopsonic/ui/routes/library_page.ui",
     {
         toolbar_host: gtk::Box,
         category_host: gtk::Box,
@@ -54,8 +54,8 @@ gtk_widgets::composite_box!(
 gtk_widgets::composite_box!(
     pub LibraryToolbarView,
     library_toolbar_view_imp,
-    "RufinLibraryToolbarView",
-    "/io/github/screwys/Rufin/ui/routes/library_toolbar.ui",
+    "SlopsonicLibraryToolbarView",
+    "/io/github/kmarius/Slopsonic/ui/routes/library_toolbar.ui",
     {
         search_host: gtk::Box,
         controls: gtk::Box,

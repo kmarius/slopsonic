@@ -30,7 +30,7 @@ mod showcase_imp {
     use super::*;
 
     #[derive(CompositeTemplate, Default)]
-    #[template(resource = "/io/github/screwys/Rufin/ui/routes/detail_showcase.ui")]
+    #[template(resource = "/io/github/kmarius/Slopsonic/ui/routes/detail_showcase.ui")]
     pub struct DetailShowcaseView {
         #[template_child]
         pub cover_column: TemplateChild<gtk::Box>,
@@ -90,7 +90,7 @@ mod showcase_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for DetailShowcaseView {
-        const NAME: &'static str = "RufinDetailShowcaseView";
+        const NAME: &'static str = "SlopsonicDetailShowcaseView";
         type Type = super::DetailShowcaseView;
         type ParentType = gtk::Box;
 
@@ -484,7 +484,7 @@ pub fn detail_playback_controls(
     connect_collection_play(
         &primary,
         Rc::clone(&play),
-        rufin_core::playback::QueuePlacement::Now,
+        slopsonic_core::playback::QueuePlacement::Now,
     );
     actions.append(&primary);
 
@@ -492,13 +492,13 @@ pub fn detail_playback_controls(
         (
             PLAY_NEXT_ICON,
             "Next",
-            rufin_core::playback::QueuePlacement::Next,
+            slopsonic_core::playback::QueuePlacement::Next,
             controls.play_next.clone(),
         ),
         (
             PLAY_LATER_ICON,
             "Play Later",
-            rufin_core::playback::QueuePlacement::Last,
+            slopsonic_core::playback::QueuePlacement::Last,
             controls.play_last.clone(),
         ),
     ] {
@@ -510,7 +510,7 @@ pub fn detail_playback_controls(
     connect_collection_play(
         &controls.play,
         play,
-        rufin_core::playback::QueuePlacement::Now,
+        slopsonic_core::playback::QueuePlacement::Now,
     );
     controls
 }
@@ -518,7 +518,7 @@ pub fn detail_playback_controls(
 fn connect_collection_play(
     button: &gtk::Button,
     play: CollectionPlay,
-    placement: rufin_core::playback::QueuePlacement,
+    placement: slopsonic_core::playback::QueuePlacement,
 ) {
     button.connect_clicked(move |_| play(placement, false));
 }
@@ -680,7 +680,7 @@ pub fn album_external_links(shell: &Rc<CatalogUi>, album: &AlbumView) -> Option<
         .and_then(|(source_id, _, _)| shell.source.configuration(&source_id));
     detail_external_links(
         shell,
-        rufin_core::detail_links::album_external_links(
+        slopsonic_core::detail_links::album_external_links(
             &settings.application.external_site_links,
             source.as_ref(),
             album,
@@ -694,7 +694,7 @@ pub fn artist_external_links(shell: &Rc<CatalogUi>, artist: &ArtistView) -> Opti
         .and_then(|(source_id, _, _)| shell.source.configuration(&source_id));
     detail_external_links(
         shell,
-        rufin_core::detail_links::artist_external_links(
+        slopsonic_core::detail_links::artist_external_links(
             &settings.application.external_site_links,
             source.as_ref(),
             artist,
@@ -704,7 +704,7 @@ pub fn artist_external_links(shell: &Rc<CatalogUi>, artist: &ArtistView) -> Opti
 
 fn detail_external_links(
     shell: &Rc<CatalogUi>,
-    links: Vec<rufin_core::detail_links::DetailLink>,
+    links: Vec<slopsonic_core::detail_links::DetailLink>,
 ) -> Option<gtk::Widget> {
     let row = detail_external_link_row();
     for link in links {

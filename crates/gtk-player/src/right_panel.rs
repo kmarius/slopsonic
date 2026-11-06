@@ -1,5 +1,5 @@
 use adw::prelude::*;
-use rufin_core::settings::right_panel::RightPanelSettings;
+use slopsonic_core::settings::right_panel::RightPanelSettings;
 use std::cell::RefCell;
 use std::rc::Rc;
 

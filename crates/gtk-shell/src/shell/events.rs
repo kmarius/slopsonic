@@ -4,16 +4,16 @@ use std::time::Duration;
 
 use gtk::glib;
 use gtk::prelude::WidgetExt;
-use rufin_core::text::fill;
+use slopsonic_core::text::fill;
 use tracing::warn;
 
 use crate::shell::playlist_picker::refresh_context_playlist_picker;
 use gtk_player::fullscreen::{FullscreenPlaybackRefresh, fullscreen_playback_refresh};
 use gtk_player::state::NowPlayingPresentation;
 use gtk_widgets::route::Route;
-use rufin_core::runtime::source::source_progress_text;
-use rufin_core::runtime::source::{SourceOperation, SourceProgress};
-use rufin_core::runtime::{
+use slopsonic_core::runtime::source::source_progress_text;
+use slopsonic_core::runtime::source::{SourceOperation, SourceProgress};
+use slopsonic_core::runtime::{
     CatalogChange, CatalogPublication, ProductReceivers, SourceEvent, SourceNotice,
     SourceNoticeKind,
 };
@@ -111,7 +111,7 @@ fn release_selected_source(shell: &Rc<Shell>) {
 
 fn apply_source_status(
     shell: &Rc<Shell>,
-    configured: Option<rufin_core::runtime::source::SourceStatus>,
+    configured: Option<slopsonic_core::runtime::source::SourceStatus>,
 ) {
     *shell.source.configured.borrow_mut() = configured;
     refresh_context_playlist_picker(shell);
@@ -120,8 +120,8 @@ fn apply_source_status(
 
 fn apply_selected_source(
     shell: &Rc<Shell>,
-    configured: Option<rufin_core::runtime::source::SourceStatus>,
-    selected: rufin_core::runtime::SelectedLibrary,
+    configured: Option<slopsonic_core::runtime::source::SourceStatus>,
+    selected: slopsonic_core::runtime::SelectedLibrary,
 ) {
     let changed = shell.selected_library().as_deref().is_none_or(|previous| {
         previous.source_key != selected.source_key
@@ -215,9 +215,9 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
             let category = if current == Route::Favorites {
                 shell.navigation.favorite_category.get()
             } else {
-                rufin_core::route::CollectionCategory::Tracks
+                slopsonic_core::route::CollectionCategory::Tracks
             };
-            let sensitive = [category, rufin_core::route::CollectionCategory::Albums]
+            let sensitive = [category, slopsonic_core::route::CollectionCategory::Albums]
                 .into_iter()
                 .take(
                     if matches!(
@@ -230,10 +230,10 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
                     },
                 )
                 .any(|category| {
-                    rufin_core::browse::uses_activity(
+                    slopsonic_core::browse::uses_activity(
                         &current,
                         &settings
-                            .library_list(rufin_core::browse::library_list_key(&current, category)),
+                            .library_list(slopsonic_core::browse::library_list_key(&current, category)),
                     )
                 });
             drop(settings);
@@ -649,7 +649,7 @@ mod tests {
         bottom_player_can_update_position_only, media_controls_static_state_changed,
         queue_panel_refresh_needed, source_operation_started_blocking, source_progress_fraction,
     };
-    use rufin_core::runtime::source::{SourceOperation, SourceProgress, SourceProgressStage};
+    use slopsonic_core::runtime::source::{SourceOperation, SourceProgress, SourceProgressStage};
 
     #[test]
     fn playback_toasts_omit_backend_diagnostics() {

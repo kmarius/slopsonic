@@ -14,7 +14,7 @@ readme = "README.md"
 publish = false
 
 [workspace.dependencies]
-# Rufin crates
+# Slopsonic crates
 app-identity = { path = "crates/app-identity" }
 artwork = { path = "crates/artwork" }
 audio-processing = { path = "crates/audio-processing" }
@@ -31,7 +31,7 @@ library = { path = "crates/library" }
 playback = { path = "crates/playback" }
 playback-gstreamer = { path = "crates/playback-gstreamer" }
 process-memory = { path = "crates/process-memory" }
-rufin-core = { path = "crates/rufin-core" }
+slopsonic-core = { path = "crates/slopsonic-core" }
 scrobbling = { path = "crates/scrobbling" }
 secrets = { path = "crates/secrets" }
 sources = { path = "crates/sources" }

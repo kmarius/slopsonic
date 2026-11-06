@@ -53,7 +53,7 @@ pub type MountedRouteResume = Rc<dyn Fn()>;
 pub type MountedDownloadChange = Rc<dyn Fn(&downloads::DownloadEvent)>;
 pub type MountedRouteCommand = Rc<dyn Fn()>;
 pub type MountedRouteSearchProvider = Rc<dyn Fn() -> Option<MountedRouteSearchTarget>>;
-pub type MountedFavoriteSettlement = Rc<dyn Fn(rufin_core::runtime::FavoriteSettlement)>;
+pub type MountedFavoriteSettlement = Rc<dyn Fn(slopsonic_core::runtime::FavoriteSettlement)>;
 pub type MountedHomePageApply = Rc<dyn Fn(library::HomePage)>;
 pub type MountedRouteItemNavigation = Rc<dyn Fn(gtk::DirectionType) -> glib::Propagation>;
 
@@ -479,7 +479,7 @@ impl MountedRoute {
         self
     }
 
-    pub fn apply_favorite_settlement(&self, settlement: rufin_core::runtime::FavoriteSettlement) {
+    pub fn apply_favorite_settlement(&self, settlement: slopsonic_core::runtime::FavoriteSettlement) {
         if let Some(apply) = &self.favorite_settlement {
             apply(settlement);
         }

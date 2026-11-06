@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
-  <template class="RufinRowActions" parent="GtkBox">
+<interface domain="slopsonic">
+  <template class="SlopsonicRowActions" parent="GtkBox">
     <property name="halign">end</property>
     <property name="valign">center</property>
     <style><class name="row-actions"/></style>
@@ -8,7 +8,7 @@
       <property name="width-request">32</property>
       <property name="height-request">30</property>
       <child><object class="GtkButton" id="menu">
-      <property name="icon-name">rufin-more-symbolic</property>
+      <property name="icon-name">slopsonic-more-symbolic</property>
       <property name="tooltip-text" translatable="yes">Options</property>
       <property name="focus-on-click">false</property>
       <property name="valign">center</property>

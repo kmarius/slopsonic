@@ -18,7 +18,7 @@ mod imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for RefillRing {
-        const NAME: &'static str = "RufinRefillRing";
+        const NAME: &'static str = "SlopsonicRefillRing";
         type Type = super::RefillRing;
         type ParentType = gtk::Widget;
     }

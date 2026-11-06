@@ -1,4 +1,4 @@
-use rufin_core::{app, diagnostics, paths};
+use slopsonic_core::{app, diagnostics, paths};
 use std::env;
 use std::io;
 use std::process::{Command, ExitCode};

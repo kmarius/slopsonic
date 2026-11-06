@@ -7,8 +7,8 @@ use adw::prelude::*;
 use glib::subclass::prelude::*;
 use gtk::{gio, glib};
 use library::{AlbumKey, AlbumView, TrackView};
-use rufin_core::playback::QueuePlacement;
-use rufin_core::text::track_count_text;
+use slopsonic_core::playback::QueuePlacement;
+use slopsonic_core::text::track_count_text;
 
 use crate::CatalogUi;
 use crate::{LibraryField, LibraryListKey};
@@ -27,8 +27,8 @@ use gtk_widgets::sparse_model::{
 
 const ALBUM_TRACK_HEIGHT: i32 = 36;
 
-fn display_track_height(display: &rufin_core::settings::layout::DisplaySettings) -> i32 {
-    use rufin_core::settings::layout::DisplaySize;
+fn display_track_height(display: &slopsonic_core::settings::layout::DisplaySettings) -> i32 {
+    use slopsonic_core::settings::layout::DisplaySize;
     match display.size {
         DisplaySize::Compact => 32,
         DisplaySize::Default => ALBUM_TRACK_HEIGHT,
@@ -36,7 +36,7 @@ fn display_track_height(display: &rufin_core::settings::layout::DisplaySettings)
     }
 }
 
-fn detail_display(shell: &CatalogUi) -> rufin_core::settings::layout::DisplaySettings {
+fn detail_display(shell: &CatalogUi) -> slopsonic_core::settings::layout::DisplaySettings {
     shell
         .settings
         .current
@@ -78,11 +78,11 @@ impl AlbumCollectionModels {
     pub fn new(
         database: &Arc<library::Database>,
         runtime: &tokio::runtime::Handle,
-        content: rufin_core::browse::AlbumListContent,
+        content: slopsonic_core::browse::AlbumListContent,
         request: Rc<RefCell<library::ListRead>>,
     ) -> Self {
         let page = match content {
-            rufin_core::browse::AlbumListContent::Detail { index, page } => {
+            slopsonic_core::browse::AlbumListContent::Detail { index, page } => {
                 let native = DetailRowsModel::new(Arc::new(DetailLayout::new(index, [0, 0])));
                 let reader = native.clone();
                 let database = database.clone();
@@ -117,7 +117,7 @@ impl AlbumCollectionModels {
                 });
             }
 
-            rufin_core::browse::AlbumListContent::Rows(page) => page,
+            slopsonic_core::browse::AlbumListContent::Rows(page) => page,
         };
         let library::Page {
             count,
@@ -179,9 +179,9 @@ impl AlbumCollectionModels {
             Self::Detail(detail) => detail.inner.rows.resume_initial_demand(),
         }
     }
-    pub fn replace_prepared(&self, content: rufin_core::browse::AlbumListContent) -> bool {
+    pub fn replace_prepared(&self, content: slopsonic_core::browse::AlbumListContent) -> bool {
         match (self, content) {
-            (Self::Rows(rows), rufin_core::browse::AlbumListContent::Rows(page)) => rows
+            (Self::Rows(rows), slopsonic_core::browse::AlbumListContent::Rows(page)) => rows
                 .replace_prepared_at(
                     SparseSource::Query { count: page.count },
                     page.first_row_position,
@@ -191,7 +191,7 @@ impl AlbumCollectionModels {
                 ),
             (
                 Self::Detail(detail),
-                rufin_core::browse::AlbumListContent::Detail { index, page },
+                slopsonic_core::browse::AlbumListContent::Detail { index, page },
             ) => {
                 let inner = &detail.inner;
                 let previous = inner.native.layout();
@@ -341,7 +341,7 @@ mod detail_rows_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for DetailRowsModel {
-        const NAME: &'static str = "RufinAlbumDetailRowsModel";
+        const NAME: &'static str = "SlopsonicAlbumDetailRowsModel";
         type Type = super::DetailRowsModel;
         type Interfaces = (gio::ListModel,);
     }
@@ -457,7 +457,7 @@ struct AlbumDetailListInner {
     overlay_handler: RefCell<Option<glib::SignalHandlerId>>,
     model_handler: RefCell<Option<glib::SignalHandlerId>>,
     overlay_keys: RefCell<Option<gtk::EventControllerKey>>,
-    display: RefCell<rufin_core::settings::layout::DisplaySettings>,
+    display: RefCell<slopsonic_core::settings::layout::DisplaySettings>,
     fields: Vec<LibraryField>,
     panel_probe: [Rc<AlbumSidePanel>; 2],
     free_panels: RefCell<Vec<Rc<AlbumSidePanel>>>,
@@ -1165,7 +1165,7 @@ impl AlbumDetailVirtualList {
             }
         }
     }
-    pub fn apply_display(&self, display: &rufin_core::settings::layout::DisplaySettings) {
+    pub fn apply_display(&self, display: &slopsonic_core::settings::layout::DisplaySettings) {
         self.inner.display.replace(display.clone());
         self.inner.width.set(0);
         self.inner.list.queue_resize();
@@ -1607,7 +1607,7 @@ fn album_track_header(fields: &[LibraryField]) -> (gtk::Box, Vec<gtk::Widget>) {
         .map(|field| {
             let label = if matches!(field, LibraryField::Duration | LibraryField::Favorite) {
                 let icon = if *field == LibraryField::Duration {
-                    "rufin-preferences-system-time-symbolic"
+                    "slopsonic-preferences-system-time-symbolic"
                 } else {
                     gtk_widgets::favorites::FAVORITE_ADD_ICON
                 };
@@ -1762,7 +1762,7 @@ fn play_album_track(
         .borrow()
         .library_list(LibraryListKey::AlbumDetailTracks);
     queue.play_selection(
-        rufin_core::playback::PlayRequest::ordered(
+        slopsonic_core::playback::PlayRequest::ordered(
             library::MemberRead {
                 sort: Some(settings.sort_key.catalog_sort()),
                 folder,

@@ -71,8 +71,8 @@ fn appearance_override_css(settings: &Settings) -> String {
     let mut css = String::from(":root {\n");
     let palette = match settings.appearance.theme_preference {
         ThemePreference::System => None,
-        ThemePreference::Light => Some(rufin_core::themes::colors(false)),
-        ThemePreference::Dark => Some(rufin_core::themes::colors(true)),
+        ThemePreference::Light => Some(slopsonic_core::themes::colors(false)),
+        ThemePreference::Dark => Some(slopsonic_core::themes::colors(true)),
     };
     for (key, value) in palette.iter().flatten() {
         css.push_str(&format!("  --{key}: {value};\n"));
@@ -91,7 +91,7 @@ mod tests {
 
     fn css(theme: ThemePreference, accent: AccentPreference) -> String {
         let settings = Settings {
-            appearance: rufin_core::settings::AppearancePreferences {
+            appearance: slopsonic_core::settings::AppearancePreferences {
                 theme_preference: theme,
                 accent_preference: accent,
                 ..Default::default()

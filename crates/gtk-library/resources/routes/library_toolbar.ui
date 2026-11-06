@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <requires lib="gtk" version="4.20"/>
 
-  <template class="RufinLibraryToolbarView" parent="GtkBox">
+  <template class="SlopsonicLibraryToolbarView" parent="GtkBox">
     <property name="orientation">horizontal</property>
     <property name="spacing">12</property>
     <property name="hexpand">true</property>
@@ -25,7 +25,7 @@
               <object class="GtkMenuButton" id="command_button">
                 <style><class name="library-toolbar-icon-button"/></style>
                 <property name="visible">false</property>
-                <property name="icon-name">rufin-list-add-symbolic</property>
+                <property name="icon-name">slopsonic-list-add-symbolic</property>
                 <property name="tooltip-text" translatable="yes">New Playlist</property>
               </object>
             </child>
@@ -50,7 +50,7 @@
             </child>
             <child>
               <object class="GtkButton" id="configure">
-                <property name="icon-name">rufin-sliders-2-symbolic</property>
+                <property name="icon-name">slopsonic-sliders-2-symbolic</property>
                 <style>
                   <class name="library-toolbar-icon-button"/>
                 </style>

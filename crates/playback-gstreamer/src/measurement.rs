@@ -139,7 +139,7 @@ impl MeasurementAnalyzer {
     ) -> Self {
         let (sender, receiver) = sync_channel(MEASUREMENT_CHANNEL_CAPACITY);
         let _ = thread::Builder::new()
-            .name("rufin-spectrum-fft".to_string())
+            .name("slopsonic-spectrum-fft".to_string())
             .spawn(move || run_measurement_worker(receiver, events, shared))
             .inspect_err(|error| warn!(%error, "failed to start spectrum FFT worker"));
         Self { sender }

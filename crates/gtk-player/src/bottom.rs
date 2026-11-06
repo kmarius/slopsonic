@@ -641,7 +641,7 @@ pub fn bottom_player_progress_width(player_width: i32) -> i32 {
         .saturating_sub(BOTTOM_PLAYER_COMPACT_MIN_WIDTH)
         .max(0);
     // Feishin gives the seekbar 95% of its one-third center column. Apply the same
-    // share to width beyond Rufin's compact layout so the bar grows smoothly.
+    // share to width beyond Slopsonic's compact layout so the bar grows smoothly.
     BOTTOM_PLAYER_PROGRESS_MIN_WIDTH
         + extra_width * BOTTOM_PLAYER_PROGRESS_CENTER_PERCENT / (100 * BOTTOM_PLAYER_LAYOUT_COLUMNS)
 }
@@ -960,7 +960,7 @@ fn should_clear_seek_preview(
         || !has_current
         || !can_seek
         || (!pointer_active
-            && rufin_core::playback::seek_preview_matches_position(
+            && slopsonic_core::playback::seek_preview_matches_position(
                 u64::from(target_seconds) * 1_000,
                 position_millis,
             ))

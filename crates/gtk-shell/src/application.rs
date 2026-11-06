@@ -9,9 +9,9 @@ use app_identity::{APP_ID, DISPLAY_NAME, STABLE_APP_ID};
 use gtk::gio;
 use tracing::error;
 
-use rufin_core::runtime::RuntimeInputs;
+use slopsonic_core::runtime::RuntimeInputs;
 
-const ICON_RESOURCE_ROOT: &str = "/io/github/screwys/Rufin/icons/hicolor";
+const ICON_RESOURCE_ROOT: &str = "/io/github/kmarius/Slopsonic/icons/hicolor";
 const GTK_DECORATION_LAYOUT_OPTION: &str = "gtk-decoration-layout";
 
 #[derive(Default)]
@@ -21,14 +21,14 @@ struct ApplicationOptions {
 
 pub struct ApplicationExit {
     pub code: ExitCode,
-    pub storage_reset: Option<Result<rufin_core::settings::StorageResetRequest, String>>,
+    pub storage_reset: Option<Result<slopsonic_core::settings::StorageResetRequest, String>>,
 }
 
 pub(crate) type StorageResetResult =
-    Rc<RefCell<Option<Result<rufin_core::settings::StorageResetRequest, String>>>>;
+    Rc<RefCell<Option<Result<slopsonic_core::settings::StorageResetRequest, String>>>>;
 
 pub fn run_application<F, Fut>(
-    settings: rufin_core::settings::Settings,
+    settings: slopsonic_core::settings::Settings,
     bootstrap: F,
 ) -> ApplicationExit
 where
@@ -211,7 +211,7 @@ fn present_startup_error(app: &adw::Application, error: &str, storage_reset: Sto
                 return;
             }
             storage_reset.replace(Some(Ok(
-                rufin_core::settings::StorageResetRequest::Database,
+                slopsonic_core::settings::StorageResetRequest::Database,
             )));
             app.quit();
         });
@@ -221,7 +221,7 @@ fn present_startup_error(app: &adw::Application, error: &str, storage_reset: Sto
 
 fn configure_app_icon() {
     if let Err(error) = register_resources() {
-        error!(%error, "failed to register Rufin's interface resources");
+        error!(%error, "failed to register Slopsonic's interface resources");
     }
     gtk::Window::set_default_icon_name(STABLE_APP_ID);
     let Some(display) = gtk::gdk::Display::default() else {
@@ -240,7 +240,7 @@ fn register_resources() -> Result<(), String> {
     static REGISTERED: OnceLock<Result<(), String>> = OnceLock::new();
     REGISTERED
         .get_or_init(|| {
-            gio::resources_register_include!("rufin.gresource").map_err(|error| error.to_string())
+            gio::resources_register_include!("slopsonic.gresource").map_err(|error| error.to_string())
         })
         .clone()
 }
@@ -259,7 +259,7 @@ fn verify_interface_resources() -> Result<(), String> {
         .chain(gtk_library::ui_resource::INTERFACE_RESOURCE_PATHS)
     {
         gio::resources_lookup_data(path, gio::ResourceLookupFlags::NONE)
-            .map_err(|error| format!("missing compiled Rufin resource {path}: {error}"))?;
+            .map_err(|error| format!("missing compiled Slopsonic resource {path}: {error}"))?;
     }
     Ok(())
 }

@@ -10,7 +10,7 @@ use adw::prelude::*;
 use gtk::gio;
 use gtk::subclass::prelude::ObjectSubclassIsExt;
 use library::{ArtistKey, ArtistView, GenreKey, GenreView, MoodKey, MoodView};
-use rufin_core::text::{album_count_text, track_count_text};
+use slopsonic_core::text::{album_count_text, track_count_text};
 
 use crate::CatalogUi;
 use crate::{LibraryLayout, LibraryListKey};
@@ -213,7 +213,7 @@ impl CatalogUi {
         });
         if favorites_only {
             self.install_favorite_category_tabs(
-                rufin_core::route::CollectionCategory::Artists,
+                slopsonic_core::route::CollectionCategory::Artists,
                 &mut page,
             );
         }
@@ -232,7 +232,7 @@ impl CatalogUi {
                 let Some(shell) = shell.upgrade() else { return };
                 let settings = shell.settings.current.borrow().library_list(key);
                 if favorites_only || settings.sort_key == LibraryField::Favorite {
-                    read.request_with(rufin_core::browse::list_display(
+                    read.request_with(slopsonic_core::browse::list_display(
                         &favorite_read,
                         &favorite_search.text(),
                         &settings,
@@ -265,7 +265,7 @@ pub trait CollectionRow: Clone + PartialEq + Send + Sync + 'static {
         cancel: &'a library::ReadCancellation,
     ) -> impl std::future::Future<Output = library::LibraryResult<library::Page<Self>>> + Send + 'a;
 
-    fn playback(&self, key: LibraryListKey) -> Option<rufin_core::playback::PlayRequest>;
+    fn playback(&self, key: LibraryListKey) -> Option<slopsonic_core::playback::PlayRequest>;
     fn downloaded(&self) -> bool;
     fn set_downloaded(&mut self, downloaded: bool);
     fn projection(
@@ -339,7 +339,7 @@ impl CollectionRow for ArtistView {
     {
         read.page_artists(database, window, cancel)
     }
-    fn playback(&self, key: LibraryListKey) -> Option<rufin_core::playback::PlayRequest> {
+    fn playback(&self, key: LibraryListKey) -> Option<slopsonic_core::playback::PlayRequest> {
         Some(gtk_widgets::selection::artist_play_request(
             self,
             key == LibraryListKey::AlbumArtists,
@@ -400,7 +400,7 @@ impl CollectionRow for GenreView {
         };
     }
 
-    fn playback(&self, _key: LibraryListKey) -> Option<rufin_core::playback::PlayRequest> {
+    fn playback(&self, _key: LibraryListKey) -> Option<slopsonic_core::playback::PlayRequest> {
         Some(gtk_widgets::selection::collection_play_request(
             library::Collection::Genre(self.genre_key),
         ))
@@ -493,7 +493,7 @@ impl CollectionRow for MoodView {
         };
     }
 
-    fn playback(&self, _key: LibraryListKey) -> Option<rufin_core::playback::PlayRequest> {
+    fn playback(&self, _key: LibraryListKey) -> Option<slopsonic_core::playback::PlayRequest> {
         Some(gtk_widgets::selection::collection_play_request(
             library::Collection::Mood(self.mood_key),
         ))
@@ -572,7 +572,7 @@ impl CollectionRow for library::PlaylistRow {
     {
         read.page_playlists(database, window, cancel)
     }
-    fn playback(&self, _key: LibraryListKey) -> Option<rufin_core::playback::PlayRequest> {
+    fn playback(&self, _key: LibraryListKey) -> Option<slopsonic_core::playback::PlayRequest> {
         Some(gtk_widgets::selection::collection_play_request(
             library::Collection::Playlist(self.playlist_key),
         ))
@@ -1012,7 +1012,7 @@ pub fn named_actions_column<T: NamedCollectionRow>(shell: &Rc<CatalogUi>) -> gtk
 
 fn single_playlist_drag(source: &gtk_widgets::media_drag::MediaDragSource) -> bool {
     use gtk_widgets::media_drag::{CollectionTargets, MediaDragSource};
-    let is_playlist = |target: &rufin_core::playback::PlayRequest| {
+    let is_playlist = |target: &slopsonic_core::playback::PlayRequest| {
         matches!(
             target.selection(),
             Some(library::MemberSelection::Members { read, .. })

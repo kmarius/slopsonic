@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <requires lib="gtk" version="4.20"/>
   <requires lib="libadwaita" version="1.9"/>
 
-  <template class="RufinSearchRouteView" parent="GtkBox">
+  <template class="SlopsonicSearchRouteView" parent="GtkBox">
     <property name="orientation">vertical</property><property name="spacing">10</property>
     <property name="margin-top">8</property>
     <property name="hexpand">true</property><property name="vexpand">true</property>

@@ -2,5 +2,5 @@
 mod build_support;
 fn main() {
     println!("cargo:rerun-if-changed=../../resources/showcase.css");
-    build_support::build(false, "rufin.gresource");
+    build_support::build(false, "slopsonic.gresource");
 }

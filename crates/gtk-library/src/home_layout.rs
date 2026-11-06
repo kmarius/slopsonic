@@ -3,8 +3,8 @@ use gtk::subclass::prelude::ObjectSubclassIsExt;
 gtk_widgets::composite_box!(
     pub HomeSectionHeaderView,
     home_section_header_view_imp,
-    "RufinHomeSectionHeaderView",
-    "/io/github/screwys/Rufin/ui/routes/home_section_header.ui",
+    "SlopsonicHomeSectionHeaderView",
+    "/io/github/kmarius/Slopsonic/ui/routes/home_section_header.ui",
     {
         heading: gtk::Label,
         previous: gtk::Button,

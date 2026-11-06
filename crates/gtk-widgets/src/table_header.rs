@@ -6,14 +6,14 @@ use std::{
 use gtk::glib;
 use gtk::prelude::*;
 
-use rufin_core::settings::layout::LibraryField;
+use slopsonic_core::settings::layout::LibraryField;
 
 mod header_cell_imp {
     use gtk::prelude::*;
     use gtk::{CompositeTemplate, TemplateChild, glib, subclass::prelude::*};
 
     #[derive(CompositeTemplate, Default)]
-    #[template(resource = "/io/github/screwys/Rufin/ui/routes/column_view_header_cell.ui")]
+    #[template(resource = "/io/github/kmarius/Slopsonic/ui/routes/column_view_header_cell.ui")]
     pub struct HeaderCell {
         #[template_child]
         pub content: TemplateChild<gtk::Box>,
@@ -25,7 +25,7 @@ mod header_cell_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for HeaderCell {
-        const NAME: &'static str = "RufinColumnViewHeaderCell";
+        const NAME: &'static str = "SlopsonicColumnViewHeaderCell";
         type Type = super::HeaderCell;
         type ParentType = gtk::Widget;
 
@@ -89,7 +89,7 @@ impl HeaderCell {
                 0.0
             });
         let icon = match field {
-            Some(LibraryField::Duration) => Some("rufin-preferences-system-time-symbolic"),
+            Some(LibraryField::Duration) => Some("slopsonic-preferences-system-time-symbolic"),
             Some(LibraryField::Favorite) => Some(crate::favorites::FAVORITE_ADD_ICON),
             _ => None,
         };

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <requires lib="gtk" version="4.20" />
   <object class="GtkBox" id="root">
     <property name="orientation">vertical</property>
@@ -34,7 +34,7 @@
             <style><class name="preset-actions" /></style>
             <child>
               <object class="GtkButton" id="save">
-                <property name="icon-name">rufin-document-save-symbolic</property>
+                <property name="icon-name">slopsonic-document-save-symbolic</property>
                 <property name="tooltip-text" translatable="yes">Save preset</property>
                 <accessibility><property name="label" translatable="yes">Save preset</property></accessibility>
                 <style><class name="flat" /></style>
@@ -42,7 +42,7 @@
             </child>
             <child>
               <object class="GtkButton" id="duplicate">
-                <property name="icon-name">rufin-edit-copy-symbolic</property>
+                <property name="icon-name">slopsonic-edit-copy-symbolic</property>
                 <property name="tooltip-text" translatable="yes">Duplicate preset</property>
                 <accessibility><property name="label" translatable="yes">Duplicate preset</property></accessibility>
                 <style><class name="flat" /></style>
@@ -50,7 +50,7 @@
             </child>
             <child>
               <object class="GtkButton" id="rename">
-                <property name="icon-name">rufin-document-edit-symbolic</property>
+                <property name="icon-name">slopsonic-document-edit-symbolic</property>
                 <property name="tooltip-text" translatable="yes">Rename preset</property>
                 <accessibility><property name="label" translatable="yes">Rename preset</property></accessibility>
                 <style><class name="flat" /></style>
@@ -58,7 +58,7 @@
             </child>
             <child>
               <object class="GtkButton" id="import">
-                <property name="icon-name">rufin-document-open-symbolic</property>
+                <property name="icon-name">slopsonic-document-open-symbolic</property>
                 <property name="tooltip-text" translatable="yes">Import preset</property>
                 <accessibility><property name="label" translatable="yes">Import preset</property></accessibility>
                 <style><class name="flat" /></style>
@@ -66,7 +66,7 @@
             </child>
             <child>
               <object class="GtkButton" id="export">
-                <property name="icon-name">rufin-document-send-symbolic</property>
+                <property name="icon-name">slopsonic-document-send-symbolic</property>
                 <property name="tooltip-text" translatable="yes">Export preset</property>
                 <accessibility><property name="label" translatable="yes">Export preset</property></accessibility>
                 <style><class name="flat" /></style>
@@ -74,7 +74,7 @@
             </child>
             <child>
               <object class="GtkButton" id="delete">
-                <property name="icon-name">rufin-user-trash-symbolic</property>
+                <property name="icon-name">slopsonic-user-trash-symbolic</property>
                 <property name="tooltip-text" translatable="yes">Delete preset</property>
                 <accessibility><property name="label" translatable="yes">Delete preset</property></accessibility>
                 <style><class name="flat" /></style>
@@ -121,7 +121,7 @@
                     <property name="halign">end</property>
                     <property name="margin-start">12</property>
                     <property name="valign">center</property>
-                    <property name="icon-name">rufin-spring-graph-symbolic</property>
+                    <property name="icon-name">slopsonic-spring-graph-symbolic</property>
                     <property name="tooltip-text" translatable="yes">Parametric</property>
                     <accessibility><property name="label" translatable="yes">Parametric</property></accessibility>
                     <style><class name="equalizer-mode" /></style>
@@ -228,7 +228,7 @@
                   <object class="GtkOverlay" id="graphic_overlay">
                     <property name="hexpand">true</property>
                     <child>
-                      <object class="RufinEqualizerPlot" id="graphic_plot">
+                      <object class="SlopsonicEqualizerPlot" id="graphic_plot">
                         <property name="hexpand">true</property>
                         <property name="vexpand">true</property>
                         <style>
@@ -287,7 +287,7 @@
                             <property name="halign">start</property>
                             <property name="factory">
                               <object class="GtkBuilderListItemFactory">
-                                <property name="resource">/io/github/screwys/Rufin/ui/player/equalizer-band-item.ui</property>
+                                <property name="resource">/io/github/kmarius/Slopsonic/ui/player/equalizer-band-item.ui</property>
                               </object>
                             </property>
                             <accessibility>
@@ -331,7 +331,7 @@
             <property name="spacing">8</property>
             <property name="visible">false</property>
             <child>
-              <object class="RufinEqualizerPlot" id="parametric_plot">
+              <object class="SlopsonicEqualizerPlot" id="parametric_plot">
                 <property name="height-request">200</property>
                 <property name="hexpand">true</property>
                 <style>
@@ -507,7 +507,7 @@
                         <style>
                           <class name="equalizer-number" />
                         </style>
-                      <property name="secondary-icon-name">rufin-view-refresh-symbolic</property><property name="secondary-icon-tooltip-text" translatable="yes">Reset</property><property name="secondary-icon-activatable">true</property></object>
+                      <property name="secondary-icon-name">slopsonic-view-refresh-symbolic</property><property name="secondary-icon-tooltip-text" translatable="yes">Reset</property><property name="secondary-icon-activatable">true</property></object>
                     </child>
                     <property name="hexpand">true</property>
                   </object>
@@ -558,7 +558,7 @@
                         <style>
                           <class name="equalizer-number" />
                         </style>
-                      <property name="secondary-icon-name">rufin-view-refresh-symbolic</property><property name="secondary-icon-tooltip-text" translatable="yes">Reset</property><property name="secondary-icon-activatable">true</property></object>
+                      <property name="secondary-icon-name">slopsonic-view-refresh-symbolic</property><property name="secondary-icon-tooltip-text" translatable="yes">Reset</property><property name="secondary-icon-activatable">true</property></object>
                     </child>
                     <property name="hexpand">true</property>
                   </object>
@@ -622,7 +622,7 @@
                         <style>
                           <class name="equalizer-number" />
                         </style>
-                      <property name="secondary-icon-name">rufin-view-refresh-symbolic</property><property name="secondary-icon-tooltip-text" translatable="yes">Reset</property><property name="secondary-icon-activatable">true</property></object>
+                      <property name="secondary-icon-name">slopsonic-view-refresh-symbolic</property><property name="secondary-icon-tooltip-text" translatable="yes">Reset</property><property name="secondary-icon-activatable">true</property></object>
                     </child>
                     <property name="hexpand">true</property>
                   </object>

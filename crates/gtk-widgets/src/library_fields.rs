@@ -7,10 +7,10 @@ use artwork::ArtworkBinding;
 use gtk::glib;
 
 use crate::format_duration_units;
-use rufin_core::settings::layout::{
+use slopsonic_core::settings::layout::{
     LibraryField, LibraryLayout, LibraryListKey, LibraryListSettings,
 };
-use rufin_core::text::{album_count_text, track_count_text};
+use slopsonic_core::text::{album_count_text, track_count_text};
 
 pub trait TrackPresentation: Clone + PartialEq + Send + Sync + 'static {
     fn track_key(&self) -> Option<library::TrackKey>;
@@ -146,7 +146,7 @@ pub fn playlist_artwork(playlist: &PlaylistRow) -> Vec<ArtworkBinding> {
         .map(|binding| ArtworkBinding::opaque(binding))
         .collect()
 }
-pub use rufin_core::settings::presentation::{
+pub use slopsonic_core::settings::presentation::{
     audio_property_field, optional_track_number, track_field,
 };
 pub fn opaque_artwork(binding: Option<&[u8]>) -> ArtworkBinding {
@@ -251,9 +251,9 @@ pub fn available_fields_for_set(
     field_set: LibraryFieldSet,
 ) -> &'static [LibraryField] {
     match field_set {
-        LibraryFieldSet::Grid => rufin_core::settings::layout::available_grid_fields(key),
-        LibraryFieldSet::Detail => rufin_core::settings::available_detail_track_fields(),
-        LibraryFieldSet::Row => rufin_core::settings::layout::available_row_fields(key),
+        LibraryFieldSet::Grid => slopsonic_core::settings::layout::available_grid_fields(key),
+        LibraryFieldSet::Detail => slopsonic_core::settings::available_detail_track_fields(),
+        LibraryFieldSet::Row => slopsonic_core::settings::layout::available_row_fields(key),
     }
 }
 pub fn set_field_enabled(
@@ -354,9 +354,9 @@ pub fn next_layout(key: LibraryListKey, layout: LibraryLayout) -> LibraryLayout 
 }
 pub fn layout_icon(layout: LibraryLayout) -> &'static str {
     match layout {
-        LibraryLayout::Grid => "rufin-view-grid-symbolic",
-        LibraryLayout::Row => "rufin-view-list-symbolic",
-        LibraryLayout::Detail => "rufin-view-list-details-symbolic",
+        LibraryLayout::Grid => "slopsonic-view-grid-symbolic",
+        LibraryLayout::Row => "slopsonic-view-list-symbolic",
+        LibraryLayout::Detail => "slopsonic-view-list-details-symbolic",
     }
 }
 pub fn layout_title(layout: LibraryLayout) -> &'static str {
@@ -408,7 +408,7 @@ pub fn play_count_column_width() -> i32 {
 pub fn compact_header_column_width(header: &str, min_width: i32) -> i32 {
     crate::table_sizing::compact_header_text_width(&String::from(header), min_width)
 }
-pub use rufin_core::settings::presentation::{
+pub use slopsonic_core::settings::presentation::{
     count, display_unix_date, favorite_text, optional_year, stored_rating,
 };
 

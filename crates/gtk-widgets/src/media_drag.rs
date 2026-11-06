@@ -7,7 +7,7 @@ use adw::prelude::*;
 use artwork::ArtworkBinding;
 use downloads::DownloadSubject;
 use gtk::glib;
-use rufin_core::playback::PlayRequest;
+use slopsonic_core::playback::PlayRequest;
 use std::ops::Range;
 use std::{cell::RefCell, rc::Rc};
 
@@ -309,7 +309,7 @@ impl MediaDragPreviewBinding {
 pub enum MediaDragSource {
     LiveCollection {
         media_uri: String,
-        operations: rufin_core::runtime::source::SourceHandle,
+        operations: slopsonic_core::runtime::source::SourceHandle,
     },
     Target {
         target: PlayRequest,
@@ -321,7 +321,7 @@ pub enum MediaDragSource {
     PlaylistEntries(PlaylistEntrySelectionSnapshot),
     MediaUris(std::sync::Arc<[String]>),
     Queue {
-        selection: rufin_core::playback::QueueSelection,
+        selection: slopsonic_core::playback::QueueSelection,
         media_uris: std::sync::Arc<[String]>,
     },
 }
@@ -478,7 +478,7 @@ fn compact_playlist_drag_icon(cover: Option<gtk::Widget>, title: &str) -> gtk::W
     content.set_margin_end(4);
 
     let cover: gtk::Widget = cover.unwrap_or_else(|| {
-        let cover = gtk::Image::from_icon_name("rufin-tracks-symbolic");
+        let cover = gtk::Image::from_icon_name("slopsonic-tracks-symbolic");
         cover.add_css_class("muted");
         cover.set_pixel_size(20);
         cover.upcast()
@@ -559,7 +559,7 @@ impl MediaDragSource {
     }
 
     pub async fn play_request(&self, database: &library::Database) -> Result<PlayRequest, String> {
-        let placement = rufin_core::playback::QueuePlacement::Now;
+        let placement = slopsonic_core::playback::QueuePlacement::Now;
         Ok(match self {
             Self::LiveCollection {
                 media_uri,
@@ -644,7 +644,7 @@ fn selection_title(selection: Option<&library::MemberSelection>) -> String {
 
 async fn prepare_live_collection(
     database: &library::Database,
-    operations: &rufin_core::runtime::source::SourceHandle,
+    operations: &slopsonic_core::runtime::source::SourceHandle,
     media_uri: &str,
 ) -> Result<PlayRequest, String> {
     operations

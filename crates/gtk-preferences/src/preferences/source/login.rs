@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use adw::prelude::*;
-use rufin_core::runtime::source::{EditableSource, SourceHandle, SourceOperation};
+use slopsonic_core::runtime::source::{EditableSource, SourceHandle, SourceOperation};
 
 use sources::{CredentialInput, CredentialPreset, SubsonicAuthentication, SubsonicFlavor};
 
@@ -10,7 +10,7 @@ use crate::Preferences;
 use gtk_widgets::controls::text_button;
 use gtk_widgets::layout::large_popup_content_width;
 use gtk_widgets::popup::present_light_dismiss_dialog;
-use rufin_core::runtime::source::source_operation_text;
+use slopsonic_core::runtime::source::source_operation_text;
 
 const ADD_SERVER_CLAMP_WIDTH: i32 = 560;
 const SETUP_FORM_PAGE: &str = "form";
@@ -817,7 +817,7 @@ fn append_credential_connect(
     host: CredentialHost,
     submit: impl Fn(&SourceHandle, CredentialInput) + 'static,
 ) {
-    let login = text_button("rufin-network-server-symbolic", "Connect");
+    let login = text_button("slopsonic-network-server-symbolic", "Connect");
     login.add_css_class("suggested-action");
     login.set_sensitive(host.ready());
     connect_entry_row_activation(&host.name, &login);

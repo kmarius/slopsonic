@@ -28,19 +28,19 @@ pub fn volume_icon_state(muted: bool, volume: f64) -> VolumeIcon {
 
 pub fn set_volume_icon(icon: &gtk::Image, state: VolumeIcon) {
     let name = match state {
-        VolumeIcon::Low => "rufin-audio-volume-low-symbolic",
-        VolumeIcon::Medium => "rufin-audio-volume-medium-symbolic",
-        VolumeIcon::High => "rufin-audio-volume-high-symbolic",
-        VolumeIcon::Muted => "rufin-audio-volume-muted-symbolic",
+        VolumeIcon::Low => "slopsonic-audio-volume-low-symbolic",
+        VolumeIcon::Medium => "slopsonic-audio-volume-medium-symbolic",
+        VolumeIcon::High => "slopsonic-audio-volume-high-symbolic",
+        VolumeIcon::Muted => "slopsonic-audio-volume-muted-symbolic",
     };
     icon.set_icon_name(Some(name));
 }
 
 pub fn set_repeat_button_icon(button: &gtk::Button, repeat_mode: RepeatMode) {
     let name = if repeat_mode == RepeatMode::One {
-        "rufin-repeat-one-symbolic"
+        "slopsonic-repeat-one-symbolic"
     } else {
-        "rufin-repeat-symbolic"
+        "slopsonic-repeat-symbolic"
     };
     let icon = button
         .child()
@@ -63,9 +63,9 @@ pub fn widget_icon_button(label: &str, icon: &impl IsA<gtk::Widget>) -> gtk::But
 
 pub fn skip_icon_button(forward: bool, label: &str) -> gtk::Button {
     let icon = gtk::Image::from_icon_name(if forward {
-        "rufin-media-skip-forward-symbolic"
+        "slopsonic-media-skip-forward-symbolic"
     } else {
-        "rufin-media-skip-backward-symbolic"
+        "slopsonic-media-skip-backward-symbolic"
     });
     icon.set_halign(gtk::Align::Center);
     icon.set_valign(gtk::Align::Center);
@@ -73,7 +73,7 @@ pub fn skip_icon_button(forward: bool, label: &str) -> gtk::Button {
 }
 
 pub fn play_icon_button(label: &str) -> (gtk::Button, gtk::Image) {
-    let icon = gtk::Image::from_icon_name("rufin-media-playback-start-symbolic");
+    let icon = gtk::Image::from_icon_name("slopsonic-media-playback-start-symbolic");
     icon.set_halign(gtk::Align::Center);
     icon.set_valign(gtk::Align::Center);
     let button = widget_icon_button(label, &icon);
@@ -87,9 +87,9 @@ pub fn set_play_icon(
     refilling: bool,
 ) {
     icon.set_icon_name(Some(if playing {
-        "rufin-media-playback-pause-symbolic"
+        "slopsonic-media-playback-pause-symbolic"
     } else {
-        "rufin-media-playback-start-symbolic"
+        "slopsonic-media-playback-start-symbolic"
     }));
     ring.set_visible(refilling);
 }
@@ -102,18 +102,18 @@ fn transport_image(name: &str) -> gtk::Image {
 }
 
 pub fn shuffle_icon_button(label: &str) -> gtk::Button {
-    widget_icon_button(label, &transport_image("rufin-shuffle-symbolic"))
+    widget_icon_button(label, &transport_image("slopsonic-shuffle-symbolic"))
 }
 
 pub fn repeat_icon_button(label: &str) -> gtk::Button {
-    let button = widget_icon_button(label, &transport_image("rufin-repeat-symbolic"));
+    let button = widget_icon_button(label, &transport_image("slopsonic-repeat-symbolic"));
     button.add_css_class("player-repeat-button");
     button
 }
 
 pub fn volume_icon_button(label: &str) -> (gtk::Button, gtk::Image, Rc<Cell<VolumeIcon>>) {
     let state = Rc::new(Cell::new(VolumeIcon::High));
-    let icon = gtk::Image::from_icon_name("rufin-audio-volume-high-symbolic");
+    let icon = gtk::Image::from_icon_name("slopsonic-audio-volume-high-symbolic");
     icon.set_halign(gtk::Align::Center);
     icon.set_valign(gtk::Align::Center);
     let button = gtk::Button::new();
@@ -126,19 +126,19 @@ pub fn volume_icon_button(label: &str) -> (gtk::Button, gtk::Image, Rc<Cell<Volu
 }
 
 pub fn auto_dj_icon_button(label: &str) -> gtk::Button {
-    let icon = transport_image("rufin-auto-dj-symbolic");
+    let icon = transport_image("slopsonic-auto-dj-symbolic");
     icon.set_pixel_size(TRANSPORT_ICON_SIZE);
     widget_icon_button(label, &icon)
 }
 
 pub fn random_clover_icon_button(label: &str) -> gtk::Button {
-    let icon = transport_image("rufin-random-symbolic");
+    let icon = transport_image("slopsonic-random-symbolic");
     icon.set_pixel_size(TRANSPORT_ICON_SIZE);
     widget_icon_button(label, &icon)
 }
 
 pub fn queue_sidebar_button(label: &str) -> (gtk::Button, gtk::Image) {
-    let icon = gtk::Image::from_icon_name("rufin-sidebar-collapse-right-symbolic");
+    let icon = gtk::Image::from_icon_name("slopsonic-sidebar-collapse-right-symbolic");
     let button = gtk::Button::new();
     button.add_css_class("icon-button");
     button.add_css_class("flat");
@@ -152,8 +152,8 @@ pub fn queue_sidebar_button(label: &str) -> (gtk::Button, gtk::Image) {
 
 pub fn set_queue_sidebar_icon(icon: &gtk::Image, visible: bool) {
     icon.set_icon_name(Some(if visible {
-        "rufin-sidebar-collapse-right-symbolic"
+        "slopsonic-sidebar-collapse-right-symbolic"
     } else {
-        "rufin-sidebar-expand-right-symbolic"
+        "slopsonic-sidebar-expand-right-symbolic"
     }));
 }

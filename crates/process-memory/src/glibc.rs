@@ -42,7 +42,7 @@ fn requests() -> Option<&'static mpsc::SyncSender<()>> {
         {
             Ok(_) => Some(sender),
             Err(error) => {
-                tracing::warn!(target: "rufin::memory", %error, "could not start memory reclamation");
+                tracing::warn!(target: "slopsonic::memory", %error, "could not start memory reclamation");
                 None
             }
         }

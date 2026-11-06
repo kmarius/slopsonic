@@ -10,7 +10,7 @@ use gtk_widgets::cover_controls::{
 };
 use gtk_widgets::favorites::{favorite_button_is_active, favorite_icon_button};
 use gtk_widgets::interactions::ContextMenuOpen;
-use rufin_core::playback::QueuePlacement;
+use slopsonic_core::playback::QueuePlacement;
 use std::rc::Rc;
 
 use gtk_widgets::library_fields::{COLLECTION_GRID_CARD_MARGIN, COLLECTION_GRID_MIN_CARD_WIDTH};
@@ -143,7 +143,7 @@ pub mod collection_grid_cover_view_imp {
     use gtk::{CompositeTemplate, TemplateChild, glib, prelude::*, subclass::prelude::*};
 
     #[derive(CompositeTemplate, Default)]
-    #[template(resource = "/io/github/screwys/Rufin/ui/routes/collection_grid_cover.ui")]
+    #[template(resource = "/io/github/kmarius/Slopsonic/ui/routes/collection_grid_cover.ui")]
     pub struct CollectionGridCoverView {
         #[template_child]
         pub overlay: TemplateChild<gtk::Overlay>,
@@ -166,7 +166,7 @@ pub mod collection_grid_cover_view_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for CollectionGridCoverView {
-        const NAME: &'static str = "RufinCollectionGridCoverView";
+        const NAME: &'static str = "SlopsonicCollectionGridCoverView";
         type Type = super::CollectionGridCoverView;
         type ParentType = gtk::Widget;
 
@@ -305,7 +305,7 @@ mod collection_grid_card_inset_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for CollectionGridCardInset {
-        const NAME: &'static str = "RufinCollectionGridCardInset";
+        const NAME: &'static str = "SlopsonicCollectionGridCardInset";
         type Type = super::CollectionGridCardInset;
         type ParentType = gtk::Widget;
     }
@@ -404,7 +404,7 @@ gtk::glib::wrapper! {
 }
 
 impl CollectionGridCardInset {
-    pub fn apply_display(&self, settings: &rufin_core::settings::layout::DisplaySettings) {
+    pub fn apply_display(&self, settings: &slopsonic_core::settings::layout::DisplaySettings) {
         let (minimum, _, inset) = super::grid_cells::grid_dimensions(settings);
         self.imp().minimum_content_width.set(minimum);
         self.imp().inset.set(inset);
@@ -503,7 +503,7 @@ mod square_cover_frame_imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for SquareCoverFrame {
-        const NAME: &'static str = "RufinSquareCoverFrame";
+        const NAME: &'static str = "SlopsonicSquareCoverFrame";
         type Type = super::SquareCoverFrame;
         type ParentType = gtk::Widget;
     }

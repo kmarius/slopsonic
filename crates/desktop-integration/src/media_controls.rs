@@ -38,7 +38,7 @@ mod freedesktop {
     }
 
     pub struct MediaControls {
-        transport: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
+        transport: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
         player: RefCell<Option<Rc<MprisPlayer>>>,
         desired: RefCell<Option<MprisDesiredState>>,
         applied: RefCell<Option<MprisDesiredState>>,
@@ -48,7 +48,7 @@ mod freedesktop {
     }
 
     impl MediaControls {
-        fn new(transport: std::sync::Arc<rufin_core::playback::PlaybackOwner>) -> Self {
+        fn new(transport: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>) -> Self {
             Self {
                 transport,
                 player: RefCell::new(None),
@@ -179,7 +179,7 @@ mod freedesktop {
 
     impl MediaControls {
         pub fn start(
-            transport: std::sync::Arc<rufin_core::playback::PlaybackOwner>,
+            transport: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
             open_uri: impl Fn(&str) + 'static,
         ) -> Rc<Self> {
             let mpris = Rc::new(Self::new(transport));
@@ -407,7 +407,7 @@ mod freedesktop {
     fn mpris_track_id(media: &playback::CurrentMediaId) -> MprisTrackId {
         let encoded = blake3::hash(media.media_uri.as_bytes()).to_hex();
         MprisTrackId::try_from(format!(
-            "/io/github/screwys/Rufin/track/{}/{encoded}",
+            "/io/github/kmarius/Slopsonic/track/{}/{encoded}",
             media.run.map_or(0, playback::RunId::get)
         ))
         .unwrap_or(MprisTrackId::NO_TRACK)

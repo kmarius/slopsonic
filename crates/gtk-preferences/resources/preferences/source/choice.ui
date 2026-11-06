@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="rufin">
+<interface domain="slopsonic">
   <object class="AdwActionRow" id="row">
     <property name="activatable">true</property>
     <child type="prefix">
@@ -9,7 +9,7 @@
     </child>
     <child type="suffix">
       <object class="GtkImage">
-        <property name="icon-name">rufin-go-next-symbolic</property>
+        <property name="icon-name">slopsonic-go-next-symbolic</property>
       </object>
     </child>
   </object>
