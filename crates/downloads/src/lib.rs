@@ -17,8 +17,13 @@ use sources::{Source, SourceError, SourceId};
 use tracing::warn;
 
 mod actor;
+mod enqueue;
+mod jobs;
 mod quality;
 mod queue;
+mod removal;
+mod rules;
+mod transfer;
 pub use quality::{DOWNLOAD_BITRATES, download_bitrates};
 mod storage;
 #[cfg(test)]
