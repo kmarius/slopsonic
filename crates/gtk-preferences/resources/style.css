@@ -28,14 +28,6 @@ tooltip.background label {
   color: white;
 }
 
-.command-block {
-  background: var(--view-bg-color);
-  color: var(--view-fg-color);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 12px;
-}
-
 .table-header,
 columnview > header > button > box {
   font-family: "Adwaita Sans", sans-serif;
@@ -201,117 +193,6 @@ toastoverlay toast label {
 
 .app-toast-overlay toast {
   margin-bottom: 109px;
-}
-
-.release-note-selector label {
-  font-weight: 700;
-}
-
-.release-notes-list {
-  padding-bottom: 2px;
-}
-
-.release-note-row {
-  background: color-mix(in srgb, var(--window-fg-color) 4%, transparent);
-  border: 1px solid color-mix(in srgb, var(--window-fg-color) 8%, transparent);
-  border-radius: 14px;
-  padding: 13px 14px;
-  margin: 0 0 10px;
-}
-
-.release-note-version {
-  background: transparent;
-  color: var(--destructive-color);
-  border-radius: 6px;
-  padding: 2px 2px;
-  font-weight: 700;
-  min-width: 0;
-  min-height: 0;
-  box-shadow: none;
-  transition:
-    background 120ms ease-out,
-    color 120ms ease-out;
-}
-
-.release-note-version label {
-  color: inherit;
-  font-weight: 700;
-}
-
-.release-note-version image {
-  color: inherit;
-  -gtk-icon-size: 12px;
-}
-
-.release-note-version:hover {
-  background: color-mix(in srgb, var(--destructive-color) 10%, transparent);
-  color: var(--destructive-color);
-}
-
-.release-note-installed {
-  background: color-mix(in srgb, var(--destructive-color) 14%, transparent);
-  color: var(--destructive-color);
-  border: 1px solid color-mix(in srgb, var(--destructive-color) 18%, transparent);
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-weight: 700;
-}
-
-button.release-note-update {
-  min-width: 0;
-  min-height: 0;
-  box-shadow: none;
-}
-
-button.release-note-update:hover {
-  background: color-mix(in srgb, var(--destructive-color) 22%, transparent);
-}
-
-.release-note-date {
-  color: color-mix(in srgb, var(--window-fg-color) 58%, transparent);
-  padding: 4px 0;
-  font-weight: 700;
-}
-
-.release-note-body {
-  margin-top: 5px;
-}
-
-.release-note-heading {
-  color: color-mix(in srgb, var(--window-fg-color) 94%, transparent);
-  font-size: 17px;
-  font-weight: 800;
-  margin-top: 10px;
-}
-
-.release-note-quote {
-  background: color-mix(in srgb, var(--accent-bg-color) 9%, transparent);
-  border-left: 3px solid color-mix(in srgb, var(--accent-bg-color) 56%, transparent);
-  border-radius: 6px;
-  padding: 7px 10px;
-}
-
-.release-note-code {
-  background: color-mix(in srgb, var(--window-fg-color) 6%, transparent);
-  border-radius: 6px;
-  font-family: monospace;
-  padding: 7px 9px;
-}
-
-.release-note-bullet {
-  margin: 1px 0;
-}
-
-.release-note-marker {
-  color: var(--accent-color);
-  font-weight: 800;
-  padding-top: 2px;
-}
-
-.release-note-item {
-  color: color-mix(in srgb, var(--window-fg-color) 86%, transparent);
-  font-size: 15px;
-  line-height: 1.35;
 }
 
 .app-root {
@@ -571,8 +452,6 @@ row:focus {
 .album-detail-genre-pill:focus,
 .artist-count-button:focus,
 .detail-external-link-button:focus,
-.queue-link:focus,
-.queue-favorite-button:focus,
 .favorite-toggle:focus {
   outline: none;
 }
@@ -843,19 +722,6 @@ row.artist-search-result button.search-preview-play {
   background: transparent;
 }
 
-.track-list-header {
-  min-height: 30px;
-}
-
-.track-list-row {
-  border-radius: 8px;
-}
-
-.track-list-row:hover {
-  background: color-mix(in srgb, currentColor 8%, transparent);
-}
-
-.track-table.track-list .table-link,
 .track-table.track-list .table-link-label {
   font-weight: 400;
 }
@@ -958,12 +824,6 @@ gridview.album-grid {
   padding: 0;
 }
 
-.track-list-row:focus,
-.track-list row:selected .track-list-row,
-.track-list-row.track-list-row-selected {
-  background: transparent;
-}
-
 .loading-page {
   border-spacing: 10px;
 }
@@ -981,24 +841,10 @@ gridview.album-grid {
   margin-top: 2px;
 }
 
-.startup-loading-status-detail {
-  font-size: 0.9em;
-  opacity: 0.82;
-}
-
 .right-panel {
   background: var(--shell-panel-bg-color);
   color: var(--window-fg-color);
   border-radius: 8px;
-}
-
-.sidebar-header {
-  min-height: 48px;
-  color: inherit;
-}
-
-.sidebar-header {
-  background: transparent;
 }
 
 .queue-toolbar {
@@ -1025,16 +871,7 @@ gridview.album-grid {
   box-shadow: none;
 }
 
-.route-title {
-  font-size: 21px;
-  font-weight: 700;
-  min-height: 30px;
-  padding: 2px 0 0;
-}
-
-.nav-heading,
-.section-heading,
-.panel-title {
+.section-heading {
   color: var(--window-fg-color);
   font-weight: 700;
 }
@@ -1079,8 +916,7 @@ gridview.album-grid {
 }
 
 .nav-button:not(.selected):hover,
-.sidebar-pin-row.selected:hover,
-.album-button:hover {
+.sidebar-pin-row.selected:hover {
   background: color-mix(in srgb, currentColor 8%, transparent);
 }
 
@@ -1269,18 +1105,6 @@ button.suggested-action:disabled {
   padding: 0 4px;
 }
 
-.playlist-folder-dialog .context-playlist-submenu {
-  margin: 12px;
-}
-
-.settings-group {
-  padding: 12px;
-  border-radius: 12px;
-  background: var(--card-bg-color);
-  color: var(--card-fg-color);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-}
-
 .manage-server-content row {
   min-height: 42px;
 }
@@ -1293,41 +1117,6 @@ row.entry:focus-within {
   box-shadow: none;
 }
 
-row.entry.metadata-field image.indicator {
-  -gtk-icon-size: 0;
-  opacity: 0;
-  min-width: 0;
-  min-height: 0;
-  padding: 0;
-  margin: 0;
-}
-
-row.entry.metadata-identified-change,
-entry.metadata-identified-change {
-  background: color-mix(in srgb, var(--accent-bg-color) 10%, var(--card-bg-color));
-  box-shadow: inset 3px 0 var(--accent-color);
-}
-
-row.entry.metadata-identified-change:dir(rtl),
-entry.metadata-identified-change:dir(rtl) {
-  box-shadow: inset -3px 0 var(--accent-color);
-}
-
-@media (prefers-contrast: more) {
-  row.entry.metadata-identified-change,
-  entry.metadata-identified-change {
-    background: color-mix(in srgb, var(--accent-bg-color) 18%, var(--card-bg-color));
-  }
-}
-
-.manage-server-action-row image {
-  -gtk-icon-size: 13px;
-}
-
-.manage-server-status {
-  margin-top: -4px;
-}
-
 headerbar.preferences-header,
 headerbar.preferences-header:backdrop,
 .preferences-sidebar,
@@ -1336,18 +1125,6 @@ headerbar.preferences-header:backdrop,
 .preferences-split > .sidebar-pane:backdrop {
   background-color: var(--sidebar-bg-color);
   --sidebar-backdrop-color: var(--sidebar-bg-color);
-}
-
-.metadata-comparison > listview > row > cell {
-  padding: 0;
-}
-
-.metadata-comparison > listview > row > cell > label {
-  padding: 8px 12px;
-}
-
-.metadata-comparison .metadata-lookup-changed {
-  background-color: color-mix(in srgb, var(--accent-bg-color) 15%, transparent);
 }
 
 .preferences-header:backdrop > windowhandle {
@@ -1363,10 +1140,6 @@ headerbar.preferences-header:backdrop,
   padding: 0;
   margin: 0;
   border-radius: 9px;
-}
-
-.metadata-tracks > row {
-  margin-bottom: 4px;
 }
 
 .preferences-category-content {
@@ -1414,21 +1187,10 @@ dialog.alert.playlist-delete-dialog .message-area {
   background: color-mix(in srgb, currentColor 6%, transparent);
 }
 
-.album-button {
-  padding: 0;
-  border-radius: 12px;
-}
-
 .album-cover-button {
   padding: 0;
   border-radius: 12px;
   background: transparent;
-}
-
-.card-label-clip {
-  background: transparent;
-  border: none;
-  padding: 0;
 }
 
 .cover-tile {
@@ -1853,33 +1615,13 @@ scale.volume-slider:dir(rtl) {
   color: var(--error-color);
 }
 
-.track-identity {
-  padding: 4px 0;
-}
-
 .track-title {
   color: var(--window-fg-color);
   font-weight: 475;
 }
 
-.track-artist-link {
-  padding: 0;
-}
-
-.cached-list,
 .queue-list {
   background: transparent;
-}
-
-.table-link {
-  padding: 0 4px;
-  min-height: 0;
-  border-radius: 6px;
-  background: transparent;
-}
-
-.table-link:hover .table-link-label {
-  color: color-mix(in srgb, var(--accent-color) 72%, var(--window-fg-color));
 }
 
 link.inline-detail-link,
@@ -1899,16 +1641,6 @@ label link.inline-detail-link:focus:focus-visible {
   outline: none;
   text-decoration-line: underline;
   text-decoration-color: var(--accent-color);
-}
-
-.cached-row {
-  padding: 10px 8px;
-  border-radius: 9px;
-}
-
-.cached-row:hover,
-.queue-row:hover {
-  background: color-mix(in srgb, currentColor 7%, transparent);
 }
 
 .pill-button {
@@ -2139,11 +1871,6 @@ button.download-queue-pause image {
   background: #f7f7f7;
 }
 
-.detail-cover-facts {
-  font-size: 13px;
-  line-height: 1.2;
-}
-
 .detail-summary-row {
   font-size: 13px;
 }
@@ -2254,37 +1981,6 @@ button.download-queue-pause image {
   min-height: 80px;
 }
 
-.queue-row {
-  padding: 6px;
-  border-radius: 7px;
-}
-
-.queue-row-current {
-  background: color-mix(in srgb, var(--accent-bg-color) 10%, transparent);
-}
-
-.queue-list row:selected .queue-row {
-  background: color-mix(in srgb, var(--accent-bg-color) 16%, transparent);
-}
-
-.queue-list row:selected:hover .queue-row {
-  background: color-mix(in srgb, var(--accent-bg-color) 20%, transparent);
-}
-
-.queue-link {
-  padding: 0;
-}
-
-.queue-favorite-cell {
-  min-width: 32px;
-}
-
-.queue-favorite-button {
-  min-width: 30px;
-  min-height: 30px;
-  padding: 0;
-}
-
 .row-favorite-button {
   min-width: 30px;
   min-height: 30px;
@@ -2305,10 +2001,6 @@ listview.queue-list row:hover .row-favorite-button:not(.active-toggle),
 .album-detail-track-row.album-detail-track-hover .row-favorite-button:not(.active-toggle),
 .row-favorite-button:not(.active-toggle):focus {
   opacity: 1;
-}
-
-.queue-row-current .queue-title {
-  color: var(--accent-color);
 }
 
 .table-header {
@@ -2605,17 +2297,6 @@ modelbutton.slopsonic-menu-selected:dir(rtl) {
 }
 .playlist-name-owner-entry {
   padding-right: 42px;
-}
-
-button.connect-relay-link, button.connect-relay-link:visited { color: inherit; }
-
-.connect-device-online .subtitle { color: var(--success-color); }
-.connect-device-offline .subtitle { color: var(--error-color); }
-
-.connect-progress trough,
-.connect-progress progress {
-  min-height: 8px;
-  border-radius: 999px;
 }
 
 /* A drop belongs to the whole item, including when a table cell receives it. */
