@@ -460,6 +460,7 @@ pub fn build_transport_controls(builder: &gtk::Builder, resource: &str) -> Trans
             let range = scale.range_rect();
             Some((
                 format_duration(seconds.round() as u32),
+                x.clamp(f64::from(range.x()), f64::from(range.x() + range.width())),
                 f64::from(range.y()) + f64::from(range.height()) / 2.0,
             ))
         },

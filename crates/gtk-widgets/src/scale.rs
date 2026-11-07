@@ -31,7 +31,7 @@ pub fn install_pointer_value_bubble(
     widget: &impl IsA<gtk::Widget>,
     bubble: gtk::Popover,
     label: gtk::Label,
-    value_at: impl Fn(&gtk::Widget, f64, f64) -> Option<(String, f64)> + 'static,
+    value_at: impl Fn(&gtk::Widget, f64, f64) -> Option<(String, f64, f64)> + 'static,
 ) {
     bubble.set_parent(widget);
     let motion = gtk::EventControllerMotion::new();
@@ -43,14 +43,14 @@ pub fn install_pointer_value_bubble(
         let Some(widget) = weak_widget.upgrade() else {
             return;
         };
-        let Some((value, track_center_y)) = value_at(&widget, x, y) else {
+        let Some((value, anchor_x, track_center_y)) = value_at(&widget, x, y) else {
             preview.popdown();
             return;
         };
         label.set_text(&value);
         // Leave 6px above the 12px thumb, independent of the host's padding and height.
         preview.set_pointing_to(Some(&gtk::gdk::Rectangle::new(
-            x.round() as i32,
+            anchor_x.round() as i32,
             (track_center_y - 12.0).round() as i32,
             1,
             1,
@@ -63,19 +63,18 @@ pub fn install_pointer_value_bubble(
 }
 
 pub fn install_value_bubble_dismissal(motion: &gtk::EventControllerMotion, bubble: &gtk::Popover) {
-    motion.set_propagation_limit(gtk::PropagationLimit::None);
+    bubble.connect_realize(|bubble| {
+        if let Some(surface) = bubble.surface() {
+            surface.connect_layout(|surface, _, _| {
+                surface.set_input_region(Some(&gtk::cairo::Region::create()));
+            });
+        }
+    });
     let preview = bubble.downgrade();
-    motion.connect_leave(move |motion| {
-        let motion = motion.downgrade();
-        let preview = preview.clone();
-        // Native popup crossings deliver leave before enter and update pointer state afterward.
-        glib::idle_add_local_once(move || {
-            if let (Some(motion), Some(preview)) = (motion.upgrade(), preview.upgrade())
-                && !motion.contains_pointer()
-            {
-                preview.popdown();
-            }
-        });
+    motion.connect_leave(move |_| {
+        if let Some(preview) = preview.upgrade() {
+            preview.popdown();
+        }
     });
 }
 
