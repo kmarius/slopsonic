@@ -1,8 +1,8 @@
-# Slopsonic (working title)
+# Slopsonic
 
 Slopsonic is a native desktop music player for Navidrome and other OpenSubsonic-compatible servers. It manages a single remote library and currently targets Linux only.
 
-It is a stripped-down fork of [Rufin](https://github.com/screwys/Rufin) and is currently written entirely by LLMs. The main goal right now is to make it maintainable by shedding features, restructuring it and then polishing the core functionality.
+It is a stripped-down fork of [Rufin](https://github.com/screwys/Rufin) and almost entirely slop. The main goal is to make it maintainable by shedding features, and polishing the core functionality.
 
 ## Building locally
 
