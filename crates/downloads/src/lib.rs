@@ -24,7 +24,7 @@ mod queue;
 mod removal;
 mod rules;
 mod transfer;
-pub use quality::{DOWNLOAD_BITRATES, download_bitrates};
+pub use quality::DOWNLOAD_BITRATES;
 mod storage;
 #[cfg(test)]
 mod tests;
@@ -35,7 +35,6 @@ use actor::*;
 use queue::*;
 use track_download::*;
 
-pub type DownloadCount = usize;
 const RETRY_INTERVAL: Duration = Duration::from_secs(30);
 const MAX_ACTIVE_DOWNLOADS: usize = 3;
 
@@ -65,7 +64,6 @@ enum Command {
         subject: DownloadSubject,
         media_uris: Vec<String>,
     },
-    ConnectChanged,
     Remove {
         media_uris: Vec<String>,
         notify: bool,
@@ -326,8 +324,8 @@ pub struct DownloadQueueItem {
     pub subject: DownloadSubject,
     pub preview_uris: Vec<String>,
     pub quality: DownloadQuality,
-    pub completed_tracks: DownloadCount,
-    pub total_tracks: DownloadCount,
+    pub completed_tracks: usize,
+    pub total_tracks: usize,
     pub state: DownloadQueueState,
 }
 
@@ -341,7 +339,6 @@ pub enum DownloadQueueMove {
 
 #[derive(Clone, Debug)]
 pub enum DownloadQueueScope {
-    All,
     Source { source_id: SourceId },
     Direct,
 }
@@ -477,10 +474,6 @@ impl Downloads {
 
     pub fn remove(&self, media_uris: Vec<String>, notify: bool) {
         self.send(Command::Remove { media_uris, notify });
-    }
-
-    pub fn connect_changed(&self) {
-        self.send(Command::ConnectChanged);
     }
 
     pub fn library_changed(&self, source_id: SourceId) {
@@ -634,13 +627,6 @@ impl Downloads {
             .map_err(SourceError::Other)
     }
 
-    pub fn subscribe(&self) -> Arc<DownloadSubscription> {
-        let mut changes = self.status.clone();
-        changes.mark_changed();
-        Arc::new(DownloadSubscription {
-            changes: tokio::sync::Mutex::new(changes),
-        })
-    }
     pub fn status(&self) -> DownloadStatus {
         self.status.borrow().clone()
     }
@@ -663,20 +649,5 @@ impl Downloads {
             .await
             .map_err(|error| SourceError::Other(error.to_string()))?
             .map_err(SourceError::Other)
-    }
-}
-
-pub struct DownloadSubscription {
-    changes: tokio::sync::Mutex<tokio::sync::watch::Receiver<DownloadStatus>>,
-}
-
-impl DownloadSubscription {
-    pub async fn next(&self) -> sources::SourceResult<DownloadStatus> {
-        let mut changes = self.changes.lock().await;
-        changes
-            .changed()
-            .await
-            .map_err(|error| SourceError::Other(error.to_string()))?;
-        Ok(changes.borrow_and_update().clone())
     }
 }

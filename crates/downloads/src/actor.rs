@@ -199,9 +199,6 @@ impl Actor {
                     self.publish_subject_complete(&subject);
                 }
             }
-            Command::ConnectChanged => {
-                self.retry_waiting();
-            }
             Command::Remove { media_uris, notify } => {
                 let mut grouped = HashMap::<Option<SourceId>, Vec<String>>::new();
                 for media_uri in media_uris {

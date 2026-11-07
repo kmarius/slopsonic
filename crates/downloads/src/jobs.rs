@@ -424,7 +424,6 @@ impl Actor {
             .jobs
             .iter()
             .filter(|(source, _)| match &scope {
-                DownloadQueueScope::All => true,
                 DownloadQueueScope::Source { source_id } => source.as_ref() == Some(source_id),
                 DownloadQueueScope::Direct => source.is_none(),
             })
