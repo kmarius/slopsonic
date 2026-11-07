@@ -145,12 +145,6 @@ pub struct SourceReadProgress {
     pub total: Option<usize>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SourceInputIdentity {
-    pub source_id: SourceId,
-    pub digest: [u8; 32],
-}
-
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct NativeImageRef {
     pub item_id: String,

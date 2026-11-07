@@ -248,21 +248,8 @@ async fn checked_response(
     request: reqwest::RequestBuilder,
     policy: RemoteHttpPolicy,
 ) -> SourceResult<CheckedResponse> {
-    checked_response_with_media(request, policy, None).await
-}
-
-async fn checked_response_with_media(
-    request: reqwest::RequestBuilder,
-    policy: RemoteHttpPolicy,
-    media: Option<(&Client, Duration)>,
-) -> SourceResult<CheckedResponse> {
     let (client, request) = request.build_split();
-    let mut request = request.map_err(|error| map_reqwest_error(error, policy))?;
-    let timeout = media.map(|(_, timeout)| request.timeout().copied().unwrap_or(timeout));
-    if let Some(timeout) = timeout {
-        *request.timeout_mut() = Some(timeout);
-    }
-    let mut headers = request.headers().clone();
+    let request = request.map_err(|error| map_reqwest_error(error, policy))?;
     let request_metadata = RequestMetadata::new(&request, policy.service);
     let started = Instant::now();
     debug!(
@@ -274,7 +261,7 @@ async fn checked_response_with_media(
         "sending remote request"
     );
     let response = async {
-        let mut response = client
+        let response = client
             .execute(request)
             .await
             .map_err(|error| map_reqwest_error(error, policy))?;
@@ -286,38 +273,9 @@ async fn checked_response_with_media(
                 .and_then(|value| response.url().join(value).ok())
             && next.origin() != response.url().origin()
         {
-            let Some((anonymous, _)) = media else {
-                return Err(SourceError::Network(
-                    "Authenticated request redirected outside the configured server".into(),
-                ));
-            };
-            // Media may leave the server, but its original credentials must stay there.
-            for name in [
-                "authorization",
-                "cookie",
-                "cookie2",
-                "proxy-authorization",
-                "www-authenticate",
-                "x-emby-authorization",
-                "x-emby-token",
-                "x-connect-usertoken",
-                "x-plex-token",
-                "x-nd-authorization",
-                "host",
-            ] {
-                headers.remove(name);
-            }
-            let remaining = timeout
-                .unwrap()
-                .checked_sub(started.elapsed())
-                .ok_or_else(|| SourceError::Network("Remote request timed out".into()))?;
-            response = anonymous
-                .get(next)
-                .headers(headers)
-                .timeout(remaining)
-                .send()
-                .await
-                .map_err(|error| map_reqwest_error(error, policy))?;
+            return Err(SourceError::Network(
+                "Authenticated request redirected outside the configured server".into(),
+            ));
         }
         Ok::<_, SourceError>(response)
     }
@@ -442,12 +400,7 @@ struct RequestMetadata {
 impl RequestMetadata {
     fn new(request: &reqwest::Request, service: &'static str) -> Self {
         let path = request.url().path();
-        let endpoint = match path.strip_prefix("/library/metadata/") {
-            Some(ids) if service == "Plex" && ids.contains(',') => {
-                format!("/library/metadata/[{} items]", ids.split(',').count())
-            }
-            _ => path.to_string(),
-        };
+        let endpoint = path.to_string();
         Self {
             id: NEXT_REQUEST_ID.fetch_add(1, Ordering::Relaxed),
             service,

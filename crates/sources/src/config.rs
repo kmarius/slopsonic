@@ -1,7 +1,7 @@
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::{SourceError, SourceInputIdentity, SourceResult, subsonic::SubsonicFlavor};
+use crate::{SourceError, SourceResult, subsonic::SubsonicFlavor};
 use library::SourceId;
 
 /// Credential-free source configuration persisted by Slopsonic Settings.
@@ -54,36 +54,6 @@ impl SourceConfiguration {
         Some(url.into())
     }
 
-    /// Identify the source inputs that determine rebuildable canonical facts.
-    ///
-    /// Credentials and presentation settings do not participate, so Slopsonic can
-    /// validate an existing cache even when live source access is unavailable.
-    pub fn input_identity(&self) -> SourceResult<SourceInputIdentity> {
-        self.input_identity_with_reader_versions(None)
-    }
-
-    fn input_identity_with_reader_versions(
-        &self,
-        navidrome_library_version: Option<u32>,
-    ) -> SourceResult<SourceInputIdentity> {
-        let mut digest = blake3::Hasher::new();
-        digest.update(b"slopsonic-source-input");
-        digest.update(&1_u32.to_le_bytes());
-        digest_part(&mut digest, self.source_id.as_str().as_bytes());
-        digest_part(&mut digest, self.kind.source_id().as_bytes());
-        let config = crate::subsonic::SubsonicSourceConfig::from_configuration(self)?;
-        digest_part(&mut digest, config.username.as_bytes());
-        let library_version = navidrome_library_version.unwrap_or(config.navidrome_library_version);
-        if library_version > 0 {
-            digest_part(&mut digest, b"navidrome-library");
-            digest.update(&library_version.to_le_bytes());
-        }
-        Ok(SourceInputIdentity {
-            source_id: self.source_id.clone(),
-            digest: *digest.finalize().as_bytes(),
-        })
-    }
-
     /// Return the fields Slopsonic may present when editing this source.
     pub fn editable(&self) -> SourceResult<CredentialPreset> {
         let config = crate::subsonic::SubsonicSourceConfig::from_configuration(self)?;
@@ -95,11 +65,6 @@ impl SourceConfiguration {
             open_subsonic_authentication: Some(config.authentication),
         })
     }
-}
-
-fn digest_part(digest: &mut blake3::Hasher, value: &[u8]) {
-    digest.update(&(value.len() as u64).to_le_bytes());
-    digest.update(value);
 }
 
 pub(crate) fn decode_provider_payload<T: DeserializeOwned>(
@@ -197,65 +162,5 @@ mod tests {
         let error = SubsonicSourceConfig::from_configuration(&stored)
             .expect_err("unsupported payload version");
         assert!(matches!(error, SourceError::InvalidConfig(_)));
-    }
-}
-
-impl SourceConfiguration {
-    pub fn recognize_media_locator(&self, locator: &str) -> Option<String> {
-        let uri = url::Url::parse(locator).ok()?;
-        let payload: serde_json::Value = serde_json::from_str(&self.provider_payload).ok()?;
-        let base = url::Url::parse(payload.get("base_url")?.as_str()?).ok()?;
-        if uri.origin() != base.origin()
-            || !uri.path().starts_with(base.path().trim_end_matches('/'))
-        {
-            return None;
-        }
-        let path = uri.path().strip_prefix(base.path().trim_end_matches('/'))?;
-        if !matches!(
-            path,
-            "/rest/stream" | "/rest/stream.view" | "/rest/download" | "/rest/download.view"
-        ) {
-            return None;
-        }
-        let id = uri.query_pairs().find(|(key, _)| key == "id")?.1;
-        let object = format!("{}:track:{id}", self.kind.source_id());
-        Some(library::source_entity_uri(
-            &self.source_id,
-            "track",
-            &object,
-        ))
-    }
-}
-
-#[cfg(test)]
-mod locator_tests {
-    #[test]
-    fn only_captured_adapter_recognizes_its_provider_locator() {
-        let config = super::SourceConfiguration {
-            source_id: library::SourceId::new("one"),
-            kind: crate::SubsonicFlavor::Navidrome,
-            name: "Music".into(),
-            provider_payload: r#"{"version":1,"base_url":"https://music.test/server"}"#.into(),
-        };
-        assert_eq!(
-            config.recognize_media_locator(
-                "https://music.test/server/rest/stream.view?id=song&p=secret"
-            ),
-            Some(library::source_entity_uri(
-                &config.source_id,
-                "track",
-                "navidrome:track:song"
-            ))
-        );
-        assert!(
-            config
-                .recognize_media_locator("https://other.test/server/rest/stream.view?id=song")
-                .is_none()
-        );
-        assert!(
-            config
-                .recognize_media_locator("https://music.test/unrelated/song")
-                .is_none()
-        );
     }
 }
