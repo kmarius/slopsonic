@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use crate::{QueueRow, RepeatMode, RunId};
 
-pub type QueuePosition = usize;
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TransportStatus {
     #[default]
@@ -23,9 +22,9 @@ pub struct PositionDiscontinuity {
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub struct QueueSummaryView {
     pub revision: u64,
-    pub total: QueuePosition,
-    pub current_index: Option<QueuePosition>,
-    pub next_index: Option<QueuePosition>,
+    pub total: usize,
+    pub current_index: Option<usize>,
+    pub next_index: Option<usize>,
     pub can_next: bool,
 }
 
