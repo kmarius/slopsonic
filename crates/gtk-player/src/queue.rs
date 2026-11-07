@@ -738,6 +738,7 @@ fn build_queue_table(
     table.add_css_class("track-list");
     table.add_css_class("queue-list");
     table.add_css_class("external-header");
+    table.set_margin_end(10);
     table.set_single_click_activate(false);
     let row_factory = gtk::SignalListItemFactory::new();
     row_factory.connect_setup(|_, row| {

@@ -26,7 +26,7 @@
                 <property name="spacing">2</property>
                 <property name="valign">center</property>
                 <property name="margin-top">8</property>
-                <property name="margin-start">10</property>
+                <property name="margin-start">2</property>
                 <property name="margin-end">8</property>
                 <style>
                   <class name="queue-toolbar" />
@@ -94,7 +94,7 @@
           <object class="GtkBox" id="queue_panel">
             <property name="orientation">vertical</property>
             <property name="overflow">hidden</property>
-            <property name="margin-start">10</property>
+            <property name="margin-start">2</property>
             <style>
               <class name="queue-panel" />
             </style>

@@ -2,7 +2,7 @@
   --showcase-primary: rgba(116, 82, 188, 0.78);
   --showcase-secondary: rgba(83, 68, 143, 0.64);
   --showcase-tertiary: rgba(155, 111, 210, 0.56);
-  border-radius: 8px;
+  border-radius: 6px;
   color: var(--window-fg-color);
   background: linear-gradient(135deg,
     color-mix(in srgb, var(--showcase-primary) 58%, var(--window-bg-color)),

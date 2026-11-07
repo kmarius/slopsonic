@@ -18,7 +18,7 @@ use std::{
     cell::{Cell, RefCell},
     rc::Rc,
 };
-pub const BOTTOM_PLAYER_HEIGHT: i32 = 90;
+pub const BOTTOM_PLAYER_HEIGHT: i32 = 84;
 pub const BOTTOM_PLAYER_COVER_START_INSET: i32 = 14;
 pub const BOTTOM_PLAYER_COVER_SIZE: i32 = 60;
 pub const BOTTOM_PLAYER_EDGE_PADDING: i32 = 8;
@@ -31,9 +31,9 @@ pub const BOTTOM_PLAYER_TRANSPORT_WIDTH: i32 = BOTTOM_PLAYER_SIDE_BUTTON_SIZE * 
     + BOTTOM_PLAYER_BUTTON_GAP * 6;
 pub const BOTTOM_PLAYER_PROGRESS_WIDTH: i32 = 320;
 pub const BOTTOM_PLAYER_PROGRESS_MIN_WIDTH: i32 = 140;
-pub const BOTTOM_PLAYER_BUTTON_ROW_HEIGHT: i32 = 58;
+pub const BOTTOM_PLAYER_BUTTON_ROW_HEIGHT: i32 = 52;
 pub const BOTTOM_PLAYER_SIDE_BUTTON_SIZE: i32 = 36;
-pub const BOTTOM_PLAYER_PLAY_BUTTON_SIZE: i32 = 44;
+pub const BOTTOM_PLAYER_PLAY_BUTTON_SIZE: i32 = 38;
 // Keeps the refill ring, 4px outside the play button, inside the button row.
 pub const BOTTOM_PLAYER_BUTTON_OFFSET_Y: f64 = 3.0;
 pub const BOTTOM_PLAYER_BUTTON_GAP: i32 = 8;

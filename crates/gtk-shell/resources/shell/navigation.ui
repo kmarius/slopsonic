@@ -4,7 +4,6 @@
   <requires lib="libadwaita" version="1.9" />
   <object class="GtkBox" id="normal_nav_panel">
     <property name="overflow">hidden</property>
-    <property name="margin-end">8</property>
     <property name="orientation">vertical</property>
     <property name="width-request">1</property>
     <property name="vexpand">true</property>
@@ -61,7 +60,6 @@
   </object>
   <object class="GtkBox" id="compact_nav_slot">
     <property name="overflow">hidden</property>
-    <property name="margin-end">8</property>
     <property name="orientation">vertical</property>
     <property name="vexpand">true</property>
     <style>
