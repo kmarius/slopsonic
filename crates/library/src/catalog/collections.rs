@@ -431,34 +431,3 @@ impl super::Catalog<'_> {
         Ok(())
     }
 }
-
-impl crate::Catalog<'_> {
-    pub async fn complete_source_home_sections(
-        &mut self,
-        prefix: &str,
-        sections: &[String],
-        retained_prefixes: &[String],
-    ) -> LibraryResult<()> {
-        let mut writer = self.database.writer().await?;
-        let connection = writer
-            .as_mut()
-            .ok_or(crate::LibraryError::WriterUnavailable)?;
-        let mut transaction = connection.begin().await?;
-        let source = self.source;
-        let removed = sqlx::query("DELETE FROM home_entries WHERE source_key=?1 AND substr(section_id,1,length(?2))=?2 AND section_id NOT IN(SELECT value FROM json_each(?3)) AND NOT EXISTS(SELECT 1 FROM json_each(?4) retained WHERE substr(section_id,1,length(retained.value))=retained.value)")
-            .bind(source).bind(prefix).bind(serde_json::to_string(sections)?).bind(serde_json::to_string(retained_prefixes)?)
-            .execute(&mut *transaction).await?.rows_affected();
-        let changed = removed > 0;
-        if changed {
-            sqlx::query(
-                "UPDATE sources SET catalog_revision=catalog_revision+1 WHERE source_key=?1",
-            )
-            .bind(source)
-            .execute(&mut *transaction)
-            .await?;
-        }
-        transaction.commit().await?;
-        self.changes.home |= changed;
-        Ok(())
-    }
-}

@@ -88,35 +88,6 @@ pub fn file_media_path(uri: &str) -> Option<std::path::PathBuf> {
     parsed.to_file_path().ok()
 }
 
-/// Private document locators carry provider identity separately from the granted URI.
-pub fn document_locator_fragment(native_id: &str, uri: &str) -> String {
-    format!("{native_id}!{}", utf8_percent_encode(uri, NON_ALPHANUMERIC))
-}
-
-pub fn document_fragment_parts(fragment: &str) -> Option<(String, String)> {
-    let (native_id, uri) = fragment.split_once('!')?;
-    Some((
-        native_id.to_owned(),
-        percent_decode_str(uri).decode_utf8().ok()?.into_owned(),
-    ))
-}
-
-pub fn document_locator_parts(locator: &str) -> Option<(String, String)> {
-    let uri = url::Url::parse(locator).ok()?;
-    if uri.scheme() != "slopsonic-document" {
-        return None;
-    }
-    document_fragment_parts(uri.fragment()?)
-}
-
-pub fn document_access_uri(locator: &str) -> Option<String> {
-    document_locator_parts(locator).map(|(_, uri)| uri)
-}
-
-pub fn document_media_uri(native_id: &str) -> String {
-    format!("slopsonic:document/{}", encode(native_id))
-}
-
 pub fn document_media_id(uri: &str) -> Option<String> {
     let id = uri.strip_prefix("slopsonic:document/")?;
     if id.is_empty() {
@@ -225,8 +196,4 @@ mod tests {
         assert!(file_media_path("https://example.test/song.flac").is_none());
         assert!(file_media_path("file://user:secret@localhost/song.flac").is_none());
     }
-}
-
-pub fn source_id_for_uri(uri: String) -> Option<SourceId> {
-    source_entity_parts(&uri).map(|(source, _, _)| source)
 }

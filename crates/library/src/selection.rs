@@ -26,12 +26,6 @@ pub enum MemberSelection {
     },
     Concat(Vec<MemberSelection>),
 }
-impl MemberSelection {
-    pub fn from_uris(uris: Vec<String>) -> Arc<Self> {
-        Arc::new(Self::Uris(uris.into()))
-    }
-}
-
 pub(crate) async fn selected_tracks_on(
     connection: &mut SqliteConnection,
     selection: &MemberSelection,

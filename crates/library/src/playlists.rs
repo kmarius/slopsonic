@@ -356,7 +356,6 @@ impl Database {
         ).bind(source).bind(playlist).bind(name).bind(artwork.is_some())
             .bind(image.map(|(bytes, _)| bytes)).bind(image.and_then(|(_, mime)| mime)).bind(revision).bind(binding)
             .execute(&mut *transaction).await?.rows_affected() == 1;
-        if changed && name.is_some() {}
         transaction.commit().await?;
         Ok(changed)
     }
@@ -416,10 +415,10 @@ impl Database {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
         let mut transaction = connection.begin().await?;
-        let identity:Option<String> = sqlx::query_scalar("DELETE FROM playlists WHERE source_key IS ?1 AND owner='slopsonic' AND playlist_key=?2 RETURNING json_array((SELECT object_id FROM sources WHERE source_key=playlists.source_key),object_id)")
-            .bind(source).bind(playlist).fetch_optional(&mut *transaction).await?;
+        let deleted = sqlx::query("DELETE FROM playlists WHERE source_key IS ?1 AND owner='slopsonic' AND playlist_key=?2")
+            .bind(source).bind(playlist).execute(&mut *transaction).await?.rows_affected() > 0;
         transaction.commit().await?;
-        Ok(identity.is_some())
+        Ok(deleted)
     }
 
     pub async fn add_playlist_tracks(
@@ -453,7 +452,6 @@ impl Database {
             skip_existing,
         )
         .await?;
-        if accepted > 0 {}
         transaction.commit().await?;
         Ok(accepted)
     }

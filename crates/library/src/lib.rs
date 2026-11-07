@@ -1,7 +1,6 @@
 //! Slopsonic's SQLite-owned music library and its concrete persistence operations.
 //! Provider acquisition, playback transport, and presentation remain outside this crate.
 
-pub type LibraryIndex = usize;
 mod audio;
 pub use audio::*;
 mod activity;
@@ -64,10 +63,8 @@ pub use home::{
 };
 pub use keys::{
     AlbumKey, ArtistKey, DownloadAccessFileKey, FolderKey, GenreKey, ListenKey, ListenOutboxKey,
-    MoodKey, PlaylistEntryKey, PlaylistKey, SourceId, SourceKey, TrackKey, document_access_uri,
-    document_fragment_parts, document_locator_fragment, document_locator_parts, document_media_id,
-    document_media_uri, file_media_path, normalize_direct_media_uri, source_entity_parts,
-    source_entity_uri, source_id_for_uri,
+    MoodKey, PlaylistEntryKey, PlaylistKey, SourceId, SourceKey, TrackKey, document_media_id,
+    file_media_path, normalize_direct_media_uri, source_entity_parts, source_entity_uri,
 };
 pub use playlists::{
     PlaylistAccess, PlaylistEditEntry, PlaylistEntryRemovals, PlaylistEntryView,

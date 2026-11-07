@@ -1006,9 +1006,8 @@ impl super::Catalog<'_> {
             .await?;
         let source = self.source.raw();
         if kinds.is_empty() {
-            let share: Option<bool> = sqlx::query_scalar("UPDATE sources SET catalog_complete=1,freshness=?2,catalog_revision=catalog_revision+?3 WHERE source_key=?1 AND(catalog_complete,freshness) IS NOT(1,?2) RETURNING coalesce(kind IN('local','webdav','smb'),0)")
-                .bind(source).bind(freshness.map(Freshness::as_bytes)).bind(update.changed()).fetch_optional(&mut *tx).await?;
-            if share == Some(true) {}
+            sqlx::query("UPDATE sources SET catalog_complete=1,freshness=?2,catalog_revision=catalog_revision+?3 WHERE source_key=?1 AND(catalog_complete,freshness) IS NOT(1,?2)")
+                .bind(source).bind(freshness.map(Freshness::as_bytes)).bind(update.changed()).execute(&mut *tx).await?;
         } else if update.changed() {
             sqlx::query(
                 "UPDATE sources SET catalog_revision=catalog_revision+1 WHERE source_key=?1",
@@ -1018,7 +1017,6 @@ impl super::Catalog<'_> {
             .await?;
         }
         tx.commit().await?;
-        self.changes.merge(update.clone());
         self.changes.merge(update);
         Ok(())
     }

@@ -777,10 +777,6 @@ async fn track_references_for_uris_on(
 }
 
 impl QueueRow {
-    pub fn same_row(&self, other: Arc<QueueRow>) -> bool {
-        std::ptr::eq(self, other.as_ref()) || self == other.as_ref()
-    }
-
     pub fn track(&self) -> crate::TrackView {
         self.track.clone()
     }
@@ -806,23 +802,5 @@ impl QueueRow {
                 .map(|caption| caption.title.to_string()),
             _ => None,
         }
-    }
-    pub fn context_category(&self) -> Option<String> {
-        match &self.provenance {
-            QueueProvenance::Context { context_title, .. } => context_title
-                .as_ref()
-                .and_then(|caption| caption.kind.as_deref().map(str::to_owned)),
-            _ => None,
-        }
-    }
-    pub fn context_kind(&self) -> String {
-        match self.provenance {
-            QueueProvenance::Context { .. } => "context",
-            QueueProvenance::Manual => "manual",
-            QueueProvenance::Random => "random",
-            QueueProvenance::Radio => "radio",
-            QueueProvenance::AutoDj => "auto_dj",
-        }
-        .into()
     }
 }

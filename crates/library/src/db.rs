@@ -161,39 +161,6 @@ impl Database {
     pub fn distinct_track_covers(&self) -> bool {
         self.inner.distinct_track_covers.load(Ordering::Acquire)
     }
-    pub async fn relocate(source: &Path, destination: &Path) -> LibraryResult<()> {
-        if destination.exists() || !source.exists() {
-            return Ok(());
-        }
-        let parent = destination.parent().ok_or_else(|| {
-            LibraryError::InvalidRequest("the Store destination has no parent".to_string())
-        })?;
-        std::fs::create_dir_all(parent)?;
-        let pending = destination.with_extension(format!("relocating-{}", std::process::id()));
-        if pending.exists() {
-            std::fs::remove_file(&pending)?;
-        }
-        let options = SqliteConnectOptions::new()
-            .filename(source)
-            .read_only(true)
-            .create_if_missing(false)
-            .busy_timeout(BUSY_TIMEOUT);
-        let mut connection = SqliteConnection::connect_with(&options).await?;
-        let result = sqlx::query("VACUUM INTO ?1")
-            .bind(pending.to_string_lossy().as_ref())
-            .execute(&mut connection)
-            .await;
-        connection.close().await?;
-        result?;
-        std::fs::OpenOptions::new()
-            .write(true)
-            .open(&pending)?
-            .sync_all()?;
-        std::fs::rename(&pending, destination)?;
-        std::fs::File::open(parent)?.sync_all()?;
-        Ok(())
-    }
-
     pub async fn open(path: impl AsRef<Path>) -> LibraryResult<Self> {
         Self::open_final(path.as_ref()).await
     }
@@ -297,7 +264,6 @@ impl Database {
             .bind(source)
             .execute(&mut *transaction)
             .await?;
-        if source.is_some() {}
         let removed = sqlx::query("DELETE FROM sources WHERE source_key=?1")
             .bind(source)
             .execute(&mut *transaction)
