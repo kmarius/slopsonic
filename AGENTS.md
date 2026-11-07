@@ -12,6 +12,7 @@ The project should focus exclusively on being a polished, native Linux music pla
 
 Planned or supported, and not to be removed:
 
+- **Navidrome and OpenSubsonic compliance** — stay compatible with both servers' APIs
 - **Downloads and offline play**
 - **Transcoding** — for playback and for downloads
 - **MPRIS control** — desktop media controls and remote control via MPRIS
@@ -20,7 +21,7 @@ More to be added later.
 
 ## Non-Features
 
-Do not implement or expand:
+Do not implement or expand. If you find leftover code for a non-feature, remove it:
 
 - **Other server backends** — Navidrome/Subsonic only, no Jellyfin/Plex/etc.
 - **Metadata editing** — Read-only client; editing belongs in the server or dedicated tools
@@ -49,13 +50,41 @@ Do not implement or expand:
 
 ## Architecture
 
-- `crates/` — Rust workspace with modular crates
+- `crates/` — Rust workspace with modular crates:
+  - `slopsonic` — thin binary: allocator, diagnostics, tokio runtime, starts the GTK app
+  - `slopsonic-core` — composition root and product operations (playback actor, source lifecycle, settings, routes)
+  - `sources` — the Subsonic/Navidrome client; the only crate that talks to the server
+  - `library` — SQLite persistence: catalog, queue, playlists, favorites, listens, download records
+  - `playback` — backend-agnostic playback trait, settings and view types
+  - `playback-gstreamer` — GStreamer implementation of the playback backend
+  - `audio-processing` — transcoding, EQ/crossfeed/balance effects, spectrum FFT
+  - `downloads` — offline download queue and on-disk storage
+  - `artwork` — artwork selection, fetch, cache and decode
+  - `scrobbling` — Last.fm, Libre.fm and ListenBrainz delivery
+  - `secrets` — credential store backed by the config file
+  - `app-identity` — app id and display name, release vs. devel
+  - `process-memory` — glibc allocator tuning and memory reclaim
+  - `desktop-integration` — MPRIS media controls
+  - `gtk-shell` — window, navigation and native actions; composes the other `gtk-*` crates
+  - `gtk-library` — catalog pages: albums, artists, playlists, search, home
+  - `gtk-player` — bottom bar, queue, fullscreen player, equalizer UI
+  - `gtk-preferences` — preferences, server setup, appearance
+  - `gtk-media-menus` — context menus, playlist picker, media details
+  - `gtk-editors` — playlist artwork editing
+  - `gtk-widgets` — shared GTK primitives
 - Single server: the app talks to exactly one Navidrome or OpenSubsonic server. Both share the one Subsonic client in `crates/sources/src/subsonic/`; Navidrome-only features are gated on the flavor. Do not add provider abstractions, multi-server selection or per-source UI
 - Settings store the single configured server
-- The library schema is versioned in `crates/library/src/schema.rs` (`SCHEMA_VERSION`); add migrations in `initialize_durable`
+- The library schema is versioned in `crates/library/src/schema.rs`: `BASE_VERSION` plus one entry in `MIGRATIONS` per change (`SCHEMA_VERSION` is derived). Schema changes during development add a migration step. Before the first release, migrations may be squashed into `STORE_SCHEMA` and `BASE_VERSION` raised; after release they are permanent and never removed
 - Dead code is a build error (`-D warnings`); remove unused code and dependencies rather than leaving them
 
 When in doubt, prefer simplicity and removing code over adding features.
+
+## Build
+
+- `cargo build` / `cargo run -p slopsonic`
+- `cargo clippy --workspace --all-targets -- -D warnings`
+- `cargo fmt --all`
+- `cargo test --workspace`
 
 ## Commits
 
@@ -63,4 +92,4 @@ Keep commit messages extremely brief—a few words, not sentences.
 
 ## Code Style
 
-Do not add comments to code.
+Do not add comments to code. Short doc comments (`///`, `//!`) are allowed.
