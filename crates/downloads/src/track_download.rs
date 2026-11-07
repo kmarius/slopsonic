@@ -117,6 +117,7 @@ impl TransferClients {
                     .referer(false)
                     .danger_accept_invalid_certs(trust_invalid_certificate)
                     .connect_timeout(Duration::from_secs(15))
+                    .read_timeout(Duration::from_secs(60))
                     .build()
                     .map_err(download_request_error)
             })
@@ -1118,7 +1119,10 @@ fn safe_path_component(value: &str, fallback: &str) -> String {
         })
         .take(80)
         .collect::<String>();
-    let sanitized = sanitized.trim_matches([' ', '.']);
+    let sanitized = sanitized
+        .split_at(sanitized.floor_char_boundary(180))
+        .0
+        .trim_matches([' ', '.']);
     if sanitized.is_empty() {
         fallback.to_string()
     } else {
