@@ -59,11 +59,13 @@ fn failure_kind(error: &glib::Error, element: Option<&gst::Element>) -> FailureK
     if has_class("Sink") {
         return FailureKind::Output;
     }
+    if has_class("Network") {
+        return FailureKind::Connection;
+    }
     if let Some(error) = error.kind::<gst::ResourceError>() {
         return match error {
             gst::ResourceError::NotFound => FailureKind::UnavailableMedia,
             gst::ResourceError::NotAuthorized => FailureKind::DeniedAccess,
-            _ if has_class("Network") => FailureKind::Connection,
             gst::ResourceError::OpenRead | gst::ResourceError::Read => {
                 FailureKind::UnavailableMedia
             }
