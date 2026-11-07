@@ -78,8 +78,6 @@ pub fn add_drag_to_playlist(
 }
 
 pub struct MediaMenus {
-    pub current_route: Rc<dyn Fn() -> Route>,
-    pub present_dialog: Rc<dyn Fn(&adw::Dialog)>,
     pub artwork: Rc<gtk_widgets::artwork::ArtworkState>,
     pub library: Arc<library::Database>,
     pub runtime: tokio::runtime::Handle,
@@ -355,7 +353,6 @@ pub fn present_playlist_entry_menu(
     menus: &Rc<MediaMenus>,
     row: library::PlaylistEntryView,
     position: Option<(f64, f64)>,
-    _playlist: library::PlaylistKey,
     removal: Option<PlaylistEntrySelectionSnapshot>,
 ) {
     let favorite = menus.projected_track_favorite(&row.track.media_uri, row.track.state.favorite);
@@ -722,7 +719,7 @@ fn append_track_selection_actions(
     }
 }
 
-pub fn install_track_selection_download_actions(
+fn install_track_selection_download_actions(
     surface: &ContextMenuSurface,
     menus: &Rc<MediaMenus>,
     selection: TrackSelectionSnapshot,
@@ -1326,7 +1323,7 @@ fn install_media_uri_playback_actions(
     }
 }
 
-pub fn install_download_actions(
+fn install_download_actions(
     surface: &ContextMenuSurface,
     menus: &Rc<MediaMenus>,
     payload: &gtk_widgets::media_drag::MediaDragSource,

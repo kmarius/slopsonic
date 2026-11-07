@@ -31,7 +31,6 @@ pub fn present_track_context_menu(
 pub fn present_playlist_entry_context_menu(
     target: &gtk::Widget,
     shell: &Rc<CatalogUi>,
-    playlist: library::PlaylistKey,
     entry: library::PlaylistEntryKey,
     entry_row: library::PlaylistEntryView,
     position: Option<(f64, f64)>,
@@ -45,7 +44,6 @@ pub fn present_playlist_entry_context_menu(
         &shell.media_menus,
         entry_row,
         position,
-        playlist,
         shell
             .current_playlist_entry_selection_owner()
             .map(|selection| selection.single_entry(entry)),
