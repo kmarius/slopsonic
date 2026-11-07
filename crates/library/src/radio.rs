@@ -45,7 +45,6 @@ pub struct RandomCriteria {
     pub max_year: Option<i64>,
     pub genre: Option<GenreKey>,
     pub played: PlayedFilter,
-    pub require_media: bool,
     pub variation: i64,
 }
 
@@ -143,7 +142,6 @@ impl Database {
         seed: RadioSeed,
         extra_excluded: &[TrackKey],
         requested: usize,
-        require_media: bool,
         variation: i64,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<TrackKey>> {
@@ -247,9 +245,7 @@ impl Database {
                 .push_bind(!wrapped)
                 .push(" OR track.track_key<")
                 .push_bind(pivot)
-                .push(") AND (")
-                .push_bind(!require_media)
-                .push(" OR track.media_uri IS NOT NULL)");
+                .push(")");
             if related {
                 query.push(" AND ((").push_bind(seed_kind).push(
                     "<>5 AND track.track_key IN (
@@ -365,8 +361,6 @@ impl Database {
                 )
                 .push_bind(criteria.genre)
                 .push(")) AND (")
-                .push_bind(!criteria.require_media)
-                .push(" OR track.media_uri IS NOT NULL) AND (")
                 .push_bind(criteria.played.code())
                 .push("=0 OR (")
                 .push_bind(criteria.played.code())

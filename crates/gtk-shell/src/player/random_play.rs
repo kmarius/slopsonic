@@ -340,7 +340,6 @@ pub(crate) fn play_saved_random(shell: &Rc<Shell>, placement: QueuePlacement) {
                 max_year: settings.max_year.map(i64::from),
                 genre,
                 played: settings.played_filter,
-                require_media: false,
                 variation: random_variation(),
             },
         };

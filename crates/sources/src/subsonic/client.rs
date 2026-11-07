@@ -29,7 +29,6 @@ impl SubsonicSource {
         &self,
         catalog: &mut library::Catalog<'_>,
         objects: Vec<String>,
-        refresh_parents: bool,
         cancelled: &(dyn Fn() -> bool + Send + Sync),
     ) -> SourceResult<()> {
         let database = catalog.database;
@@ -69,10 +68,9 @@ impl SubsonicSource {
                     for track in &batch.tracks {
                         if let Some(album) = &track.album_object_id
                             && refreshed_albums.insert(album.clone())
-                            && (refresh_parents
-                                || !database
-                                    .source_contains_entity(source_id, "album", album, true)
-                                    .await?)
+                            && !database
+                                .source_contains_entity(source_id, "album", album, true)
+                                .await?
                             && let Err(error) = self
                                 .acquire_collection(
                                     catalog,
@@ -406,7 +404,7 @@ impl SubsonicSource {
                     .iter()
                     .map(|id| format!("song:{}", raw_item_id(id)))
                     .collect();
-                Box::pin(self.acquire_items(catalog, ids, false, cancelled)).await?;
+                Box::pin(self.acquire_items(catalog, ids, cancelled)).await?;
             }
             check_cancelled(cancelled)?;
             catalog

@@ -24,7 +24,6 @@ pub fn random_play_request(
             max_year: settings.max_year.map(i64::from),
             genre,
             played: settings.played_filter,
-            require_media: false,
             variation: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |duration| duration.as_nanos() as i64),
@@ -94,19 +93,15 @@ pub(crate) async fn radio_candidates(
                 .await
                 .map_err(|error| error.to_string())?;
         }
-        fallback_sources.push((source_key, source.is_none()));
+        fallback_sources.push(source_key);
     }
     if let Some(selected) = selected
         && Some(selected.source_key) != seed_source_key
     {
-        let source_key = selected.source_key;
-        let source = tokio::task::spawn_blocking(move || owner?.client(&selected.source_id).ok())
-            .await
-            .map_err(|error| error.to_string())?;
-        fallback_sources.push((source_key, source.is_none()));
+        fallback_sources.push(selected.source_key);
     }
     candidates.truncate(requested);
-    for (source_key, require_media) in fallback_sources {
+    for source_key in fallback_sources {
         if candidates.len() == requested {
             break;
         }
@@ -116,7 +111,6 @@ pub(crate) async fn radio_candidates(
                 seed.clone(),
                 &candidates,
                 requested - candidates.len(),
-                require_media,
                 random_u64() as i64,
                 cancellation,
             )
