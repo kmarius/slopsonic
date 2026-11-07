@@ -1180,7 +1180,8 @@ impl SourceOwner {
             );
             return Ok(source);
         }
-        Err(SourceError::Cancelled.to_string())
+        drop(clients);
+        self.client(source_id)
     }
 
     pub(crate) async fn open_client(&self, source_id: SourceId) -> Result<Arc<Source>, String> {
@@ -1364,10 +1365,12 @@ fn source_error_is_temporary(error: &SourceError) -> bool {
     source_error_allows_cache(error)
         || matches!(
             error,
-            SourceError::Server {
-                status: 408 | 425 | 429,
-                ..
-            }
+            SourceError::Tls(_)
+                | SourceError::Cancelled
+                | SourceError::Server {
+                    status: 408 | 425 | 429,
+                    ..
+                }
         )
 }
 
