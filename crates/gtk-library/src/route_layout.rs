@@ -5,13 +5,13 @@ use gtk_widgets::layout::configure_fill_width_clip;
 
 const ROUTE_SCROLL_OWNER_CLASS: &str = "route-scroll-owner";
 const DETAIL_SHOWCASE_MIN_COVER_SIZE: i32 = 150;
-pub const DETAIL_SHOWCASE_METADATA_MIN_WIDTH: i32 = 430;
+pub(crate) const DETAIL_SHOWCASE_METADATA_MIN_WIDTH: i32 = 430;
 const DETAIL_SHOWCASE_COMPACT_WIDTH: i32 = 760;
 const DETAIL_SHOWCASE_MAX_COVER_SIZE: i32 = 224;
-pub const ROUTE_TOP_MARGIN: i32 = 8;
-pub const PRIMARY_ROUTE_MARGIN_START: i32 = 10;
-pub const PRIMARY_ROUTE_MARGIN_END: i32 = 10;
-pub const PRIMARY_ROUTE_HORIZONTAL_INSET: i32 =
+pub(crate) const ROUTE_TOP_MARGIN: i32 = 8;
+pub(crate) const PRIMARY_ROUTE_MARGIN_START: i32 = 10;
+pub(crate) const PRIMARY_ROUTE_MARGIN_END: i32 = 10;
+pub(crate) const PRIMARY_ROUTE_HORIZONTAL_INSET: i32 =
     PRIMARY_ROUTE_MARGIN_START + PRIMARY_ROUTE_MARGIN_END;
 
 gtk_widgets::composite_box!(
@@ -25,14 +25,17 @@ gtk_widgets::composite_box!(
     }
 );
 
-pub fn detail_route_inner_width_for_viewport(viewport_width: i32, horizontal_inset: i32) -> i32 {
+pub(crate) fn detail_route_inner_width_for_viewport(
+    viewport_width: i32,
+    horizontal_inset: i32,
+) -> i32 {
     viewport_width
         .saturating_sub(horizontal_inset)
         .saturating_sub(PRIMARY_ROUTE_MARGIN_END)
         .max(1)
 }
 
-pub fn detail_showcase_cover_size(width: i32) -> i32 {
+pub(crate) fn detail_showcase_cover_size(width: i32) -> i32 {
     if width < DETAIL_SHOWCASE_METADATA_MIN_WIDTH {
         width.clamp(72, DETAIL_SHOWCASE_MIN_COVER_SIZE)
     } else if width < DETAIL_SHOWCASE_COMPACT_WIDTH {
@@ -45,11 +48,11 @@ pub fn detail_showcase_cover_size(width: i32) -> i32 {
     }
 }
 
-pub fn home_album_content_width_for(width: i32) -> i32 {
+pub(crate) fn home_album_content_width_for(width: i32) -> i32 {
     (width.max(1) - PRIMARY_ROUTE_HORIZONTAL_INSET).max(1)
 }
 
-pub fn mark_route_scroll_owner(scroller: &gtk::ScrolledWindow) {
+pub(crate) fn mark_route_scroll_owner(scroller: &gtk::ScrolledWindow) {
     scroller.add_css_class(ROUTE_SCROLL_OWNER_CLASS);
 }
 
@@ -84,7 +87,7 @@ pub fn route_boundary(view: gtk::Widget) -> gtk::Widget {
     scroller.upcast::<gtk::Widget>()
 }
 
-pub fn route_scroller_widget(scroller: gtk::ScrolledWindow) -> gtk::Widget {
+pub(crate) fn route_scroller_widget(scroller: gtk::ScrolledWindow) -> gtk::Widget {
     let (_, vertical_policy) = scroller.policy();
     if vertical_policy != gtk::PolicyType::Never {
         mark_route_scroll_owner(&scroller);
@@ -93,14 +96,14 @@ pub fn route_scroller_widget(scroller: gtk::ScrolledWindow) -> gtk::Widget {
     scroller.upcast()
 }
 
-pub fn detail_route_scroller(content: gtk::Widget) -> gtk::ScrolledWindow {
+pub(crate) fn detail_route_scroller(content: gtk::Widget) -> gtk::ScrolledWindow {
     let scroller = gtk::ScrolledWindow::new();
     configure_library_route_scroller(&scroller);
     scroller.set_child(Some(&content));
     scroller
 }
 
-pub fn detail_route_wrapper(spacing: i32) -> gtk::Box {
+pub(crate) fn detail_route_wrapper(spacing: i32) -> gtk::Box {
     let wrapper = gtk::Box::new(gtk::Orientation::Vertical, spacing);
     wrapper.add_css_class("route-content");
     wrapper.set_hexpand(true);
@@ -110,7 +113,7 @@ pub fn detail_route_wrapper(spacing: i32) -> gtk::Box {
     wrapper
 }
 
-pub fn placeholder_view(title: &str, body: &str) -> gtk::Widget {
+pub(crate) fn placeholder_view(title: &str, body: &str) -> gtk::Widget {
     let view = RoutePlaceholderView::new();
     view.imp().heading.set_label(&String::from(title));
     view.imp().body.set_label(&String::from(body));
@@ -141,7 +144,7 @@ mod tests {
     }
 }
 
-pub fn configure_library_route_scroller(scroller: &gtk::ScrolledWindow) {
+pub(crate) fn configure_library_route_scroller(scroller: &gtk::ScrolledWindow) {
     scroller.add_css_class("library-route-scroller");
     scroller.add_css_class("route-scroll-owner");
     configure_fill_width_clip(scroller, gtk::PolicyType::Automatic);

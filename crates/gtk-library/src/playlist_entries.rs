@@ -30,7 +30,7 @@ use super::grid_cells::{
 use crate::playlist_entry_model::{PlaylistEntryModel, PlaylistEntryProjectionRequest};
 
 use super::route_shell::LibraryToolbarProjection;
-use super::table_sizing::route_column_view_initial_width_with_inset;
+use super::table_sizing::column_view_initial_width;
 use crate::track_selection::PlaylistEntrySelection;
 use gtk_widgets::detail_links::DetailLinks;
 use gtk_widgets::library_fields::{
@@ -291,10 +291,7 @@ fn playlist_entry_table(
             activate_model.activate(position, queue.clone());
         })),
         Some(selection.selection_model()),
-        route_column_view_initial_width_with_inset(
-            shell,
-            crate::route_layout::PRIMARY_ROUTE_HORIZONTAL_INSET,
-        ),
+        column_view_initial_width(shell, crate::route_layout::PRIMARY_ROUTE_HORIZONTAL_INSET),
     );
     table.widget().add_css_class("track-table");
     table.widget().add_css_class("playlist-entry-table");

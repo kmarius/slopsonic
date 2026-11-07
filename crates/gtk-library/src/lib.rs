@@ -29,7 +29,7 @@ mod collection_context;
 mod collections;
 mod columns;
 mod detail_showcase;
-pub mod folders;
+mod folders;
 mod grid_cells;
 mod grouped_detail;
 mod home;
@@ -62,4 +62,3 @@ use downloads::{DownloadEvent, DownloadSubject};
 use std::rc::Rc;
 
 pub use artist::artist_detail_route;
-pub use named_detail::NamedDetailId;
