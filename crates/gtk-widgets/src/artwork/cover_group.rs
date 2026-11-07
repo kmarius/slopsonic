@@ -28,7 +28,7 @@ impl CoverGroupProjection {
             }
             shell.bind_artwork_tile(
                 &self.single,
-                artwork.first().cloned().unwrap_or_else(ArtworkBinding::new),
+                artwork.first().cloned().unwrap_or_default(),
                 self.render_size,
             );
             self.root.set_visible_child_name("single");

@@ -33,10 +33,6 @@ impl ArtworkBinding {
         }
     }
 
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub(crate) fn source_id(&self) -> Option<&sources::SourceId> {
         self.candidates.iter().find_map(Candidate::source_id)
     }

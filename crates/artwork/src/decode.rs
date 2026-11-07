@@ -81,20 +81,6 @@ impl RgbaImage {
         &self.rgba
     }
 
-    pub fn resized_to_fit(&self, size: u32) -> Result<Self, ArtworkError> {
-        let longest = self.width.max(self.height());
-        if longest <= size {
-            return Ok(self.clone());
-        }
-        let width = (u64::from(self.width) * u64::from(size) / u64::from(longest)).max(1) as u32;
-        let height = (u64::from(self.height) * u64::from(size) / u64::from(longest)).max(1) as u32;
-        self.resized_exact(width, height)
-    }
-
-    pub fn resized_exact(&self, width: u32, height: u32) -> Result<Self, ArtworkError> {
-        self.resized(width, height, FilterType::Lanczos3)
-    }
-
     fn resized(&self, width: u32, height: u32, filter: FilterType) -> Result<Self, ArtworkError> {
         let source = fast_image_resize::images::ImageRef::new(
             self.width,
@@ -135,10 +121,6 @@ pub struct DecodedImage {
 }
 
 impl DecodedImage {
-    pub fn pixels(&self) -> &RgbaImage {
-        &self.pixels
-    }
-
     pub(crate) fn blur_hash(&self) -> Result<String, ArtworkError> {
         self.pixels.blur_hash()
     }
@@ -180,16 +162,6 @@ pub fn decode_rgba(bytes: &[u8], render_size: u32) -> Result<RgbaImage, ArtworkE
         render_size.max(1),
         FilterType::Lanczos3,
     )?)
-}
-
-pub fn decode_cover(bytes: &[u8], render_size: u32) -> Result<RgbaImage, ArtworkError> {
-    register_decoders();
-    let image = decode_reader(
-        ImageReader::new(Cursor::new(bytes))
-            .with_guessed_format()
-            .map_err(decode_error)?,
-    )?;
-    rgba_image(cover_poster(&image, render_size)?)
 }
 
 pub fn square_thumbnail_png(bytes: &[u8], size: u32) -> Result<Vec<u8>, ArtworkError> {

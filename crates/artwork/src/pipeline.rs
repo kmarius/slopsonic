@@ -12,8 +12,8 @@ use crate::decode::{cached_poster, decode_display, decode_original};
 use crate::fetch::{FetchContext, FetchOutcome};
 use crate::selection::Candidate;
 use crate::{
-    ArtworkBinding, ArtworkError, ArtworkKey, ArtworkLoad, ArtworkRequest, CacheResolver,
-    DecodedImage, PendingArtwork, RequestId, RgbaImage, SourceResolver,
+    ArtworkBinding, ArtworkError, ArtworkKey, ArtworkLoad, ArtworkRequest, DecodedImage,
+    PendingArtwork, RequestId, RgbaImage, SourceResolver,
 };
 
 pub(crate) const WORKERS: usize = 4;
@@ -26,7 +26,6 @@ struct Shared {
     cache: FilesystemCache,
     fetch: FetchContext,
     cache_commit: Mutex<()>,
-    cache_resolver: Mutex<Option<Arc<CacheResolver>>>,
     previews: Mutex<VecDeque<(String, String, Arc<crate::ArtworkPreview>)>>,
     state: Mutex<State>,
     wake: Condvar,
@@ -35,7 +34,6 @@ struct Shared {
 #[derive(Default)]
 struct State {
     next_request: u64,
-    cache_epoch: u64,
     source_epochs: HashMap<SourceId, u64>,
     foreground: VecDeque<ArtworkKey>,
     background: VecDeque<ArtworkKey>,
@@ -98,42 +96,6 @@ impl Pipeline {
         &self.shared.cache
     }
 
-    pub(crate) fn import_missing_cache_file(
-        &self,
-        key: &str,
-        path: &Path,
-    ) -> Result<bool, ArtworkError> {
-        let _commit = lock_cache_commit(&self.shared);
-        Ok(self.shared.cache.import_missing(key, path)?)
-    }
-
-    pub(crate) fn install_cache_resolver(&self, resolver: Arc<CacheResolver>) {
-        *self
-            .shared
-            .cache_resolver
-            .lock()
-            .unwrap_or_else(|p| p.into_inner()) = Some(resolver);
-    }
-
-    pub(crate) fn invalidate_decoded_cache(&self) {
-        let commit = lock_cache_commit(&self.shared);
-        let mut state = lock_state(&self.shared);
-        state.cache_epoch = state.cache_epoch.wrapping_add(1);
-        state.decoded_index.entries.clear();
-        state.foreground.clear();
-        state.background.clear();
-        let jobs = std::mem::take(&mut state.jobs);
-        drop(state);
-        drop(commit);
-        for completion in jobs
-            .into_values()
-            .flat_map(|job| job.subscribers.into_values())
-        {
-            let _ = completion.completion.send(Resolution::Invalidated);
-        }
-        self.shared.wake.notify_all();
-    }
-
     pub(crate) fn remove_cache_entries(
         &self,
         entries: &[crate::ArtworkCacheEntry],
@@ -148,10 +110,6 @@ impl Pipeline {
         self.shared.cache.clear_missing()?;
         lock_state(&self.shared).decoded_index.entries.clear();
         Ok(())
-    }
-
-    pub(crate) fn cache_revision(&self) -> u64 {
-        lock_state(&self.shared).cache_epoch
     }
 
     pub(crate) fn install_database(&self, database: Arc<library::Database>) {
@@ -169,7 +127,6 @@ impl Pipeline {
             cache,
             fetch,
             cache_commit: Mutex::new(()),
-            cache_resolver: Mutex::new(None),
             previews: Mutex::new(VecDeque::new()),
             state: Mutex::new(State {
                 next_request: 1,
@@ -489,7 +446,6 @@ fn source_epoch(state: &State, binding: &ArtworkBinding) -> u64 {
         .and_then(|source_id| state.source_epochs.get(source_id))
         .copied()
         .unwrap_or_default()
-        .wrapping_add(state.cache_epoch)
 }
 
 fn run_worker(shared: Arc<Shared>, foreground_reserved: bool) {
@@ -578,36 +534,6 @@ fn resolve_candidate(shared: &Shared, work: &Work, candidate: &Candidate) -> Res
     result
 }
 
-fn resolve_peer_cache(
-    shared: &Shared,
-    work: &Work,
-    candidate: &Candidate,
-) -> Option<(crate::cache::CacheEntry, bool)> {
-    if work.request.cache_only {
-        return None;
-    }
-    let resolver = shared
-        .cache_resolver
-        .lock()
-        .unwrap_or_else(|p| p.into_inner())
-        .clone()?;
-    let request = crate::CacheImageRequest {
-        family: candidate.key.clone(),
-        size: work.request.fetch_size,
-    };
-    let (key, file) = shared.runtime.block_on(resolver(request))?;
-    let _commit = lock_cache_commit(shared);
-    if !work_is_current(&lock_state(shared), work) {
-        return None;
-    }
-    shared.cache.import_missing(&key, &file).ok()?;
-    let path = shared.cache.file(&key).ok()??;
-    Some((
-        crate::cache::CacheEntry { path },
-        key.starts_with("originals/"),
-    ))
-}
-
 fn resolve_request(
     shared: &Shared,
     work: &Work,
@@ -623,15 +549,8 @@ fn resolve_request(
         }
     }
     let missing = shared.cache.is_missing(candidate);
-    let entry = shared.cache.ready_entry(candidate).map(|entry| (entry, true)).or_else(|| {
-        if missing || matches!(&candidate.image, library::ArtworkImage::Local { path, .. }
-            if Path::new(path).is_absolute() || path.starts_with("content:") || path.starts_with("slopsonic-document:"))
-        { None } else { resolve_peer_cache(shared, work, candidate) }
-    });
-    if let Some((entry, original)) = entry {
-        let result = if !original {
-            read_display(shared, work, candidate, &entry.path)
-        } else if !work.decode && request.fetch_size == ImageSize::Original {
+    if let Some(entry) = shared.cache.ready_entry(candidate) {
+        let result = if !work.decode && request.fetch_size == ImageSize::Original {
             return Ok(Resolution::Ready {
                 path: entry.path,
                 image: None,
@@ -1083,7 +1002,6 @@ mod tests {
             cache,
             fetch: FetchContext::new(Arc::new(Mutex::new(None))),
             cache_commit: Mutex::new(()),
-            cache_resolver: Mutex::new(None),
             previews: Mutex::new(VecDeque::new()),
             state: Mutex::new(state),
             wake: Condvar::new(),

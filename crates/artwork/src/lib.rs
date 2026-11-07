@@ -7,7 +7,6 @@ use std::path::{Path, PathBuf};
 #[cfg(test)]
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
-use std::{future::Future, pin::Pin};
 
 use md5_digest::{Digest, Md5};
 use sources::{ImageSize, Source, SourceId};
@@ -24,55 +23,10 @@ mod selection;
 
 pub use animation::{Animation, AnimationFrame};
 pub use cache::{ArtworkCacheEntries, ArtworkCacheEntry};
-pub use decode::{
-    DecodedImage, RgbaImage, collage_png, decode_cover, decode_rgba, image_mime,
-    square_thumbnail_png,
-};
+pub use decode::{DecodedImage, RgbaImage, collage_png, decode_rgba, image_mime};
 pub use selection::ArtworkBinding;
 
 pub(crate) type SourceResolver = dyn Fn(&SourceId) -> Option<Arc<Source>> + Send + Sync;
-pub(crate) type CacheResolver = dyn Fn(
-        CacheImageRequest,
-    ) -> Pin<Box<dyn Future<Output = Option<(String, tempfile::TempPath)>> + Send>>
-    + Send
-    + Sync;
-
-#[derive(Clone, Debug)]
-pub struct CacheImageRequest {
-    pub family: String,
-    pub size: ImageSize,
-}
-
-impl CacheImageRequest {
-    pub fn select_key<'a>(&self, keys: impl IntoIterator<Item = &'a str>) -> Option<&'a str> {
-        keys.into_iter()
-            .filter_map(|key| {
-                if !cache::valid_cache_key(key) {
-                    return None;
-                }
-                let (state, rest) = key.split_once('/')?;
-                let (family, name) = rest.rsplit_once('/')?;
-                if family != self.family {
-                    return None;
-                }
-                let rank = if state == "originals" {
-                    (1, 0)
-                } else if let ImageSize::Thumbnail(requested) = self.size {
-                    let size = name.strip_suffix(".image")?.parse::<u32>().ok()?;
-                    if size < requested {
-                        return None;
-                    }
-                    (0, size)
-                } else {
-                    return None;
-                };
-                Some((rank, key))
-            })
-            .min_by_key(|(rank, _)| *rank)
-            .map(|(_, key)| key)
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ArtworkRequest {
     pub binding: ArtworkBinding,
@@ -324,38 +278,8 @@ impl Artwork {
             .map_err(|error| std::io::Error::other(error.to_string()))?
     }
 
-    /// Keys are relative to the existing v1 cache layout, never filesystem paths.
-    pub fn cache_file(&self, key: &str) -> Result<Option<PathBuf>, ArtworkError> {
-        Ok(self.pipeline.cache().file(key)?)
-    }
-
-    pub fn cached_family_file(
-        &self,
-        request: &CacheImageRequest,
-    ) -> Result<Option<ArtworkCacheEntry>, ArtworkError> {
-        Ok(self.pipeline.cache().family_file(request)?)
-    }
-
-    /// Import existing bytes without fetching, decoding or announcing another local write.
-    pub fn import_missing_cache_file(&self, key: &str, path: &Path) -> Result<bool, ArtworkError> {
-        self.pipeline.import_missing_cache_file(key, path)
-    }
-
-    /// Refresh live images and jobs after a changed import batch, preserving files on disk.
-    pub fn invalidate_decoded_cache(&self) {
-        self.pipeline.invalidate_decoded_cache();
-    }
-
-    pub fn cache_revision(&self) -> u64 {
-        self.pipeline.cache_revision()
-    }
-
-    pub async fn install_database(
-        &self,
-        database: Arc<library::Database>,
-    ) -> Result<(), ArtworkError> {
-        self.pipeline.install_database(Arc::clone(&database));
-        Ok(())
+    pub fn install_database(&self, database: Arc<library::Database>) {
+        self.pipeline.install_database(database);
     }
     pub fn new(cache_root: impl AsRef<Path>, runtime: Handle) -> Result<Self, ArtworkError> {
         let cache_root = cache::current_layout(cache_root.as_ref())?;
@@ -375,16 +299,6 @@ impl Artwork {
             .source_resolver
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(Arc::new(resolver));
-    }
-
-    pub fn install_cache_resolver<F>(
-        &self,
-        resolver: impl Fn(CacheImageRequest) -> F + Send + Sync + 'static,
-    ) where
-        F: Future<Output = Option<(String, tempfile::TempPath)>> + Send + 'static,
-    {
-        self.pipeline
-            .install_cache_resolver(Arc::new(move |keys| Box::pin(resolver(keys))));
     }
 
     pub fn key(&self, request: &ArtworkRequest) -> ArtworkKey {
@@ -544,10 +458,7 @@ mod tests {
         let database = library::Database::open(directory.path().join("library.sqlite3"))
             .await
             .unwrap();
-        artwork
-            .install_database(Arc::new(database.clone()))
-            .await
-            .unwrap();
+        artwork.install_database(Arc::new(database.clone()));
         let encoded = sources::native_artwork_binding(
             "source",
             &sources::NativeImageRef::new("cover", Some("revision".into())),
@@ -723,10 +634,7 @@ mod tests {
         artwork.clear_cache(&database, &[]).await.unwrap();
         assert!(!original.exists());
         let reopened = Artwork::new(&root, Handle::current()).unwrap();
-        reopened
-            .install_database(Arc::new(database.clone()))
-            .await
-            .unwrap();
+        reopened.install_database(Arc::new(database.clone()));
         let restored = database
             .artwork_bindings(
                 &[library::source_entity_uri(
@@ -780,30 +688,6 @@ mod tests {
         };
         assert!(matches!(pending.finish().await, ArtworkOutcome::Failed(_)));
         assert_eq!(resolutions.load(Ordering::Relaxed), 1);
-        let mut png = std::io::Cursor::new(Vec::new());
-        image::DynamicImage::new_rgb8(8, 8)
-            .write_to(&mut png, image::ImageFormat::Png)
-            .unwrap();
-        artwork.install_cache_resolver(move |request| {
-            let bytes = png.get_ref().clone();
-            async move {
-                let file = tempfile::NamedTempFile::new().unwrap();
-                std::fs::write(file.path(), bytes).unwrap();
-                Some((
-                    format!("originals/{}/original.png", request.family),
-                    file.into_temp_path(),
-                ))
-            }
-        });
-        let ArtworkLoad::Pending(pending) =
-            artwork.load(ArtworkRequest::new(request.binding, 1024))
-        else {
-            panic!("uncached original must request artwork");
-        };
-        assert!(
-            matches!(pending.finish().await, ArtworkOutcome::Ready(_)),
-            "offline artwork uses the available peer original"
-        );
     }
 
     #[tokio::test(flavor = "multi_thread")]

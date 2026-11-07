@@ -115,9 +115,7 @@ where
             events: source_events.clone(),
         },
     );
-    if let Err(error) = artwork.install_database(Arc::clone(&library)).await {
-        warn!(%error, "could not import cached artwork previews");
-    }
+    artwork.install_database(Arc::clone(&library));
     if !stored.ui.recent_search_results.is_empty() {
         let uris = stored
             .ui
