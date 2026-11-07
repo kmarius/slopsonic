@@ -72,7 +72,7 @@ impl Database {
         media_uri: &str,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Option<(Option<bool>, Option<u8>)>> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let result = sqlx::query_as::<_, (Option<bool>, Option<i64>)>(
             "SELECT favorite,rating/10 FROM user_media_state WHERE media_uri=?1",
         )
@@ -215,7 +215,7 @@ impl Database {
         limit: usize,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<(String, bool)>> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         Ok(sqlx::query_as(
             "SELECT media_uri,favorite FROM favorite_outbox WHERE next_attempt_at<=?1
              ORDER BY next_attempt_at,outbox_key LIMIT ?2",

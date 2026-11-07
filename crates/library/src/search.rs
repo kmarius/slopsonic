@@ -76,7 +76,7 @@ impl Database {
                 "Search identity page exceeds 100 rows".into(),
             ));
         }
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let mut transaction = connection.begin().await?;
         let request = |kind: crate::CatalogKind,
                        objects: &[String]|
@@ -133,7 +133,7 @@ impl Database {
             .filter(|term| !term.is_empty())
             .collect::<Vec<_>>();
         let terms = crate::query::quote(&serde_json::to_string(&terms)?);
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let mut transaction = connection.begin().await?;
         let mut tracks = MemberRead::new(Collection::Source(source));
         tracks.folder = folder;

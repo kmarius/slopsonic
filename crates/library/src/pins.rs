@@ -100,7 +100,7 @@ impl Database {
                 CROSS JOIN {table} item ON item.object_id=requested.object_id {scope} {totals}
                 WHERE requested.kind='{kind}' AND item.{name} IS NOT NULL"));
         }
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let rows = sqlx::query_as::<_, Row>(AssertSqlSafe(format!(
             "{REQUESTED} SELECT * FROM ({}) ORDER BY ordinal",
             parts.join(" UNION ALL ")

@@ -174,7 +174,7 @@ impl Database {
             encoded.push_str(&serde_json::to_string(name)?);
         }
         encoded.push(']');
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let sql = crate::scroll_sections::section_sql(
             "SELECT item.value section_text,CAST(item.key AS INTEGER) section_position FROM json_each(?1) item",
         );
@@ -193,7 +193,7 @@ impl Database {
         descending: bool,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<crate::ScrollSection>> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let direction = if descending { "DESC" } else { "ASC" };
         let sql = crate::scroll_sections::section_sql(&format!(
             "SELECT sort_text section_text,row_number() OVER(ORDER BY sort_text {direction},folder_key)-1 section_position FROM ({FILTERED_FOLDER_CHILDREN_SQL})"
@@ -215,7 +215,7 @@ impl Database {
         folder: Option<FolderKey>,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<GenreChoice>> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         Ok(sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "SELECT genre.genre_key,genre.object_id,genre.name FROM {} WHERE {} ORDER BY genre.sort_text,genre.genre_key",
             collection_from("genre",false,folder), named_scope("genre",source,folder,"")
@@ -230,7 +230,7 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<String>> {
         let album_limit = album_limit.clamp(1, 100) as i64;
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         Ok(sqlx::query_scalar::<_, String>(
             concat!("WITH latest AS (
                SELECT album.album_key FROM albums album
@@ -278,7 +278,7 @@ impl Database {
         limit: usize,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<FolderView>> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         load_folder_requested(
             &mut connection,
             folder_request(source, parent, "", false, offset, limit)?,
@@ -296,7 +296,7 @@ impl Database {
         limit: usize,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<(usize, Vec<FolderView>)> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let children = FILTERED_FOLDER_CHILDREN_SQL;
         let count: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT count(*) FROM ({children})"
@@ -967,7 +967,7 @@ impl crate::ListRead {
         database: &Database,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<std::sync::Arc<AlbumDetailIndex>> {
-        let (_permit, mut connection) = database.acquire_general(cancellation).await?;
+        let mut connection = database.acquire_general(cancellation).await?;
         let relation = collection_query(self);
         let count = album_summary_field("track_count", self.folder);
         let facts=sqlx::query_as_with::<_,(AlbumKey,i64,bool),_>(sqlx::AssertSqlSafe(relation.select(&format!("album.album_key,{count},EXISTS(SELECT 1 FROM album_genres WHERE album_key=album.album_key)"))),relation.arguments).fetch_all(&mut *connection).await?;
@@ -1041,7 +1041,7 @@ impl AlbumDetailIndex {
             .take_while(|album| album.first < end)
             .map(|album| (album.key, album.count as i64, album.first as i64))
             .collect();
-        let (_permit, mut connection) = database.acquire_general(cancellation).await?;
+        let mut connection = database.acquire_general(cancellation).await?;
         let mut transaction = connection.begin().await?;
         let rows =
             load_album_detail_spans(&mut transaction, &self.read, offset, limit.min(256), spans)

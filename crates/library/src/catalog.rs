@@ -167,7 +167,7 @@ impl Database {
         freshness: &Freshness,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<bool> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM sources WHERE object_id=?1 AND catalog_complete AND freshness=?2)")
             .bind(source_id).bind(freshness.as_bytes()).fetch_one(&mut *connection).await?)
     }
@@ -197,7 +197,7 @@ impl Database {
         source: SourceKey,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<(usize, usize)> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let(album,track)=sqlx::query_as::<_,(i64,i64)>("SELECT (SELECT count(*) FROM albums album WHERE source_key=?1 AND (album.indexed=1 OR EXISTS(SELECT 1 FROM tracks admitted WHERE admitted.album_key=album.album_key AND admitted.indexed=1))),(SELECT count(*) FROM tracks WHERE source_key=?1 AND indexed=1)").bind(source).fetch_one(&mut *connection).await?;
         Ok((
             usize::try_from(album).unwrap_or_default(),

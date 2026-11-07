@@ -130,7 +130,7 @@ impl Database {
         blocks: &[HomeBlockKind],
         cancellation: &ReadCancellation,
     ) -> LibraryResult<HomePage> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let mut transaction = connection.begin().await?;
 
         let showcase = if blocks.contains(&HomeBlockKind::Showcase) {

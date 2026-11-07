@@ -11,14 +11,13 @@ use std::time::Duration;
 use sqlx::pool::PoolConnection;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteConnection, SqlitePool, SqlitePoolOptions};
 use sqlx::{Connection, Sqlite};
-use tokio::sync::{Mutex, Notify, OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{Mutex, Notify};
 
 use crate::{LibraryError, LibraryResult, schema};
 
 const PAGE_SIZE_BYTES: u32 = 4 * 1024;
 const WRITER_STATEMENTS: usize = 64;
 const READER_STATEMENTS: usize = 32;
-const COMMAND_BUFFER: usize = 1;
 const ROW_BUFFER: usize = 32;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 const ACQUIRE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -27,7 +26,7 @@ const PROGRESS_INTERVAL: i32 = 1_000;
 const MIN_READERS: u32 = 1;
 const MAX_READERS: u32 = 2;
 
-/// Request-local cooperative cancellation for one non-Playback read.
+/// Request-local cooperative cancellation for one read.
 #[derive(Debug, Default)]
 struct CancellationInner {
     cancelled: AtomicBool,
@@ -75,10 +74,38 @@ struct DatabaseInner {
     readers: SqlitePool,
     export_readers: SqlitePool,
     export_read: tokio::sync::Mutex<()>,
-    general_read: Arc<Semaphore>,
+    /// Playback's own reader, so a track change never waits behind general reads.
+    playable_readers: SqlitePool,
     distinct_track_covers: AtomicBool,
     catalog_observer: std::sync::Mutex<Option<Arc<CatalogObserver>>>,
     cache_writes: tokio::sync::watch::Sender<()>,
+}
+
+/// A pooled reader with its read's progress handler. The handler stays on the connection after
+/// release and turns inert when this drops, before the connection goes back to the pool.
+pub(crate) struct Reader {
+    live: Arc<AtomicBool>,
+    connection: PoolConnection<Sqlite>,
+}
+
+impl Drop for Reader {
+    fn drop(&mut self) {
+        self.live.store(false, Ordering::Release);
+    }
+}
+
+impl std::ops::Deref for Reader {
+    type Target = SqliteConnection;
+
+    fn deref(&self) -> &SqliteConnection {
+        &self.connection
+    }
+}
+
+impl std::ops::DerefMut for Reader {
+    fn deref_mut(&mut self) -> &mut SqliteConnection {
+        &mut self.connection
+    }
 }
 
 /// Final ownership of one fixed writer and the bounded read-only pool.
@@ -130,25 +157,27 @@ impl Database {
 
     pub async fn set_distinct_track_covers(&self, enabled: bool) -> LibraryResult<()> {
         let mut writer = self.writer().await?;
-        let changed:Vec<(crate::SourceKey,String)>=sqlx::query_as("UPDATE sources SET distinct_track_covers=?1 WHERE distinct_track_covers<>?1 RETURNING source_key,object_id").bind(enabled).fetch_all(writer.as_mut().ok_or(LibraryError::WriterUnavailable)?).await?;
-        self.inner
-            .distinct_track_covers
-            .store(enabled, Ordering::Release);
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
+        let mut transaction = connection.begin().await?;
+        let changed:Vec<(crate::SourceKey,String)>=sqlx::query_as("UPDATE sources SET distinct_track_covers=?1 WHERE distinct_track_covers<>?1 RETURNING source_key,object_id").bind(enabled).fetch_all(&mut *transaction).await?;
         for (source, _) in &changed {
             let mut after = 0;
             loop {
                 let keys: Vec<i64> = sqlx::query_scalar("SELECT track_key FROM tracks WHERE source_key=?1 AND track_key>?2 ORDER BY track_key LIMIT 128")
-                    .bind(source).bind(after).fetch_all(&mut *connection).await?;
+                    .bind(source).bind(after).fetch_all(&mut *transaction).await?;
                 let Some(last) = keys.last() else { break };
                 after = *last;
-                if crate::catalog::artwork::refresh_track_choices(connection, &keys, &[], &[])
+                if crate::catalog::artwork::refresh_track_choices(&mut transaction, &keys, &[], &[])
                     .await?
                 {
-                    crate::artwork::refresh_mosaics(connection, &keys, &[], &[]).await?;
+                    crate::artwork::refresh_mosaics(&mut transaction, &keys, &[], &[]).await?;
                 }
             }
         }
+        transaction.commit().await?;
+        self.inner
+            .distinct_track_covers
+            .store(enabled, Ordering::Release);
         drop(writer);
         for (_source, id) in changed {
             let mut update = crate::CatalogUpdate::default();
@@ -168,6 +197,7 @@ impl Database {
     pub async fn close(self) -> LibraryResult<()> {
         tokio::join!(
             self.inner.export_readers.close(),
+            self.inner.playable_readers.close(),
             self.inner.readers.close()
         );
         if let Some(writer) = self.inner.writer.lock().await.take() {
@@ -192,6 +222,7 @@ impl Database {
         }
         let readers = open_readers(path, MIN_READERS, MAX_READERS, ROW_BUFFER).await?;
         let export_readers = open_readers(path, 0, 1, 1).await?;
+        let playable_readers = open_readers(path, 0, 1, ROW_BUFFER).await?;
         Ok(Self {
             inner: Arc::new(DatabaseInner {
                 path: path.to_owned(),
@@ -199,7 +230,7 @@ impl Database {
                 readers,
                 export_readers,
                 export_read: tokio::sync::Mutex::new(()),
-                general_read: Arc::new(Semaphore::new(1)),
+                playable_readers,
                 distinct_track_covers: AtomicBool::new(false),
                 catalog_observer: std::sync::Mutex::new(None),
                 cache_writes: tokio::sync::watch::channel(()).0,
@@ -284,34 +315,34 @@ impl Database {
         Ok(writer)
     }
 
+    /// A pooled reader whose statements stop once `cancellation` fires.
     pub(crate) async fn acquire_general(
         &self,
         cancellation: &ReadCancellation,
-    ) -> LibraryResult<(OwnedSemaphorePermit, PoolConnection<Sqlite>)> {
-        let permit = tokio::select! {
-            permit = Arc::clone(&self.inner.general_read).acquire_owned() => {
-                permit.expect("Database retains the general-read semaphore")
-            }
-            () = cancellation.cancelled() => return Err(LibraryError::ReadCancelled),
-        };
-        if cancellation.is_cancelled() {
-            return Err(LibraryError::ReadCancelled);
-        }
+    ) -> LibraryResult<Reader> {
         let mut connection = tokio::select! {
             connection = self.inner.readers.acquire() => connection?,
             () = cancellation.cancelled() => return Err(LibraryError::ReadCancelled),
         };
-        let cancellation = cancellation.clone();
+        let live = Arc::new(AtomicBool::new(true));
+        let (read, cancellation) = (Arc::clone(&live), cancellation.clone());
         connection
             .lock_handle()
             .await?
-            .set_progress_handler(PROGRESS_INTERVAL, move || !cancellation.is_cancelled());
-        Ok((permit, connection))
+            .set_progress_handler(PROGRESS_INTERVAL, move || {
+                !(read.load(Ordering::Acquire) && cancellation.is_cancelled())
+            });
+        Ok(Reader { live, connection })
     }
 
-    // Point reads bypass the route-read permit.
+    /// A pooled reader for a read nothing cancels. A handler a cancellable read left on the
+    /// connection is inert, so this takes no handle lock.
     pub(crate) async fn acquire_reader(&self) -> LibraryResult<PoolConnection<Sqlite>> {
         Ok(self.inner.readers.acquire().await?)
+    }
+
+    pub(crate) async fn acquire_playable(&self) -> LibraryResult<PoolConnection<Sqlite>> {
+        Ok(self.inner.playable_readers.acquire().await?)
     }
 
     pub(crate) async fn acquire_export(
@@ -379,7 +410,6 @@ fn base_options(path: &Path) -> SqliteConnectOptions {
         .filename(path)
         .shared_cache(false)
         .busy_timeout(BUSY_TIMEOUT)
-        .command_buffer_size(COMMAND_BUFFER)
         .row_buffer_size(ROW_BUFFER)
 }
 
@@ -402,12 +432,6 @@ async fn open_readers(
                     .execute(connection)
                     .await?;
                 Ok(())
-            })
-        })
-        .after_release(|connection, _| {
-            Box::pin(async move {
-                connection.lock_handle().await?.remove_progress_handler();
-                Ok(true)
             })
         });
     if minimum == 0 {
@@ -473,7 +497,7 @@ mod tests {
         );
 
         let cancellation = ReadCancellation::new();
-        let (_permit, mut reader) = database
+        let mut reader = database
             .acquire_general(&cancellation)
             .await
             .expect("acquire general reader");
@@ -532,90 +556,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn playback_bypass_uses_second_slot_but_third_general_read_waits_fairly() {
-        let (_directory, database) = database().await;
-        let mut writer = database.writer().await.unwrap();
-        sqlx::raw_sql("INSERT INTO sources(object_id,kind) VALUES('source','local'); INSERT INTO tracks(source_key,object_id,media_uri) SELECT source_key,'track','file:///point.flac' FROM sources WHERE object_id='source'")
-            .execute(writer.as_mut().unwrap()).await.unwrap();
-        drop(writer);
-        let cancellation = ReadCancellation::new();
-        let (permit, general) = database
-            .acquire_general(&cancellation)
-            .await
-            .expect("acquire suspended general read");
-
-        let mut playback = database
-            .acquire_reader()
-            .await
-            .expect("acquire Playback bypass");
-        assert_eq!(
-            sqlx::query_scalar::<_, i64>("SELECT 1")
-                .fetch_one(&mut *playback)
-                .await
-                .expect("run Playback point read"),
-            1
-        );
-        assert_eq!(database.reader_pool().size(), MAX_READERS);
-
-        let waiting_database = database.clone();
-        let waiting = tokio::spawn(async move {
-            waiting_database
-                .acquire_general(&ReadCancellation::new())
-                .await
-        });
-        sleep(Duration::from_millis(50)).await;
-        assert!(
-            !waiting.is_finished(),
-            "a third general read bypassed the permit"
-        );
-        drop(playback);
-        assert_eq!(
-            timeout(
-                Duration::from_secs(1),
-                database.playback_loudness("file:///not-present", &cancellation)
-            )
-            .await
-            .expect("cached gain bypasses the browsing permit")
-            .expect("cached gain read"),
-            (None, None)
-        );
-        sleep(Duration::from_millis(50)).await;
-        assert!(
-            !waiting.is_finished(),
-            "a free pool slot bypassed the permit"
-        );
-
-        let listen: crate::ListenWrite = serde_json::from_value(serde_json::json!({
-            "external_id":"direct", "media_uri":"file:///point.flac",
-            "title":"Direct", "artist":"", "album":"", "duration_millis":1000,
-            "started_at":1_700_000_000,"local_period":"2023-11","listened_millis":1000,"skipped":false
-        })).unwrap();
-        timeout(
-            Duration::from_secs(1),
-            database.record_listen(&listen, Some(crate::TrackKey::from_raw(1)), &[]),
-        )
-        .await
-        .expect("accepted listen does not wait on the browsing permit")
-        .unwrap();
-
-        drop(general);
-        drop(permit);
-        let (_permit, _admitted) = timeout(Duration::from_secs(1), waiting)
-            .await
-            .expect("third general read admitted after permit release")
-            .expect("general read task joined")
-            .expect("general read acquired");
-    }
-
-    #[tokio::test]
-    async fn cancelled_general_read_returns_a_clean_usable_connection() {
+    async fn cancelled_read_returns_a_usable_connection() {
         let (_directory, database) = database().await;
         let cancellation = ReadCancellation::new();
         let task_database = database.clone();
         let task_cancellation = cancellation.clone();
         let read = tokio::spawn(async move {
-            let (_permit, mut connection) =
-                task_database.acquire_general(&task_cancellation).await?;
+            let mut connection = task_database.acquire_general(&task_cancellation).await?;
             sqlx::query_scalar::<_, i64>(
                 "WITH RECURSIVE count(value) AS (
                      VALUES(0) UNION ALL SELECT value + 1 FROM count
@@ -634,16 +581,20 @@ mod tests {
             .expect_err("progress handler interrupted the read");
         assert!(error.to_string().contains("interrupted"), "{error}");
 
-        let (_permit, mut connection) = database
-            .acquire_general(&ReadCancellation::new())
+        let mut connection = database
+            .acquire_reader()
             .await
-            .expect("reacquire cleaned reader");
+            .expect("reacquire the reader");
         assert_eq!(
-            sqlx::query_scalar::<_, i64>("SELECT 7")
-                .fetch_one(&mut *connection)
-                .await
-                .expect("reader remains usable"),
-            7
+            sqlx::query_scalar::<_, i64>(
+                "WITH RECURSIVE count(value) AS (
+                     VALUES(0) UNION ALL SELECT value + 1 FROM count WHERE value < 99999
+                 ) SELECT count(*) FROM count",
+            )
+            .fetch_one(&mut *connection)
+            .await
+            .expect("reader remains usable"),
+            100_000
         );
     }
 
@@ -651,7 +602,7 @@ mod tests {
     async fn dynamic_reader_skips_journal_mode_and_is_idle_reapable() {
         let (directory, database) = database().await;
         let cancellation = ReadCancellation::new();
-        let (_permit, general) = database
+        let general = database
             .acquire_general(&cancellation)
             .await
             .expect("hold steady reader");

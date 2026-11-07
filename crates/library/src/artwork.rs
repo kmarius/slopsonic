@@ -628,7 +628,7 @@ impl Database {
                 "artwork URI window exceeds 128".into(),
             ));
         }
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         Ok(sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT {} FROM json_each(?1) requested
              LEFT JOIN tracks track ON track.media_uri=requested.value
@@ -798,7 +798,7 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<Vec<u8>>> {
         let limit = limit.clamp(1, ARTWORK_PAGE_LIMIT) as i64;
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let mut query =
             QueryBuilder::<Sqlite>::new(format!("SELECT {} FROM (", preview_sql("binding")));
         query.push(format!(
@@ -834,7 +834,7 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<Vec<u8>>> {
         let limit = limit.clamp(1, ARTWORK_PAGE_LIMIT) as i64;
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let mut transaction = connection.begin().await?;
         let mut query = QueryBuilder::<Sqlite>::new("");
         for (index, table) in [

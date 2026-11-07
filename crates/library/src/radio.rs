@@ -56,7 +56,7 @@ impl Database {
         seed: &RadioSeed,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Option<(SourceKey, crate::SourceId, Option<String>)>> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let mut query = QueryBuilder::<Sqlite>::new(
             "SELECT sources.source_key,sources.object_id,seed.object_id FROM (",
         );
@@ -106,7 +106,7 @@ impl Database {
             return Ok(Vec::new());
         }
         require_radio_bounds(0, object_ids.len())?;
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let mut query = QueryBuilder::<Sqlite>::new("WITH requested(object_id,position) AS (");
         query.push_values(object_ids.iter().enumerate(), |mut row, (position, id)| {
             row.push_bind(id).push_bind(position as i64);
@@ -148,7 +148,7 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<TrackKey>> {
         require_radio_bounds(extra_excluded.len(), requested)?;
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let (seed_kind, seed_raw) = if let RadioSeed::Playlist(playlist) = seed {
             let first = sqlx::query_scalar::<_, TrackKey>("SELECT track.track_key FROM playlist_entries entry JOIN tracks track ON track.track_key=entry.track_key AND track.source_key=?1 WHERE entry.playlist_key=?2 ORDER BY entry.position LIMIT 1")
                 .bind(source).bind(playlist).fetch_optional(&mut *connection).await?;
@@ -314,7 +314,7 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<TrackKey>> {
         require_radio_bounds(extra_excluded.len(), requested)?;
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let max_key = sqlx::query_scalar::<_, i64>(
             "SELECT COALESCE(max(track_key),0) FROM tracks WHERE indexed=1 AND source_key=?1",
         )

@@ -119,7 +119,7 @@ impl Database {
         playlist: PlaylistKey,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Option<PlaylistAccess>> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         Ok(sqlx::query_as("SELECT playlist.source_key,source.object_id source_id,playlist.object_id,
             playlist.owner='source' source_owned,playlist.writable,playlist.metadata_writable
             FROM playlists playlist LEFT JOIN sources source USING(source_key) WHERE playlist_key=?1")
@@ -132,7 +132,7 @@ impl Database {
         object_id: &str,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Option<PlaylistKey>> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         Ok(sqlx::query_scalar(
             "SELECT playlist_key FROM playlists WHERE source_key=?1 AND object_id=?2",
         )
@@ -148,7 +148,7 @@ impl Database {
         object_id: &str,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Option<PlaylistKey>> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         Ok(sqlx::query_scalar(
             "SELECT playlist_key FROM playlists
              WHERE source_key IS (SELECT source_key FROM sources WHERE object_id=?1)
@@ -166,7 +166,7 @@ impl Database {
         folder: Option<FolderKey>,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<String>> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         Ok(sqlx::query_scalar::<_, String>(
             "SELECT track.media_uri FROM tracks track
              WHERE track.source_key=?1
@@ -185,7 +185,7 @@ impl Database {
         source: Option<SourceKey>,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<PlaylistRow>> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let mut transaction = connection.begin().await?;
         let query = playlist_list_query(source, None, CatalogSort::Position, false, "");
         let order: Vec<PlaylistKey> = sqlx::query_scalar_with(
@@ -216,7 +216,7 @@ impl Database {
         selection: &MemberSelection,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<PlaylistEditEntry>> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let mut transaction = connection.begin().await?;
         let selected = crate::selection::selected_tracks_on(&mut transaction, selection).await?;
         let keys = selected
@@ -261,7 +261,7 @@ impl Database {
         source: SourceKey,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<String>> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         Ok(sqlx::query_scalar(
             "SELECT object_id FROM playlists WHERE source_key=?1 AND name IS NOT NULL AND (owner='slopsonic' OR indexed) ORDER BY sort_text,playlist_key",
         )

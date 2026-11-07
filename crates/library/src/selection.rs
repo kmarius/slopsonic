@@ -197,7 +197,7 @@ impl Database {
         ranges: &[Range<usize>],
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<Collection>> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let query = crate::query::list_query(read);
         let rows: Vec<(i64,)> =
             crate::query::selected_rows_on(&mut connection, &query, &query.key, Some(ranges), None)
@@ -213,7 +213,7 @@ impl Database {
         selection: &MemberSelection,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<TrackKey>> {
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let mut transaction = connection.begin().await?;
         let rows = selected_tracks_on(&mut transaction, selection).await?;
         transaction.commit().await?;
@@ -228,7 +228,7 @@ impl Database {
         if limit == Some(0) {
             return Ok(Vec::new());
         }
-        let (_permit, mut connection) = self.acquire_general(cancellation).await?;
+        let mut connection = self.acquire_general(cancellation).await?;
         let mut transaction = connection.begin().await?;
         let rows: Vec<(String,)> =
             selection_rows_on(&mut transaction, selection, "track.media_uri", limit).await?;

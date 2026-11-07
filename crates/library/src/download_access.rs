@@ -44,7 +44,7 @@ pub struct DownloadAccessWrite {
 
 impl Database {
     pub async fn downloaded_count(&self, source_id: Option<&str>) -> LibraryResult<usize> {
-        let (_permit, mut connection) = self.acquire_general(&ReadCancellation::new()).await?;
+        let mut connection = self.acquire_general(&ReadCancellation::new()).await?;
         let count = if let Some(source_id) = source_id {
             sqlx::query_scalar::<_, i64>(
                 "SELECT count(*) FROM main.download_locators
@@ -81,7 +81,7 @@ impl Database {
     }
 
     pub async fn playback_access(&self, media_uri: &str) -> LibraryResult<Option<String>> {
-        let mut connection = self.acquire_reader().await?;
+        let mut connection = self.acquire_playable().await?;
         Ok(sqlx::query_scalar(
             "SELECT access_uri FROM download_access_files WHERE media_uri=?1 ORDER BY download_access_file_key LIMIT 1",
         )

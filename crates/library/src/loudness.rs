@@ -33,7 +33,7 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<(Option<NativeGain>, Option<NativeGain>)> {
         let mut connection = tokio::select! {
-            connection = self.acquire_reader() => connection?,
+            connection = self.acquire_playable() => connection?,
             () = cancellation.cancelled() => return Err(LibraryError::ReadCancelled),
         };
         let rows = sqlx::query_as::<_, GainScalar>(sqlx::AssertSqlSafe(format!(
