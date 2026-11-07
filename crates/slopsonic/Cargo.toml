@@ -15,17 +15,12 @@ categories = ["multimedia::audio", "gui"]
 [features]
 development = ["app-identity/development"]
 
-[[bin]]
-name = "slopsonic"
-path = "src/main.rs"
-
 [dependencies]
 process-memory.workspace = true
 slopsonic-core.workspace = true
 app-identity.workspace = true
 playback.workspace = true
 playback-gstreamer.workspace = true
-tracing.workspace = true
 gtk-shell.workspace = true
 
 [lints]

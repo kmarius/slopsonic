@@ -4156,7 +4156,6 @@ dependencies = [
  "playback-gstreamer",
  "process-memory",
  "slopsonic-core",
- "tracing",
 ]
 
 [[package]]

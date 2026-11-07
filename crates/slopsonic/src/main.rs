@@ -1,6 +1,5 @@
 use slopsonic_core::{app, diagnostics, paths};
 use std::process::ExitCode;
-use tracing::info;
 
 fn main() -> ExitCode {
     process_memory::configure_allocator();
@@ -9,7 +8,6 @@ fn main() -> ExitCode {
     }
     let settings = app::startup_settings(&paths::roots());
     let (diagnostics, _stderr_guard) = diagnostics::Diagnostics::install(paths::state_dir());
-    info!("starting Slopsonic native shell");
 
     let initial_settings = settings.load().ui.clone();
     let bootstrap = move || async move {
