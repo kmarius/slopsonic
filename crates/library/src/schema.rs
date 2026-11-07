@@ -14,8 +14,6 @@ pub(crate) async fn pragma(
 }
 pub(crate) const STORE_SCHEMA: &str = r#"PRAGMA application_id = 1381320270;
 
-PRAGMA user_version = 64;
-
 CREATE TABLE IF NOT EXISTS queue_contexts (
     context_key INTEGER PRIMARY KEY,
     context TEXT NOT NULL UNIQUE
@@ -529,16 +527,37 @@ CREATE TABLE IF NOT EXISTS native_playlist_pending (
 ) STRICT;
 "#;
 
-pub(crate) const SCHEMA_VERSION: i64 = 64;
+const BASE_VERSION: i64 = 64;
 
-pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> LibraryResult<()> {
-    let version = pragma(connection, "user_version").await?;
-    if version != 0 && version != SCHEMA_VERSION {
+const MIGRATIONS: &[&str] = &[];
+
+pub(crate) const SCHEMA_VERSION: i64 = BASE_VERSION + MIGRATIONS.len() as i64;
+
+async fn migrate(
+    connection: &mut SqliteConnection,
+    version: i64,
+    migrations: &[&str],
+) -> LibraryResult<()> {
+    let start = version - BASE_VERSION;
+    if start < 0 || start > migrations.len() as i64 {
         return Err(crate::LibraryError::Migration(format!(
             "unsupported library schema {version}"
         )));
     }
+    for sql in &migrations[start as usize..] {
+        sqlx::raw_sql(sqlx::AssertSqlSafe(*sql))
+            .execute(&mut *connection)
+            .await?;
+    }
+    Ok(())
+}
+
+pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> LibraryResult<()> {
+    let version = pragma(connection, "user_version").await?;
     let mut transaction = connection.begin().await?;
+    if version != 0 {
+        migrate(&mut transaction, version, MIGRATIONS).await?;
+    }
     sqlx::raw_sql(STORE_SCHEMA)
         .execute(&mut *transaction)
         .await?;
@@ -548,6 +567,48 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
     if version == 0 {
         crate::catalog::index::initialize(&mut transaction).await?;
     }
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+        "PRAGMA user_version = {SCHEMA_VERSION}"
+    )))
+    .execute(&mut *transaction)
+    .await?;
     transaction.commit().await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+    use sqlx::Connection;
+
+    #[tokio::test]
+    async fn applies_pending_migrations_only() {
+        let mut connection = SqliteConnection::connect(":memory:").await.unwrap();
+        let migrations = ["CREATE TABLE a(x)", "CREATE TABLE b(x)"];
+        migrate(&mut connection, BASE_VERSION + 1, &migrations)
+            .await
+            .unwrap();
+        assert!(
+            sqlx::raw_sql("SELECT * FROM b")
+                .execute(&mut connection)
+                .await
+                .is_ok()
+        );
+        assert!(
+            sqlx::raw_sql("SELECT * FROM a")
+                .execute(&mut connection)
+                .await
+                .is_err()
+        );
+        assert!(
+            migrate(&mut connection, BASE_VERSION + 3, &migrations)
+                .await
+                .is_err()
+        );
+        assert!(
+            migrate(&mut connection, BASE_VERSION - 1, &migrations)
+                .await
+                .is_err()
+        );
+    }
 }
