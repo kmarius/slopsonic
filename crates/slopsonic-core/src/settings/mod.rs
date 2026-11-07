@@ -1,9 +1,7 @@
 mod player;
-mod preferences;
-pub type PreferenceIndex = usize;
 
 pub use app::{AppearancePreferences, ApplicationPreferences, PlayerDisplayPreferences};
-pub use player::{PlayerPreferenceOptions, PlayerPreferences, SettingsError};
+pub use player::SettingsError;
 pub mod app;
 pub mod context_menu;
 pub mod layout;
@@ -231,18 +229,6 @@ impl SettingsFile {
         stored.ui.application.download_artwork_automatically
     }
 
-    pub(crate) fn source_name(&self, source_id: &sources::SourceId) -> String {
-        self.value
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .sources
-            .configured
-            .iter()
-            .find(|source| &source.configuration.source_id == source_id)
-            .map(|source| source.configuration.name.clone())
-            .unwrap_or_default()
-    }
-
     /// Apply preferences immediately. The shared writer reports durable failures separately.
     pub(crate) fn edit<T>(
         &self,
@@ -419,10 +405,6 @@ impl SettingsOwner {
         self.file.flush()
     }
 
-    pub fn appearance_changes(&self) -> tokio::sync::watch::Receiver<AppearancePreferences> {
-        self.file.appearance.subscribe()
-    }
-
     pub fn load(&self) -> UiSettings {
         self.file
             .value
@@ -457,29 +439,6 @@ impl SettingsOwner {
         }
         self.file
             .update(|stored| Ok(stored.ui.remember_search_result(result)))
-    }
-
-    pub fn remove_search_result(
-        &self,
-        kind: app::RecentSearchKind,
-        media_uri: &str,
-    ) -> Result<bool, String> {
-        self.file.update(|stored| {
-            let previous = stored.ui.recent_search_results.len();
-            stored
-                .ui
-                .recent_search_results
-                .retain(|result| result.kind != kind || result.media_uri != media_uri);
-            Ok(previous != stored.ui.recent_search_results.len())
-        })
-    }
-
-    pub fn clear_search_results(&self) -> Result<bool, String> {
-        self.file.update(|stored| {
-            let changed = !stored.ui.recent_search_results.is_empty();
-            stored.ui.recent_search_results.clear();
-            Ok(changed)
-        })
     }
 
     pub fn reorder_pin(&self, moved: &SidebarPin, target: &SidebarPin) -> Result<bool, String> {
@@ -520,23 +479,6 @@ impl SettingsOwner {
 impl SettingsOwner {}
 
 impl SettingsOwner {
-    pub fn set_download_rule(
-        &self,
-        source_id: SourceId,
-        rule: DownloadRule,
-        enabled: bool,
-    ) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            let mut rules = ui.download_rules(&source_id);
-            rules.set(rule, enabled);
-            ui.set_download_rules(source_id, rules);
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-}
-
-impl SettingsOwner {
     pub fn set_download_quality(
         &self,
         source_id: SourceId,
@@ -550,15 +492,7 @@ impl SettingsOwner {
     }
 }
 
-impl SettingsOwner {
-    pub fn clear_download_rules(&self, source_id: SourceId) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            ui.set_download_rules(source_id, DownloadRules::default());
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-}
+impl SettingsOwner {}
 
 pub(crate) fn platform_secret_store(file: &SettingsFile) -> Arc<dyn SecretStore> {
     Arc::new(CachedSecretStore::new(Arc::new(
@@ -755,13 +689,6 @@ pub(crate) fn load_scrobbling_settings(
             current.scrobbling_runtime_settings()
         }
     }
-}
-
-pub(crate) fn startup_scrobbling_settings(
-    file: &SettingsFile,
-    secrets: &Arc<dyn SecretStore>,
-) -> ScrobblingSettings {
-    load_scrobbling_settings(file, secrets)
 }
 
 fn random_identity(prefix: &str) -> Result<String, String> {

@@ -143,20 +143,6 @@ impl SourceOwner {
         })
     }
 
-    pub fn remove_download_selection(
-        &self,
-        selection: library::MemberSelection,
-    ) -> Receiver<Result<(), String>> {
-        self.reply(move |owner, database| async move {
-            let uris = database
-                .selected_track_uris(&selection, None, &library::ReadCancellation::new())
-                .await
-                .map_err(|error| error.to_string())?;
-            owner.remove_download_media(uris);
-            Ok(())
-        })
-    }
-
     pub fn remove_download_media(&self, media_uris: Vec<String>) {
         self.shared.downloads.remove(media_uris, true);
     }

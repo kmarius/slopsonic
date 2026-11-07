@@ -35,21 +35,6 @@ pub fn prepare_artwork(
     })
 }
 
-/// Read the original artwork for editing.
-pub fn current_artwork(
-    owner: &SourceOwner,
-    binding: Vec<u8>,
-) -> Receiver<Result<Option<Arc<sources::ImageBytes>>, String>> {
-    owner.reply(move |owner, _| async move {
-        let request =
-            artwork::ArtworkRequest::original(artwork::ArtworkBinding::opaque(&binding), 512);
-        let bytes = owner.shared.artwork.image_bytes(request).await?;
-        tokio::task::spawn_blocking(move || bytes.map(checked_artwork).transpose())
-            .await
-            .map_err(string_error)?
-    })
-}
-
 fn checked_artwork(bytes: Vec<u8>) -> Result<Arc<sources::ImageBytes>, String> {
     if bytes.len() > MAX_ARTWORK_BYTES {
         return Err("Artwork exceeds 32 MiB".into());

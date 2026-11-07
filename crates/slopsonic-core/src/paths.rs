@@ -87,10 +87,6 @@ impl Paths {
         self.cache_dir().join(ARTWORK_DIRECTORY)
     }
 
-    pub fn connect_dir(&self) -> PathBuf {
-        self.data_dir().join("connect")
-    }
-
     pub fn downloads_dir(&self) -> PathBuf {
         self.data_dir().join(DOWNLOADS_DIRECTORY)
     }

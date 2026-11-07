@@ -91,7 +91,7 @@ impl ScrobblingOwner {
             .unwrap_or_else(|p| p.into_inner());
         if reload || !*loaded {
             if let Err(error) = self.scrobbler.load_credentials(|| {
-                crate::settings::startup_scrobbling_settings(&self.settings, &self.secrets)
+                crate::settings::load_scrobbling_settings(&self.settings, &self.secrets)
             }) {
                 warn!(%error, "could not load saved scrobbling credentials");
             }

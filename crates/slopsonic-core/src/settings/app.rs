@@ -56,7 +56,7 @@ pub struct RandomPlayGenreSelection {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(default)]
 pub struct RandomPlaySettings {
-    pub limit: super::PreferenceIndex,
+    pub limit: usize,
     pub min_year: Option<u16>,
     pub max_year: Option<u16>,
     pub genre: Option<RandomPlayGenreSelection>,
@@ -256,10 +256,6 @@ impl Settings {
         true
     }
 
-    pub fn shows_external_site_links(&self) -> bool {
-        self.application.external_site_links.enabled
-    }
-
     pub fn sanitize(&mut self) {
         self.recent_search_results.truncate(20);
         self.playback.sanitize();
@@ -300,10 +296,6 @@ impl Settings {
         self.download_settings(source_id)
             .directory
             .and_then(|directory| directory.native().map(PathBuf::from))
-    }
-
-    pub fn download_location(&self, source_id: &SourceId) -> Option<downloads::DownloadDirectory> {
-        self.download_settings(source_id).directory
     }
 
     pub fn download_settings(&self, source_id: &SourceId) -> SourceDownloadSettings {

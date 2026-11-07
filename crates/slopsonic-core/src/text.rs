@@ -23,10 +23,6 @@ pub fn album_count_text(count: u64) -> String {
     count_text(count, "{count} album", "{count} albums")
 }
 
-pub fn result_count_text(count: u64) -> String {
-    count_text(count, "{count} result", "{count} results")
-}
-
 pub fn track_count_text(count: u64) -> String {
     count_text(count, "{count} track", "{count} tracks")
 }

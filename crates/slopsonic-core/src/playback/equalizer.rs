@@ -534,24 +534,6 @@ impl Drop for EqSubscription {
 }
 
 impl PlaybackOwner {
-    pub fn observe_local_output(&self, route: Option<String>) {
-        let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-        if state.observed_route == route {
-            return;
-        }
-        state.observed_route = route;
-        let output = local_id(state.observed_route.as_deref());
-        state.current_output = output.clone();
-        state.submit(&output, false);
-        state.publish(&self.settings);
-    }
-    pub fn equalizer_output(&self) -> String {
-        self.equalizer
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .current_output
-            .clone()
-    }
     pub fn equalizer_view(&self, output: String) -> EqView {
         self.equalizer
             .lock()
@@ -577,17 +559,6 @@ impl PlaybackOwner {
             first: AtomicBool::new(true),
             receiver: tokio::sync::Mutex::new(receiver),
         })
-    }
-    pub fn equalizer_response(&self, output: String, frequencies: Vec<f64>) -> Vec<f64> {
-        let view = self.equalizer_view(output);
-        if !view.enabled {
-            return vec![0.0; frequencies.len()];
-        }
-        audio_processing::effects::response_curve_db(
-            &view.profile,
-            view.sample_rate.unwrap_or(48_000),
-            &frequencies,
-        )
     }
     pub fn equalizer_presets(&self) -> Vec<EqPresetSummary> {
         let state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());

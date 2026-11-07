@@ -593,19 +593,6 @@ impl SourceOwner {
             .map_err(string_error)
     }
 
-    pub fn selected_source_summary(&self) -> Option<(SourceId, String)> {
-        let source_id = self
-            .shared
-            .selected
-            .lock()
-            .unwrap()
-            .as_ref()?
-            .source_id
-            .clone();
-        let name = self.shared.settings.source_name(&source_id);
-        Some((source_id, name))
-    }
-
     pub fn selected_library(&self) -> Option<SelectedLibrary> {
         self.shared.selected()
     }
@@ -1515,13 +1502,6 @@ impl SourceOwner {
             changes: tokio::sync::Mutex::new(changes),
         })
     }
-    pub fn subscribe_operation(&self) -> Arc<SourceOperationSubscription> {
-        let mut changes = self.operation();
-        changes.mark_changed();
-        Arc::new(SourceOperationSubscription {
-            changes: tokio::sync::Mutex::new(changes),
-        })
-    }
     pub async fn save_subsonic(
         &self,
         source_id: Option<SourceId>,
@@ -1594,15 +1574,7 @@ impl SourceOwner {
 pub struct SourceCatalogSubscription {
     changes: tokio::sync::Mutex<tokio::sync::watch::Receiver<CatalogRevision>>,
 }
-impl SourceOwner {
-    pub fn subscribe_catalog(&self) -> Arc<SourceCatalogSubscription> {
-        let mut changes = self.catalog_changes();
-        changes.mark_changed();
-        Arc::new(SourceCatalogSubscription {
-            changes: tokio::sync::Mutex::new(changes),
-        })
-    }
-}
+impl SourceOwner {}
 impl SourceCatalogSubscription {
     pub async fn next(&self) -> sources::SourceResult<CatalogRevision> {
         let mut changes = self.changes.lock().await;
