@@ -113,6 +113,7 @@ mod surface_imp {
         pub(super) target: Cell<Option<super::RoutePosition>>,
         pub(super) items: RefCell<Option<super::NativeListScroll>>,
         pub(super) allocated: RefCell<Option<Box<dyn Fn()>>>,
+        pub(super) deferred: Cell<bool>,
     }
 
     #[glib::object_subclass]
@@ -155,7 +156,7 @@ mod surface_imp {
             };
             child.allocate(width, height, baseline, None);
 
-            if width <= 1 || height <= 1 {
+            if width <= 1 || height <= 1 || self.deferred.get() {
                 return;
             }
             if let Some(adjustment) = self.adjustment.take() {
@@ -188,6 +189,25 @@ mod surface_imp {
                 self.obj().snapshot_child(&child, snapshot);
             }
         }
+    }
+}
+
+impl RouteSurface {
+    /// Hold the scroll restore until rows exist to restore into.
+    pub(super) fn defer_restore(&self) {
+        use gtk::subclass::prelude::ObjectSubclassIsExt;
+        self.imp().deferred.set(true);
+    }
+
+    pub(super) fn set_adjustment(&self, adjustment: Option<gtk::Adjustment>) {
+        use gtk::subclass::prelude::ObjectSubclassIsExt;
+        self.imp().adjustment.replace(adjustment);
+    }
+
+    pub(super) fn release_restore(&self) {
+        use gtk::{prelude::WidgetExt, subclass::prelude::ObjectSubclassIsExt};
+        self.imp().deferred.set(false);
+        self.queue_allocate();
     }
 }
 

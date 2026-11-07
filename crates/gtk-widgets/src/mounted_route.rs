@@ -55,6 +55,7 @@ pub type MountedRouteCommand = Rc<dyn Fn()>;
 pub type MountedRouteSearchProvider = Rc<dyn Fn() -> Option<MountedRouteSearchTarget>>;
 pub type MountedFavoriteSettlement = Rc<dyn Fn(slopsonic_core::runtime::FavoriteSettlement)>;
 pub type MountedHomePageApply = Rc<dyn Fn(library::HomePage)>;
+pub type MountedPendingApply = Rc<dyn Fn(slopsonic_core::browse::OpenedCollection)>;
 pub type MountedRouteItemNavigation = Rc<dyn Fn(gtk::DirectionType) -> glib::Propagation>;
 
 #[derive(Clone)]
@@ -385,6 +386,8 @@ pub struct MountedRoute {
     pub favorite_settlement: Option<MountedFavoriteSettlement>,
     pub download_change: Option<MountedDownloadChange>,
     pub home_page_apply: Option<MountedHomePageApply>,
+    /// Fills a page that was mounted before its first read finished.
+    pub pending_apply: Option<MountedPendingApply>,
 }
 
 impl MountedRoute {
@@ -402,6 +405,7 @@ impl MountedRoute {
             favorite_settlement: None,
             download_change: None,
             home_page_apply: None,
+            pending_apply: None,
         }
     }
 
@@ -471,6 +475,11 @@ impl MountedRoute {
             }),
             None => apply,
         });
+        self
+    }
+
+    pub fn with_pending_apply(mut self, apply: Option<MountedPendingApply>) -> Self {
+        self.pending_apply = apply;
         self
     }
 

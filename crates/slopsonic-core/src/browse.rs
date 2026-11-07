@@ -424,6 +424,211 @@ pub fn supports_downloaded_filter(route: &Route, category: CollectionCategory) -
     ) && category == CollectionCategory::Tracks
 }
 
+struct ReadFlags {
+    sort: library::CatalogSort,
+    descending: bool,
+    favorites_only: bool,
+    activity: bool,
+}
+
+fn read_flags(route: &Route, options: &OpenOptions, display: &LibraryListSettings) -> ReadFlags {
+    let sort = options.sort.unwrap_or(display.sort_key).catalog_sort();
+    ReadFlags {
+        sort,
+        descending: options.descending.unwrap_or(display.descending),
+        favorites_only: options.favorites_only && supports_favorite_filter(route, options.category)
+            || matches!(
+                route,
+                Route::Favorites
+                    | Route::ArtistFavoriteTracks(_)
+                    | Route::AlbumArtistFavoriteTracks(_)
+            ),
+        activity: uses_activity(route, display) || sort.activity_sensitive(),
+    }
+}
+
+fn member_read(
+    route: &Route,
+    options: &OpenOptions,
+    display: &LibraryListSettings,
+    folder: Option<library::FolderKey>,
+    collection: Collection,
+) -> MemberRead {
+    let flags = read_flags(route, options, display);
+    let mut read = MemberRead::new(collection);
+    read.sort = Some(flags.sort);
+    read.descending = flags.descending;
+    read.folder = folder;
+    read.filter.clone_from(&options.filter);
+    read.favorites_only = flags.favorites_only;
+    read.downloaded_only =
+        options.downloaded_only && supports_downloaded_filter(route, options.category);
+    read.activity = flags.activity;
+    read
+}
+
+/// The read behind each plain list route: the one place that maps a route to its read.
+enum ListPlan {
+    Members(MemberRead),
+    Albums(ListRead),
+    Artists(ListRead),
+    Genres(ListRead),
+    Moods(ListRead),
+    Playlists(ListRead),
+}
+
+/// `Ok(None)` for routes that are not plain lists (details, folders, home, search).
+fn list_plan(
+    route: &Route,
+    selected: Option<&SelectedLibrary>,
+    options: &OpenOptions,
+    ui: &crate::settings::Settings,
+) -> library::LibraryResult<Option<ListPlan>> {
+    let display = ui.library_list(library_list_key(route, options.category));
+    let folder = selected.and_then(|selected| selected.music_folder_key);
+    let source = selected.map(|selected| selected.source_key);
+    let require_source =
+        || source.ok_or_else(|| library::LibraryError::InvalidRequest("No source selected".into()));
+    let member = |collection| member_read(route, options, &display, folder, collection);
+    let list = |kind| list_read(route, options, &display, folder, source, kind);
+    let favorites_tab = |tab| *route == Route::Favorites && options.category == tab;
+    Ok(Some(match route {
+        Route::Tracks => ListPlan::Members(member(Collection::Source(require_source()?))),
+        Route::Favorites if favorites_tab(CollectionCategory::Tracks) => {
+            ListPlan::Members(member(Collection::Source(require_source()?)))
+        }
+        Route::History => ListPlan::Members(member(Collection::History {
+            source: options
+                .history_current_only
+                .then(|| selected.map(|selected| selected.source_id.clone()))
+                .flatten(),
+        })),
+        Route::Albums => {
+            require_source()?;
+            ListPlan::Albums(list(ListKind::Albums))
+        }
+        Route::Favorites if favorites_tab(CollectionCategory::Albums) => {
+            require_source()?;
+            ListPlan::Albums(list(ListKind::Albums))
+        }
+        Route::Artists | Route::AlbumArtists | Route::Favorites => {
+            require_source()?;
+            ListPlan::Artists(list(ListKind::Artists {
+                album_artist: *route == Route::AlbumArtists,
+            }))
+        }
+        Route::Genres => {
+            require_source()?;
+            ListPlan::Genres(list(ListKind::Genres))
+        }
+        Route::Moods => {
+            require_source()?;
+            ListPlan::Moods(list(ListKind::Moods))
+        }
+        Route::Playlists => ListPlan::Playlists(list(ListKind::Playlists)),
+        _ => return Ok(None),
+    }))
+}
+
+impl ListPlan {
+    async fn load(
+        self,
+        owner: &crate::source::SourceOwner,
+        window: library::RouteSeedWindow,
+        cancel: &ReadCancellation,
+    ) -> library::LibraryResult<OpenedCollection> {
+        let database = &owner.shared.database;
+        Ok(match self {
+            Self::Members(read) => {
+                OpenedCollection::Tracks(MemberPage::load(database, read, window, cancel).await?)
+            }
+            Self::Albums(read) => {
+                OpenedCollection::Albums(owner.album_list_page(read, window, cancel).await?)
+            }
+            Self::Artists(read) => {
+                let page = read.page_artists(database, window, cancel).await?;
+                OpenedCollection::Artists { read, page }
+            }
+            Self::Genres(read) => {
+                let page = read.page_genres(database, window, cancel).await?;
+                OpenedCollection::Genres { read, page }
+            }
+            Self::Moods(read) => {
+                let page = read.page_moods(database, window, cancel).await?;
+                OpenedCollection::Moods { read, page }
+            }
+            Self::Playlists(read) => {
+                let page = read.page_playlists(database, window, cancel).await?;
+                OpenedCollection::Playlists { read, page }
+            }
+        })
+    }
+
+    fn empty(self, ui: &crate::settings::Settings) -> OpenedCollection {
+        match self {
+            Self::Members(read) => OpenedCollection::Tracks(MemberPage {
+                read,
+                page: empty_page(),
+                disc_sections: Vec::new(),
+            }),
+            Self::Albums(read) => {
+                let content =
+                    if ui.library_list(LibraryListKey::Albums).layout == LibraryLayout::Detail {
+                        AlbumListContent::Detail {
+                            index: Arc::new(library::AlbumDetailIndex::empty(read.clone())),
+                            page: empty_page(),
+                        }
+                    } else {
+                        AlbumListContent::Rows(empty_page())
+                    };
+                OpenedCollection::Albums(AlbumListPage { read, content })
+            }
+            Self::Artists(read) => OpenedCollection::Artists {
+                read,
+                page: empty_page(),
+            },
+            Self::Genres(read) => OpenedCollection::Genres {
+                read,
+                page: empty_page(),
+            },
+            Self::Moods(read) => OpenedCollection::Moods {
+                read,
+                page: empty_page(),
+            },
+            Self::Playlists(read) => OpenedCollection::Playlists {
+                read,
+                page: empty_page(),
+            },
+        }
+    }
+}
+
+fn empty_page<T>() -> Page<T> {
+    Page {
+        count: 0,
+        first_row_position: 0,
+        rows: Vec::new(),
+    }
+}
+
+fn list_read(
+    route: &Route,
+    options: &OpenOptions,
+    display: &LibraryListSettings,
+    folder: Option<library::FolderKey>,
+    source: Option<library::SourceKey>,
+    kind: ListKind,
+) -> ListRead {
+    let flags = read_flags(route, options, display);
+    let mut read = ListRead::new(kind, source, flags.sort);
+    read.folder = folder;
+    read.filter.clone_from(&options.filter);
+    read.descending = flags.descending;
+    read.favorites_only = flags.favorites_only;
+    read.activity = flags.activity;
+    read
+}
+
 pub fn uses_activity(route: &Route, settings: &LibraryListSettings) -> bool {
     matches!(route, Route::Home | Route::History)
         || settings.sort_key.catalog_sort().activity_sensitive()
@@ -496,6 +701,23 @@ impl crate::source::SourceOwner {
         })
     }
 
+    /// The route's page with no rows yet, so it can mount before the first page loads.
+    /// Built from the same `list_plan` as `open_collection`, so the later fill matches it.
+    pub fn pending_collection(
+        &self,
+        route: &Route,
+        selected: Option<&SelectedLibrary>,
+        category: CollectionCategory,
+    ) -> Option<OpenedCollection> {
+        let options = OpenOptions {
+            category,
+            ..OpenOptions::default()
+        };
+        let ui = self.shared.settings.load().ui;
+        let plan = list_plan(route, selected, &options, &ui).ok().flatten()?;
+        Some(plan.empty(&ui))
+    }
+
     pub async fn open_collection(
         &self,
         route: &Route,
@@ -516,34 +738,11 @@ impl crate::source::SourceOwner {
         let require_source = || {
             source.ok_or_else(|| library::LibraryError::InvalidRequest("No source selected".into()))
         };
-        let favorites = options.favorites_only && supports_favorite_filter(route, options.category)
-            || matches!(
-                route,
-                Route::Favorites
-                    | Route::ArtistFavoriteTracks(_)
-                    | Route::AlbumArtistFavoriteTracks(_)
-            );
-        let member = |collection| {
-            let mut read = MemberRead::new(collection);
-            read.sort = Some(sort);
-            read.descending = descending;
-            read.folder = folder;
-            read.filter.clone_from(&options.filter);
-            read.favorites_only = favorites;
-            read.downloaded_only =
-                options.downloaded_only && supports_downloaded_filter(route, options.category);
-            read.activity = activity;
-            read
-        };
-        let list = |kind| {
-            let mut read = ListRead::new(kind, source, sort);
-            read.folder = folder;
-            read.filter.clone_from(&options.filter);
-            read.descending = descending;
-            read.favorites_only = favorites;
-            read.activity = activity;
-            read
-        };
+        if let Some(plan) = list_plan(route, selected, options, &settings.ui)? {
+            return plan.load(self, window, cancel).await;
+        }
+        let member = |collection| member_read(route, options, &display, folder, collection);
+        let list = |kind| list_read(route, options, &display, folder, source, kind);
         let summary_and_members = match route {
             Route::AlbumDetail(uri) => database
                 .album(uri, activity, cancel)
@@ -702,68 +901,6 @@ impl crate::source::SourceOwner {
             | Route::PlaylistDetail(_)
             | Route::GenreDetail(_)
             | Route::MoodDetail(_) => OpenedCollection::Detail(None),
-            Route::Tracks | Route::Favorites
-                if !matches!(route, Route::Favorites)
-                    || options.category == CollectionCategory::Tracks =>
-            {
-                OpenedCollection::Tracks(
-                    MemberPage::load(
-                        database,
-                        member(Collection::Source(require_source()?)),
-                        window,
-                        cancel,
-                    )
-                    .await?,
-                )
-            }
-            Route::History => OpenedCollection::Tracks(
-                MemberPage::load(
-                    database,
-                    member(Collection::History {
-                        source: options
-                            .history_current_only
-                            .then(|| selected.map(|selected| selected.source_id.clone()))
-                            .flatten(),
-                    }),
-                    window,
-                    cancel,
-                )
-                .await?,
-            ),
-            Route::Albums | Route::Favorites
-                if !matches!(route, Route::Favorites)
-                    || options.category == CollectionCategory::Albums =>
-            {
-                require_source()?;
-                OpenedCollection::Albums(
-                    self.album_list_page(list(ListKind::Albums), window, cancel)
-                        .await?,
-                )
-            }
-            Route::Artists | Route::AlbumArtists | Route::Favorites => {
-                require_source()?;
-                let role = matches!(route, Route::AlbumArtists);
-                let read = list(ListKind::Artists { album_artist: role });
-                let page = read.page_artists(database, window, cancel).await?;
-                OpenedCollection::Artists { read, page }
-            }
-            Route::Genres => {
-                require_source()?;
-                let read = list(ListKind::Genres);
-                let page = read.page_genres(database, window, cancel).await?;
-                OpenedCollection::Genres { read, page }
-            }
-            Route::Moods => {
-                require_source()?;
-                let read = list(ListKind::Moods);
-                let page = read.page_moods(database, window, cancel).await?;
-                OpenedCollection::Moods { read, page }
-            }
-            Route::Playlists => {
-                let read = list(ListKind::Playlists);
-                let page = read.page_playlists(database, window, cancel).await?;
-                OpenedCollection::Playlists { read, page }
-            }
             Route::Folders { path } => {
                 let selected = selected.ok_or_else(|| {
                     library::LibraryError::InvalidRequest("No source selected".into())
@@ -822,5 +959,125 @@ impl crate::source::SourceOwner {
             ),
             _ => unreachable!("collection route was handled above"),
         })
+    }
+}
+
+#[cfg(test)]
+mod list_plan_tests {
+    use super::*;
+    use crate::settings::Settings;
+    use crate::settings::layout::LibraryListSettingsEntry;
+
+    fn selected() -> SelectedLibrary {
+        SelectedLibrary {
+            source_id: sources::SourceId::new("server"),
+            source_key: library::SourceKey::from_raw(1),
+            music_folder_key: None,
+            music_folder_object_id: None,
+            music_folders: Arc::from([]),
+        }
+    }
+
+    fn plan(route: Route, category: CollectionCategory) -> Option<ListPlan> {
+        let options = OpenOptions {
+            category,
+            ..OpenOptions::default()
+        };
+        list_plan(&route, Some(&selected()), &options, &Settings::default()).unwrap()
+    }
+
+    #[test]
+    fn only_plain_list_routes_have_a_plan() {
+        for route in [
+            Route::Tracks,
+            Route::History,
+            Route::Albums,
+            Route::Artists,
+            Route::AlbumArtists,
+            Route::Genres,
+            Route::Moods,
+            Route::Playlists,
+        ] {
+            assert!(
+                plan(route.clone(), CollectionCategory::Tracks).is_some(),
+                "{route:?}"
+            );
+        }
+        for route in [
+            Route::Home,
+            Route::Search,
+            Route::Folders { path: Vec::new() },
+        ] {
+            assert!(
+                plan(route.clone(), CollectionCategory::Tracks).is_none(),
+                "{route:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn favorites_tabs_read_their_own_list_filtered_to_favorites() {
+        let favorites = |category| plan(Route::Favorites, category).unwrap();
+        assert!(matches!(
+            favorites(CollectionCategory::Tracks),
+            ListPlan::Members(read) if read.favorites_only
+        ));
+        assert!(matches!(
+            favorites(CollectionCategory::Albums),
+            ListPlan::Albums(read) if read.favorites_only
+        ));
+        assert!(matches!(
+            favorites(CollectionCategory::Artists),
+            ListPlan::Artists(read) if read.favorites_only
+        ));
+    }
+
+    #[test]
+    fn source_lists_need_a_source_but_history_and_playlists_do_not() {
+        let options = OpenOptions::default();
+        let ui = Settings::default();
+        assert!(list_plan(&Route::Tracks, None, &options, &ui).is_err());
+        assert!(list_plan(&Route::Albums, None, &options, &ui).is_err());
+        assert!(matches!(
+            list_plan(&Route::History, None, &options, &ui),
+            Ok(Some(_))
+        ));
+        assert!(matches!(
+            list_plan(&Route::Playlists, None, &options, &ui),
+            Ok(Some(_))
+        ));
+    }
+
+    #[test]
+    fn pending_albums_take_the_saved_layout_shape() {
+        let mut ui = Settings::default();
+        let rows = plan(Route::Albums, CollectionCategory::Albums)
+            .unwrap()
+            .empty(&ui);
+        assert!(matches!(
+            rows,
+            OpenedCollection::Albums(AlbumListPage {
+                content: AlbumListContent::Rows(_),
+                ..
+            })
+        ));
+        let mut detail = LibraryListSettings::for_key(LibraryListKey::Albums);
+        detail.layout = LibraryLayout::Detail;
+        ui.library_lists
+            .retain(|entry| entry.key != LibraryListKey::Albums);
+        ui.library_lists.push(LibraryListSettingsEntry {
+            key: LibraryListKey::Albums,
+            settings: detail,
+        });
+        let detail = plan(Route::Albums, CollectionCategory::Albums)
+            .unwrap()
+            .empty(&ui);
+        assert!(matches!(
+            detail,
+            OpenedCollection::Albums(AlbumListPage {
+                content: AlbumListContent::Detail { .. },
+                ..
+            })
+        ));
     }
 }

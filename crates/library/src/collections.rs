@@ -992,6 +992,15 @@ impl crate::ListRead {
 }
 
 impl AlbumDetailIndex {
+    /// No albums yet, for a page mounted before its first read.
+    pub fn empty(read: crate::ListRead) -> Self {
+        Self {
+            read,
+            count: 0,
+            albums: Vec::new(),
+        }
+    }
+
     pub fn spans(&self) -> impl Iterator<Item = (AlbumKey, usize, bool, usize)> + '_ {
         self.albums
             .iter()

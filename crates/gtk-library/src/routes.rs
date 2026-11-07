@@ -7,7 +7,7 @@ use tracing::warn;
 
 use crate::CatalogUi;
 use crate::{LibraryLayout, LibraryListKey, LibraryListSettings};
-use gtk_widgets::mounted_route::{LatestMountedRouteRead, MountedRoute};
+use gtk_widgets::mounted_route::{LatestMountedRouteRead, MountedPendingApply, MountedRoute};
 
 use super::album_detail::AlbumCollectionModels;
 use super::collections::{
@@ -23,6 +23,26 @@ struct RootTrackRouteOptions {
     key: LibraryListKey,
     context: &'static str,
     empty_body: &'static str,
+    pending: bool,
+}
+
+/// Fill a pending list page through its normal refresh `apply`, or re-read if the query moved on.
+pub(crate) fn pending_list_apply<T: 'static>(
+    applied: Rc<RefCell<library::ListRead>>,
+    apply: Rc<dyn Fn(library::ListRead, Result<T, String>)>,
+    refresh: Rc<dyn Fn()>,
+    unpack: fn(OpenedCollection) -> Option<(library::ListRead, T)>,
+) -> MountedPendingApply {
+    Rc::new(move |opened| {
+        let Some((read, content)) = unpack(opened) else {
+            return;
+        };
+        if *applied.borrow() == read {
+            apply(read, Ok(content));
+        } else {
+            refresh();
+        }
+    })
 }
 
 pub(crate) type ListPageLoad<R> = Arc<
@@ -222,14 +242,15 @@ impl CatalogUi {
         route: Route,
         opened: OpenedCollection,
         selected: Option<slopsonic_core::runtime::SelectedLibrary>,
+        pending: bool,
     ) -> MountedRoute {
         match opened {
             OpenedCollection::Tracks(page) => match route {
-                Route::History => self.history_route(page),
+                Route::History => self.history_route(page, pending),
                 Route::Favorites => {
-                    self.favorites_route(page, selected.expect("source collection"))
+                    self.favorites_route(page, selected.expect("source collection"), pending)
                 }
-                _ => self.library_tracks_route(page, selected.expect("source collection")),
+                _ => self.library_tracks_route(page, selected.expect("source collection"), pending),
             },
             OpenedCollection::Detail(detail) => {
                 match route {
@@ -254,16 +275,26 @@ impl CatalogUi {
                     _ => unreachable!("detail renderer"),
                 }
             }
-            OpenedCollection::Albums(page) => self.library_albums_route(page),
-            OpenedCollection::Artists { read, page } => self.library_artist_list_route(read, page),
-            OpenedCollection::Genres { read, page } => self.library_genres_route(read, page),
-            OpenedCollection::Moods { read, page } => self.library_moods_route(read, page),
-            OpenedCollection::Playlists { read, page } => self.library_playlists_route(read, page),
+            OpenedCollection::Albums(page) => self.library_albums_route(page, pending),
+            OpenedCollection::Artists { read, page } => {
+                self.library_artist_list_route(read, page, pending)
+            }
+            OpenedCollection::Genres { read, page } => {
+                self.library_genres_route(read, page, pending)
+            }
+            OpenedCollection::Moods { read, page } => self.library_moods_route(read, page, pending),
+            OpenedCollection::Playlists { read, page } => {
+                self.library_playlists_route(read, page, pending)
+            }
             OpenedCollection::Folders(page) => {
                 let Route::Folders { path } = route else {
                     unreachable!("folder renderer")
                 };
-                self.folders_route(path, selected.as_ref().expect("folder source"), Ok(page))
+                self.folders_route(
+                    path,
+                    selected.as_ref().expect("folder source"),
+                    Some(Ok(page)),
+                )
             }
             OpenedCollection::Home(page) => self.home_route(selected.expect("home source"), *page),
             OpenedCollection::Search(_) => self.search_route(),
@@ -340,6 +371,7 @@ impl CatalogUi {
     pub fn library_albums_route(
         self: &Rc<Self>,
         opened: slopsonic_core::browse::AlbumListPage,
+        pending: bool,
     ) -> MountedRoute {
         let captured = opened.read;
         let favorites_only = captured.favorites_only;
@@ -374,6 +406,10 @@ impl CatalogUi {
             },
             content: content.scrolling_widget(),
         });
+        if pending {
+            page.set_empty(false);
+        }
+        let pending_query = Rc::clone(&applied_query);
         let apply = {
             let shell = Rc::downgrade(self);
             let models = models.clone();
@@ -428,6 +464,7 @@ impl CatalogUi {
                         .map_err(|error| error.to_string())
                 })
             });
+        let pending_fill = Rc::clone(&apply);
         let read = LatestMountedRouteRead::new_with_request(
             self.runtime.clone(),
             apply,
@@ -500,7 +537,9 @@ impl CatalogUi {
         if favorites_only {
             self.install_favorite_category_tabs(CollectionCategory::Albums, &mut page);
         }
-        page.mounted_route(resume)
+        let pending_refresh = Rc::clone(&refresh);
+        let route = page
+            .mounted_route(resume)
             .with_catalog_refresh(refresh)
             .with_download_change(downloads)
             .with_item_navigation(content.item_navigation())
@@ -526,19 +565,32 @@ impl CatalogUi {
                         &settings,
                     ));
                 }
-            }))
+            }));
+        route.with_pending_apply(pending.then(|| {
+            pending_list_apply(
+                pending_query,
+                pending_fill,
+                pending_refresh,
+                |opened| match opened {
+                    OpenedCollection::Albums(page) => Some((page.read, page.content)),
+                    _ => None,
+                },
+            )
+        }))
     }
 
     pub fn library_tracks_route(
         self: &Rc<Self>,
         page: slopsonic_core::browse::MemberPage,
         selected: slopsonic_core::runtime::SelectedLibrary,
+        pending: bool,
     ) -> MountedRoute {
         self.root_track_route(
             RootTrackRouteOptions {
                 key: LibraryListKey::Tracks,
                 context: "tracks",
                 empty_body: "Nothing here yet",
+                pending,
             },
             page,
             selected,
@@ -550,6 +602,7 @@ impl CatalogUi {
         self: &Rc<Self>,
         page: slopsonic_core::browse::MemberPage,
         selected: slopsonic_core::runtime::SelectedLibrary,
+        pending: bool,
     ) -> MountedRoute {
         let key = LibraryListKey::FavoriteTracks;
         self.root_track_route(
@@ -557,6 +610,7 @@ impl CatalogUi {
                 key,
                 context: "favorite-tracks",
                 empty_body: "No favorites yet",
+                pending,
             },
             page,
             selected,
@@ -591,6 +645,7 @@ impl CatalogUi {
     pub fn history_route(
         self: &Rc<Self>,
         initial: slopsonic_core::browse::MemberPage,
+        pending: bool,
     ) -> MountedRoute {
         let key = LibraryListKey::History;
         let projection = self.searchable_track_collection(
@@ -631,13 +686,14 @@ impl CatalogUi {
             };
             read.request_with(filter_projection.query());
         });
-        self.mount_track_page(key, projection, page, read, None)
+        self.mount_track_page(key, projection, page, read, None, pending)
     }
 
     pub fn library_artist_list_route(
         self: &Rc<Self>,
         captured: library::ListRead,
         initial: library::Page<library::ArtistView>,
+        pending: bool,
     ) -> MountedRoute {
         let key = if matches!(
             captured.kind,
@@ -657,6 +713,10 @@ impl CatalogUi {
             initial,
             |row: &library::ArtistView| row.artist_key,
             captured,
+            pending.then_some(|opened| match opened {
+                OpenedCollection::Artists { read, page } => Some((read, page)),
+                _ => None,
+            }),
         )
     }
 
@@ -664,6 +724,7 @@ impl CatalogUi {
         self: &Rc<Self>,
         read: library::ListRead,
         page: library::Page<library::PlaylistRow>,
+        pending: bool,
     ) -> MountedRoute {
         self.collection_list_route(
             LibraryListKey::Playlists,
@@ -671,6 +732,10 @@ impl CatalogUi {
             page,
             |row: &library::PlaylistRow| row.playlist_key,
             read,
+            pending.then_some(|opened| match opened {
+                OpenedCollection::Playlists { read, page } => Some((read, page)),
+                _ => None,
+            }),
         )
     }
 
@@ -743,7 +808,14 @@ impl CatalogUi {
         if favorites_only {
             self.install_favorite_category_tabs(CollectionCategory::Tracks, &mut page);
         }
-        self.mount_track_page(key, projection, page, read, Some(favorites_only))
+        self.mount_track_page(
+            key,
+            projection,
+            page,
+            read,
+            Some(favorites_only),
+            options.pending,
+        )
     }
 
     fn track_page_shell(
@@ -777,7 +849,24 @@ impl CatalogUi {
             >,
         >,
         favorite_requery: Option<bool>,
+        pending: bool,
     ) -> MountedRoute {
+        let pending_apply: Option<MountedPendingApply> = pending.then(|| {
+            page.set_empty(false);
+            let page = page.clone();
+            let projection = projection.clone();
+            let read = Rc::downgrade(&read);
+            Rc::new(move |opened| {
+                let OpenedCollection::Tracks(loaded) = opened else {
+                    return;
+                };
+                if projection.replace_page(loaded) {
+                    page.set_empty(projection.source_is_empty());
+                } else if let Some(read) = read.upgrade() {
+                    read.request_with(projection.query());
+                }
+            }) as MountedPendingApply
+        });
         let search_read = Rc::downgrade(&read);
         projection.connect_search_request(move |projection_request| {
             if let Some(read) = search_read.upgrade() {
@@ -831,5 +920,6 @@ impl CatalogUi {
                     favorite_read.request_with(projection_request);
                 }
             }))
+            .with_pending_apply(pending_apply)
     }
 }

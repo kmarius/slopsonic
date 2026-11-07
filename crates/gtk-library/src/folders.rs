@@ -8,6 +8,7 @@ use slopsonic_core::playback::QueuePlacement;
 use crate::{CatalogUi, LibraryField, LibraryListKey};
 use gtk_widgets::interactions::install_context_menu_openers;
 use gtk_widgets::mounted_route::{LatestMountedRouteRead, MountedRoute};
+use slopsonic_core::browse::OpenedCollection;
 
 use gtk_widgets::route::{FolderPathItem, Route};
 use gtk_widgets::sparse_model::{SparseSource, connect_sparse_bind};
@@ -34,11 +35,12 @@ fn folder_table_initial_width(route_width: i32) -> i32 {
 }
 
 impl CatalogUi {
+    /// `prepared: None` mounts the toolbar and path first; `pending_apply` adds the content.
     pub fn folders_route(
         self: &Rc<Self>,
         path: Vec<FolderPathItem>,
         selected: &slopsonic_core::runtime::SelectedLibrary,
-        prepared: Result<slopsonic_core::browse::FolderPage, String>,
+        prepared: Option<Result<slopsonic_core::browse::FolderPage, String>>,
     ) -> MountedRoute {
         let wrapper = FoldersRouteView::new();
         let search = gtk::SearchEntry::new();
@@ -55,43 +57,116 @@ impl CatalogUi {
             .imp()
             .breadcrumb_host
             .append(&folder_path_switcher(self, &path));
-        let (resume, refresh, download_change, initial_demand) = match prepared {
-            Ok(prepared) => {
-                let (content, resume, refresh, download_change, initial_demand) =
-                    folder_page(self, selected, path, search.clone(), prepared);
-                wrapper.append(&content);
-                (resume, refresh, download_change, initial_demand)
+        let pending = prepared.is_none();
+        if pending {
+            search.set_visible(true);
+        }
+        let parts = Rc::new(RefCell::new(match prepared {
+            Some(prepared) => {
+                folder_parts(self, &wrapper, selected, path.clone(), &search, prepared)
             }
-            Err(error) => {
-                tracing::warn!(%error, "failed to prepare Folder route");
-                wrapper.append(&folder_error_view(self));
-                (
-                    Rc::new(|| {}) as FolderResume,
-                    Rc::new(|| {}) as FolderResume,
-                    Rc::new(|_: &downloads::DownloadEvent| {})
-                        as gtk_widgets::mounted_route::MountedDownloadChange,
-                    Rc::new(|| {}) as FolderResume,
-                )
-            }
-        };
+            None => FolderParts {
+                resume: Rc::new(|| {}),
+                refresh: Rc::new(|| {}),
+                download_change: Rc::new(|_| {}),
+                initial_demand: Rc::new(|| {}),
+            },
+        }));
         let shell = Rc::downgrade(self);
-        let resume = Rc::new(move || {
-            let Some(shell) = shell.upgrade() else { return };
-            toolbar.apply(
-                LibraryListKey::Folders,
-                &shell
-                    .settings
-                    .current
-                    .borrow()
-                    .library_list(LibraryListKey::Folders),
-            );
-            resume();
+        let resume = {
+            let parts = Rc::clone(&parts);
+            Rc::new(move || {
+                let Some(shell) = shell.upgrade() else { return };
+                toolbar.apply(
+                    LibraryListKey::Folders,
+                    &shell
+                        .settings
+                        .current
+                        .borrow()
+                        .library_list(LibraryListKey::Folders),
+                );
+                let resume = Rc::clone(&parts.borrow().resume);
+                resume();
+            })
+        };
+        let pending_apply = pending.then(|| {
+            let shell = Rc::downgrade(self);
+            let parts = Rc::clone(&parts);
+            let wrapper = wrapper.clone();
+            let selected = selected.clone();
+            let search = search.clone();
+            Rc::new(move |opened| {
+                let (Some(shell), OpenedCollection::Folders(page)) = (shell.upgrade(), opened)
+                else {
+                    return;
+                };
+                let filled =
+                    folder_parts(&shell, &wrapper, &selected, path.clone(), &search, Ok(page));
+                parts.replace(filled);
+            }) as gtk_widgets::mounted_route::MountedPendingApply
         });
+        let delegate = |pick: fn(&FolderParts) -> FolderResume| {
+            let parts = Rc::clone(&parts);
+            Rc::new(move || {
+                let action = pick(&parts.borrow());
+                action();
+            }) as FolderResume
+        };
+        let refresh = delegate(|parts| Rc::clone(&parts.refresh));
+        let initial_demand = delegate(|parts| Rc::clone(&parts.initial_demand));
+        let download_change = {
+            let parts = Rc::clone(&parts);
+            Rc::new(move |event: &downloads::DownloadEvent| {
+                let change = Rc::clone(&parts.borrow().download_change);
+                change(event);
+            }) as gtk_widgets::mounted_route::MountedDownloadChange
+        };
         MountedRoute::new(wrapper.upcast(), resume)
             .with_catalog_refresh(refresh)
             .with_search(search)
             .with_download_change(download_change)
             .with_initial_demand(initial_demand)
+            .with_pending_apply(pending_apply)
+    }
+}
+
+struct FolderParts {
+    resume: FolderResume,
+    refresh: FolderResume,
+    download_change: gtk_widgets::mounted_route::MountedDownloadChange,
+    initial_demand: FolderResume,
+}
+
+fn folder_parts(
+    shell: &Rc<CatalogUi>,
+    wrapper: &FoldersRouteView,
+    selected: &slopsonic_core::runtime::SelectedLibrary,
+    path: Vec<FolderPathItem>,
+    search: &gtk::SearchEntry,
+    prepared: Result<slopsonic_core::browse::FolderPage, String>,
+) -> FolderParts {
+    match prepared {
+        Ok(prepared) => {
+            let (content, resume, refresh, download_change, initial_demand) =
+                folder_page(shell, selected, path, search.clone(), prepared);
+            wrapper.append(&content);
+            FolderParts {
+                resume,
+                refresh,
+                download_change,
+                initial_demand,
+            }
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to prepare Folder route");
+            wrapper.append(&folder_error_view(shell));
+            FolderParts {
+                resume: Rc::new(|| {}),
+                refresh: Rc::new(|| {}),
+                download_change: Rc::new(|_| {}),
+                initial_demand: Rc::new(|| {}),
+            }
+        }
     }
 }
 

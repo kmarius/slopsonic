@@ -99,6 +99,9 @@ pub(crate) struct RouteViewport {
 struct MountedRouteEntry {
     route: Route,
     load_failed: bool,
+    /// Mounted ahead of its first page; filled through `pending_apply`.
+    pending: bool,
+    refresh_after_fill: bool,
     view: MountedRoute,
     surface: RouteSurface,
     position_key: Option<RoutePositionKey>,
@@ -178,7 +181,9 @@ impl Shell {
 
     fn route_seed_window(&self, route: &Route) -> library::RouteSeedWindow {
         let mounted = self.route_viewport.mounted_route.borrow();
-        let current = mounted.as_ref().filter(|entry| entry.route == *route);
+        let current = mounted
+            .as_ref()
+            .filter(|entry| entry.route == *route && !entry.pending);
         let position = current
             .and_then(|entry| {
                 entry.scroll_adjustment.as_ref().map(|adjustment| {
@@ -263,13 +268,14 @@ impl Shell {
             } else {
                 None
             };
-            match (opened, apply_home) {
-                (OpenedCollection::Home(home), Some(apply)) => apply(*home),
-                (opened, _) => shell.replace_mounted_route(
+            match (opened, apply_home, shell.take_pending_fill(&route)) {
+                (OpenedCollection::Home(home), Some(apply), _) => apply(*home),
+                (opened, _, Some(fill)) => fill(opened),
+                (opened, _, _) => shell.replace_mounted_route(
                     route.clone(),
                     source_id,
                     render_started,
-                    move |catalog| catalog.opened_collection_view(route, opened, selected),
+                    move |catalog| catalog.opened_collection_view(route, opened, selected, false),
                 ),
             }
         });
@@ -295,9 +301,12 @@ impl Shell {
         let refresh = self
             .route_viewport
             .mounted_route
-            .borrow()
-            .as_ref()
-            .map(|entry| Rc::clone(&entry.view.catalog_refresh));
+            .borrow_mut()
+            .as_mut()
+            .and_then(|entry| {
+                entry.refresh_after_fill |= entry.pending;
+                (!entry.pending).then(|| Rc::clone(&entry.view.catalog_refresh))
+            });
         if let Some(refresh) = refresh {
             refresh();
         }
@@ -377,7 +386,7 @@ impl Shell {
         {
             return;
         }
-        self.replace_current_route_when_ready();
+        self.render_current_route_content_inner(true, false);
     }
 
     pub(crate) fn update_history_actions(&self) {
@@ -417,14 +426,16 @@ impl Shell {
 
     pub(crate) fn render_current_route(self: &Rc<Self>) {
         self.update_history_actions();
-        self.render_current_route_content_inner(false);
+        self.render_current_route_content_inner(false, true);
     }
 
     pub(crate) fn replace_current_route_when_ready(self: &Rc<Self>) {
-        self.render_current_route_content_inner(true);
+        self.render_current_route_content_inner(true, true);
     }
 
-    fn render_current_route_content_inner(self: &Rc<Self>, force: bool) {
+    /// `keep_content`: a forced reload of the filled page keeps it under the spinner until the
+    /// load lands (and keeps it on error) instead of mounting an empty pending page.
+    fn render_current_route_content_inner(self: &Rc<Self>, force: bool, keep_content: bool) {
         let route = self.navigation.routes.borrow().current().clone();
         update_navigation_selection(self);
         let mounted_current = self
@@ -432,7 +443,7 @@ impl Shell {
             .mounted_route
             .borrow()
             .as_ref()
-            .is_some_and(|entry| entry.route == route && !entry.load_failed)
+            .is_some_and(|entry| entry.route == route && !entry.load_failed && !entry.pending)
             && self.mounted_catalog_is_current();
         if !force && mounted_current {
             self.cancel_root_order_read();
@@ -477,8 +488,19 @@ impl Shell {
         } else {
             CollectionCategory::Tracks
         };
+        let pending = if keep_content && mounted_current {
+            None
+        } else if matches!(route, Route::Folders { .. }) {
+            selected.is_some().then_some(None)
+        } else {
+            self.products
+                .source
+                .pending_collection(&route, selected.as_ref(), category)
+                .map(Some)
+        };
+        let pending_selected = selected.clone();
         self.queue_collection_route(
-            route,
+            route.clone(),
             selected,
             OpenOptions {
                 category,
@@ -487,6 +509,85 @@ impl Shell {
             false,
             render_started,
         );
+        if let Some(opened) = pending {
+            self.mount_pending_route(route, opened, pending_selected, render_started);
+        }
+    }
+
+    fn mount_pending_route(
+        self: &Rc<Self>,
+        route: Route,
+        opened: Option<OpenedCollection>,
+        selected: Option<slopsonic_core::runtime::SelectedLibrary>,
+        render_started: RouteTiming,
+    ) {
+        let source_id = selected.as_ref().map(|selected| selected.source_id.clone());
+        let render_route = route.clone();
+        self.replace_mounted_route(route, source_id, render_started, move |catalog| {
+            match (opened, render_route) {
+                (Some(opened), route) => {
+                    catalog.opened_collection_view(route, opened, selected, true)
+                }
+                (None, Route::Folders { path }) => {
+                    catalog.folders_route(path, selected.as_ref().expect("folder source"), None)
+                }
+                (None, _) => unreachable!("only Folders mount without a pending page"),
+            }
+        });
+        if let Some(entry) = self.route_viewport.mounted_route.borrow_mut().as_mut() {
+            entry.pending = true;
+            entry.surface.defer_restore();
+        }
+    }
+
+    fn take_pending_fill(
+        self: &Rc<Self>,
+        route: &Route,
+    ) -> Option<impl FnOnce(OpenedCollection) + use<>> {
+        let mounted = self.route_viewport.mounted_route.borrow();
+        let entry = mounted
+            .as_ref()
+            .filter(|entry| entry.pending && entry.route == *route)?;
+        let apply = entry.view.pending_apply.clone()?;
+        let surface = entry.surface.clone();
+        let shell = Rc::downgrade(self);
+        Some(move |page| {
+            let page = RefCell::new(Some(page));
+            let ticks = Cell::new(0);
+            surface.add_tick_callback(move |surface, _| {
+                ticks.set(ticks.get() + 1);
+                if ticks.get() < 2 {
+                    return glib::ControlFlow::Continue;
+                }
+                if let (Some(page), Some(shell)) = (page.take(), shell.upgrade()) {
+                    apply(page);
+                    shell.finish_pending_fill(surface);
+                }
+                glib::ControlFlow::Break
+            });
+        })
+    }
+
+    fn finish_pending_fill(&self, surface: &RouteSurface) {
+        let mut mounted = self.route_viewport.mounted_route.borrow_mut();
+        let Some(entry) = mounted
+            .as_mut()
+            .filter(|entry| entry.pending && entry.surface == *surface)
+        else {
+            return;
+        };
+        entry.pending = false;
+        let refresh = std::mem::take(&mut entry.refresh_after_fill)
+            .then(|| Rc::clone(&entry.view.catalog_refresh));
+        if entry.scroll_adjustment.is_none() {
+            entry.scroll_adjustment = primary_route_scroll_adjustment(&entry.view.widget());
+            surface.set_adjustment(entry.scroll_adjustment.clone());
+        }
+        drop(mounted);
+        surface.release_restore();
+        if let Some(refresh) = refresh {
+            refresh();
+        }
     }
 
     fn begin_root_order_read(&self) -> (u64, library::ReadCancellation) {
@@ -570,9 +671,7 @@ impl Shell {
             removal_started.map(|started| elapsed_ms(started) + release_ms.unwrap_or(0));
         let mount_started = render_started.as_ref().map(|_| Instant::now());
         let scroll_adjustment = primary_route_scroll_adjustment(&widget);
-        let position_key = source_id
-            .filter(|_| scroll_adjustment.is_some())
-            .map(|_| RoutePositionKey::new(route.clone()));
+        let position_key = source_id.map(|_| RoutePositionKey::new(route.clone()));
         let restore_position = position_key.as_ref().and_then(|key| {
             self.route_viewport
                 .position_memory
@@ -595,6 +694,8 @@ impl Shell {
             .replace(Some(MountedRouteEntry {
                 route: route.clone(),
                 load_failed: false,
+                pending: false,
+                refresh_after_fill: false,
                 view: view.clone(),
                 surface: surface.clone(),
                 position_key,
@@ -637,7 +738,7 @@ impl Shell {
             .mounted_route
             .borrow()
             .as_ref()
-            .is_some_and(|entry| entry.route == route && !entry.load_failed)
+            .is_some_and(|entry| entry.route == route && !entry.load_failed && !entry.pending)
             && self.mounted_catalog_is_current();
         if keep_content {
             self.cancel_route_loading();
@@ -732,6 +833,7 @@ impl Shell {
     fn begin_mounted_route_replacement(&self) -> Option<MountedRouteEntry> {
         let previous = self.route_viewport.mounted_route.borrow_mut().take();
         if let Some(previous) = previous.as_ref()
+            && !previous.pending
             && let (Some(key), Some(adjustment)) = (
                 previous.position_key.as_ref(),
                 previous.scroll_adjustment.as_ref(),

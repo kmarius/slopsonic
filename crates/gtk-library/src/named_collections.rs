@@ -16,6 +16,7 @@ use crate::CatalogUi;
 use crate::{LibraryLayout, LibraryListKey};
 use gtk_widgets::artwork::CoverGroupProjection;
 use gtk_widgets::mounted_route::{LatestMountedRouteRead, MountedRoute};
+use slopsonic_core::browse::OpenedCollection;
 
 use super::collections::{
     LibraryCollectionProjection, LibraryPresentationProjection, collection_column_width,
@@ -45,6 +46,7 @@ impl CatalogUi {
         self: &Rc<Self>,
         read: library::ListRead,
         page: library::Page<GenreView>,
+        pending: bool,
     ) -> MountedRoute {
         self.collection_list_route(
             LibraryListKey::Genres,
@@ -52,6 +54,10 @@ impl CatalogUi {
             page,
             |row: &GenreView| row.genre_key,
             read,
+            pending.then_some(|opened| match opened {
+                OpenedCollection::Genres { read, page } => Some((read, page)),
+                _ => None,
+            }),
         )
     }
 
@@ -59,6 +65,7 @@ impl CatalogUi {
         self: &Rc<Self>,
         read: library::ListRead,
         page: library::Page<MoodView>,
+        pending: bool,
     ) -> MountedRoute {
         self.collection_list_route(
             LibraryListKey::Moods,
@@ -66,6 +73,10 @@ impl CatalogUi {
             page,
             |row: &MoodView| row.mood_key,
             read,
+            pending.then_some(|opened| match opened {
+                OpenedCollection::Moods { read, page } => Some((read, page)),
+                _ => None,
+            }),
         )
     }
 
@@ -77,6 +88,7 @@ impl CatalogUi {
         initial: library::Page<R>,
         row_key: impl Fn(&R) -> K + 'static,
         captured: library::ListRead,
+        pending: Option<PendingUnpack<R>>,
     ) -> MountedRoute
     where
         K: Clone + Eq + Send + Sync + 'static,
@@ -142,6 +154,10 @@ impl CatalogUi {
             },
             content: content.scrolling_widget(),
         });
+        if pending.is_some() {
+            page.set_empty(false);
+        }
+        let pending_query = Rc::clone(&applied);
         let apply = {
             let shell = Rc::downgrade(self);
             let sparse = Rc::clone(&sparse);
@@ -184,6 +200,7 @@ impl CatalogUi {
                 },
             )
         };
+        let pending_fill = Rc::clone(&apply);
         let read = LatestMountedRouteRead::new_with_request(
             self.runtime.clone(),
             apply,
@@ -220,7 +237,9 @@ impl CatalogUi {
         let favorites = Rc::clone(&sparse);
         let shell = Rc::downgrade(self);
         let favorite_search = search.clone();
-        page.mounted_route(resume)
+        let pending_refresh = Rc::clone(&resume);
+        let route = page
+            .mounted_route(resume)
             .with_favorite_settlement(Rc::new(move |settlement| {
                 if !R::FAVORITES {
                     return;
@@ -244,9 +263,15 @@ impl CatalogUi {
             .with_initial_demand({
                 let sparse = Rc::clone(&sparse);
                 Rc::new(move || sparse.resume_initial_demand())
-            })
+            });
+        route.with_pending_apply(pending.map(|unpack| {
+            crate::routes::pending_list_apply(pending_query, pending_fill, pending_refresh, unpack)
+        }))
     }
 }
+
+pub(crate) type PendingUnpack<R> =
+    fn(OpenedCollection) -> Option<(library::ListRead, library::Page<R>)>;
 
 pub trait CollectionRow: Clone + PartialEq + Send + Sync + 'static {
     type Key: Clone + Eq + Send + Sync + 'static;
