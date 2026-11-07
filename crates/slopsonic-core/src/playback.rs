@@ -395,7 +395,7 @@ impl PlaybackOwner {
                     Err(playback::BackendFailure::with_kind(kind, kind.summary()))
                 }
                 Ok(stream) => Ok(prepare_media_stream(stream, loudness, occurrence)),
-                Err(error) => Err(playback::BackendFailure::new(error)),
+                Err(error) => Err(error),
             };
             playback.post(move |player, sample| match result {
                 Ok(stream) => player.stream_resolved(run, stream),
@@ -745,7 +745,7 @@ pub(crate) async fn prepare_stream<F>(
     database: &Database,
     request: StreamRequest,
     source: impl FnOnce(sources::SourceId) -> F + Send,
-) -> Result<audio_processing::ResolvedStream, String>
+) -> Result<audio_processing::ResolvedStream, playback::BackendFailure>
 where
     F: std::future::Future<Output = Result<Arc<sources::Source>, String>> + Send,
 {
@@ -777,10 +777,19 @@ where
     let (source_id, kind, _) = library::source_entity_parts(&request.media_uri)
         .ok_or_else(crate::source::source_access_unavailable)?;
     if kind != "track" {
-        return Err(crate::source::source_access_unavailable());
+        return Err(crate::source::source_access_unavailable().into());
     }
     let source = source(source_id).await?;
-    source.stream(database, request).await.map_err(string_error)
+    source
+        .stream(database, request)
+        .await
+        .map_err(|error| match error {
+            sources::SourceError::NotFound => {
+                let kind = playback::FailureKind::UnavailableMedia;
+                playback::BackendFailure::with_kind(kind, kind.summary())
+            }
+            error => error.to_string().into(),
+        })
 }
 
 // Catches a removed local file before it reaches playback, where a failed

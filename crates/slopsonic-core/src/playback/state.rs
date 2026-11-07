@@ -195,7 +195,8 @@ struct FailedRun {
 
 #[derive(Clone, Debug)]
 enum QueueCompletion {
-    Replace,
+    /// Drops the first `superseded` deferred commands, which waited for the request it cancelled.
+    Replace { superseded: usize },
     Insert { target: QueueReorderTarget },
 }
 
@@ -608,14 +609,9 @@ impl Player {
             Command::Next => Ok(self.next(sample)),
             Command::Previous => Ok(self.previous(sample)),
             Command::Seek(position_millis) => Ok(self.seek(position_millis)),
-            Command::SetVolume(volume) => Ok(self.set_volume(volume)),
-            Command::SetMuted(muted) => Ok(self.set_muted(muted)),
-            Command::PersistVolume(volume) => {
-                self.set_volume(volume);
-                self.owner()
-                    .persist_output(self.settings.volume, self.settings.muted);
-                Ok(())
-            }
+            Command::SetVolume(volume) => Ok(self.set_output(volume, false)),
+            Command::SetMuted(muted) => Ok(self.save_output(self.output_volume, muted)),
+            Command::PersistVolume(volume) => Ok(self.save_output(volume, self.output_muted)),
             Command::SetRepeat(repeat) => Ok(self.set_repeat(repeat)),
             Command::SetShuffle { enabled, seed } => Ok(self.set_shuffle(enabled, seed)),
             Command::SetAutoDj {
@@ -1173,42 +1169,29 @@ impl Player {
         self.dirty = true;
     }
 
-    fn set_volume(&mut self, volume: f64) {
+    fn set_output(&mut self, volume: f64, muted: bool) {
         let volume = if volume.is_finite() {
             volume.clamp(0.0, 1.0)
         } else {
             1.0
         };
-        if self.output_volume == volume && !self.output_muted {
+        if (self.output_volume, self.output_muted) == (volume, muted) {
             return;
         }
-        self.output_volume = volume;
-        self.output_muted = false;
-        self.settings.volume = volume;
-        self.settings.muted = false;
-
+        (self.output_volume, self.output_muted) = (volume, muted);
+        (self.settings.volume, self.settings.muted) = (volume, muted);
         self.send_backend(BackendCommand::SetOutputVolume {
             volume,
             volume_scale: self.settings.volume_scale,
-            muted: false,
+            muted,
         });
         self.dirty = true;
     }
 
-    fn set_muted(&mut self, muted: bool) {
-        if self.output_muted == muted {
-            return;
-        }
-        self.output_muted = muted;
-        self.settings.muted = muted;
-        self.send_backend(BackendCommand::SetOutputVolume {
-            volume: self.output_volume,
-            volume_scale: self.settings.volume_scale,
-            muted,
-        });
-        self.owner().persist_output(self.settings.volume, muted);
-
-        self.dirty = true;
+    fn save_output(&mut self, volume: f64, muted: bool) {
+        self.set_output(volume, muted);
+        self.owner()
+            .persist_output(self.settings.volume, self.settings.muted);
     }
 
     fn set_repeat(&mut self, repeat: RepeatMode) {
@@ -1381,6 +1364,7 @@ impl Player {
         }
         self.failed_run = None;
         let Some(entry) = self.sequence.selected().cloned() else {
+            self.queue_transport.get_or_insert(TransportStatus::Playing);
             self.sequence.need_metadata();
             self.current_run = None;
             self.next_plan = None;

@@ -189,7 +189,12 @@ where
                     }
                 });
             }
-            if previous.ui.playback != current.ui.playback {
+            let edited = playback::PlaybackSettings {
+                volume: current.ui.playback.volume,
+                muted: current.ui.playback.muted,
+                ..previous.ui.playback.clone()
+            };
+            if edited != current.ui.playback {
                 settings_playback.playback_settings_changed(current.ui.playback.clone());
             }
             if previous.ui.application.auto_dj_refill_threshold

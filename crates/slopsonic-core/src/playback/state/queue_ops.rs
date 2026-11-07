@@ -15,11 +15,12 @@ impl Player {
             return Ok(());
         }
         if replacing {
-            self.deferred_queue.clear();
             self.queue_transport = None;
         }
         let completion = match request.placement {
-            Placement::Replace { .. } => QueueCompletion::Replace,
+            Placement::Replace { .. } => QueueCompletion::Replace {
+                superseded: self.deferred_queue.len(),
+            },
             Placement::AfterCurrent => QueueCompletion::Insert {
                 target: self
                     .sequence
@@ -58,8 +59,7 @@ impl Player {
         let task = owner.runtime.spawn(async move {
             let result = request
                 .prepare(&database, shuffled, super::super::random_u64())
-                .await
-                .map_err(super::super::string_error);
+                .await;
             playback.post(move |player, sample| {
                 if let Err(error) = player.complete_queue(id, result, sample) {
                     player.report_error(error.to_string());
@@ -113,11 +113,14 @@ impl Player {
             Ok(rows) => self.dirty |= self.sequence.hydrate(rows),
             Err(error) => self.report_error(error),
         }
-        if matches!(self.pending_queue, Some((_, QueueCompletion::Replace, _))) {
+        if matches!(self.pending_queue, Some((_, QueueCompletion::Replace { .. }, _))) {
             return;
         }
         if self.current_run.is_none()
-            && self.queue_transport != Some(TransportStatus::Stopped)
+            && matches!(
+                self.queue_transport,
+                Some(TransportStatus::Playing | TransportStatus::Paused)
+            )
             && !self.restored_paused
         {
             self.begin_selected_run();
@@ -204,7 +207,9 @@ impl Player {
                 self.dirty = true;
             }
             Ok(page) => match completion {
-                QueueCompletion::Replace => {
+                QueueCompletion::Replace { superseded } => {
+                    self.deferred_queue
+                        .drain(..superseded.min(self.deferred_queue.len()));
                     self.finish_queue_run(sample, RunEndReason::ManualSkip);
                     self.sequence.add_page(page, QueueReorderTarget::End, true);
                     self.restored_paused = false;

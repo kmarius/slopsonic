@@ -213,11 +213,17 @@ impl PlayRequest {
         database: &library::Database,
         shuffled: bool,
         seed: u64,
-    ) -> library::LibraryResult<QueueBatch> {
+    ) -> Result<QueueBatch, String> {
         let replacing = matches!(self.placement, Placement::Replace { .. });
         let random_start = replacing && shuffled && self.start == QueueStart::RandomIfShuffled;
         let selected = if random_start { None } else { self.anchor };
-        let mut batch = database.queue_entries(self.input, selected).await?;
+        let mut batch = database
+            .queue_entries(self.input, selected)
+            .await
+            .map_err(|error| error.to_string())?;
+        if batch.entries.is_empty() {
+            return Err("Nothing to play here".to_string());
+        }
         let fallback = match self.placement {
             Placement::Replace { anchor_index } => anchor_index,
             _ => 0,
@@ -225,13 +231,13 @@ impl PlayRequest {
         let selected = if self.start == QueueStart::Shuffled {
             library::shuffle_order(&mut batch.entries, seed);
             0
-        } else if random_start && !batch.entries.is_empty() {
+        } else if random_start {
             seed as usize % batch.entries.len()
         } else {
             batch
                 .anchor_index
                 .unwrap_or(fallback)
-                .min(batch.entries.len().saturating_sub(1))
+                .min(batch.entries.len() - 1)
         };
         let shuffle = (replacing && shuffled).then_some(if random_start {
             QueueShuffle::FromSelected(seed)
@@ -247,7 +253,8 @@ impl PlayRequest {
             .collect::<Vec<_>>();
         let rows = database
             .queue_rows_for_entries(&requested, &library::ReadCancellation::new())
-            .await?;
+            .await
+            .map_err(|error| error.to_string())?;
         Ok(QueueBatch {
             entries: batch.entries,
             rows,
