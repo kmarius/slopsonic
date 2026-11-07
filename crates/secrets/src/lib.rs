@@ -14,8 +14,6 @@ const CONFIG_SECRET_FORMAT: &str = "config-base64";
 pub enum SecretError {
     #[error("secret store lock was poisoned")]
     Locked,
-    #[error("secret backend failed: {0}")]
-    Backend(String),
     #[error("config secret store failed: {0}")]
     Config(String),
     #[error("secret was not valid utf-8")]
