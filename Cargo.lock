@@ -866,14 +866,12 @@ version = "0.0.1"
 dependencies = [
  "app-identity",
  "blake3",
- "gio",
  "glib",
  "library",
  "mpris-server",
  "playback",
  "slopsonic-core",
  "tracing",
- "url",
 ]
 
 [[package]]
@@ -1900,7 +1898,6 @@ dependencies = [
  "app-identity",
  "artwork",
  "async-channel",
- "desktop-integration",
  "downloads",
  "glib-build-tools",
  "gtk4",

@@ -27,7 +27,6 @@ pub fn register_resources() -> Result<(), String> {
 }
 
 pub mod detail_links;
-pub mod folder_launcher;
 mod playing_indicator;
 pub mod recycled_cells;
 pub mod source_labels;

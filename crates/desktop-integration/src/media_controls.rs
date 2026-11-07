@@ -3,7 +3,6 @@ mod freedesktop {
     use std::rc::Rc;
 
     use app_identity::{APP_ID, DISPLAY_NAME};
-    use glib;
     use mpris_server::{
         LoopStatus, Metadata, PlaybackStatus, Player as MprisPlayer, Time, TrackId as MprisTrackId,
     };

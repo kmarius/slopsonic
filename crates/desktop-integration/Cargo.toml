@@ -12,13 +12,11 @@ publish.workspace = true
 
 [dependencies]
 app-identity.workspace = true
-gio.workspace = true
 glib = { workspace = true, features = ["v2_66"] }
 blake3.workspace = true
 playback.workspace = true
 slopsonic-core.workspace = true
 tracing.workspace = true
-url.workspace = true
 
 [dependencies.mpris-server]
 workspace = true
