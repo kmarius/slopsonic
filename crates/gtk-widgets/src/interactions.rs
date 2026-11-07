@@ -22,72 +22,6 @@ pub const DOWNLOAD_ICON: &str = "slopsonic-download-symbolic";
 pub const GO_TO_ICON: &str = "slopsonic-external-link-compact-symbolic";
 pub const RADIO_ICON: &str = "slopsonic-audio-only-symbolic";
 
-#[derive(Default)]
-struct ButtonRepeat(RefCell<Option<glib::JoinHandle<()>>>);
-
-impl ButtonRepeat {
-    fn stop(&self) {
-        if let Some(task) = self.0.borrow_mut().take() {
-            task.abort();
-        }
-    }
-}
-
-impl Drop for ButtonRepeat {
-    fn drop(&mut self) {
-        self.stop();
-    }
-}
-
-pub fn connect_repeating_button(button: &gtk::Button, activate: impl Fn() + 'static) {
-    let activate: Rc<dyn Fn()> = Rc::new(activate);
-    let clicked = Rc::clone(&activate);
-    button.connect_clicked(move |_| clicked());
-
-    let repeat = Rc::new(ButtonRepeat::default());
-    let press = gtk::GestureLongPress::new();
-    press.set_button(1);
-    press.set_propagation_phase(gtk::PropagationPhase::Capture);
-    let pressed_repeat = Rc::clone(&repeat);
-    let weak_button = button.downgrade();
-    press.connect_pressed(move |gesture, _, _| {
-        pressed_repeat.stop();
-        // Claim the hold so releasing it does not also produce a normal click.
-        gesture.set_state(gtk::EventSequenceState::Claimed);
-        let button = weak_button.clone();
-        let activate = Rc::clone(&activate);
-        pressed_repeat
-            .0
-            .replace(Some(glib::spawn_future_local(async move {
-                loop {
-                    {
-                        let Some(button) = button.upgrade() else {
-                            break;
-                        };
-                        if !button.is_mapped() || !button.is_sensitive() {
-                            break;
-                        }
-                        activate();
-                    }
-                    glib::timeout_future(std::time::Duration::from_millis(100)).await;
-                }
-            })));
-    });
-    let ended = Rc::clone(&repeat);
-    press.connect_end(move |_, _| ended.stop());
-    let cancelled = Rc::clone(&repeat);
-    press.connect_cancel(move |_, _| cancelled.stop());
-    let cancelled = Rc::clone(&repeat);
-    press.connect_cancelled(move |_| cancelled.stop());
-    button.add_controller(press);
-
-    let motion = gtk::EventControllerMotion::new();
-    let left = Rc::clone(&repeat);
-    motion.connect_leave(move |_| left.stop());
-    button.add_controller(motion);
-    button.connect_unmap(move |_| repeat.stop());
-}
-
 pub type ContextMenuOpen = Rc<dyn Fn(&gtk::Widget, Option<(f64, f64)>)>;
 
 pub struct ContextMenuSurface {
@@ -681,18 +615,6 @@ pub fn replace_native_menu_checkmarks(popover: &gtk::PopoverMenu) {
 
 pub fn keep_parent_grab_for_nested_native_menus(popover: &gtk::PopoverMenu) {
     keep_parent_grab_for_nested_native_menus_from(popover.upcast_ref());
-}
-
-pub fn keep_parent_grab_for_dropdown(dropdown: &gtk::DropDown) {
-    let mut child = dropdown.first_child();
-    while let Some(widget) = child {
-        child = widget.next_sibling();
-        if let Ok(popover) = widget.downcast::<gtk::Popover>() {
-            // GTK can lose the parent's input grab when an autohide child closes.
-            popover.set_autohide(false);
-            break;
-        }
-    }
 }
 
 pub fn popdown_native_menu(popover: &gtk::PopoverMenu) {

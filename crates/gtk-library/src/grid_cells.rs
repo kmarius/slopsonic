@@ -739,7 +739,7 @@ impl<T: gtk_widgets::library_fields::TrackPresentation> TrackGridCell<T> {
             };
             Some((source, track.title().to_string()))
         });
-        body.set_download_badge(shell.downloads.download_badge(false));
+        body.set_download_badge(shell.downloads.download_badge());
         Self {
             body,
             shell: Rc::downgrade(shell),
@@ -895,7 +895,7 @@ impl AlbumGridCell {
             |row| FavoriteTarget::Album(row.media_uri.clone()),
             |row| album_favorite_key(&row.media_uri),
         );
-        body.set_download_badge(shell.downloads.download_badge(true));
+        body.set_download_badge(shell.downloads.download_badge());
         Self {
             body,
             shell: Rc::downgrade(shell),
@@ -981,7 +981,7 @@ impl ArtistGridCell {
             |row| FavoriteTarget::Artist(row.media_uri.clone()),
             |row| artist_favorite_key(&row.media_uri),
         );
-        body.set_download_badge(shell.downloads.download_badge(true));
+        body.set_download_badge(shell.downloads.download_badge());
         Self {
             body,
             shell: Rc::downgrade(shell),

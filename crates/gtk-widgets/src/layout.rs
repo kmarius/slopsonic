@@ -3,20 +3,15 @@ use adw::prelude::*;
 const LARGE_POPUP_HEIGHT_PERCENT: i32 = 85;
 const LARGE_POPUP_WIDTH_NUMERATOR: i32 = 11;
 const LARGE_POPUP_WIDTH_DENOMINATOR: i32 = 10;
-pub const LARGE_POPUP_BASE_WIDTH: i32 = 700;
 pub const LARGE_POPUP_BASE_HEIGHT: i32 = 640;
 
 mod allocation_owner_imp {
-    use std::{
-        cell::{Cell, RefCell},
-        rc::Rc,
-    };
+    use std::{cell::RefCell, rc::Rc};
 
     use gtk::{glib, prelude::*, subclass::prelude::*};
 
     #[derive(Default)]
     pub struct AllocationOwner {
-        pub(super) preferred_width: Cell<i32>,
         pub(super) on_width: RefCell<Option<Rc<dyn Fn(i32)>>>,
         pub(super) on_size: RefCell<Option<Rc<dyn Fn(i32, i32)>>>,
         pub(super) after_size: RefCell<Option<Rc<dyn Fn()>>>,
@@ -68,11 +63,6 @@ mod allocation_owner_imp {
             }
             let (minimum, natural, minimum_baseline, natural_baseline) =
                 child.measure(orientation, for_size);
-            let natural = if orientation == gtk::Orientation::Horizontal {
-                natural.max(self.preferred_width.get())
-            } else {
-                natural
-            };
             (minimum, natural, minimum_baseline, natural_baseline)
         }
 
@@ -178,15 +168,6 @@ fn allocation_owner_for_child(child: &impl IsA<gtk::Widget>) -> AllocationOwner 
     owner
 }
 
-/// Requests a default width while allowing the parent to shrink to the child's minimum.
-pub fn preferred_width_owner(child: &impl IsA<gtk::Widget>, width: i32) -> AllocationOwner {
-    use gtk::subclass::prelude::ObjectSubclassIsExt;
-
-    let owner = allocation_owner_for_child(child);
-    owner.imp().preferred_width.set(width);
-    owner
-}
-
 pub fn large_popup_content_height(app_height: i32, fallback_height: i32) -> i32 {
     if app_height <= 0 {
         return fallback_height;
@@ -230,5 +211,3 @@ mod tests {
         assert_eq!(large_popup_content_width(620), 682);
     }
 }
-
-pub const WINDOW_CHROME_MARGIN_END: i32 = 8;

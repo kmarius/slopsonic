@@ -816,7 +816,7 @@ impl PlaylistEntryGridCell {
         let cover = gtk_widgets::artwork::ArtworkTile::new_elastic_square();
         let cover_frame = super::cards::square_cover_frame(&cover.widget(), None);
         let body = CollectionGridCardCell::new(&shell, fields, cover_frame.upcast());
-        body.set_download_badge(shell.downloads.download_badge(true));
+        body.set_download_badge(shell.downloads.download_badge());
         let current = Rc::new(RefCell::new(None));
         let context_current = Rc::clone(&current);
         install_playlist_entry_context(

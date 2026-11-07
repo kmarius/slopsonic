@@ -333,7 +333,7 @@ impl RecycledMergedCell {
         imp.links
             .replace(Some(DetailLinkBinding::new(&imp.subtitle, navigate)));
         if downloaded {
-            let badge = downloads.download_badge(false);
+            let badge = downloads.download_badge();
             imp.title_row.append(&badge);
             imp.downloaded.replace(Some(badge));
         }

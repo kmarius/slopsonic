@@ -71,7 +71,7 @@ impl DownloadsState {
 }
 
 impl DownloadsState {
-    pub fn download_badge(self: &Rc<Self>, _collection: bool) -> gtk::Image {
+    pub fn download_badge(self: &Rc<Self>) -> gtk::Image {
         let image = gtk::Image::new();
         self.register_download_badge(&image);
         image

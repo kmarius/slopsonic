@@ -764,7 +764,7 @@ impl<T: NamedCollectionRow> NamedCollectionGridCell<T> {
             },
         );
         let body = CollectionGridCardCell::new(&shell, fields, controls.upcast());
-        body.set_download_badge(shell.downloads.download_badge(true));
+        body.set_download_badge(shell.downloads.download_badge());
         let drag_current = Rc::clone(&current);
         install_compact_media_drag_source(&body.card, &cover.widget(), move || {
             let item = drag_current.borrow();
