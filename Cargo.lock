@@ -4173,7 +4173,6 @@ dependencies = [
  "futures-util",
  "getrandom 0.4.3",
  "glib",
- "image",
  "library",
  "playback",
  "scrobbling",

@@ -42,4 +42,3 @@ url.workspace = true
 workspace = true
 
 [dev-dependencies]
-image.workspace = true
