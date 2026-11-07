@@ -4,13 +4,12 @@ use std::{
     sync::Arc,
 };
 
-use adw::prelude::*;
+use gtk::prelude::*;
 use slopsonic_core::source::SourceOwner;
 use sources::{ArtworkChange, ImageBytes};
 
 pub struct ArtworkEditor {
     pub frame: gtk::AspectFrame,
-    pub overlay: gtk::Overlay,
     pub status: gtk::Label,
     preview: gtk::Picture,
     display: gtk::Stack,
@@ -46,7 +45,7 @@ impl ArtworkEditor {
             artwork_display: gtk::Stack, artwork_current: gtk::Box,
             artwork_actions: gtk::Box, add_image: gtk::Button, delete_image: gtk::Button,
             regenerate_image: gtk::Button, image_chooser: gtk::FileDialog,
-            artwork_frame: gtk::AspectFrame, artwork_overlay: gtk::Overlay,
+            artwork_frame: gtk::AspectFrame,
         });
         let fallback = editing
             .automatic_binding
@@ -62,7 +61,6 @@ impl ArtworkEditor {
         artwork_current.append(&current.widget());
         let editor = Rc::new(Self {
             frame: artwork_frame,
-            overlay: artwork_overlay,
             preview: artwork_preview,
             display: artwork_display,
             current_host: artwork_current,

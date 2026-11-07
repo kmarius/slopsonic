@@ -1790,7 +1790,6 @@ dependencies = [
  "glib-build-tools",
  "gtk-widgets",
  "gtk4",
- "libadwaita",
  "slopsonic-core",
  "sources",
 ]
