@@ -316,7 +316,7 @@ fn install_queue_row_interactions(
         let shell = source_shell.upgrade()?;
         let row = queue_row_from_item(&source_item)?;
         let position = row.position;
-        let selection = shell.selected_queue()?.dragged_rows_for(&position)?;
+        let selection = shell.selected_queue().dragged_rows_for(&position)?;
         let artwork = weak_cover
             .as_ref()
             .and_then(|weak| weak.upgrade())
@@ -361,9 +361,7 @@ fn install_queue_row_interactions(
                 return;
             };
             let queue_position = row.position;
-            let selection = shell
-                .selected_queue()
-                .and_then(|queue| queue.selected_rows_for(&queue_position));
+            let selection = shell.selected_queue().selected_rows_for(&queue_position);
             (shell.open_queue_menu)(target, row.clone(), selection, position);
         }),
     );
@@ -406,8 +404,7 @@ fn enqueue_media_drop(
             return true;
         }
         if matches!(&selection, QueueSelection::Positions(_))
-            && let Some(state) = shell.selected_queue()
-            && let Some(selection) = state.selection.borrow().as_ref()
+            && let Some(selection) = shell.selected_queue().selection.borrow().as_ref()
         {
             selection.unselect_all();
         }
@@ -1069,18 +1066,14 @@ impl crate::PlayerUi {
     }
 
     pub fn schedule_queue_panel_render(self: &Rc<Self>) {
-        let Some(queue) = self.selected_queue() else {
-            return;
-        };
+        let queue = self.selected_queue();
         if queue.render_queued.replace(true) {
             return;
         }
         drop(queue);
         let shell = Rc::clone(self);
         glib::idle_add_local_once(move || {
-            if let Some(queue) = shell.selected_queue() {
-                queue.render_queued.set(false);
-            }
+            shell.selected_queue().render_queued.set(false);
             shell.render_queue_panel();
         });
     }
@@ -1093,17 +1086,7 @@ impl crate::PlayerUi {
             .selected_playback()
             .as_deref()
             .and_then(|player| player.queue.current_index);
-        let Some(queue) = self.selected_queue() else {
-            clear_queue_panel_children(
-                &self.right_panel.queue_panel,
-                &self.right_panel.queue_header,
-            );
-            clear_queue_panel_children(
-                &self.views.fullscreen_player.queue_panel,
-                &self.views.fullscreen_player.queue_header,
-            );
-            return;
-        };
+        let queue = self.selected_queue();
         let loading = self
             .selected_playback()
             .is_some_and(|player| player.queue_loading);
@@ -1140,9 +1123,7 @@ impl crate::PlayerUi {
     }
 
     pub fn refresh_queue_window(self: &Rc<Self>) {
-        let Some(queue) = self.selected_queue() else {
-            return;
-        };
+        let queue = self.selected_queue();
         if !self.queue_is_mapped() {
             return;
         }
@@ -1200,18 +1181,15 @@ impl crate::PlayerUi {
         let current = self
             .selected_playback()
             .and_then(|player| player.queue.current_index);
-        self.selected_queue().is_some_and(|queue| {
-            let rows = queue.window.borrow();
-            current.as_ref().map_or(!rows.is_empty(), |current| {
-                rows.iter().any(|row| &row.position == current)
-            })
+        let queue = self.selected_queue();
+        let rows = queue.window.borrow();
+        current.as_ref().map_or(!rows.is_empty(), |current| {
+            rows.iter().any(|row| &row.position == current)
         })
     }
 
     fn reveal_queue_current(self: &Rc<Self>, scroller: &gtk::ScrolledWindow, fullscreen: bool) {
-        let Some(queue) = self.selected_queue() else {
-            return;
-        };
+        let queue = self.selected_queue();
         let pending = &queue.reveal_current[usize::from(fullscreen)];
         let loading = self.queue_loading_icon(fullscreen).is_visible();
         if !pending.get() {
@@ -1343,10 +1321,7 @@ fn render_panel(
         }));
     }
 
-    if shell
-        .selected_queue()
-        .is_some_and(|queue| queue.reveal_current[usize::from(fullscreen)].get())
-    {
+    if shell.selected_queue().reveal_current[usize::from(fullscreen)].get() {
         scroller
             .parent()
             .and_then(|overlay| overlay.parent())
@@ -1441,10 +1416,10 @@ pub fn connect_queue_panel_controls(shell: &Rc<crate::PlayerUi>) {
             let Some(sidebar_shell) = sidebar_shell.upgrade() else {
                 return;
             };
-            if let Some(queue) = sidebar_shell.selected_queue() {
-                queue.filter.replace(entry.text().trim().to_string());
-                queue.apply_filter();
-            }
+            let queue = sidebar_shell.selected_queue();
+            queue.filter.replace(entry.text().trim().to_string());
+            queue.apply_filter();
+            drop(queue);
             if let Some(scroller) = queue_panel_scroller(&sidebar_shell.right_panel.queue_panel) {
                 scroller.vadjustment().set_value(0.0);
             }

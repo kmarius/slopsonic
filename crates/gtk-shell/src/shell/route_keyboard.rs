@@ -135,10 +135,7 @@ impl Shell {
             return self.remove_focused_selection(focus);
         }
         if self.queue_selection_focused(focus) {
-            let Some(queue) = self.player_ui.selected_queue() else {
-                return false;
-            };
-            let Some(selection) = queue.selected_rows() else {
+            let Some(selection) = self.player_ui.selected_queue().selected_rows() else {
                 return false;
             };
             match shortcut {
@@ -193,11 +190,7 @@ impl Shell {
 
     fn remove_focused_selection(self: &Rc<Self>, focus: Option<&gtk::Widget>) -> bool {
         if self.queue_selection_focused(focus) {
-            let Some(selection) = self
-                .player_ui
-                .selected_queue()
-                .and_then(|queue| queue.selected_rows())
-            else {
+            let Some(selection) = self.player_ui.selected_queue().selected_rows() else {
                 return false;
             };
             self.products.playback.remove_many(selection.selection);

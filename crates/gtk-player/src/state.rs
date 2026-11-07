@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 
 use artwork::ArtworkBinding;
 use gtk::glib;
-use playback::{CurrentMediaId, PlaybackView};
+use playback::PlaybackView;
 
 use gtk_widgets::detail_links::{DetailLinks, track_artist_links};
 use gtk_widgets::route::Route;
@@ -73,22 +73,6 @@ pub fn current_playback_track(player: Option<&PlaybackView>) -> Option<library::
         .current
         .as_ref()
         .map(|entry| entry.row.track.clone())
-}
-
-pub fn current_playback_track_id(player: Option<&PlaybackView>) -> Option<String> {
-    player?
-        .transport
-        .current
-        .as_ref()
-        .map(|entry| entry.row.track.media_uri.clone())
-}
-
-pub fn current_playback_media_id(player: Option<&PlaybackView>) -> Option<CurrentMediaId> {
-    player?
-        .transport
-        .current
-        .as_ref()
-        .map(|current| current.id.clone())
 }
 
 pub fn playback_window_title(title: Option<&str>, artist: Option<&str>) -> String {

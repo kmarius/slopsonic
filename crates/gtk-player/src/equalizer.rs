@@ -13,24 +13,6 @@ use gtk::subclass::prelude::*;
 use slopsonic_core::playback::PlaybackOwner;
 use slopsonic_core::{EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView};
 
-pub fn equalizer_preset_title(name: &str) -> String {
-    match name {
-        "Custom" => "Custom".to_string(),
-        "Flat" => "Flat".to_string(),
-        "Classical" => "Classical".to_string(),
-        "Club" => "Club".to_string(),
-        "Dance" => "Dance".to_string(),
-        "Full Bass" => "Full Bass".to_string(),
-        "Full Treble" => "Full Treble".to_string(),
-        "Full Bass & Treble" => "Full Bass & Treble".to_string(),
-        "Laptop/Headphones" => "Laptop/Headphones".to_string(),
-        "Rock" => "Rock".to_string(),
-        "Pop" => "Pop".to_string(),
-        "Techno" => "Techno".to_string(),
-        _ => name.to_owned(),
-    }
-}
-
 mod plot_imp {
     use super::*;
 
@@ -1326,13 +1308,7 @@ impl Editor {
         let syncing = self.syncing.replace(true);
         if *self.preset_items.borrow() != presets || self.preset_names.n_items() == 0 {
             let mut names = vec![self.custom_title.clone()];
-            names.extend(presets.iter().map(|preset| {
-                if preset.builtin {
-                    equalizer_preset_title(&preset.name)
-                } else {
-                    preset.name.clone()
-                }
-            }));
+            names.extend(presets.iter().map(|preset| preset.name.clone()));
             *self.preset_items.borrow_mut() = presets;
             self.preset_names.splice(
                 0,

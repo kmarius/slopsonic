@@ -518,7 +518,7 @@ fn finish_playback_projection(
         next_queue_current,
     );
 
-    if queue_window_changed && shell.player_ui.selected_queue().is_some() {
+    if queue_window_changed {
         shell.player_ui.refresh_queue_window();
     }
 

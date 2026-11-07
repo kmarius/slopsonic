@@ -127,8 +127,8 @@ impl PlayerUi {
         })
         .ok()
     }
-    pub fn selected_queue(&self) -> Option<Ref<'_, QueueState>> {
-        Some(self.queue.borrow())
+    pub fn selected_queue(&self) -> Ref<'_, QueueState> {
+        self.queue.borrow()
     }
 }
 pub fn register_resources() -> Result<(), String> {
