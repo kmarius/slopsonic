@@ -37,6 +37,7 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
     let go_forward_shell = Rc::clone(shell);
     go_forward.connect_activate(move |_, _| go_forward_shell.go_forward());
     shell.chrome.window.add_action(&go_forward);
+    shell.update_history_actions();
 
     let troubleshooting_accels = &["<Control><Shift>i"][..];
     add_window_action(shell, "troubleshooting", troubleshooting_accels, {

@@ -139,9 +139,12 @@ impl RouteStack {
         &self.current
     }
 
-    #[cfg(test)]
     pub(crate) fn can_back(&self) -> bool {
         !self.back.is_empty()
+    }
+
+    pub(crate) fn can_forward(&self) -> bool {
+        !self.forward.is_empty()
     }
 
     pub(crate) fn navigate(&mut self, route: Route) {
@@ -377,6 +380,23 @@ impl Shell {
         self.replace_current_route_when_ready();
     }
 
+    pub(crate) fn update_history_actions(&self) {
+        let routes = self.navigation.routes.borrow();
+        for (name, enabled) in [
+            ("go-back", routes.can_back()),
+            ("go-forward", routes.can_forward()),
+        ] {
+            if let Some(action) = self
+                .chrome
+                .window
+                .lookup_action(name)
+                .and_downcast::<gtk::gio::SimpleAction>()
+            {
+                action.set_enabled(enabled);
+            }
+        }
+    }
+
     pub(crate) fn go_back(self: &Rc<Self>) {
         let route = self.navigation.routes.borrow_mut().back().cloned();
         if let Some(route) = route {
@@ -396,6 +416,7 @@ impl Shell {
     }
 
     pub(crate) fn render_current_route(self: &Rc<Self>) {
+        self.update_history_actions();
         self.render_current_route_content_inner(false);
     }
 
