@@ -65,9 +65,10 @@ impl RatingControl {
     }
 
     pub fn set_rating(&self, rating: Option<u8>) {
-        self.value.set(normalized_rating(rating));
-        if self.preview.get().is_none() {
-            set_rating_icons(&self.stars, self.value.get());
+        let value = normalized_rating(rating);
+        if self.value.replace(value) != value || self.preview.get().is_none() {
+            self.preview.set(None);
+            set_rating_icons(&self.stars, value);
         }
     }
 

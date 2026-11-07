@@ -759,7 +759,8 @@ row.artist-search-result button.search-preview-play {
   background-color: transparent;
 }
 
-label.track-row-playing:not(.track-row-paused) {
+label.track-row-playing:not(.track-row-paused),
+.queue-list label.track-row-playing {
   color: var(--accent-color);
 }
 

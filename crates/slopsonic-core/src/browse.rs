@@ -545,10 +545,14 @@ impl crate::source::SourceOwner {
             read
         };
         let summary_and_members = match route {
-            Route::AlbumDetail(uri) => database.album(uri, activity, cancel).await?.map(|row| {
-                let read = member(Collection::Album(row.album_key));
-                (DetailSummary::Album(Box::new(row)), read)
-            }),
+            Route::AlbumDetail(uri) => database
+                .album(uri, activity, cancel)
+                .await?
+                .filter(|row| row.summary.track_count > 0)
+                .map(|row| {
+                    let read = member(Collection::Album(row.album_key));
+                    (DetailSummary::Album(Box::new(row)), read)
+                }),
             Route::ArtistDetail(uri)
             | Route::AlbumArtistDetail(uri)
             | Route::ArtistDiscography(uri)

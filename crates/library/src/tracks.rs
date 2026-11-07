@@ -51,7 +51,7 @@ impl CatalogSort {
 
     pub(crate) fn section_text(self, _playlist: bool) -> Option<String> {
         Some(match self {
-            Self::Title => "track.title",
+            Self::Title => "track.sort_text",
             Self::Artist => "track.display_artist",
             Self::AlbumArtist => "track.album_artist_sort",
             Self::Album => "track.album_title_sort",
