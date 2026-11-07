@@ -9,7 +9,6 @@ use gtk::glib;
 use gtk_media_menus::media_menus::{
     download_playlist_entry_selection, download_track_selection, remove_playlist_entry_selection,
 };
-use gtk_widgets::selection::TrackSelectionSnapshot;
 use slopsonic_core::playback::{QueuePlacement, QueueSelection};
 use std::rc::Rc;
 #[derive(Clone, Copy)]
@@ -61,7 +60,7 @@ impl Shell {
                 return glib::Propagation::Proceed;
             }
             if shell.route_keyboard_available()
-                && !focus_blocks_selection_shortcut(current_focus.as_ref())
+                && !focus_blocks_playback_shortcut(current_focus.as_ref())
                 && let Some(shortcut) = selection_shortcut(key, state)
                 && shell.run_selection_shortcut(shortcut, current_focus.as_ref())
             {
@@ -172,7 +171,7 @@ impl Shell {
             }
             return true;
         }
-        let Some(selection) = self.focused_track_selection(focus) else {
+        let Some(selection) = self.current_route_track_selection_snapshot() else {
             return false;
         };
         match shortcut {
@@ -198,13 +197,6 @@ impl Shell {
         }
         self.current_playlist_entry_selection_snapshot()
             .is_some_and(|selection| remove_playlist_entry_selection(&self.media_menus, selection))
-    }
-
-    fn focused_track_selection(
-        &self,
-        _focus: Option<&gtk::Widget>,
-    ) -> Option<TrackSelectionSnapshot> {
-        self.current_route_track_selection_snapshot()
     }
 
     fn queue_selection_focused(&self, focus: Option<&gtk::Widget>) -> bool {
@@ -286,10 +278,6 @@ fn page_navigation_direction(key: gtk::gdk::Key) -> Option<gtk::DirectionType> {
 }
 
 fn focus_blocks_playback_shortcut(focus: Option<&gtk::Widget>) -> bool {
-    focus.is_some_and(|focus| focus_is_text_input(focus) || focus_is_in_dialog(focus))
-}
-
-fn focus_blocks_selection_shortcut(focus: Option<&gtk::Widget>) -> bool {
     focus.is_some_and(|focus| focus_is_text_input(focus) || focus_is_in_dialog(focus))
 }
 

@@ -306,10 +306,6 @@ fn apply_source_operation(shell: &Rc<Shell>, operation: SourceOperation) {
     let previously_blocked = previous_operation.blocks_library();
     let started_blocking = source_operation_started_blocking(&previous_operation, &operation);
     *shell.source.operation.borrow_mut() = operation.clone();
-    if matches!(
-        operation,
-        SourceOperation::Idle | SourceOperation::Failed { .. }
-    ) {}
     if operation.blocks_library() {
         shell.chrome.source_refresh_feedback.set_visible(false);
     }

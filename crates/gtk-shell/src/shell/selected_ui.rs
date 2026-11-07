@@ -33,7 +33,6 @@ impl SelectedUiSession {
 
 pub(crate) struct SelectedUiState {
     session: RefCell<Option<SelectedUiSession>>,
-    pub(crate) metadata_load: RefCell<Option<gtk::glib::JoinHandle<()>>>,
     playlist_picker_refresh: RefCell<Option<Rc<dyn Fn()>>>,
 }
 
@@ -41,7 +40,6 @@ impl SelectedUiState {
     pub(crate) fn new() -> Self {
         Self {
             session: RefCell::new(None),
-            metadata_load: RefCell::new(None),
             playlist_picker_refresh: RefCell::new(None),
         }
     }
@@ -59,9 +57,6 @@ impl SelectedUiState {
     }
 
     pub(crate) fn take(&self) -> Option<SelectedUiSession> {
-        if let Some(load) = self.metadata_load.borrow_mut().take() {
-            load.abort();
-        }
         let session = self.session.borrow_mut().take();
         if session.is_some() {
             self.playlist_picker_refresh.borrow_mut().take();

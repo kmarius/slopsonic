@@ -463,9 +463,8 @@ impl Shell {
         let previous_left = self.left_sidebar_mode();
         let previous_right_visible = self.right_sidebar_visible();
 
-        let app_active = true;
         let hidden_sidebar = resolved.left_sidebar == ResolvedLeftSidebarMode::Hidden;
-        let right_visible = app_active && resolved.right_sidebar.is_visible();
+        let right_visible = resolved.right_sidebar.is_visible();
         let overlay_sidebar_width = if hidden_sidebar {
             self.settings
                 .current
@@ -486,7 +485,7 @@ impl Shell {
         {
             self.chrome.app_content_stack.set_visible_child_name("main");
         }
-        self.apply_fullscreen_topology(app_active);
+        self.apply_fullscreen_topology();
 
         self.navigation_view.sidebar_modes.set_visible_child_name(
             if resolved.left_sidebar == ResolvedLeftSidebarMode::Compact {
@@ -495,9 +494,7 @@ impl Shell {
                 "full"
             },
         );
-        let collapsed = !app_active || hidden_sidebar;
-        let show_sidebar = app_active && !hidden_sidebar;
-        if show_sidebar {
+        if !hidden_sidebar {
             if !self.navigation_view.split_view.shows_sidebar() {
                 self.navigation_view.split_view.set_show_sidebar(true);
             }
@@ -508,18 +505,12 @@ impl Shell {
             // While the responsive presentation is hidden, show-sidebar is
             // transient overlay state owned by the header button and
             // libadwaita. Rewriting it during allocation cancels its reveal.
-            if (!app_active || !hidden_sidebar) && self.navigation_view.split_view.shows_sidebar() {
-                self.navigation_view.split_view.set_show_sidebar(false);
-            }
-            if self.navigation_view.split_view.is_collapsed() != collapsed {
-                self.navigation_view.split_view.set_collapsed(collapsed);
+            if !self.navigation_view.split_view.is_collapsed() {
+                self.navigation_view.split_view.set_collapsed(true);
             }
         }
-        set_widget_visible(&self.navigation_view.normal_nav_panel, app_active);
-        set_widget_visible(
-            &self.navigation_view.left_resize_handle,
-            app_active && !hidden_sidebar,
-        );
+        set_widget_visible(&self.navigation_view.normal_nav_panel, true);
+        set_widget_visible(&self.navigation_view.left_resize_handle, !hidden_sidebar);
         let right_visibility_changed = previous_right_visible != right_visible;
         self.chrome.topbar.update_sidebar(self.left_sidebar_mode());
         set_widget_visible(&self.right_panel.right_panel_slot, right_visible);
@@ -530,7 +521,7 @@ impl Shell {
                 .right_split
                 .set_position(resolved.main_width);
         }
-        set_widget_visible(&self.player_ui.views.player_controls.root, app_active);
+        set_widget_visible(&self.player_ui.views.player_controls.root, true);
 
         if right_visibility_changed {
             self.player_ui.update_right_panel_button();
@@ -540,27 +531,8 @@ impl Shell {
         }
     }
 
-    fn apply_fullscreen_topology(&self, app_active: bool) {
+    fn apply_fullscreen_topology(&self) {
         let fullscreen = &self.player_ui.views.fullscreen_player;
-        if !app_active {
-            fullscreen.visible.set(false);
-            if let Some(tick) = fullscreen.animation_tick.borrow_mut().take() {
-                tick.remove();
-            }
-            fullscreen.set_slide_offset(0);
-            if fullscreen.root.opacity() != 0.0 {
-                fullscreen.root.set_opacity(0.0);
-            }
-            if fullscreen.root.can_target() {
-                fullscreen.root.set_can_target(false);
-            }
-            if fullscreen.root.is_sensitive() {
-                fullscreen.root.set_sensitive(false);
-            }
-            set_widget_visible(&fullscreen.root, false);
-            return;
-        }
-
         if fullscreen.animation_tick.borrow().is_some() {
             return;
         }
