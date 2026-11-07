@@ -112,6 +112,12 @@ impl Database {
         .bind(rating.map(|rating| i64::from(rating) * 10))
         .execute(&mut *transaction)
         .await?;
+        if rating.is_none() {
+            sqlx::query("UPDATE native_media_state SET rating=NULL WHERE media_uri=?1")
+                .bind(target.media_uri())
+                .execute(&mut *transaction)
+                .await?;
+        }
         cleanup_empty_state(&mut transaction, target.media_uri()).await?;
         transaction.commit().await?;
         Ok(true)

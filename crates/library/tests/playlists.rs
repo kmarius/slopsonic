@@ -899,6 +899,32 @@ async fn source_owned_playlist_additions_report_the_destination_without_partial_
 }
 
 #[tokio::test]
+async fn cleared_rating_hides_the_server_rating() {
+    let fixture = fixture().await;
+    let target = FavoriteTarget::Track(fixture.track_uris[0].clone());
+    let mut writer = fixture.database.writer().await.unwrap();
+    sqlx::query("INSERT INTO native_media_state(media_uri,rating) VALUES(?1,60) ON CONFLICT(media_uri) DO UPDATE SET rating=60")
+        .bind(target.media_uri())
+        .execute(writer.as_mut().unwrap())
+        .await
+        .unwrap();
+    drop(writer);
+    let rating = || async {
+        fixture
+            .database
+            .tracks(&[fixture.tracks[0]], &ReadCancellation::new())
+            .await
+            .unwrap()
+            .remove(0)
+            .state
+            .rating
+    };
+    assert_eq!(rating().await, Some(6));
+    fixture.database.set_rating(&target, None).await.unwrap();
+    assert_eq!(rating().await, None);
+}
+
+#[tokio::test]
 async fn rating_favorite_and_delivery_are_uri_owned() {
     let mut fixture = fixture().await;
     let cancellation = ReadCancellation::new();
