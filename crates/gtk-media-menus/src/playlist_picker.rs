@@ -118,7 +118,7 @@ pub(crate) fn populate_context_picker<Key: Clone + 'static>(
         spinner: gtk::Spinner,
         create_playlist: gtk::Button,
     });
-    gtk_widgets::controls::configure_search_entry(&search);
+    gtk_widgets::controls::configure_filter_entry(&search);
     root.append(&content);
 
     let store = gio::ListStore::new::<glib::BoxedAnyObject>();
@@ -243,7 +243,7 @@ pub fn playlist_picker_dialog(
         cancel: gtk::Button,
         add: gtk::Button,
     });
-    gtk_widgets::controls::configure_search_entry(&search);
+    gtk_widgets::controls::configure_filter_entry(&search);
     let rows = Rc::new(RefCell::new(Vec::<PickerRow>::new()));
     replace_picker_rows(&artwork, &list, &create, &rows, &add, playlists);
 

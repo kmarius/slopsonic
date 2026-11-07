@@ -65,7 +65,7 @@
                 </child>
                 <child>
                   <object class="GtkSearchEntry" id="queue_search">
-                    <accessibility><property name="label" translatable="yes">Search queue</property></accessibility>
+                    <accessibility><property name="label" translatable="yes">Filter queue</property></accessibility>
                     <property name="hexpand">true</property>
                     <property name="width-chars">1</property><property name="max-width-chars">1</property>
                     <property name="height-request">32</property>

@@ -448,8 +448,8 @@ impl ArtistAlbumProjection {
         columns: Rc<Cell<usize>>,
     ) -> Rc<Self> {
         let search = gtk::SearchEntry::new();
-        gtk_widgets::controls::configure_search_entry(&search);
-        search.set_placeholder_text(Some("Search"));
+        gtk_widgets::controls::configure_filter_entry(&search);
+        search.set_placeholder_text(Some("Filter"));
         search.set_hexpand(true);
         let toolbar =
             shell.library_toolbar_projection(LibraryListKey::ArtistAlbums, search.clone());

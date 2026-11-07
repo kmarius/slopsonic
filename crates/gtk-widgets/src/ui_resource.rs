@@ -157,6 +157,7 @@ pub fn verify_icons() -> Result<(), String> {
         "scalable/actions/slopsonic-player-more-symbolic.svg",
         "scalable/actions/slopsonic-preferences-desktop-appearance-symbolic.svg",
         "scalable/actions/slopsonic-search-symbolic.svg",
+        "scalable/actions/slopsonic-filter-symbolic.svg",
         "scalable/actions/slopsonic-tag-outline-symbolic.svg",
         "scalable/actions/slopsonic-x-office-calendar-symbolic.svg",
         "symbolic/apps/io.github.kmarius.slopsonic-symbolic.svg",

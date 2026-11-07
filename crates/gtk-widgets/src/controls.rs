@@ -22,11 +22,20 @@ pub fn configure_dialog_header(header: &adw::HeaderBar) {
 }
 
 pub fn configure_search_entry(entry: &gtk::SearchEntry) {
+    configure_entry(entry, "slopsonic-search-symbolic");
+}
+
+/// For entries that narrow the visible list rather than search the library.
+pub fn configure_filter_entry(entry: &gtk::SearchEntry) {
+    configure_entry(entry, "slopsonic-filter-symbolic");
+}
+
+fn configure_entry(entry: &gtk::SearchEntry, icon: &str) {
     entry
         .first_child()
         .and_downcast::<gtk::Image>()
         .expect("search entry icon")
-        .set_icon_name(Some("slopsonic-search-symbolic"));
+        .set_icon_name(Some(icon));
     let click = gtk::GestureClick::new();
     click.set_button(1);
     click.set_propagation_phase(gtk::PropagationPhase::Capture);

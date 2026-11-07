@@ -164,8 +164,8 @@ impl CatalogUi {
         wrapper.set_width_request(1);
 
         let search = gtk::SearchEntry::new();
-        gtk_widgets::controls::configure_search_entry(&search);
-        search.set_placeholder_text(Some("Search"));
+        gtk_widgets::controls::configure_filter_entry(&search);
+        search.set_placeholder_text(Some("Filter"));
         search.set_hexpand(true);
         search.set_width_request(1);
         let toolbar =

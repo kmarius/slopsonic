@@ -30,7 +30,7 @@ pub fn build_right_panel() -> RightPanelWidgets {
         queue_customize_button: gtk::Button,
     });
     root.append(&queue_region);
-    gtk_widgets::controls::configure_search_entry(&queue_search);
+    gtk_widgets::controls::configure_filter_entry(&queue_search);
     queue_search.connect_text_notify(|entry| {
         if entry.text().is_empty() {
             entry.remove_css_class("has-query");

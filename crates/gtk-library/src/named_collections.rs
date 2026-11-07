@@ -129,8 +129,8 @@ impl CatalogUi {
         });
         let content = R::projection(self, Rc::clone(&sparse), key);
         let search = gtk::SearchEntry::new();
-        gtk_widgets::controls::configure_search_entry(&search);
-        search.set_placeholder_text(Some("Search"));
+        gtk_widgets::controls::configure_filter_entry(&search);
+        search.set_placeholder_text(Some("Filter"));
         let mut page = self.library_page_shell(LibraryPageShellOptions {
             key,
             empty: sparse.len() == 0,

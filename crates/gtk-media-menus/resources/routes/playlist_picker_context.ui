@@ -9,7 +9,7 @@
         <property name="child">
           <object class="GtkSearchEntry" id="search">
             <property name="hexpand">true</property>
-            <property name="placeholder-text" translatable="yes">Search</property>
+            <property name="placeholder-text" translatable="yes">Filter</property>
             <style><class name="context-playlist-submenu-search"/></style>
           </object>
         </property>

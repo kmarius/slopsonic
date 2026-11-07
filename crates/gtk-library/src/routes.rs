@@ -356,8 +356,8 @@ impl CatalogUi {
         let models = Rc::new(RefCell::new(models));
 
         let search = gtk::SearchEntry::new();
-        gtk_widgets::controls::configure_search_entry(&search);
-        search.set_placeholder_text(Some("Search"));
+        gtk_widgets::controls::configure_filter_entry(&search);
+        search.set_placeholder_text(Some("Filter"));
         let content = album_collection_projection(self, models.clone(), key);
         let mut page = self.library_page_shell(LibraryPageShellOptions {
             key,
@@ -699,10 +699,10 @@ impl CatalogUi {
         let persistent_search = options.search.is_some();
         let search = options.search.unwrap_or_else(|| {
             let search = gtk::SearchEntry::new();
-            gtk_widgets::controls::configure_search_entry(&search);
+            gtk_widgets::controls::configure_filter_entry(&search);
             search
         });
-        search.set_placeholder_text(Some("Search"));
+        search.set_placeholder_text(Some("Filter"));
         search.set_hexpand(true);
         if !persistent_search {
             let model = model.clone();

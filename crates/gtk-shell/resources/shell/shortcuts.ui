@@ -259,7 +259,7 @@
         <property name="title" translatable="yes">Navigation</property>
         <child>
           <object class="AdwShortcutsItem" id="shortcut_search_page">
-            <property name="title" translatable="yes">Search in page</property>
+            <property name="title" translatable="yes">Filter page</property>
             <property name="action-name">win.focus-search</property>
           </object>
         </child>
