@@ -584,6 +584,7 @@ impl Source {
         self.catalog_operation(database, async |changes| {
             let source_id = self.source_id.as_str();
             let source = &self.subsonic;
+            changes.start_observation().await?;
             let batch = source.live_search(source_id, query, limit).await?;
             let tracks = batch
                 .tracks

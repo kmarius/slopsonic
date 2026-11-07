@@ -134,7 +134,11 @@ impl SubsonicSource {
         let ids: Vec<_> = values.iter().filter_map(|value| id(&value["id"])).collect();
         let mut result = Vec::with_capacity(ids.len());
         for ids in ids.chunks(100) {
-            let mut query = vec![("_start", "0".to_string()), ("_end", ids.len().to_string())];
+            let mut query = vec![
+                ("_start", "0".to_string()),
+                ("_end", ids.len().to_string()),
+                ("missing", "false".to_string()),
+            ];
             query.extend(ids.iter().map(|id| ("id", id.clone())));
             let page: Vec<Value> = self.navidrome_json(kind, &query).await?;
             let mut page: std::collections::HashMap<_, _> = page
@@ -556,7 +560,7 @@ fn album_from_navidrome(
         },
         user_data: library::NativeUserState {
             rating: Some(rating(field(album, "rating")).map(|rating| i64::from(rating) * 10)),
-            favorite: boolean(&album["starred"]),
+            favorite: Some(boolean(&album["starred"]).unwrap_or(false)),
             ..Default::default()
         },
         object_id: source.id("album", raw_id),
@@ -690,7 +694,7 @@ fn track_from_navidrome(
             last_played: crate::policy::unix_seconds(field(track, "playDate")),
             play_count: capped_u32(field(track, "playCount")).map(i64::from),
             rating: Some(rating(field(track, "rating")).map(|rating| i64::from(rating) * 10)),
-            favorite: boolean(&track["starred"]),
+            favorite: Some(boolean(&track["starred"]).unwrap_or(false)),
             ..Default::default()
         },
         object_id,
@@ -728,14 +732,14 @@ fn artist_from_navidrome(
             ..Default::default()
         },
         user_data: library::NativeUserState {
-            favorite: boolean(&artist["starred"]),
+            favorite: Some(boolean(&artist["starred"]).unwrap_or(false)),
             rating: Some(rating(field(artist, "rating")).map(|rating| i64::from(rating) * 10)),
             ..Default::default()
         },
         object_id: source.id("artist", raw_id),
         artwork_binding: Some(crate::native_artwork_binding(
             source_id,
-            &navidrome_image_ref(source, "ar", raw_id, None),
+            &navidrome_image_ref(source, "ar", raw_id, field(artist, "updatedAt")),
         )?),
     })
 }
