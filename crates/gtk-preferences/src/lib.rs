@@ -18,8 +18,6 @@ pub struct Preferences {
     pub appearance: Rc<appearance::ApplicationAppearance>,
     pub control_feedback: Rc<gtk_widgets::feedback::ControlFeedbackState>,
     pub window: gtk::ApplicationWindow,
-    pub toast_overlay: adw::ToastOverlay,
-    pub app_root_overlay: gtk::Overlay,
     pub effects: Box<dyn Fn(Effect)>,
 }
 
@@ -28,11 +26,7 @@ pub enum Effect {
     LayoutChanged,
     SidebarChanged,
     CatalogChanged,
-    ReloadCatalog,
     RefreshHome,
-    MediaControlsChanged,
-    PlaylistPickerChanged,
-    Quit(&'static str),
 }
 
 pub fn register_resources() -> Result<(), String> {

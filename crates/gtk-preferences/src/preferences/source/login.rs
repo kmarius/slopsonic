@@ -344,7 +344,7 @@ fn subsonic_settings_group(
     );
     let snapshot = credential_draft(Some(saved.credentials.clone()));
     let authentication = authentication.map(|value| Rc::new(Cell::new(value)));
-    let host = credential_host_view(&snapshot, true, authentication);
+    let host = credential_host_view(&snapshot, authentication);
     host.fields_group.set_title("Server Settings");
     host.fields_group
         .set_description(Some(&gtk_widgets::source_labels::source_kind_title(kind)));
@@ -425,11 +425,10 @@ fn complete_source_save(
 
 impl CredentialSetupFlow {
     fn view(&self, shell: &Rc<Preferences>, context: &SetupViewContext) -> gtk::Widget {
-        let (scroller, content, actions, status) = setup_scaffold(shell, context, self.kind);
+        let (scroller, content, actions, status) = setup_scaffold(shell, self.kind);
         let offer_authentication = self.kind == SubsonicFlavor::Subsonic;
         let host = credential_host(
             &self.draft,
-            true,
             offer_authentication.then(|| Rc::clone(&self.authentication)),
         );
         content.append(&host.widget);
@@ -458,10 +457,8 @@ impl CredentialSetupFlow {
 
 fn setup_scaffold(
     shell: &Rc<Preferences>,
-    _context: &SetupViewContext,
     kind: SubsonicFlavor,
 ) -> (gtk::ScrolledWindow, gtk::Box, gtk::Box, gtk::Label) {
-    let compact = true;
     let resource = crate::ui_resource::SETUP_SCAFFOLD_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
@@ -473,12 +470,10 @@ fn setup_scaffold(
         source_summary: gtk::Box, source_icon: gtk::Image, source_title: gtk::Label, change_source: gtk::Button,
     });
     clamp.set_maximum_size(large_popup_content_width(ADD_SERVER_CLAMP_WIDTH));
-    clamp.set_margin_top(if compact { 8 } else { 36 });
-    clamp.set_margin_bottom(if compact { 20 } else { 36 });
-    content.set_spacing(if compact { 10 } else { 18 });
-    if compact {
-        content.add_css_class("add-server-compact-content");
-    }
+    clamp.set_margin_top(8);
+    clamp.set_margin_bottom(20);
+    content.set_spacing(10);
+    content.add_css_class("add-server-compact-content");
     source_icon.set_icon_name(Some(gtk_widgets::source_labels::source_kind_icon_name(
         kind,
     )));
@@ -642,11 +637,10 @@ fn credential_draft(preset: Option<CredentialPreset>) -> CredentialHostDraft {
 
 fn credential_host(
     draft: &Rc<RefCell<CredentialHostDraft>>,
-    compact: bool,
     authentication: Option<Rc<Cell<SubsonicAuthentication>>>,
 ) -> CredentialHost {
     let snapshot = draft.borrow().clone();
-    let host = credential_host_view(&snapshot, compact, authentication);
+    let host = credential_host_view(&snapshot, authentication);
     bind_credential_draft(
         draft,
         &host.name,
@@ -660,7 +654,6 @@ fn credential_host(
 
 fn credential_host_view(
     snapshot: &CredentialHostDraft,
-    compact: bool,
     authentication: Option<Rc<Cell<SubsonicAuthentication>>>,
 ) -> CredentialHost {
     let resource = crate::ui_resource::CREDENTIAL_HOST_RESOURCE;
@@ -687,9 +680,6 @@ fn credential_host_view(
     fields.append(&compact_field_row_group(&name));
     fields.append(&compact_field_row_group(&url));
     let fields = install_compact_field_row_responsiveness_at(&fields, 440);
-    if !compact {
-        fields_group.set_title("Server");
-    }
     fields_group.add(&fields);
 
     username.set_text(&snapshot.username);

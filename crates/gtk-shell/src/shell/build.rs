@@ -158,8 +158,6 @@ pub async fn build(
         volume_persist_source: RefCell::new(None),
     };
     let preferences = PreferencesState {
-        connect_dialog: gtk::glib::WeakRef::new(),
-        connect_feedback: RefCell::new(None),
         dialog: gtk::glib::WeakRef::new(),
     };
     let downloads = gtk_widgets::downloads::DownloadsState::new(Rc::clone(&settings_state));
@@ -230,7 +228,6 @@ pub async fn build(
         application: app.clone(),
         window,
         topbar,
-        toast_overlay,
         control_feedback_label,
         source_refresh_feedback,
         source_refresh_feedback_label,
@@ -386,8 +383,6 @@ pub async fn build(
             appearance: Rc::clone(&appearance),
             control_feedback: Rc::clone(&control_feedback),
             window: chrome.window.clone(),
-            toast_overlay: chrome.toast_overlay.clone(),
-            app_root_overlay: chrome.app_root_overlay.clone(),
             effects: {
                 let weak = weak.clone();
                 Box::new(move |effect| {
