@@ -10,7 +10,7 @@ pub use media_input::ResolvedStream;
 mod spectrum;
 mod transcode;
 
-pub use transcode::{TranscodeOptions, TranscodedAudioReader, transcode_audio};
+pub use transcode::transcode_audio;
 
 pub use spectrum::SpectrumFft;
 

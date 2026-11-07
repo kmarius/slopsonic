@@ -1,42 +1,16 @@
-use std::io::{self, Cursor, Read};
+use std::io;
 use std::path::Path;
-use std::time::{Duration, Instant};
 
 use crate::ResolvedStream;
-use crate::effects::{EffectsBin, ProcessingConfig};
 use gst::prelude::*;
 use gstreamer as gst;
-use gstreamer_app as gst_app;
 use library::{AudioCodec, AudioEncoding};
 
 use super::{configure_sources, ensure_gstreamer_initialized};
 
-const STARTUP_TIMEOUT: Duration = Duration::from_secs(15);
 const POLL: gst::ClockTime = gst::ClockTime::from_mseconds(100);
 
-#[derive(Clone)]
-pub struct TranscodeOptions {
-    pub encoding: AudioEncoding,
-    pub processing: Option<ProcessingConfig>,
-    pub start_offset_millis: u64,
-    pub duration_millis: Option<u64>,
-}
-
-impl From<AudioEncoding> for TranscodeOptions {
-    fn from(encoding: AudioEncoding) -> Self {
-        Self {
-            encoding,
-            processing: None,
-            start_offset_millis: 0,
-            duration_millis: None,
-        }
-    }
-}
-
 struct TranscodePipeline {
-    effects: Option<EffectsBin>,
-    applied: Option<(ProcessingConfig, u32, f64)>,
-    peak_db: Vec<f64>,
     element: gst::Element,
     bus: gst::Bus,
     _stream: ResolvedStream,
@@ -45,14 +19,10 @@ struct TranscodePipeline {
 impl TranscodePipeline {
     fn new(
         stream: &ResolvedStream,
-        options: TranscodeOptions,
-        output: Option<&Path>,
-        cancelled: &impl Fn() -> bool,
+        encoding: AudioEncoding,
+        output: &Path,
     ) -> Result<Self, String> {
         ensure_gstreamer_initialized()?;
-        let encoding = options.encoding;
-        let start = options.start_offset_millis;
-        let duration = options.duration_millis;
         let bitrate = encoding
             .bitrate_kbps
             .map(|value| value.saturating_mul(1000));
@@ -92,13 +62,8 @@ impl TranscodePipeline {
         } else {
             format!("audio/x-raw,{} ! ", raw.join(","))
         };
-        let sink = if output.is_some() {
-            "filesink"
-        } else {
-            "appsink max-buffers=8 drop=false"
-        };
         let element = gst::parse::launch(&format!(
-            "uridecodebin name=decoder ! identity name=incoming audioconvert name=outgoing ! audioresample ! {raw}identity name=bounds single-segment=true ! {encoder} ! {sink} name=sink sync=false"
+            "uridecodebin name=decoder ! identity name=incoming audioconvert name=outgoing ! audioresample ! {raw}identity name=bounds single-segment=true ! {encoder} ! filesink name=sink sync=false"
         )).map_err(|error| error.to_string())?;
         let bin = element
             .downcast_ref::<gst::Bin>()
@@ -133,154 +98,30 @@ impl TranscodePipeline {
         let outgoing = bin
             .by_name("outgoing")
             .ok_or("Audio encoder has no output conversion")?;
-        let mut effects = options
-            .processing
-            .as_ref()
-            .map(EffectsBin::new)
-            .transpose()?;
-        if let Some(effects) = &mut effects {
-            effects.set_meter(true)?;
-        }
-        if let Some(effects) = &effects {
-            bin.add(effects.element())
-                .map_err(|error| error.to_string())?;
-            gst::Element::link_many([&incoming, effects.element(), &outgoing])
-                .map_err(|error| error.to_string())?;
-        } else {
-            incoming
-                .link(&outgoing)
-                .map_err(|error| error.to_string())?;
-        }
-        let boundary = incoming
-            .static_pad("sink")
-            .ok_or("Audio encoder has no input pad")?;
-        let (ready, first_buffer) = std::sync::mpsc::sync_channel(1);
-        let hold = (start > 0).then(|| {
-            boundary
-                .add_probe(
-                    gst::PadProbeType::BLOCK | gst::PadProbeType::BUFFER,
-                    move |_, _| {
-                        let _ = ready.try_send(());
-                        gst::PadProbeReturn::Ok
-                    },
-                )
-                .expect("source buffer block")
-        });
-        bin.by_name("bounds")
-            .expect("encoder bounds")
-            .static_pad("src")
-            .expect("encoder input")
-            .add_probe(gst::PadProbeType::QUERY_UPSTREAM, move |pad, info| {
-                if let Some(gst::QueryViewMut::Duration(query)) =
-                    info.query_mut().map(|query| query.view_mut())
-                {
-                    let format = query.format();
-                    if matches!(format, gst::Format::Time | gst::Format::Default) {
-                        let value = duration
-                            .and_then(|millis| {
-                                if format == gst::Format::Time {
-                                    i64::try_from(millis.saturating_mul(1_000_000)).ok()
-                                } else {
-                                    let rate = pad
-                                        .current_caps()?
-                                        .structure(0)?
-                                        .get::<i32>("rate")
-                                        .ok()?;
-                                    i64::try_from(millis.saturating_mul(rate as u64) / 1000).ok()
-                                }
-                            })
-                            .unwrap_or(-1);
-                        query.set(gst::GenericFormattedValue::new(format, value));
-                        return gst::PadProbeReturn::Handled;
-                    }
-                }
-                gst::PadProbeReturn::Ok
-            });
+        incoming
+            .link(&outgoing)
+            .map_err(|error| error.to_string())?;
         let trust = stream.trust_invalid_certificate();
         configure_sources(&decoder, move || trust);
         decoder.set_property("uri", stream.uri());
-        if let Some(path) = output {
-            let uri = gst::glib::filename_to_uri(path, None).map_err(|error| error.to_string())?;
-            bin.by_name("sink")
-                .ok_or("Audio encoder has no output")?
-                .dynamic_cast::<gst::URIHandler>()
-                .map_err(|_| "Audio output cannot open a file")?
-                .set_uri(uri.as_str())
-                .map_err(|error| error.to_string())?;
-        }
+        let uri = gst::glib::filename_to_uri(output, None).map_err(|error| error.to_string())?;
+        bin.by_name("sink")
+            .ok_or("Audio encoder has no output")?
+            .dynamic_cast::<gst::URIHandler>()
+            .map_err(|_| "Audio output cannot open a file")?
+            .set_uri(uri.as_str())
+            .map_err(|error| error.to_string())?;
         let bus = element.bus().ok_or("Audio encoder has no bus")?;
-        let mut pipeline = Self {
-            effects,
-            applied: None,
-            peak_db: Vec::new(),
+        let pipeline = Self {
             element,
             bus,
             _stream: stream.clone(),
         };
         pipeline
             .element
-            .set_state(if hold.is_some() {
-                gst::State::Paused
-            } else {
-                gst::State::Playing
-            })
+            .set_state(gst::State::Playing)
             .map_err(|error| error.to_string())?;
-        if let Some(hold) = hold {
-            let started = Instant::now();
-            loop {
-                if cancelled() {
-                    return Err("Transcoding cancelled".into());
-                }
-                if started.elapsed() >= STARTUP_TIMEOUT {
-                    return Err("Audio encoder did not prepare the source".into());
-                }
-                pipeline.poll_effects()?;
-                if first_buffer
-                    .recv_timeout(Duration::from_millis(100))
-                    .is_ok()
-                {
-                    break;
-                }
-                if let Some(message) = pipeline
-                    .bus
-                    .pop_filtered(&[gst::MessageType::Error, gst::MessageType::Eos])
-                {
-                    match message.view() {
-                        gst::MessageView::Error(error) => return Err(error.error().to_string()),
-                        gst::MessageView::Eos(..) => {
-                            return Err("Audio source ended before its requested segment".into());
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            pipeline
-                .element
-                .seek(
-                    1.0,
-                    gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE,
-                    gst::SeekType::Set,
-                    gst::ClockTime::from_mseconds(start),
-                    gst::SeekType::None,
-                    gst::ClockTime::NONE,
-                )
-                .map_err(|error| error.to_string())?;
-            boundary.remove_probe(hold);
-            pipeline
-                .element
-                .set_state(gst::State::Playing)
-                .map_err(|error| error.to_string())?;
-        }
         Ok(pipeline)
-    }
-
-    fn poll_effects(&mut self) -> Result<(), String> {
-        if let Some(effects) = &mut self.effects
-            && let Some((config, Some(rate), preamp)) = effects.poll()?
-        {
-            self.applied = Some((config, rate, preamp));
-        }
-        Ok(())
     }
 }
 
@@ -312,18 +153,17 @@ impl Drop for TranscodePipeline {
 
 pub fn transcode_audio(
     stream: &ResolvedStream,
-    options: TranscodeOptions,
+    encoding: AudioEncoding,
     output: &Path,
     cancelled: impl Fn() -> bool,
 ) -> io::Result<()> {
-    let mut pipeline =
-        TranscodePipeline::new(stream, options, Some(output), &cancelled).map_err(|error| {
-            if cancelled() {
-                io::Error::new(io::ErrorKind::Interrupted, error)
-            } else {
-                io::Error::other(error)
-            }
-        })?;
+    let pipeline = TranscodePipeline::new(stream, encoding, output).map_err(|error| {
+        if cancelled() {
+            io::Error::new(io::ErrorKind::Interrupted, error)
+        } else {
+            io::Error::other(error)
+        }
+    })?;
     loop {
         if cancelled() {
             return Err(io::Error::new(
@@ -331,7 +171,6 @@ pub fn transcode_audio(
                 "Transcoding cancelled",
             ));
         }
-        pipeline.poll_effects().map_err(io::Error::other)?;
         let Some(message) = pipeline.bus.timed_pop(POLL) else {
             continue;
         };
@@ -367,109 +206,6 @@ pub fn transcode_audio(
     }
 }
 
-pub struct TranscodedAudioReader {
-    pipeline: TranscodePipeline,
-    sink: gst_app::AppSink,
-    current: Cursor<Vec<u8>>,
-    finished: bool,
-    cancelled: Box<dyn Fn() -> bool + Send>,
-}
-
-impl TranscodedAudioReader {
-    pub fn new(
-        stream: &ResolvedStream,
-        options: TranscodeOptions,
-        cancelled: impl Fn() -> bool + Send + 'static,
-    ) -> io::Result<Self> {
-        let pipeline =
-            TranscodePipeline::new(stream, options, None, &cancelled).map_err(|error| {
-                if cancelled() {
-                    io::Error::new(io::ErrorKind::Interrupted, error)
-                } else {
-                    io::Error::other(error)
-                }
-            })?;
-        let sink = pipeline
-            .element
-            .downcast_ref::<gst::Bin>()
-            .and_then(|bin| bin.by_name("sink"))
-            .ok_or_else(|| io::Error::other("Audio encoder has no output"))?
-            .downcast::<gst_app::AppSink>()
-            .map_err(|_| io::Error::other("Audio encoder output has the wrong type"))?;
-        Ok(Self {
-            pipeline,
-            sink,
-            current: Cursor::new(Vec::new()),
-            finished: false,
-            cancelled: Box::new(cancelled),
-        })
-    }
-    pub fn applied_processing(&self) -> Option<&(ProcessingConfig, u32, f64)> {
-        self.pipeline.applied.as_ref()
-    }
-
-    pub fn encoding_peak_db(&self) -> &[f64] {
-        &self.pipeline.peak_db
-    }
-
-    pub fn source_seekable(&self) -> Option<bool> {
-        let mut query = gst::query::Seeking::new(gst::Format::Time);
-        self.pipeline
-            .element
-            .query(&mut query)
-            .then(|| query.result().0)
-    }
-}
-
-impl Read for TranscodedAudioReader {
-    fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
-        loop {
-            if (self.cancelled)() {
-                let _ = self.pipeline.element.set_state(gst::State::Null);
-                return Err(io::Error::new(
-                    io::ErrorKind::Interrupted,
-                    "Transcoding cancelled",
-                ));
-            }
-            self.pipeline.poll_effects().map_err(io::Error::other)?;
-            while let Some(message) = self.pipeline.bus.pop() {
-                if let gst::MessageView::Error(error) = message.view() {
-                    return Err(io::Error::other(error.error().to_string()));
-                }
-                if let Some(peaks) = self
-                    .pipeline
-                    .effects
-                    .as_ref()
-                    .and_then(|effects| effects.meter_message(&message))
-                {
-                    if self.pipeline.peak_db.len() != peaks.len() {
-                        self.pipeline.peak_db = peaks;
-                    } else {
-                        for (peak, next) in self.pipeline.peak_db.iter_mut().zip(peaks) {
-                            *peak = peak.max(next);
-                        }
-                    }
-                }
-            }
-            let read = self.current.read(output)?;
-            if read > 0 || self.finished || output.is_empty() {
-                return Ok(read);
-            }
-            if let Some(sample) = self.sink.try_pull_sample(POLL) {
-                let buffer = sample
-                    .buffer()
-                    .ok_or_else(|| io::Error::other("Audio encoder produced no buffer"))?;
-                let mapped = buffer
-                    .map_readable()
-                    .map_err(|_| io::Error::other("Encoded audio could not be read"))?;
-                self.current = Cursor::new(mapped.as_slice().to_vec());
-            } else if self.sink.is_eos() {
-                self.finished = true;
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::fs::File;
@@ -478,24 +214,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn reader_and_file_encoders_produce_audio() {
+    fn file_encoders_produce_audio() {
         let directory = tempfile::tempdir().expect("transcode directory");
         let path = directory.path().join("tone.wav");
         write_silence_wave(&path);
         let uri = gst::glib::filename_to_uri(&path, None).expect("wave URI");
-        let mut reader = TranscodedAudioReader::new(
-            &ResolvedStream::new(uri.as_str()),
-            AudioEncoding::mp3().into(),
-            || false,
-        )
-        .expect("start MP3 transcode");
-        let mut encoded = Vec::new();
-
-        reader.read_to_end(&mut encoded).expect("read MP3 stream");
-
-        assert!(encoded.len() > 100);
-        assert_eq!(reader.source_seekable(), Some(true));
-
         for (rate, channels) in [
             (64, library::AudioChannels::Preserve),
             (144, library::AudioChannels::Stereo),
@@ -517,8 +240,7 @@ mod tests {
                         codec,
                         bitrate_kbps: Some(rate),
                         channels,
-                    }
-                    .into(),
+                    },
                     &output,
                     || false,
                 )

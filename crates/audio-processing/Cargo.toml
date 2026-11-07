@@ -16,7 +16,6 @@ gstreamer-controller = { workspace = true, features = ["v1_26"] }
 url.workspace = true
 library.workspace = true
 gstreamer = { workspace = true, features = ["v1_26"] }
-gstreamer-app = { workspace = true, features = ["v1_26"] }
 gstreamer-audio = { workspace = true, features = ["v1_26"] }
 rustfft.workspace = true
 
