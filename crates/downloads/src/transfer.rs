@@ -20,10 +20,10 @@ impl Actor {
                 .as_ref()
                 .and_then(|source_id| self.attached.get(source_id))
                 .cloned();
-            let source = attached
-                .as_ref()
-                .and_then(|attached| attached.source.as_ref())
-                .and_then(Weak::upgrade);
+            let source = match &source_id {
+                Some(source_id) => self.source(source_id).await,
+                None => None,
+            };
             if source_id.is_some() && source.is_none() {
                 if let Some(job) = self.find_job_mut(&source_id, &job_id) {
                     job.state = DownloadQueueState::WaitingForConnection;

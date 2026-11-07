@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Mutex};
 use std::task::Poll;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -31,6 +31,9 @@ mod tests;
 mod track_download;
 pub use storage::DownloadDirectory;
 
+/// Finds a source's current client, which its owner keeps and may replace at any time.
+pub type SourceResolver = dyn Fn(&SourceId) -> Option<Arc<Source>> + Send + Sync;
+
 use actor::*;
 use queue::*;
 use track_download::*;
@@ -53,10 +56,10 @@ enum Command {
         limit: u32,
         response: Sender<Result<DownloadPage, String>>,
     },
+    SourceResolver(Arc<SourceResolver>),
     Attach {
         source_id: SourceId,
         source_key: SourceKey,
-        source: Option<Weak<Source>>,
         folder: Option<FolderKey>,
         response: Sender<Result<(), String>>,
     },
@@ -100,7 +103,6 @@ enum Command {
 #[derive(Clone)]
 struct AttachedSource {
     source_key: SourceKey,
-    source: Option<Weak<Source>>,
     folder: Option<FolderKey>,
     directory: Option<DownloadDirectory>,
 }
@@ -111,20 +113,6 @@ struct RuleIntent {
     source_key: SourceKey,
     folder: Option<FolderKey>,
     rules: DownloadRules,
-}
-
-impl RuleIntent {
-    fn same_context(&self, other: &Self) -> bool {
-        self.source_key == other.source_key && self.folder == other.folder
-    }
-}
-
-fn same_weak_target<T>(left: &Option<Weak<T>>, right: &Option<Weak<T>>) -> bool {
-    match (left, right) {
-        (Some(left), Some(right)) => Weak::ptr_eq(left, right),
-        (None, None) => true,
-        _ => false,
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
@@ -246,12 +234,32 @@ async fn rule_media_uris(
     let cancellation = library::ReadCancellation::new();
     match rule {
         DownloadRule::EntireLibrary | DownloadRule::Favorites => {
+            let favorites = matches!(rule, DownloadRule::Favorites);
             let mut query = library::MemberRead::new(library::Collection::Source(source));
             query.folder = folder;
-            query.favorites_only = matches!(rule, DownloadRule::Favorites);
-            database
-                .selected_track_uris(&query.selection(), None, &cancellation)
-                .await
+            query.favorites_only = favorites;
+            let favorite = |kind| library::MemberSelection::Parents {
+                read: library::ListRead {
+                    folder,
+                    favorites_only: true,
+                    ..library::ListRead::new(kind, Some(source), library::CatalogSort::Title)
+                },
+                ranges: None,
+            };
+            let mut selections = vec![query.selection()];
+            if favorites {
+                selections.push(favorite(library::ListKind::Albums));
+                selections.push(favorite(library::ListKind::Artists {
+                    album_artist: false,
+                }));
+            }
+            let selection = library::MemberSelection::Concat(selections);
+            let mut uris = database
+                .selected_track_uris(&selection, None, &cancellation)
+                .await?;
+            let mut seen = HashSet::new();
+            uris.retain(|uri| seen.insert(uri.clone()));
+            Ok(uris)
         }
         DownloadRule::AllPlaylists => {
             database
@@ -382,6 +390,7 @@ struct Actor {
     events: DownloadEvents,
     transfers: Arc<TransferClients>,
     prepared_rules: Sender<PreparedRules>,
+    sources: Arc<SourceResolver>,
     attached: HashMap<SourceId, AttachedSource>,
     settings: HashMap<SourceId, SourceDownloadSettings>,
     running_rules: Option<RuleIntent>,
@@ -424,6 +433,7 @@ impl Downloads {
                 },
                 transfers: Arc::new(TransferClients::default()),
                 prepared_rules,
+                sources: Arc::new(|_| None),
                 attached: HashMap::new(),
                 settings: settings
                     .into_iter()
@@ -441,11 +451,18 @@ impl Downloads {
         downloads
     }
 
+    /// Downloads ask `resolve` for a source's client each time they start one.
+    pub fn install_source_resolver(
+        &self,
+        resolve: impl Fn(&SourceId) -> Option<Arc<Source>> + Send + Sync + 'static,
+    ) {
+        self.send(Command::SourceResolver(Arc::new(resolve)));
+    }
+
     pub async fn attach(
         &self,
         source_id: SourceId,
         source_key: SourceKey,
-        source: Option<Arc<Source>>,
         folder: Option<FolderKey>,
     ) -> Result<(), String> {
         let (response, result) = async_channel::bounded(1);
@@ -453,7 +470,6 @@ impl Downloads {
             .send(Command::Attach {
                 source_id,
                 source_key,
-                source: source.as_ref().map(Arc::downgrade),
                 folder,
                 response,
             })

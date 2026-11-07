@@ -76,7 +76,6 @@ impl SourceOwner {
                 .attach(
                     source_id.clone(),
                     selected.source_key,
-                    source.as_ref().ok().cloned(),
                     selected.music_folder_key,
                 )
                 .await
@@ -185,7 +184,6 @@ impl SourceOwner {
                     .attach(
                         selected.source_id.clone(),
                         selected.source_key,
-                        Some(source),
                         selected.music_folder_key,
                     )
                     .await

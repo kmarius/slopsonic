@@ -141,7 +141,7 @@ async fn queued_media_survives_restart_serialization() {
     });
     actor.settings.insert(source_id.clone(), settings.clone());
     actor
-        .attach(source_id.clone(), source, None, None, None)
+        .attach(source_id.clone(), source, None, None)
         .await
         .unwrap();
     assert_eq!(
@@ -424,11 +424,11 @@ fn actor_for_test(
         },
         transfers: Arc::new(TransferClients::default()),
         prepared_rules,
+        sources: Arc::new(|_| None),
         attached: HashMap::from([(
             source_id.clone(),
             AttachedSource {
                 source_key,
-                source: None,
                 folder: None,
                 directory: None,
             },
@@ -585,11 +585,11 @@ async fn authoritative_rule_change_is_retained_while_prior_rules_prepare() {
     let mut actor = actor_for_test(root.path(), database, &source_id, source_key);
     let mut first = DownloadRules::default();
     first.set(DownloadRule::Favorites, true);
-    actor.schedule_rules(&source_id, first, true);
+    actor.schedule_rules(&source_id, first);
     assert!(actor.running_rules.is_some());
     let mut replacement = DownloadRules::default();
     replacement.set(DownloadRule::LatestFiveAlbums, true);
-    actor.schedule_rules(&source_id, replacement, true);
+    actor.schedule_rules(&source_id, replacement);
 
     assert_eq!(
         actor.pending_rules.as_ref().map(|intent| intent.rules),

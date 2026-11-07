@@ -424,6 +424,11 @@ impl SourceOwner {
             started: AtomicBool::new(false),
         });
         let weak = Arc::downgrade(&shared);
+        let clients = weak.clone();
+        shared.downloads.install_source_resolver(move |source_id| {
+            let shared = clients.upgrade()?;
+            Self { shared }.client(source_id).ok()
+        });
         shared.database.observe_catalog(move |source, update| {
             let shared = weak.upgrade();
             async move {
@@ -883,17 +888,26 @@ impl SourceOwner {
             source_ids.sort();
             source_ids.dedup();
             for source_id in source_ids {
-                let (source, source_key) = match owner.source_target(&source_id).await {
-                    Ok(target) => target,
+                let source_key = match owner
+                    .shared
+                    .database
+                    .cached_source(source_id.as_str(), &ReadCancellation::new())
+                    .await
+                {
+                    Ok(Some(publication)) => publication.source,
+                    Ok(None) => {
+                        owner.shared.warn_nonfatal(&source_access_unavailable());
+                        continue;
+                    }
                     Err(error) => {
-                        owner.shared.warn_nonfatal(&error);
+                        owner.shared.warn_nonfatal(&string_error(error));
                         continue;
                     }
                 };
                 if let Err(error) = owner
                     .shared
                     .downloads
-                    .attach(source_id.clone(), source_key, Some(source), None)
+                    .attach(source_id.clone(), source_key, None)
                     .await
                 {
                     owner.shared.warn_nonfatal(&error);
@@ -990,21 +1004,6 @@ impl SourceOwner {
 }
 
 impl SourceOwner {
-    pub(crate) async fn source_target(
-        &self,
-        source_id: &SourceId,
-    ) -> Result<(Arc<Source>, SourceKey), String> {
-        let source = self.client(source_id)?;
-        let publication = self
-            .shared
-            .database
-            .cached_source(source_id.as_str(), &ReadCancellation::new())
-            .await
-            .map_err(string_error)?
-            .ok_or_else(source_access_unavailable)?;
-        Ok((source, publication.source))
-    }
-
     async fn favorite_source(&self, target: &FavoriteTarget) -> Option<(SourceId, SourceKey)> {
         let source_id = match library::source_entity_parts(target.media_uri()) {
             Some((source_id, kind, _)) if kind == target.kind() => source_id,

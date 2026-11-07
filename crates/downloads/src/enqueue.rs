@@ -5,14 +5,11 @@ impl Actor {
         &mut self,
         source_id: SourceId,
         source_key: SourceKey,
-        source: Option<Weak<Source>>,
         folder: Option<FolderKey>,
         directory: Option<DownloadDirectory>,
     ) -> Result<(), String> {
         let unchanged = self.attached.get(&source_id).is_some_and(|attached| {
-            attached.directory == directory
-                && attached.source_key == source_key
-                && same_weak_target(&attached.source, &source)
+            attached.directory == directory && attached.source_key == source_key
         });
         self.discard_previous_directory(&source_id, &directory)
             .await;
@@ -20,7 +17,6 @@ impl Actor {
             source_id.clone(),
             AttachedSource {
                 source_key,
-                source: source.clone(),
                 folder,
                 directory: directory.clone(),
             },
@@ -47,7 +43,6 @@ impl Actor {
             .lock()
             .unwrap_or_else(|p| p.into_inner())
             .insert(group.clone());
-        let source_available = source.as_ref().and_then(Weak::upgrade).is_some();
         let mut jobs = if let Some(jobs) = self.jobs.get(&group) {
             jobs.clone()
         } else {
@@ -66,11 +61,7 @@ impl Actor {
                 job.replace_unknown = true;
                 job.remaining.extend(job.completed.drain(..));
             }
-            job.state = if source_available {
-                DownloadQueueState::Queued
-            } else {
-                DownloadQueueState::WaitingForConnection
-            };
+            job.state = DownloadQueueState::Queued;
             !job.remaining.is_empty()
         });
         let queued_tracks = jobs
@@ -174,16 +165,6 @@ impl Actor {
         media_uris: Vec<String>,
         replace_unknown: bool,
     ) -> Option<DownloadFeedback> {
-        let attached = source_id
-            .as_ref()
-            .and_then(|source_id| self.attached.get(source_id));
-        let source_available = source_id.is_none()
-            || attached
-                .and_then(|attached| attached.source.as_ref())
-                .and_then(Weak::upgrade)
-                .is_some();
-        let can_start = !self.paused && source_available;
-
         let mut seen = HashSet::new();
         let media_uris = media_uris
             .into_iter()
@@ -248,11 +229,7 @@ impl Actor {
                 scheduled_tracks = additions.len();
                 existing.remaining.extend(additions);
                 if existing.state != DownloadQueueState::Downloading {
-                    existing.state = if source_available {
-                        DownloadQueueState::Queued
-                    } else {
-                        DownloadQueueState::WaitingForConnection
-                    };
+                    existing.state = DownloadQueueState::Queued;
                 }
                 if existing.remaining.is_empty() {
                     jobs.remove(existing_index);
@@ -268,11 +245,7 @@ impl Actor {
                     completed,
                     failed: false,
                     remaining: remaining.into(),
-                    state: if source_available {
-                        DownloadQueueState::Queued
-                    } else {
-                        DownloadQueueState::WaitingForConnection
-                    },
+                    state: DownloadQueueState::Queued,
                 });
             }
         }
@@ -282,10 +255,10 @@ impl Actor {
             subject,
             preview_uris: media_uris.iter().take(4).cloned().collect(),
             item_count: scheduled_tracks,
-            kind: if can_start {
-                DownloadFeedbackKind::Started
-            } else {
+            kind: if self.paused {
                 DownloadFeedbackKind::Queued
+            } else {
+                DownloadFeedbackKind::Started
             },
         })
     }

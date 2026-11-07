@@ -97,22 +97,21 @@ impl Actor {
     }
 
     pub(super) fn retry_waiting(&mut self) {
-        for (source_id, jobs) in &mut self.jobs {
-            let available = source_id.as_ref().is_none_or(|source_id| {
-                self.attached.get(source_id).is_some_and(|attached| {
-                    attached
-                        .source
-                        .as_ref()
-                        .is_some_and(|source| source.strong_count() > 0)
-                })
-            });
+        for jobs in self.jobs.values_mut() {
             if let Some(first) = jobs.first_mut()
-                && available
                 && first.state == DownloadQueueState::WaitingForConnection
             {
                 first.state = DownloadQueueState::Queued;
             }
         }
+    }
+
+    pub(super) async fn source(&self, source_id: &SourceId) -> Option<Arc<Source>> {
+        let (resolve, source_id) = (Arc::clone(&self.sources), source_id.clone());
+        tokio::task::spawn_blocking(move || resolve(&source_id))
+            .await
+            .ok()
+            .flatten()
     }
 
     pub(super) async fn cancel(

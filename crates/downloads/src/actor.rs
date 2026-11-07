@@ -129,29 +129,26 @@ impl Actor {
                     .send(self.queue_page(scope, offset, limit).await)
                     .await;
             }
+            Command::SourceResolver(resolve) => self.sources = resolve,
             Command::Attach {
                 source_id,
                 source_key,
-                source,
                 folder,
                 response,
             } => {
                 let directory = self.settings_for(&source_id).directory;
-                let directory_changed = self
+                if self
                     .attached
                     .get(&source_id)
-                    .is_some_and(|attached| attached.directory != directory);
-                let source_changed = self
-                    .attached
-                    .get(&source_id)
-                    .is_some_and(|attached| !same_weak_target(&attached.source, &source));
-                self.discard_matching(active, !directory_changed, |download| {
-                    download.source_id.as_ref() == Some(&source_id)
-                        && (source_changed || directory_changed)
-                })
-                .await;
+                    .is_some_and(|attached| attached.directory != directory)
+                {
+                    self.discard_matching(active, false, |download| {
+                        download.source_id.as_ref() == Some(&source_id)
+                    })
+                    .await;
+                }
                 let result = self
-                    .attach(source_id.clone(), source_key, source, folder, directory)
+                    .attach(source_id.clone(), source_key, folder, directory)
                     .await;
                 let ready = result.is_ok();
                 self.pending_rules = None;

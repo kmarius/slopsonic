@@ -114,44 +114,19 @@ impl Actor {
 
     pub(super) fn reconcile_all_rules(&mut self, source_id: &SourceId) {
         let rules = self.settings_for(source_id).rules;
-        self.schedule_rules(source_id, rules, true);
+        self.schedule_rules(source_id, rules);
     }
 
-    pub(super) fn schedule_rules(
-        &mut self,
-        source_id: &SourceId,
-        rules: DownloadRules,
-        authoritative: bool,
-    ) {
-        let Some(attached) = self.attached.get(source_id).cloned() else {
+    pub(super) fn schedule_rules(&mut self, source_id: &SourceId, rules: DownloadRules) {
+        let Some(attached) = self.attached.get(source_id) else {
             return;
         };
-        let mut intent = RuleIntent {
+        self.pending_rules = Some(RuleIntent {
             database: self.database.clone(),
             source_key: attached.source_key,
             folder: attached.folder,
             rules,
-        };
-        if let Some(pending) = self.pending_rules.as_mut() {
-            if authoritative || !pending.same_context(&intent) {
-                *pending = intent;
-            } else {
-                for rule in intent.rules.active() {
-                    pending.rules.set(rule, true);
-                }
-            }
-        } else {
-            if !authoritative
-                && let Some(running) = self.running_rules.as_ref()
-                && running.source_key == attached.source_key
-                && running.same_context(&intent)
-            {
-                for rule in running.rules.active() {
-                    intent.rules.set(rule, true);
-                }
-            }
-            self.pending_rules = Some(intent);
-        }
+        });
         self.start_rule_preparation();
     }
 
@@ -211,12 +186,10 @@ impl Actor {
         media_uris: Vec<String>,
         active: &mut Vec<ActiveDownload>,
     ) {
-        let Some(attached) = self.attached.get(&source_id).cloned() else {
+        if !self.attached.contains_key(&source_id) {
             warn!(%source_id, "ignored download reconciliation for an unattached source");
             return;
-        };
-        let source_available = attached.source.as_ref().and_then(Weak::upgrade).is_some();
-        let can_start = !self.paused && source_available;
+        }
 
         let mut seen = HashSet::new();
         let media_uris = media_uris
@@ -327,10 +300,8 @@ impl Actor {
             });
             let state = if active_job_id.as_deref() == Some(id.as_str()) {
                 DownloadQueueState::Downloading
-            } else if source_available {
-                DownloadQueueState::Queued
             } else {
-                DownloadQueueState::WaitingForConnection
+                DownloadQueueState::Queued
             };
             let job = DownloadJob {
                 id,
@@ -354,10 +325,10 @@ impl Actor {
                     subject,
                     preview_uris: media_uris.iter().take(4).cloned().collect(),
                     item_count: scheduled_tracks,
-                    kind: if can_start {
-                        DownloadFeedbackKind::Started
-                    } else {
+                    kind: if self.paused {
                         DownloadFeedbackKind::Queued
+                    } else {
+                        DownloadFeedbackKind::Started
                     },
                 }))
                 .await;
