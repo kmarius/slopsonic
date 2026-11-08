@@ -92,7 +92,7 @@ When in doubt, prefer simplicity and removing code over adding features.
 
 ## Commits
 
-Keep commit messages extremely brief—a few words, not sentences.
+Keep the commit subject extremely brief—a few words, not sentences. The body may add up to two lines of text.
 
 ## Code Style
 
