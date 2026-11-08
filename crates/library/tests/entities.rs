@@ -603,14 +603,19 @@ async fn favorite_collection_orders_keep_each_favorite_entity_extent() {
     let cancellation = ReadCancellation::new();
     fixture
         .database
-        .set_favorite(&FavoriteTarget::Album(fixture.album_uris[0].clone()), true)
+        .queue_remote_favorite(
+            &FavoriteTarget::Album(fixture.album_uris[0].clone()),
+            true,
+            0,
+        )
         .await
         .expect("favorite Album");
     fixture
         .database
-        .set_favorite(
+        .queue_remote_favorite(
             &FavoriteTarget::Artist(fixture.artist_uris[1].clone()),
             true,
+            0,
         )
         .await
         .expect("favorite Artist");

@@ -751,7 +751,7 @@ fn recover_setting(
     }
 }
 
-// Entries for the removed History page would otherwise reset the whole list they sit in.
+/// Entries for the removed History page would otherwise reset the whole list they sit in.
 fn drop_removed_entries(raw: &mut toml::Value) {
     let strip = |list: Option<&mut toml::Value>, field: &str| {
         if let Some(items) = list.and_then(toml::Value::as_array_mut) {

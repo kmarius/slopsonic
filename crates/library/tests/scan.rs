@@ -1480,7 +1480,10 @@ async fn completed_batches_survive_later_failure_and_interleaved_changes() {
         "track",
         "known",
     ));
-    database.set_favorite(&favorite, true).await.unwrap();
+    database
+        .queue_remote_favorite(&favorite, true, 0)
+        .await
+        .unwrap();
 
     {
         for (kind, id, state) in &[(

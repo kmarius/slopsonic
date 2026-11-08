@@ -1637,15 +1637,16 @@ async fn artist_play_order_stays_complete_beside_the_favorite_section() {
             fixture.track_uris[fixture.tracks.iter().position(|key| key == track).unwrap()].clone();
         fixture
             .database
-            .set_favorite(&library::FavoriteTarget::Track(media_uri), false)
+            .queue_remote_favorite(&library::FavoriteTarget::Track(media_uri), false, 0)
             .await
             .unwrap();
     }
     fixture
         .database
-        .set_favorite(
+        .queue_remote_favorite(
             &library::FavoriteTarget::Track(fixture.track_uris[0].clone()),
             true,
+            0,
         )
         .await
         .unwrap();

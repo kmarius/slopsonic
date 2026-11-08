@@ -501,6 +501,7 @@ impl SourceOwner {
                 };
                 let owner = SourceOwner { shared };
                 owner.deliver_pending_favorites().await;
+                owner.deliver_pending_ratings().await;
             }
         });
         Ok(())
@@ -1029,16 +1030,15 @@ impl SourceOwner {
     }
 
     async fn apply_favorite(&self, target: FavoriteTarget, favorite: bool) -> Result<(), String> {
-        let source = self.favorite_source(&target).await;
-        let changed = if source.is_some() {
-            self.shared
-                .database
-                .queue_remote_favorite(&target, favorite, unix_seconds())
-                .await
-        } else {
-            self.shared.database.set_favorite(&target, favorite).await
+        if self.favorite_source(&target).await.is_none() {
+            return Err("this item does not belong to a server".to_string());
         }
-        .map_err(string_error)?;
+        let changed = self
+            .shared
+            .database
+            .queue_remote_favorite(&target, favorite, unix_seconds())
+            .await
+            .map_err(string_error)?;
         if !changed {
             return Ok(());
         }
@@ -1051,36 +1051,26 @@ impl SourceOwner {
             CatalogChange::Broad,
         )
         .await;
-        if source.is_some() {
-            self.shared.maintenance.notify_one();
-        }
+        self.shared.maintenance.notify_one();
         Ok(())
     }
 
     async fn apply_rating(&self, target: FavoriteTarget, rating: Option<u8>) {
         let lane = self.shared.lane.lock().await;
-        if !self
-            .shared
-            .database
-            .set_rating(&target, rating)
-            .await
-            .unwrap_or(false)
+        if self.favorite_source(&target).await.is_none()
+            || !self
+                .shared
+                .database
+                .queue_remote_rating(&target, rating, unix_seconds())
+                .await
+                .unwrap_or(false)
         {
             return;
         }
-        let source = self
-            .favorite_source(&target)
-            .await
-            .and_then(|(id, _)| self.client(&id).ok().map(|source| (source, id)));
         drop(lane);
         self.publish_current_catalog(None, CatalogChange::Broad)
             .await;
-        if let Some((source, source_id)) = source
-            && let Some((_, object_id)) = favorite_object(&source_id, &target)
-            && let Err(error) = source.set_rating(&object_id, rating).await
-        {
-            warn!(%error, "could not write source rating");
-        }
+        self.shared.maintenance.notify_one();
     }
 
     pub(crate) fn reply<T, F, Work>(&self, work: F) -> Receiver<T>
@@ -1296,18 +1286,9 @@ impl SourceOwner {
         let mut completed = true;
         let mut unavailable = HashSet::new();
         for (media_uri, favorite) in pending {
-            let Some((source_id, kind, _)) = library::source_entity_parts(&media_uri) else {
+            let Some((source_id, target)) = pending_target(media_uri) else {
                 completed = false;
                 continue;
-            };
-            let target = match kind.as_str() {
-                "track" => FavoriteTarget::Track(media_uri),
-                "album" => FavoriteTarget::Album(media_uri),
-                "artist" => FavoriteTarget::Artist(media_uri),
-                _ => {
-                    completed = false;
-                    continue;
-                }
             };
             if unavailable.contains(&source_id) {
                 let _ = self
@@ -1334,6 +1315,87 @@ impl SourceOwner {
             self.shared.maintenance.notify_one();
         }
     }
+
+    async fn deliver_pending_ratings(&self) {
+        let database = &self.shared.database;
+        let pending = match database
+            .due_remote_ratings(unix_seconds(), 64, &ReadCancellation::new())
+            .await
+        {
+            Ok(pending) => pending,
+            Err(error) => {
+                self.shared.warn_nonfatal(&error.to_string());
+                return;
+            }
+        };
+        let full = pending.len() == 64;
+        let mut completed = true;
+        let mut rejected = false;
+        let mut unavailable = HashSet::new();
+        for (media_uri, rating) in pending {
+            let Some((source_id, target)) = pending_target(media_uri) else {
+                completed = false;
+                continue;
+            };
+            let retry = unix_seconds().saturating_add(30);
+            let source = if unavailable.contains(&source_id) {
+                None
+            } else {
+                self.open_client(source_id.clone()).await.ok()
+            };
+            let Some(source) = source else {
+                let _ = database.defer_remote_rating(&target, rating, retry).await;
+                unavailable.insert(source_id);
+                completed = false;
+                continue;
+            };
+            let Some((_, object_id)) = favorite_object(&source_id, &target) else {
+                completed = false;
+                continue;
+            };
+            match source.set_rating(&object_id, rating).await {
+                Ok(()) => {
+                    if database
+                        .acknowledge_remote_rating(&target, rating)
+                        .await
+                        .is_err()
+                    {
+                        completed = false;
+                    }
+                }
+                Err(error) if source_error_is_temporary(&error) => {
+                    let _ = database.defer_remote_rating(&target, rating, retry).await;
+                    unavailable.insert(source_id);
+                    completed = false;
+                }
+                Err(error) => {
+                    warn!(%error, "server rejected rating");
+                    rejected |= matches!(
+                        database.reject_remote_rating(&target, rating).await,
+                        Ok(true)
+                    );
+                }
+            }
+        }
+        if rejected {
+            self.publish_current_catalog(None, CatalogChange::Broad)
+                .await;
+        }
+        if full && completed {
+            self.shared.maintenance.notify_one();
+        }
+    }
+}
+
+fn pending_target(media_uri: String) -> Option<(SourceId, FavoriteTarget)> {
+    let (source_id, kind, _) = library::source_entity_parts(&media_uri)?;
+    let target = match kind.as_str() {
+        "track" => FavoriteTarget::Track(media_uri),
+        "album" => FavoriteTarget::Album(media_uri),
+        "artist" => FavoriteTarget::Artist(media_uri),
+        _ => return None,
+    };
+    Some((source_id, target))
 }
 
 fn favorite_object(

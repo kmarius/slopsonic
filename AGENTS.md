@@ -47,6 +47,7 @@ Do not implement or expand. If you find leftover code for a non-feature, remove 
 - **Smart playlists and the rule editor**
 - **App-owned playlists** — playlists live on the server; no local-only playlists
 - **Local listening history** — play counts and last-played come from the server; the app only queues undelivered scrobbles
+- **Local-only item state** — favorites and ratings live on the server; a local value exists only while its edit waits to be delivered
 - **Playlist folders**
 - **Localization**
 
@@ -56,7 +57,7 @@ Do not implement or expand. If you find leftover code for a non-feature, remove 
   - `slopsonic` — thin binary: allocator, diagnostics, tokio runtime, starts the GTK app
   - `slopsonic-core` — composition root and product operations (playback actor, source lifecycle, settings, routes)
   - `sources` — the Subsonic/Navidrome client; the only crate that talks to the server
-  - `library` — SQLite persistence: catalog, queue, playlists, favorites, listens, download records
+  - `library` — SQLite persistence: catalog cache, queue, download records, outboxes for scrobbles, favorites and ratings
   - `playback` — backend-agnostic playback trait, settings and view types
   - `playback-gstreamer` — GStreamer implementation of the playback backend
   - `audio-processing` — transcoding, EQ/crossfeed/balance effects, spectrum FFT
@@ -77,6 +78,7 @@ Do not implement or expand. If you find leftover code for a non-feature, remove 
 - Single server: the app talks to exactly one Navidrome or OpenSubsonic server. Both share the one Subsonic client in `crates/sources/src/subsonic/`; Navidrome-only features are gated on the flavor. Do not add provider abstractions, multi-server selection or per-source UI
 - Settings store the single configured server
 - The library schema is versioned in `crates/library/src/schema.rs`: `BASE_VERSION` plus one entry in `MIGRATIONS` per change (`SCHEMA_VERSION` is derived). Schema changes during development add a migration step. Before the first release, migrations may be squashed into `STORE_SCHEMA` and `BASE_VERSION` raised; after release they are permanent and never removed
+- Local state is limited to settings, the saved queue, downloads and outboxes of undelivered server writes (scrobbles, favorites, ratings). Everything else in the database is a cache of the server that can be rebuilt by syncing
 - Dead code is a build error (`-D warnings`); remove unused code and dependencies rather than leaving them
 
 When in doubt, prefer simplicity and removing code over adding features.

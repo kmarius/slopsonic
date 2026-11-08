@@ -310,7 +310,7 @@ async fn favorite_snapshots_replace_only_source_favorites_and_keep_catalog_fresh
     let mut raw = super::support::connection(&path).await;
     let uri = library::source_entity_uri(&library::SourceId::new("source"), "track", "track");
     database
-        .set_favorite(&library::FavoriteTarget::Track(uri.clone()), true)
+        .queue_remote_favorite(&library::FavoriteTarget::Track(uri.clone()), true, 0)
         .await
         .unwrap();
     for (favorite, changed) in [(false, true), (false, false), (true, true)] {

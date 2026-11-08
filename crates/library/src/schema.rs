@@ -78,18 +78,26 @@ CREATE TABLE IF NOT EXISTS favorite_outbox (
     outbox_key INTEGER PRIMARY KEY,
     media_uri TEXT NOT NULL UNIQUE CHECK (media_uri <> ''),
     favorite INTEGER NOT NULL CHECK (favorite IN (0, 1)),
-    previous_favorite INTEGER NOT NULL CHECK (previous_favorite IN (0, 1)),
     attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
     next_attempt_at INTEGER NOT NULL CHECK (next_attempt_at >= 0)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS favorite_outbox_due_idx ON favorite_outbox(next_attempt_at, outbox_key);
 
+CREATE TABLE IF NOT EXISTS rating_outbox (
+    outbox_key INTEGER PRIMARY KEY,
+    media_uri TEXT NOT NULL UNIQUE CHECK (media_uri <> ''),
+    rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 0 AND 10),
+    attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    next_attempt_at INTEGER NOT NULL CHECK (next_attempt_at >= 0)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS rating_outbox_due_idx ON rating_outbox(next_attempt_at, outbox_key);
+
 CREATE TABLE IF NOT EXISTS user_media_state (
     media_uri TEXT PRIMARY KEY CHECK (media_uri <> ''),
     favorite INTEGER CHECK (favorite IS NULL OR favorite IN (0,1)),
-    rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 0 AND 100),
-    extra BLOB
+    rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 0 AND 100)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS user_media_favorite_idx ON user_media_state(favorite,media_uri) WHERE favorite=1;
@@ -530,6 +538,23 @@ const MIGRATIONS: &[&str] = &[
     // 69: drop skip counts; no server reports them.
     "ALTER TABLE native_media_state DROP COLUMN skip_count;
      ALTER TABLE tracks DROP COLUMN displayed_skip_count;",
+    // 70: overrides only cover undelivered edits; queue standing ratings for delivery.
+    "CREATE TABLE rating_outbox (
+         outbox_key INTEGER PRIMARY KEY,
+         media_uri TEXT NOT NULL UNIQUE CHECK (media_uri <> ''),
+         rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 0 AND 10),
+         attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+         next_attempt_at INTEGER NOT NULL CHECK (next_attempt_at >= 0)
+     ) STRICT;
+     CREATE INDEX rating_outbox_due_idx ON rating_outbox(next_attempt_at, outbox_key);
+     INSERT INTO rating_outbox(media_uri,rating,next_attempt_at)
+         SELECT media_uri,rating/10,0 FROM user_media_state
+         WHERE rating IS NOT NULL AND media_uri LIKE 'slopsonic:source/%';
+     UPDATE user_media_state SET rating=NULL WHERE media_uri NOT IN (SELECT media_uri FROM rating_outbox);
+     UPDATE user_media_state SET favorite=NULL WHERE media_uri NOT IN (SELECT media_uri FROM favorite_outbox);
+     DELETE FROM user_media_state WHERE favorite IS NULL AND rating IS NULL;
+     ALTER TABLE user_media_state DROP COLUMN extra;
+     ALTER TABLE favorite_outbox DROP COLUMN previous_favorite;",
 ];
 
 pub(crate) const SCHEMA_VERSION: i64 = BASE_VERSION + MIGRATIONS.len() as i64;
@@ -558,7 +583,6 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
     let mut transaction = connection.begin().await?;
     let upgrading = version != 0 && version < SCHEMA_VERSION;
     if upgrading {
-        // Catalog triggers are generated code that can reference dropped columns; rebuild them below.
         let triggers: Vec<String> = sqlx::query_scalar(
             "SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'catalog\\_index\\_%' ESCAPE '\\'",
         )

@@ -1,4 +1,5 @@
-//! Owns Favorite and Rating overrides plus bounded remote Favorite delivery.
+//! Owns Favorite and Rating overrides plus bounded remote Favorite and Rating delivery.
+//! An override exists only while its edit waits in an outbox.
 //! Source clients perform network delivery and retry scheduling decisions.
 
 use sqlx::{Connection, Sqlite, Transaction, sqlite::SqliteConnection};
@@ -89,19 +90,35 @@ impl Database {
             .transpose()
     }
 
-    pub async fn set_rating(
+    pub async fn queue_remote_rating(
         &self,
         target: &FavoriteTarget,
         rating: Option<u8>,
+        next_attempt_at: i64,
     ) -> LibraryResult<bool> {
         if rating.is_some_and(|rating| rating > 10) {
             return Err(LibraryError::InvalidRequest(
                 "Ratings must be between 0 and 10".to_string(),
             ));
         }
+        if next_attempt_at < 0 {
+            return Err(LibraryError::InvalidRequest(
+                "Rating delivery time cannot be negative".to_string(),
+            ));
+        }
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
         let mut transaction = connection.begin().await?;
+        sqlx::query(
+            "INSERT INTO rating_outbox(media_uri,rating,attempts,next_attempt_at) VALUES (?1,?2,0,?3)
+             ON CONFLICT(media_uri) DO UPDATE SET
+                 rating=excluded.rating,attempts=0,next_attempt_at=excluded.next_attempt_at",
+        )
+        .bind(target.media_uri())
+        .bind(rating)
+        .bind(next_attempt_at)
+        .execute(&mut *transaction)
+        .await?;
         sqlx::query(
             "INSERT INTO user_media_state(media_uri,rating) VALUES (?1,?2)
              ON CONFLICT(media_uri) DO UPDATE SET rating=excluded.rating",
@@ -121,17 +138,92 @@ impl Database {
         Ok(true)
     }
 
-    pub async fn set_favorite(
+    pub async fn due_remote_ratings(
+        &self,
+        now: i64,
+        limit: usize,
+        cancellation: &ReadCancellation,
+    ) -> LibraryResult<Vec<(String, Option<u8>)>> {
+        let mut connection = self.acquire_general(cancellation).await?;
+        Ok(sqlx::query_as(
+            "SELECT media_uri,rating FROM rating_outbox WHERE next_attempt_at<=?1
+             ORDER BY next_attempt_at,outbox_key LIMIT ?2",
+        )
+        .bind(now)
+        .bind(limit.clamp(1, 64) as i64)
+        .fetch_all(&mut *connection)
+        .await?)
+    }
+
+    pub async fn acknowledge_remote_rating(
         &self,
         target: &FavoriteTarget,
-        favorite: bool,
+        rating: Option<u8>,
     ) -> LibraryResult<bool> {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
         let mut transaction = connection.begin().await?;
-        let changed = update_favorite(&mut transaction, target, Some(favorite)).await?;
+        if !take_rating(&mut transaction, target, rating).await? {
+            transaction.commit().await?;
+            return Ok(false);
+        }
+        let changed = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO native_media_state(media_uri,rating) SELECT media_uri,?2 FROM {}s WHERE media_uri=?1
+             ON CONFLICT(media_uri) DO UPDATE SET rating=excluded.rating WHERE rating IS NOT excluded.rating",
+            target.kind()
+        )))
+        .bind(target.media_uri())
+        .bind(rating.map(|rating| i64::from(rating) * 10))
+        .execute(&mut *transaction)
+        .await?
+        .rows_affected()
+            > 0;
+        if changed {
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "UPDATE sources SET catalog_revision=catalog_revision+1 WHERE source_key=(SELECT source_key FROM {}s WHERE media_uri=?1)",
+                target.kind()
+            )))
+            .bind(target.media_uri())
+            .execute(&mut *transaction)
+            .await?;
+        }
         transaction.commit().await?;
-        Ok(changed)
+        Ok(true)
+    }
+
+    pub async fn defer_remote_rating(
+        &self,
+        target: &FavoriteTarget,
+        rating: Option<u8>,
+        next_attempt_at: i64,
+    ) -> LibraryResult<bool> {
+        let mut writer = self.writer().await?;
+        let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
+        Ok(sqlx::query(
+            "UPDATE rating_outbox SET attempts=attempts+1,next_attempt_at=?3
+             WHERE media_uri=?1 AND rating IS ?2",
+        )
+        .bind(target.media_uri())
+        .bind(rating)
+        .bind(next_attempt_at)
+        .execute(connection)
+        .await?
+        .rows_affected()
+            == 1)
+    }
+
+    /// Drops the edit; the item shows the server rating again.
+    pub async fn reject_remote_rating(
+        &self,
+        target: &FavoriteTarget,
+        rating: Option<u8>,
+    ) -> LibraryResult<bool> {
+        let mut writer = self.writer().await?;
+        let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
+        let mut transaction = connection.begin().await?;
+        let rejected = take_rating(&mut transaction, target, rating).await?;
+        transaction.commit().await?;
+        Ok(rejected)
     }
 
     pub async fn queue_remote_favorite(
@@ -148,18 +240,15 @@ impl Database {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
         let mut transaction = connection.begin().await?;
-        let previous = effective_favorite(&mut transaction, target).await?;
         sqlx::query(
-            "INSERT INTO favorite_outbox(media_uri,favorite,previous_favorite,attempts,next_attempt_at)
-             VALUES (?1,?2,?3,0,?4)
+            "INSERT INTO favorite_outbox(media_uri,favorite,attempts,next_attempt_at)
+             VALUES (?1,?2,0,?3)
              ON CONFLICT(media_uri) DO UPDATE SET
                  favorite=excluded.favorite,
-                 previous_favorite=favorite_outbox.previous_favorite,
                  attempts=0,next_attempt_at=excluded.next_attempt_at",
         )
         .bind(target.media_uri())
         .bind(favorite)
-        .bind(previous)
         .bind(next_attempt_at)
         .execute(&mut *transaction)
         .await?;
@@ -259,19 +348,22 @@ impl Database {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
         let mut transaction = connection.begin().await?;
-        let previous = sqlx::query_scalar::<_, bool>(
-            "DELETE FROM favorite_outbox WHERE media_uri=?1 AND favorite=?2
-             RETURNING previous_favorite",
-        )
-        .bind(target.media_uri())
-        .bind(favorite)
-        .fetch_optional(&mut *transaction)
-        .await?;
-        if let Some(previous) = previous {
-            update_favorite(&mut transaction, target, Some(previous)).await?;
-        }
+        let rejected =
+            sqlx::query("DELETE FROM favorite_outbox WHERE media_uri=?1 AND favorite=?2")
+                .bind(target.media_uri())
+                .bind(favorite)
+                .execute(&mut *transaction)
+                .await?
+                .rows_affected()
+                > 0;
+        let effective = if rejected {
+            update_favorite(&mut transaction, target, None).await?;
+            Some(effective_favorite(&mut transaction, target).await?)
+        } else {
+            None
+        };
         transaction.commit().await?;
-        Ok(previous)
+        Ok(effective)
     }
 }
 
@@ -303,12 +395,34 @@ async fn update_favorite(
     Ok(true)
 }
 
+async fn take_rating(
+    connection: &mut SqliteConnection,
+    target: &FavoriteTarget,
+    rating: Option<u8>,
+) -> LibraryResult<bool> {
+    let taken = sqlx::query("DELETE FROM rating_outbox WHERE media_uri=?1 AND rating IS ?2")
+        .bind(target.media_uri())
+        .bind(rating)
+        .execute(&mut *connection)
+        .await?
+        .rows_affected()
+        > 0;
+    if taken {
+        sqlx::query("UPDATE user_media_state SET rating=NULL WHERE media_uri=?1")
+            .bind(target.media_uri())
+            .execute(&mut *connection)
+            .await?;
+        cleanup_empty_state(connection, target.media_uri()).await?;
+    }
+    Ok(taken)
+}
+
 async fn cleanup_empty_state(
     connection: &mut SqliteConnection,
     media_uri: &str,
 ) -> LibraryResult<()> {
     sqlx::query(
-        "DELETE FROM user_media_state WHERE media_uri=?1 AND favorite IS NULL AND rating IS NULL AND extra IS NULL",
+        "DELETE FROM user_media_state WHERE media_uri=?1 AND favorite IS NULL AND rating IS NULL",
     )
     .bind(media_uri)
     .execute(&mut *connection)

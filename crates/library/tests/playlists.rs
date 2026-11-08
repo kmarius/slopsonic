@@ -312,7 +312,11 @@ async fn cleared_rating_hides_the_server_rating() {
             .rating
     };
     assert_eq!(rating().await, Some(6));
-    fixture.database.set_rating(&target, None).await.unwrap();
+    fixture
+        .database
+        .queue_remote_rating(&target, None, 0)
+        .await
+        .unwrap();
     assert_eq!(rating().await, None);
 }
 
@@ -332,14 +336,14 @@ async fn rating_favorite_and_delivery_are_uri_owned() {
     assert!(
         fixture
             .database
-            .set_rating(&target, Some(8))
+            .queue_remote_rating(&target, Some(8), 0)
             .await
             .expect("set Rating")
     );
     assert!(
         fixture
             .database
-            .set_favorite(&target, true)
+            .queue_remote_favorite(&target, true, 0)
             .await
             .expect("set Favorite")
     );
@@ -481,7 +485,8 @@ async fn rating_favorite_and_delivery_are_uri_owned() {
             .reject_remote_favorite(&target, false)
             .await
             .expect("reject delivery"),
-        Some(true)
+        Some(false),
+        "a rejected edit falls back to the server value"
     );
     assert!(
         fixture
@@ -492,12 +497,122 @@ async fn rating_favorite_and_delivery_are_uri_owned() {
             .is_empty()
     );
     assert!(
-        fixture
+        !fixture
             .database
             .tracks(&[fixture.tracks[0]], &ReadCancellation::new())
             .await
             .expect("restored Track")[0]
             .state
             .favorite
+    );
+}
+
+#[tokio::test]
+async fn rating_override_lives_only_until_the_server_answers() {
+    let fixture = fixture().await;
+    let cancellation = ReadCancellation::new();
+    let database = &fixture.database;
+    let target = FavoriteTarget::Track(fixture.track_uris[0].clone());
+    let rating = || async {
+        database
+            .tracks(&[fixture.tracks[0]], &ReadCancellation::new())
+            .await
+            .unwrap()
+            .remove(0)
+            .state
+            .rating
+    };
+    let user_rating = || async {
+        database
+            .user_media_state(target.media_uri(), &ReadCancellation::new())
+            .await
+            .unwrap()
+    };
+    assert!(
+        database
+            .queue_remote_rating(&target, Some(11), 0)
+            .await
+            .is_err()
+    );
+
+    database
+        .queue_remote_rating(&target, Some(4), 100)
+        .await
+        .unwrap();
+    database
+        .queue_remote_rating(&target, Some(8), 100)
+        .await
+        .unwrap();
+    assert_eq!(rating().await, Some(8));
+    assert!(
+        database
+            .due_remote_ratings(99, 64, &cancellation)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        database
+            .due_remote_ratings(100, 64, &cancellation)
+            .await
+            .unwrap(),
+        [(target.media_uri().to_string(), Some(8))]
+    );
+    assert!(
+        !database
+            .acknowledge_remote_rating(&target, Some(4))
+            .await
+            .unwrap(),
+        "a superseded answer keeps the newer edit"
+    );
+    assert!(
+        database
+            .defer_remote_rating(&target, Some(8), 200)
+            .await
+            .unwrap()
+    );
+    assert!(
+        database
+            .due_remote_ratings(199, 64, &cancellation)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        database
+            .acknowledge_remote_rating(&target, Some(8))
+            .await
+            .unwrap()
+    );
+    assert_eq!(user_rating().await, None);
+    assert_eq!(
+        rating().await,
+        Some(8),
+        "the acknowledged value becomes the server value"
+    );
+    assert!(
+        database
+            .due_remote_ratings(i64::MAX, 64, &cancellation)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    database
+        .queue_remote_rating(&target, Some(2), 0)
+        .await
+        .unwrap();
+    assert_eq!(rating().await, Some(2));
+    assert!(
+        database
+            .reject_remote_rating(&target, Some(2))
+            .await
+            .unwrap()
+    );
+    assert_eq!(user_rating().await, None);
+    assert_eq!(
+        rating().await,
+        Some(8),
+        "a rejected edit falls back to the server value"
     );
 }
