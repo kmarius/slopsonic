@@ -234,11 +234,6 @@ button.preference-selection-button,
   border-right: 1px solid var(--shell-separator-color);
 }
 
-.sidebar-pane.wide-sidebar-slot,
-.sidebar-pane.compact-rail-slot {
-  padding-right: 7px;
-}
-
 .fullscreen-player .wide-sidebar-slot {
   border-right: none;
   border-radius: 6px;
@@ -273,6 +268,7 @@ overlay-split-view > .sidebar-pane {
 
 .wide-sidebar {
   padding-top: 0;
+  margin-right: 7px;
 }
 
 .wide-sidebar sidebar list.navigation-sidebar {
@@ -914,7 +910,7 @@ gridview.album-grid {
 }
 
 .rail-button {
-  margin: 0 6px;
+  margin: 0 6px 0 2px;
   padding: 3px 1px;
   min-width: 48px;
   min-height: 44px;
@@ -974,7 +970,7 @@ gridview.album-grid {
 }
 
 .compact-sidebar-pin {
-  margin: 0 6px;
+  margin: 0 6px 0 2px;
   border-radius: 6px;
 }
 
