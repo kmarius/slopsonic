@@ -103,15 +103,7 @@ async fn missing_indexed_column_returns_error_without_replacing_the_library() {
 #[tokio::test]
 async fn index_setup_failure_returns_error_without_replacing_the_library() {
     let fixture = super::support::fixture().await;
-    fixture
-        .database
-        .create_playlist(
-            None,
-            "Keep me",
-            &library::MemberSelection::Uris((vec![]).into()),
-        )
-        .await
-        .unwrap();
+    super::support::server_playlist(&fixture.database, "Keep me", &[]).await;
     fixture.database.close().await.unwrap();
     let mut raw = super::support::connection(&fixture.path).await;
     sqlx::raw_sql(
@@ -162,15 +154,12 @@ async fn deleting_or_corrupting_catalog_preserves_exact_durable_records() {
     let path = fixture.path.clone();
     let catalog = path.with_extension("catalog.sqlite");
     let uri = &fixture.track_uris[0];
-    fixture
-        .database
-        .create_playlist(
-            None,
-            "Durable duplicate list",
-            &library::MemberSelection::Uris((vec![uri.clone(), uri.clone()]).into()),
-        )
-        .await
-        .unwrap();
+    super::support::server_playlist(
+        &fixture.database,
+        "Durable duplicate list",
+        &[uri.clone(), uri.clone()],
+    )
+    .await;
     let mut raw = connection(&path, false).await;
     sqlx::query("INSERT INTO user_media_state(media_uri,favorite,rating) VALUES(?1,1,87)")
         .bind(uri)
@@ -317,18 +306,10 @@ async fn durable_rows(path: &Path) -> Vec<(String, Vec<String>)> {
 #[tokio::test]
 async fn unsupported_version_preserves_library_data() {
     let fixture = super::support::fixture().await;
-    fixture
-        .database
-        .create_playlist(
-            None,
-            "Keep me",
-            &library::MemberSelection::Uris((vec![]).into()),
-        )
-        .await
-        .unwrap();
+    super::support::server_playlist(&fixture.database, "Keep me", &[]).await;
     fixture.database.close().await.unwrap();
     let mut raw = connection(&fixture.path, false).await;
-    sqlx::raw_sql("ALTER TABLE playlists ADD COLUMN irrelevant TEXT; ALTER TABLE playlists DROP COLUMN artwork_mime; CREATE TABLE extra(value TEXT); INSERT INTO extra VALUES('keep in the original'); PRAGMA user_version=999;").execute(&mut raw).await.unwrap();
+    sqlx::raw_sql("ALTER TABLE playlists ADD COLUMN irrelevant TEXT; ALTER TABLE playlists DROP COLUMN provider_revision; CREATE TABLE extra(value TEXT); INSERT INTO extra VALUES('keep in the original'); PRAGMA user_version=999;").execute(&mut raw).await.unwrap();
     raw.close().await.unwrap();
     let before = durable_rows(&fixture.path).await;
     assert!(Database::open(&fixture.path).await.is_err());
@@ -338,15 +319,7 @@ async fn unsupported_version_preserves_library_data() {
 #[tokio::test]
 async fn missing_listen_identity_returns_error_without_replacing_user_data() {
     let fixture = super::support::fixture().await;
-    fixture
-        .database
-        .create_playlist(
-            None,
-            "Keep me",
-            &library::MemberSelection::Uris((vec![]).into()),
-        )
-        .await
-        .unwrap();
+    super::support::server_playlist(&fixture.database, "Keep me", &[]).await;
     fixture.database.close().await.unwrap();
     let mut raw = connection(&fixture.path, false).await;
     let triggers: Vec<String> = sqlx::query_scalar(

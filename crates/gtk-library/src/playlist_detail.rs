@@ -485,7 +485,6 @@ mod tests {
         let owner = PlaylistDetailOwner {
             key: PlaylistKey::from_raw(1),
             summary: PlaylistRow {
-                source_owned: true,
                 writable: true,
                 metadata_writable: true,
                 playlist_key: PlaylistKey::from_raw(1),

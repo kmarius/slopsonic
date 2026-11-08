@@ -57,19 +57,8 @@ impl FetchContext {
         size: ImageSize,
     ) -> Result<FetchOutcome, String> {
         match &candidate.image {
-            library::ArtworkImage::Playlist { .. } => {
-                let database = self
-                    .database()
-                    .ok_or_else(|| "Playlist artwork storage is unavailable".to_string())?;
-                runtime
-                    .block_on(database.playlist_image(&candidate.image))
-                    .map(|bytes| {
-                        bytes
-                            .map(FetchOutcome::Ready)
-                            .unwrap_or(FetchOutcome::Missing)
-                    })
-                    .map_err(|error| error.to_string())
-            }
+            // Generated playlist collages resolve in the pipeline; nothing else is stored.
+            library::ArtworkImage::Playlist { .. } => Ok(FetchOutcome::Missing),
             library::ArtworkImage::Native {
                 source_id,
                 item_id,

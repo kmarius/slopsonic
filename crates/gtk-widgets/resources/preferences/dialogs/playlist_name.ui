@@ -18,26 +18,9 @@
             <property name="margin-end">18</property>
             <property name="margin-bottom">18</property>
             <child>
-              <object class="GtkOverlay">
-                <property name="child">
-                  <object class="GtkEntry" id="new_entry">
-                    <property name="placeholder-text" translatable="yes">Playlist name</property>
-                    <property name="activates-default">true</property>
-                    <style><class name="playlist-name-owner-entry"/></style>
-                  </object>
-                </property>
-                <child type="overlay">
-                  <object class="GtkToggleButton" id="new_owner">
-                    <property name="halign">end</property>
-                    <property name="valign">center</property>
-                    <property name="margin-end">4</property>
-                    <style>
-                      <class name="flat"/>
-                      <class name="circular"/>
-                      <class name="playlist-name-owner"/>
-                    </style>
-                  </object>
-                </child>
+              <object class="GtkEntry" id="new_entry">
+                <property name="placeholder-text" translatable="yes">Playlist name</property>
+                <property name="activates-default">true</property>
               </object>
             </child>
             <child><object class="GtkBox" id="new_public_options">

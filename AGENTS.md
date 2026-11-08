@@ -45,6 +45,7 @@ Do not implement or expand. If you find leftover code for a non-feature, remove 
 - **System keyring** — credentials are stored in the config file only
 - **Custom themes** — only light/dark/system color scheme plus an accent color
 - **Smart playlists and the rule editor**
+- **App-owned playlists** — playlists live on the server; no local-only playlists
 - **Playlist folders**
 - **Localization**
 

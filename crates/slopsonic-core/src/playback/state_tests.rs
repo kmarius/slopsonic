@@ -1356,15 +1356,43 @@ async fn pause_and_stop_during_queue_preparation_apply_to_the_requested_track() 
 async fn repeat_wraps_when_source_exhaustion_is_discovered_after_a_full_page() {
     let (_directory, db, mut sequence, owner, commands, playback, inbox) =
         seeded(vec![batch_item(0, Provenance::Manual)]).await;
+    let source_id = library::SourceId::new("source");
     let uris = (0..100)
-        .map(|i| format!("https://example.test/{i}"))
+        .map(|i| library::source_entity_uri(&source_id, "track", &i.to_string()))
         .collect::<Vec<_>>();
-    let (key, _) = db
-        .create_playlist(
-            None,
-            "Source",
-            &library::MemberSelection::Uris((uris.to_vec()).into()),
+    db.reconcile_source(&source_id, "subsonic", "Source")
+        .await
+        .unwrap();
+    let mut catalog = db.catalog("source", None).await.unwrap();
+    catalog
+        .apply_catalog(
+            &library::CatalogBatch {
+                playlists: vec![library::PlaylistObservation {
+                    object_id: "playlist".into(),
+                    name: "Source".into(),
+                    sort_text: "source".into(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+            true,
         )
+        .await
+        .unwrap();
+    let entries = (0..100)
+        .map(|i| library::PlaylistEntryObservation {
+            object_id: format!("entry-{i}"),
+            track_id: i.to_string(),
+        })
+        .collect::<Vec<_>>();
+    catalog
+        .write_source_playlist_page("playlist", 0, &entries, true)
+        .await
+        .unwrap();
+    drop(catalog);
+    let source = db.source_identity_key(&source_id).await.unwrap().unwrap();
+    let key = db
+        .playlist_key_by_object(source, "playlist", &library::ReadCancellation::new())
         .await
         .unwrap()
         .unwrap();

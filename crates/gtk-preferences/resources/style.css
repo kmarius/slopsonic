@@ -1186,17 +1186,8 @@ headerbar.preferences-header:backdrop,
   opacity: 1;
 }
 
-button.slopsonic-ownership-icon image {
-  -gtk-icon-size: 20px;
-}
-
 dialog.alert.playlist-delete-dialog .message-area {
   padding-top: 20px;
-}
-
-.playlist-name-owner:checked:not(:hover) {
-  background: transparent;
-  box-shadow: none;
 }
 
 .cover-frame {
@@ -2322,9 +2313,6 @@ modelbutton.slopsonic-menu-selected:dir(rtl) {
   background-repeat: no-repeat;
   background-size: 70% 14px;
   color: transparent;
-}
-.playlist-name-owner-entry {
-  padding-right: 42px;
 }
 
 /* A drop belongs to the whole item, including when a table cell receives it. */

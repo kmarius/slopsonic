@@ -172,18 +172,12 @@ async fn activity_keeps_one_listen_and_independent_delivery_targets() {
     assert_eq!(row.metadata.bpm, catalog.metadata.bpm);
     assert_eq!(row.metadata.genres[0].name, "Rock");
     assert_eq!(row.state.play_count, 1);
-    let (playlist, _) = fixture
-        .database
-        .create_playlist(
-            None,
-            "History track",
-            &library::MemberSelection::Uris(
-                ((std::slice::from_ref(&listen.media_uri)).to_vec()).into(),
-            ),
-        )
-        .await
-        .unwrap()
-        .unwrap();
+    let (playlist, _) = super::support::server_playlist(
+        &fixture.database,
+        "History track",
+        std::slice::from_ref(&listen.media_uri),
+    )
+    .await;
     let entries = fixture
         .database
         .playlist_edit_entries(

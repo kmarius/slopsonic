@@ -1154,50 +1154,6 @@ pub fn present_playlist_context_menu(
     if playlist.writable {
         surface.append_fixed_action("Add current", "add-current", ADD_ICON);
     }
-    if slopsonic_core::playlists::can_remove_unavailable(&playlist) {
-        surface.append_fixed_action(
-            "Remove unavailable tracks",
-            "remove-unavailable",
-            TRASH_ICON,
-        );
-        let cleanup_menus = Rc::downgrade(menus);
-        let key = playlist.playlist_key;
-        let name = playlist.name.clone();
-        let artwork = gtk_widgets::library_fields::playlist_artwork(&playlist);
-        surface.add_action("remove-unavailable", move || {
-            let Some(menus) = cleanup_menus.upgrade() else {
-                return;
-            };
-            let result = slopsonic_core::playlists::remove_unavailable_tracks(&menus.source, key);
-            let menus = Rc::downgrade(&menus);
-            let name = name.clone();
-            let artwork = artwork.clone();
-            gtk::glib::spawn_future_local(async move {
-                let Ok(result) = result.recv().await else {
-                    return;
-                };
-                let Some(menus) = menus.upgrade() else {
-                    return;
-                };
-                let removed = match result {
-                    Ok(removed) => removed,
-                    Err(error) => {
-                        (menus.show_error)(error);
-                        return;
-                    }
-                };
-                (menus.operation_feedback)(
-                    &OperationFeedback {
-                        title: name.clone(),
-                        artwork: OperationArtwork::Bindings(artwork),
-                        item_count: removed,
-                        kind: OperationFeedbackKind::PlaylistRemoved { destination: name },
-                    },
-                    None,
-                );
-            });
-        });
-    }
     if playlist.metadata_writable {
         surface.append_fixed_action("Delete", "delete", DELETE_ICON);
     }

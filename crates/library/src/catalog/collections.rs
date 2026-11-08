@@ -57,8 +57,8 @@ pub(super) async fn playlists(
             ), binding AS (
                 SELECT CASE WHEN ?10 AND ?5 IS NULL THEN (SELECT artwork_binding FROM previous)
                     ELSE CAST(nullif(json_group_array(json(value)),'[]') AS BLOB) END bytes FROM candidates
-            ) INSERT INTO playlists(owner,source_key,object_id,name,normalized_name,sort_text,artwork_binding,writable,metadata_writable,position,indexed,observed_stamp)
-            VALUES('source',?1,?2,?3,lower(?3),?4,(SELECT bytes FROM binding),coalesce(?6,1),coalesce(?7,1),(SELECT coalesce(max(position),-1)+1 FROM playlists),?8,coalesce(?9,0))
+            ) INSERT INTO playlists(source_key,object_id,name,normalized_name,sort_text,artwork_binding,writable,metadata_writable,position,indexed,observed_stamp)
+            VALUES(?1,?2,?3,lower(?3),?4,(SELECT bytes FROM binding),coalesce(?6,1),coalesce(?7,1),(SELECT coalesce(max(position),-1)+1 FROM playlists),?8,coalesce(?9,0))
             ON CONFLICT(source_key,object_id) DO UPDATE SET name=excluded.name,normalized_name=excluded.normalized_name,sort_text=excluded.sort_text,artwork_binding=excluded.artwork_binding,writable=coalesce(?6,playlists.writable),metadata_writable=coalesce(?7,playlists.metadata_writable),indexed=max(playlists.indexed,excluded.indexed),observed_stamp=coalesce(?9,playlists.observed_stamp) WHERE playlists.observed_stamp<=coalesce(?9,9223372036854775807) AND(playlists.name,playlists.sort_text,playlists.artwork_binding,playlists.writable,playlists.metadata_writable,playlists.indexed) IS NOT(excluded.name,excluded.sort_text,excluded.artwork_binding,coalesce(?6,playlists.writable),coalesce(?7,playlists.metadata_writable),max(playlists.indexed,excluded.indexed))")
             .bind(source).bind(&input.object_id).bind(&input.name).bind(&input.sort_text).bind(&input.artwork_binding).bind(input.writable).bind(input.metadata_writable).bind(admit).bind(observed).bind(reference).execute(&mut *connection).await?.rows_affected()>0;
         if row_changed {
@@ -251,7 +251,13 @@ impl super::Catalog<'_> {
             .begin()
             .await?;
         let source = self.source.raw();
-        let playlist:i64=sqlx::query_scalar("SELECT playlist_key FROM playlists WHERE source_key=?1 AND object_id=?2 AND owner='source'").bind(source).bind(id).fetch_one(&mut *tx).await?;
+        let playlist: i64 = sqlx::query_scalar(
+            "SELECT playlist_key FROM playlists WHERE source_key=?1 AND object_id=?2",
+        )
+        .bind(source)
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
         let mut update = CatalogUpdate::default();
         if offset == 0 {
             sqlx::query("DELETE FROM native_playlist_pending WHERE playlist_key=?1")

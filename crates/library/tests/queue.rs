@@ -164,17 +164,10 @@ async fn album_and_playlist_materialize_the_same_uri_identity() {
     .into_iter()
     .map(|row| row.media_uri)
     .collect::<Vec<_>>();
-    let playlist_key = fixture
-        .database
-        .create_playlist(
-            Some(fixture.source),
-            "Collection",
-            &library::MemberSelection::Uris(((&fixture.track_uris[..3]).to_vec()).into()),
-        )
-        .await
-        .expect("create Playlist")
-        .expect("Playlist key")
-        .0;
+    let playlist_key =
+        super::support::server_playlist(&fixture.database, "Collection", &fixture.track_uris[..3])
+            .await
+            .0;
     let playlist = fixture
         .database
         .selected_track_uris(

@@ -38,7 +38,6 @@ CREATE TABLE IF NOT EXISTS queue_positions (
 CREATE TABLE IF NOT EXISTS playlists (
     playlist_key INTEGER PRIMARY KEY,
     observed_stamp INTEGER NOT NULL DEFAULT 0,
-    owner TEXT NOT NULL DEFAULT 'slopsonic' CHECK(owner IN ('slopsonic','source')),
     indexed INTEGER NOT NULL DEFAULT 1 CHECK(indexed IN (0,1)),
     source_key INTEGER REFERENCES sources ON DELETE CASCADE,
     object_id TEXT NOT NULL CHECK (object_id <> ''),
@@ -46,9 +45,6 @@ CREATE TABLE IF NOT EXISTS playlists (
     normalized_name TEXT,
     sort_text TEXT,
     position INTEGER NOT NULL CHECK (position >= 0),
-    artwork_bytes BLOB,
-    artwork_mime TEXT,
-    artwork_revision TEXT,
     artwork_binding BLOB,
     writable INTEGER NOT NULL DEFAULT 1,
     metadata_writable INTEGER NOT NULL DEFAULT 1,
@@ -57,8 +53,6 @@ CREATE TABLE IF NOT EXISTS playlists (
     UNIQUE (source_key, object_id)
 ) STRICT;
 
-CREATE UNIQUE INDEX IF NOT EXISTS playlists_global_object_idx ON playlists(object_id)
-    WHERE source_key IS NULL;
 
 CREATE INDEX IF NOT EXISTS playlists_order_idx ON playlists(source_key, sort_text, playlist_key);
 CREATE INDEX IF NOT EXISTS playlists_membership_idx ON playlists(source_key,indexed,playlist_key);
@@ -532,6 +526,13 @@ const MIGRATIONS: &[&str] = &[
      ALTER TABLE download_locators_new RENAME TO download_locators;",
     // 66: drop the never-written album audio acceptance.
     "ALTER TABLE albums DROP COLUMN accepted_audio;",
+    // 67: drop app-owned playlists; every playlist belongs to the server.
+    "DELETE FROM playlists WHERE owner<>'source';
+     DROP INDEX playlists_global_object_idx;
+     ALTER TABLE playlists DROP COLUMN owner;
+     ALTER TABLE playlists DROP COLUMN artwork_bytes;
+     ALTER TABLE playlists DROP COLUMN artwork_mime;
+     ALTER TABLE playlists DROP COLUMN artwork_revision;",
 ];
 
 pub(crate) const SCHEMA_VERSION: i64 = BASE_VERSION + MIGRATIONS.len() as i64;

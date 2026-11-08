@@ -175,24 +175,6 @@ pub(crate) fn preview_sql(binding: &str) -> String {
     )
 }
 
-pub(crate) fn playlist_binding(
-    source_id: Option<String>,
-    object_id: String,
-    revision: String,
-) -> Vec<u8> {
-    serde_json::to_vec(&[ArtworkCandidate::new(
-        ArtworkImage::Playlist {
-            source_id,
-            object_id,
-            revision,
-            automatic: None,
-            resolved: None,
-        },
-        None,
-    )])
-    .expect("playlist artwork binding")
-}
-
 pub fn normalize_artwork_binding(bytes: &[u8]) -> LibraryResult<Vec<u8>> {
     if let Ok(candidates) = serde_json::from_slice::<Vec<ArtworkCandidate>>(bytes) {
         return Ok(serde_json::to_vec(
@@ -266,30 +248,6 @@ pub fn automatic_playlist_artwork(binding: &[u8]) -> LibraryResult<Option<Vec<u8
 pub fn authored_playlist_artwork(binding: &[u8]) -> LibraryResult<Option<Vec<u8>>> {
     let mut candidates: Vec<ArtworkCandidate> = serde_json::from_slice(binding)?;
     candidates.retain(|candidate| !candidate.is_automatic_playlist());
-    if candidates.is_empty() {
-        return Ok(None);
-    }
-    Ok(Some(serde_json::to_vec(&candidates)?))
-}
-
-pub fn merge_playlist_artwork(
-    previous: Option<&[u8]>,
-    incoming: Option<&[u8]>,
-) -> LibraryResult<Option<Vec<u8>>> {
-    let mut candidates: Vec<ArtworkCandidate> = incoming
-        .map(serde_json::from_slice)
-        .transpose()?
-        .unwrap_or_default();
-    if !candidates
-        .iter()
-        .any(ArtworkCandidate::is_automatic_playlist)
-        && let Some(automatic) = previous
-            .map(automatic_playlist_artwork)
-            .transpose()?
-            .flatten()
-    {
-        candidates.extend(serde_json::from_slice::<Vec<ArtworkCandidate>>(&automatic)?);
-    }
     if candidates.is_empty() {
         return Ok(None);
     }
@@ -660,21 +618,6 @@ impl Database {
         .await?
         .flatten())
     }
-    pub async fn playlist_image(&self, image: &ArtworkImage) -> LibraryResult<Option<Vec<u8>>> {
-        let ArtworkImage::Playlist {
-            source_id,
-            object_id,
-            revision,
-            ..
-        } = image
-        else {
-            return Ok(None);
-        };
-        let mut connection = self.acquire_reader().await?;
-        Ok(sqlx::query_scalar("SELECT playlist.artwork_bytes FROM main.playlists playlist LEFT JOIN sources source USING(source_key) WHERE playlist.object_id=?1 AND source.object_id IS ?2 AND playlist.artwork_revision=?3 AND playlist.artwork_bytes IS NOT NULL")
-            .bind(object_id).bind(source_id).bind(revision).fetch_optional(&mut *connection).await?)
-    }
-
     pub async fn resolve_playlist_artwork(
         &self,
         candidate: ArtworkCandidate,

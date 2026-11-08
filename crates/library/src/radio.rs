@@ -81,7 +81,7 @@ impl Database {
                     .push_bind(key);
             }
             RadioSeed::Playlist(key) => {
-                query.push("SELECT COALESCE(playlist.source_key,(SELECT track.source_key FROM playlist_entries entry JOIN tracks track USING(track_key) WHERE entry.playlist_key=playlist.playlist_key ORDER BY entry.position LIMIT 1)) source_key,CASE WHEN playlist.owner='source' THEN playlist.object_id END object_id FROM playlists playlist WHERE playlist.playlist_key=").push_bind(key);
+                query.push("SELECT playlist.source_key,playlist.object_id FROM playlists playlist WHERE playlist.playlist_key=").push_bind(key);
             }
         }
         query.push(") seed JOIN sources ON sources.source_key=seed.source_key");

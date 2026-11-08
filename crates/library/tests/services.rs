@@ -192,7 +192,7 @@ async fn source_artwork_pages_distinct_bindings() {
         .execute(&mut raw)
         .await
         .unwrap();
-    sqlx::query("INSERT INTO playlists(source_key,owner,object_id,name,normalized_name,sort_text,position,artwork_binding) VALUES(?1,'source','artwork','Artwork','artwork','artwork',(SELECT COALESCE(max(position),-1)+1 FROM playlists),?2)")
+    sqlx::query("INSERT INTO playlists(source_key,object_id,name,normalized_name,sort_text,position,artwork_binding) VALUES(?1,'artwork','Artwork','artwork','artwork',(SELECT COALESCE(max(position),-1)+1 FROM playlists),?2)")
         .bind(fixture.source).bind(binding("binding-playlist").as_slice())
         .execute(&mut raw).await.unwrap();
     let mut expected = Vec::new();

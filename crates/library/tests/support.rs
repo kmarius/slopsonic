@@ -358,3 +358,53 @@ pub async fn resolve_queue(
         ..Default::default()
     }
 }
+
+/// Writes a server playlist the way a catalog sync does; `uris` must be "source" tracks.
+pub async fn server_playlist(
+    database: &Database,
+    name: &str,
+    uris: &[String],
+) -> (library::PlaylistKey, String) {
+    let object_id = format!("playlist-{}", name.to_lowercase().replace(' ', "-"));
+    let mut catalog = database.catalog("source", None).await.unwrap();
+    catalog
+        .apply_catalog(
+            &library::CatalogBatch {
+                playlists: vec![library::PlaylistObservation {
+                    object_id: object_id.clone(),
+                    name: name.into(),
+                    sort_text: name.to_lowercase(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+            true,
+        )
+        .await
+        .unwrap();
+    let entries = uris
+        .iter()
+        .enumerate()
+        .map(|(position, uri)| library::PlaylistEntryObservation {
+            object_id: format!("entry-{position}"),
+            track_id: library::source_entity_parts(uri)
+                .expect("server playlist entries are source tracks")
+                .2,
+        })
+        .collect::<Vec<_>>();
+    catalog
+        .write_source_playlist_page(&object_id, 0, &entries, true)
+        .await
+        .unwrap();
+    let source = database
+        .source_identity_key(&library::SourceId::new("source"))
+        .await
+        .unwrap()
+        .unwrap();
+    let key = database
+        .playlist_key_by_object(source, &object_id, &library::ReadCancellation::new())
+        .await
+        .unwrap()
+        .unwrap();
+    (key, object_id)
+}

@@ -7,8 +7,8 @@ impl Shell {
         self: &Rc<Self>,
         name: String,
         selection: library::MemberSelection,
-        source_id: Option<library::SourceId>,
-        public: Option<bool>,
+        source_id: library::SourceId,
+        public: bool,
     ) {
         let source = self.products.source.clone();
         let shell = Rc::downgrade(self);
@@ -18,7 +18,7 @@ impl Shell {
                 source_id,
                 name,
                 selection.into(),
-                public,
+                Some(public),
                 None,
             )
             .await;

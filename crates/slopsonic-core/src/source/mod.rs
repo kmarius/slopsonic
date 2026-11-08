@@ -1,5 +1,4 @@
 //! Source configuration, browsing selection, and source work.
-mod availability;
 mod download;
 pub mod folders;
 mod pins;
