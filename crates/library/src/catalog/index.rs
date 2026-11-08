@@ -409,9 +409,9 @@ fn refresh_group(kind: &str, role: i32, entity: &str, album: &str) -> String {
 fn display(scope: &str) -> String {
     format!("UPDATE tracks SET displayed_play_count=current.play_count,displayed_last_played=current.last_played,displayed_skip_count=current.skip_count,is_downloaded=current.downloaded_count FROM (
         SELECT track.track_key,EXISTS(SELECT 1 FROM download_locators WHERE media_uri=track.media_uri AND origin='download') downloaded_count,
-        CASE WHEN source.kind IN('local','files','webdav','smb','documents') OR track.source_key IS NULL THEN track.local_play_count ELSE coalesce(native.play_count,0) END play_count,
-        CASE WHEN source.kind IN('local','files','webdav','smb','documents') OR track.source_key IS NULL THEN (SELECT max(value) FROM(SELECT max(started_at) value FROM listens WHERE media_uri=track.media_uri ))ELSE native.last_played END last_played,
-        CASE WHEN source.kind IN('local','files','webdav','smb','documents') OR track.source_key IS NULL THEN coalesce((SELECT sum(skipped) FROM listens WHERE media_uri=track.media_uri),0) ELSE coalesce(native.skip_count,0) END skip_count
+        CASE WHEN track.source_key IS NULL THEN track.local_play_count ELSE coalesce(native.play_count,0) END play_count,
+        CASE WHEN track.source_key IS NULL THEN (SELECT max(value) FROM(SELECT max(started_at) value FROM listens WHERE media_uri=track.media_uri ))ELSE native.last_played END last_played,
+        CASE WHEN track.source_key IS NULL THEN coalesce((SELECT sum(skipped) FROM listens WHERE media_uri=track.media_uri),0) ELSE coalesce(native.skip_count,0) END skip_count
         FROM tracks track LEFT JOIN sources source USING(source_key) LEFT JOIN native_media_state native USING(media_uri) WHERE {scope}
         ) current WHERE tracks.track_key=current.track_key AND (displayed_play_count,displayed_last_played,displayed_skip_count,is_downloaded) IS NOT (current.play_count,current.last_played,current.skip_count,current.downloaded_count);")
 }

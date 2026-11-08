@@ -2197,22 +2197,15 @@ async fn artist_orders_filter_roles_but_known_artists_remain_addressable() {
 }
 
 #[tokio::test]
-async fn artist_and_home_activity_follow_membership_even_without_listen_source_ids() {
+async fn artist_and_home_activity_follow_membership() {
     let fixture = fixture().await;
     let mut raw = connection(&fixture.path).await;
-    sqlx::query("UPDATE sources SET kind='local' WHERE source_key=?1")
-        .bind(fixture.source)
-        .execute(&mut raw)
-        .await
-        .unwrap();
-    for (uri, time) in [
-        (fixture.track_uris[0].as_str(), 100),
-        (fixture.track_uris[0].as_str(), 200),
-        (fixture.track_uris[2].as_str(), 300),
-        ("file:///outside-current.flac", 400),
+    for (uri, plays, time) in [
+        (fixture.track_uris[0].as_str(), 2, 200),
+        (fixture.track_uris[2].as_str(), 1, 300),
     ] {
-        sqlx::query("INSERT INTO listens(media_uri,track_title,artist_name,album_title,started_at,local_period,duration_millis,listened_millis) VALUES(?1,'Track','Artist','Album',?2,'2026-09',1000,1000)")
-            .bind(uri).bind(time).execute(&mut raw).await.unwrap();
+        sqlx::query("INSERT INTO native_media_state(media_uri,play_count,last_played) VALUES(?1,?2,?3) ON CONFLICT(media_uri) DO UPDATE SET play_count=excluded.play_count,last_played=excluded.last_played")
+            .bind(uri).bind(plays).bind(time).execute(&mut raw).await.unwrap();
     }
     sqlx::query("DELETE FROM track_folders WHERE track_key=?1")
         .bind(fixture.tracks[2])
@@ -2257,54 +2250,6 @@ async fn artist_and_home_activity_follow_membership_even_without_listen_source_i
             .collect::<Vec<_>>(),
         [fixture.track_uris[0].as_str()]
     );
-
-    sqlx::query("INSERT INTO native_media_state(media_uri,play_count,last_played) SELECT media_uri,9,700 FROM tracks WHERE track_key=?1 ON CONFLICT(media_uri) DO UPDATE SET play_count=excluded.play_count,last_played=excluded.last_played")
-        .bind(fixture.tracks[1])
-        .execute(&mut raw)
-        .await
-        .unwrap();
-    for kind in ["local", "files", "webdav", "smb", "documents", "subsonic"] {
-        sqlx::query("UPDATE sources SET kind=?2 WHERE source_key=?1")
-            .bind(fixture.source)
-            .bind(kind)
-            .execute(&mut raw)
-            .await
-            .unwrap();
-        let home = fixture
-            .database
-            .home_page(
-                fixture.source,
-                Some(fixture.folder),
-                0,
-                0,
-                &[
-                    library::HomeBlockKind::MostPlayed,
-                    library::HomeBlockKind::RecentlyPlayed,
-                ],
-                &cancel,
-            )
-            .await
-            .unwrap();
-        let most = home
-            .most_played
-            .tracks
-            .iter()
-            .map(|row| (row.track.track_key, row.track.state.play_count))
-            .collect::<Vec<_>>();
-        let recent = home
-            .recently_played
-            .tracks
-            .iter()
-            .map(|row| (row.track.track_key, row.track.state.last_played))
-            .collect::<Vec<_>>();
-        if kind == "subsonic" {
-            assert_eq!(most, [(fixture.tracks[1], 9)]);
-            assert_eq!(recent, [(fixture.tracks[1], Some(700))]);
-        } else {
-            assert_eq!(most, [(fixture.tracks[0], 2)]);
-            assert_eq!(recent, [(fixture.tracks[0], Some(200))]);
-        }
-    }
 }
 
 #[tokio::test]
@@ -2313,12 +2258,7 @@ async fn home_reads_only_enabled_blocks_and_preserves_provider_sections() {
 
     let fixture = fixture().await;
     let mut raw = connection(&fixture.path).await;
-    sqlx::query("UPDATE sources SET kind='local' WHERE source_key=?1")
-        .bind(fixture.source)
-        .execute(&mut raw)
-        .await
-        .unwrap();
-    sqlx::query("INSERT INTO listens(media_uri,track_title,artist_name,album_title,started_at,local_period,duration_millis,listened_millis) VALUES(?1,'Track','Artist','Album',100,'2026-09',1000,1000)")
+    sqlx::query("INSERT INTO native_media_state(media_uri,play_count,last_played) VALUES(?1,1,100) ON CONFLICT(media_uri) DO UPDATE SET play_count=excluded.play_count,last_played=excluded.last_played")
         .bind(&fixture.track_uris[0])
         .execute(&mut raw)
         .await

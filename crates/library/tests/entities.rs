@@ -158,28 +158,6 @@ async fn repeated_album_cards_keep_whole_counts_and_separate_source_activity() {
         assert_eq!(row.state.last_played, Some(200));
         assert_eq!(row.links.album_artists.len(), 1);
     }
-    sqlx::query("UPDATE sources SET kind='local'")
-        .execute(&mut raw)
-        .await
-        .unwrap();
-    sqlx::query("DELETE FROM track_folders WHERE track_key=?1")
-        .bind(fixture.tracks[1])
-        .execute(&mut raw)
-        .await
-        .unwrap();
-    let rows = fixture.database.albums(&keys, true, &cancel).await.unwrap();
-    for row in &rows {
-        assert_eq!(row.summary.track_count, 2);
-        assert_eq!(row.state.play_count, 0);
-        assert_eq!(row.state.last_played, None);
-    }
-    let artist = fixture
-        .database
-        .artists(&[fixture.artists[0]], false, true, &cancel)
-        .await
-        .unwrap();
-    assert_eq!(artist[0].state.play_count, 0);
-    assert_eq!(artist[0].state.last_played, None);
 }
 
 #[tokio::test]

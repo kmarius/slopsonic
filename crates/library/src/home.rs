@@ -360,14 +360,6 @@ async fn home_activity_tracks(
     folder: Option<FolderKey>,
     kind: HomeSectionKind,
 ) -> LibraryResult<Vec<HomeTrackRow>> {
-    let local = sqlx::query_scalar::<_, bool>(
-        "SELECT COALESCE(kind IN ('local','files','webdav','smb','documents'),0)
-         FROM sources WHERE source_key=?1",
-    )
-    .bind(source)
-    .fetch_optional(&mut *connection)
-    .await?
-    .unwrap_or(false);
     let (field, present, tie) = match kind {
         HomeSectionKind::MostPlayed => ("play_count", ">0", ",track.sort_text"),
         HomeSectionKind::RecentlyPlayed => ("last_played", "IS NOT NULL", ""),
@@ -375,32 +367,12 @@ async fn home_activity_tracks(
     };
     let scope = "track.indexed=1 AND track.source_key=?1 AND (?2 IS NULL OR EXISTS(
         SELECT 1 FROM track_folders scope WHERE scope.track_key=track.track_key AND scope.folder_key=?2))";
-    let sql = if local {
-        let current = match kind {
-            HomeSectionKind::MostPlayed => "SELECT track_key,local_play_count value FROM tracks
-                    WHERE indexed=1 AND source_key=?1 AND local_play_count>0"
-                .to_string(),
-            HomeSectionKind::RecentlyPlayed => format!(
-                "SELECT track.track_key,listen.started_at value FROM listens listen
-                    CROSS JOIN tracks track ON track.media_uri=listen.media_uri
-                    WHERE {scope} AND listen.listen_key=(SELECT latest.listen_key FROM listens latest
-                        WHERE latest.media_uri=listen.media_uri ORDER BY latest.started_at DESC,latest.listen_key DESC LIMIT 1)
-                    ORDER BY listen.started_at DESC,track.track_key LIMIT 24"
-            ),
-            _ => unreachable!(),
-        };
-        format!(
-            "WITH played AS ({current})
-            SELECT track.track_key,track.title FROM played CROSS JOIN tracks track USING(track_key)
-            WHERE {scope} ORDER BY played.value DESC{tie},track.track_key LIMIT 24"
-        )
-    } else {
-        format!(
-            "SELECT track.track_key,track.title FROM tracks track
-            WHERE {scope} AND (SELECT {field} FROM native_media_state WHERE media_uri=track.media_uri) {present}
-            ORDER BY (SELECT {field} FROM native_media_state WHERE media_uri=track.media_uri) DESC{tie},track.track_key LIMIT 24"
-        )
-    };
+    let sql = format!(
+        "SELECT track.track_key,track.title FROM tracks track
+        WHERE {scope} AND (SELECT {field} FROM native_media_state WHERE media_uri=track.media_uri) {present}
+        ORDER BY (SELECT {field} FROM native_media_state WHERE media_uri=track.media_uri) DESC{tie},track.track_key LIMIT 24"
+    )
+;
     let keys = sqlx::query_as::<_, (TrackKey, String)>(sqlx::AssertSqlSafe(sql))
         .bind(source)
         .bind(folder)
