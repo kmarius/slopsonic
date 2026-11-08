@@ -616,7 +616,6 @@ async fn write_track(
                     user_data: library::NativeUserState {
                         favorite: Some(false),
                         play_count: Some(20 + position),
-                        skip_count: Some(position),
                         last_played: Some(1_700_000_000 + position),
                         ..Default::default()
                     },
@@ -716,14 +715,14 @@ async fn canonical_publication_preserves_identity_and_user_overrides() {
     .await
     .expect("read stable keys");
     assert_eq!(
-        sqlx::query_as::<_, (i64, i64, Option<i64>)>(
-            "SELECT COALESCE((SELECT play_count FROM native_media_state WHERE media_uri=tracks.media_uri),0),COALESCE((SELECT skip_count FROM native_media_state WHERE media_uri=tracks.media_uri),0),(SELECT last_played FROM native_media_state WHERE media_uri=tracks.media_uri) FROM tracks\n             WHERE source_key=?1 AND object_id='track-one'",
+        sqlx::query_as::<_, (i64, Option<i64>)>(
+            "SELECT COALESCE((SELECT play_count FROM native_media_state WHERE media_uri=tracks.media_uri),0),(SELECT last_played FROM native_media_state WHERE media_uri=tracks.media_uri) FROM tracks\n             WHERE source_key=?1 AND object_id='track-one'",
         )
         .bind(first.0)
         .fetch_one(&mut outside)
         .await
         .expect("read initial provider activity facts"),
-        (20, 0, Some(1_700_000_000))
+        (20, Some(1_700_000_000))
     );
     sqlx::query(
         "INSERT INTO user_media_state(media_uri,favorite,rating)
@@ -791,14 +790,14 @@ async fn canonical_publication_preserves_identity_and_user_overrides() {
         (original_keys.0, original_keys.1, original_keys.2, 1, 90)
     );
     assert_eq!(
-        sqlx::query_as::<_, (i64, i64, Option<i64>)>(
-            "SELECT COALESCE((SELECT play_count FROM native_media_state WHERE media_uri=tracks.media_uri),0),COALESCE((SELECT skip_count FROM native_media_state WHERE media_uri=tracks.media_uri),0),(SELECT last_played FROM native_media_state WHERE media_uri=tracks.media_uri) FROM tracks\n             WHERE source_key=?1 AND object_id='track-one'",
+        sqlx::query_as::<_, (i64, Option<i64>)>(
+            "SELECT COALESCE((SELECT play_count FROM native_media_state WHERE media_uri=tracks.media_uri),0),(SELECT last_played FROM native_media_state WHERE media_uri=tracks.media_uri) FROM tracks\n             WHERE source_key=?1 AND object_id='track-one'",
         )
         .bind(first.0)
         .fetch_one(&mut outside)
         .await
         .expect("read current provider activity facts"),
-        (20, 0, Some(1_700_000_000))
+        (20, Some(1_700_000_000))
     );
     assert_eq!(
         sqlx::query_as::<

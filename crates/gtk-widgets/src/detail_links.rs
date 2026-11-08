@@ -280,7 +280,6 @@ mod tests {
                 rating: None,
                 last_played: None,
                 play_count: 0,
-                skip_count: 0,
                 ..Default::default()
             },
         }

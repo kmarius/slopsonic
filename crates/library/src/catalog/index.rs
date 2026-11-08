@@ -407,11 +407,11 @@ fn refresh_group(kind: &str, role: i32, entity: &str, album: &str) -> String {
 }
 
 fn display(scope: &str) -> String {
-    format!("UPDATE tracks SET displayed_play_count=current.play_count,displayed_last_played=current.last_played,displayed_skip_count=current.skip_count,is_downloaded=current.downloaded_count FROM (
+    format!("UPDATE tracks SET displayed_play_count=current.play_count,displayed_last_played=current.last_played,is_downloaded=current.downloaded_count FROM (
         SELECT track.track_key,EXISTS(SELECT 1 FROM download_locators WHERE media_uri=track.media_uri AND origin='download') downloaded_count,
-        coalesce(native.play_count,0) play_count,native.last_played last_played,coalesce(native.skip_count,0) skip_count
+        coalesce(native.play_count,0) play_count,native.last_played last_played
         FROM tracks track LEFT JOIN native_media_state native USING(media_uri) WHERE {scope}
-        ) current WHERE tracks.track_key=current.track_key AND (displayed_play_count,displayed_last_played,displayed_skip_count,is_downloaded) IS NOT (current.play_count,current.last_played,current.skip_count,current.downloaded_count);")
+        ) current WHERE tracks.track_key=current.track_key AND (displayed_play_count,displayed_last_played,is_downloaded) IS NOT (current.play_count,current.last_played,current.downloaded_count);")
 }
 
 fn triggers() -> String {
@@ -591,7 +591,7 @@ fn activity_triggers() -> String {
         ),
         (
             "native_update",
-            "AFTER UPDATE OF media_uri,play_count,skip_count,last_played ON native_media_state WHEN (OLD.media_uri,OLD.play_count,OLD.skip_count,OLD.last_played) IS NOT (NEW.media_uri,NEW.play_count,NEW.skip_count,NEW.last_played)",
+            "AFTER UPDATE OF media_uri,play_count,last_played ON native_media_state WHEN (OLD.media_uri,OLD.play_count,OLD.last_played) IS NOT (NEW.media_uri,NEW.play_count,NEW.last_played)",
             "track.media_uri IN(OLD.media_uri,NEW.media_uri)",
         ),
         (

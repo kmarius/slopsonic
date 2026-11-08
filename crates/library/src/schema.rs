@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS sources (
 
 CREATE TABLE IF NOT EXISTS native_media_state (
     media_uri TEXT PRIMARY KEY,
-    favorite INTEGER, rating INTEGER, play_count INTEGER, skip_count INTEGER, last_played INTEGER
+    favorite INTEGER, rating INTEGER, play_count INTEGER, last_played INTEGER
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS native_media_favorite_idx ON native_media_state(favorite,media_uri) WHERE favorite=1;
@@ -227,7 +227,7 @@ CREATE TABLE IF NOT EXISTS tracks (
     loudness_analysis_key BLOB NOT NULL DEFAULT (zeroblob(32)),
     album_title_sort TEXT, album_artist_sort TEXT, album_year_sort INTEGER,
     displayed_play_count INTEGER NOT NULL DEFAULT 0, displayed_last_played INTEGER,
-    displayed_skip_count INTEGER NOT NULL DEFAULT 0, is_downloaded INTEGER NOT NULL DEFAULT 0,
+    is_downloaded INTEGER NOT NULL DEFAULT 0,
     title TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.title')) VIRTUAL,
     display_artist TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.artist')) VIRTUAL,
     display_album TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.album')) VIRTUAL,
@@ -527,6 +527,9 @@ const MIGRATIONS: &[&str] = &[
      DROP INDEX tracks_local_shuffle_idx;
      DROP INDEX tracks_global_local_shuffle_idx;
      ALTER TABLE tracks DROP COLUMN local_play_count;",
+    // 69: drop skip counts; no server reports them.
+    "ALTER TABLE native_media_state DROP COLUMN skip_count;
+     ALTER TABLE tracks DROP COLUMN displayed_skip_count;",
 ];
 
 pub(crate) const SCHEMA_VERSION: i64 = BASE_VERSION + MIGRATIONS.len() as i64;

@@ -206,7 +206,6 @@ pub struct TrackState {
     pub rating: Option<i64>,
     pub last_played: Option<i64>,
     pub play_count: i64,
-    pub skip_count: i64,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
@@ -363,7 +362,7 @@ pub(crate) fn track_requested_sql(requested: &crate::query::RequestedKeys) -> St
         CASE WHEN album.indexed OR track.indexed OR album.track_count>0 THEN track.album_key END album_key,
         CASE WHEN album.indexed OR track.indexed OR album.track_count>0 THEN album.media_uri END album_media_uri,
         COALESCE(state.favorite,native.favorite,0) favorite,COALESCE(state.rating,native.rating)/10 rating,
-        {} last_played,{} play_count,{} skip_count,
+        {} last_played,{} play_count,
         track.is_downloaded,
         {} artists,{} album_artists,
         (SELECT json_group_array(json_object('genre_key',genre.genre_key,'name',genre.name) ORDER BY relation.position)
@@ -374,7 +373,7 @@ pub(crate) fn track_requested_sql(requested: &crate::query::RequestedKeys) -> St
         LEFT JOIN user_media_state state ON state.media_uri=track.media_uri
         LEFT JOIN native_media_state native ON native.media_uri=track.media_uri
         ORDER BY requested.ordinal",
-        requested.sql, displayed_stat("last_played"),displayed_stat("play_count"),displayed_stat("skip_count"),
+        requested.sql, displayed_stat("last_played"),displayed_stat("play_count"),
         TRACK_ARTISTS, TRACK_ALBUM_ARTISTS, crate::artwork::track_artwork_sql("track")
     )
 }

@@ -835,7 +835,6 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
     assert_eq!(rows[0].links.genres[0].name, "Rock");
     assert_eq!(rows[0].state.rating, Some(8));
     assert_eq!(rows[0].state.play_count, 0);
-    assert_eq!(rows[0].state.skip_count, 0);
     assert_eq!(rows[0].state.last_played, None);
     assert_eq!(
         fixture

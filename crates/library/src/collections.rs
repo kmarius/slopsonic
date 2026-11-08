@@ -743,7 +743,7 @@ where
         "NULL".into()
     };
     let sql = format!("WITH requested AS ({}) SELECT {columns},{} album_count,{} track_count,{} duration_millis,{} downloaded_count,
-        COALESCE(state.favorite,native.favorite,0) favorite,COALESCE(state.rating,native.rating)/10 rating,COALESCE(native.play_count,{play},0) play_count,COALESCE(native.last_played,{last}) last_played,COALESCE(native.skip_count,0) skip_count
+        COALESCE(state.favorite,native.favorite,0) favorite,COALESCE(state.rating,native.rating)/10 rating,COALESCE(native.play_count,{play},0) play_count,COALESCE(native.last_played,{last}) last_played
         FROM requested CROSS JOIN {kind}s {kind} ON {kind}.{kind}_key=requested.value {join}
         LEFT JOIN user_media_state state ON state.media_uri={kind}.media_uri
         LEFT JOIN native_media_state native ON native.media_uri={kind}.media_uri ORDER BY requested.ordinal",requested.sql,metric("album_count"),metric("track_count"),metric("duration_millis"),metric("downloaded_count"));

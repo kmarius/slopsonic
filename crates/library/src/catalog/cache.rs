@@ -145,28 +145,27 @@ pub(super) async fn users(
         if states.is_empty() {
             continue;
         }
-        let previous: Vec<(String, Option<bool>, Option<i64>, Option<i64>, Option<i64>, Option<i64>)> =
+        let previous: Vec<(String, Option<bool>, Option<i64>, Option<i64>, Option<i64>)> =
             sqlx::query_as(sqlx::AssertSqlSafe(format!(
-                "SELECT item.object_id,state.favorite,state.rating,state.play_count,state.skip_count,state.last_played FROM {table} item LEFT JOIN native_media_state state USING(media_uri) WHERE item.source_key=?1 AND item.observed_stamp<=?2 AND item.object_id IN(SELECT value FROM json_each(?3))"
+                "SELECT item.object_id,state.favorite,state.rating,state.play_count,state.last_played FROM {table} item LEFT JOIN native_media_state state USING(media_uri) WHERE item.source_key=?1 AND item.observed_stamp<=?2 AND item.object_id IN(SELECT value FROM json_each(?3))"
             )))
             .bind(source)
             .bind(observed.unwrap_or(i64::MAX))
             .bind(serde_json::to_string(&states.keys().collect::<Vec<_>>())?)
             .fetch_all(&mut *connection)
             .await?;
-        for (id, favorite, rating, plays, skips, last_played) in previous {
+        for (id, favorite, rating, plays, last_played) in previous {
             if let Some(state) = states.get(id.as_str()) {
                 changed.metadata |= state.favorite.is_some_and(|value| Some(value) != favorite)
                     || state.rating.is_some_and(|value| value != rating);
                 changed.activity |= state.play_count.is_some_and(|value| Some(value) != plays)
-                    || state.skip_count.is_some_and(|value| Some(value) != skips)
                     || state
                         .last_played
                         .is_some_and(|value| Some(value) != last_played);
             }
         }
         let mut query = QueryBuilder::<Sqlite>::new(
-            "WITH input(object_id,favorite,rating,rating_known,play_count,skip_count,last_played) AS(",
+            "WITH input(object_id,favorite,rating,rating_known,play_count,last_played) AS(",
         );
         query.push_values(states, |mut row, (id, state)| {
             row.push_bind(id)
@@ -174,14 +173,13 @@ pub(super) async fn users(
                 .push_bind(state.rating.flatten())
                 .push_bind(state.rating.is_some())
                 .push_bind(state.play_count)
-                .push_bind(state.skip_count)
                 .push_bind(state.last_played);
         });
-        query.push(format!(") INSERT INTO native_media_state(media_uri,favorite,rating,play_count,skip_count,last_played) SELECT item.media_uri,input.favorite,input.rating,input.play_count,input.skip_count,input.last_played FROM input JOIN {table} item USING(object_id) WHERE item.source_key="))
+        query.push(format!(") INSERT INTO native_media_state(media_uri,favorite,rating,play_count,last_played) SELECT item.media_uri,input.favorite,input.rating,input.play_count,input.last_played FROM input JOIN {table} item USING(object_id) WHERE item.source_key="))
             .push_bind(source).push(" AND item.observed_stamp<=").push_bind(observed.unwrap_or(i64::MAX))
             .push(" ON CONFLICT(media_uri) DO UPDATE SET favorite=coalesce(excluded.favorite,native_media_state.favorite),rating=CASE WHEN(SELECT rating_known FROM input JOIN ")
-            .push(table).push(" item USING(object_id) WHERE item.media_uri=excluded.media_uri LIMIT 1) THEN excluded.rating ELSE native_media_state.rating END,play_count=coalesce(excluded.play_count,native_media_state.play_count),skip_count=coalesce(excluded.skip_count,native_media_state.skip_count),last_played=coalesce(excluded.last_played,native_media_state.last_played) WHERE (favorite,rating,play_count,skip_count,last_played) IS NOT(coalesce(excluded.favorite,favorite),CASE WHEN(SELECT rating_known FROM input JOIN ")
-            .push(table).push(" item USING(object_id) WHERE item.media_uri=excluded.media_uri LIMIT 1) THEN excluded.rating ELSE rating END,coalesce(excluded.play_count,play_count),coalesce(excluded.skip_count,skip_count),coalesce(excluded.last_played,last_played))");
+            .push(table).push(" item USING(object_id) WHERE item.media_uri=excluded.media_uri LIMIT 1) THEN excluded.rating ELSE native_media_state.rating END,play_count=coalesce(excluded.play_count,native_media_state.play_count),last_played=coalesce(excluded.last_played,native_media_state.last_played) WHERE (favorite,rating,play_count,last_played) IS NOT(coalesce(excluded.favorite,favorite),CASE WHEN(SELECT rating_known FROM input JOIN ")
+            .push(table).push(" item USING(object_id) WHERE item.media_uri=excluded.media_uri LIMIT 1) THEN excluded.rating ELSE rating END,coalesce(excluded.play_count,play_count),coalesce(excluded.last_played,last_played))");
         query.build().execute(&mut *connection).await?;
     }
     Ok(changed)
