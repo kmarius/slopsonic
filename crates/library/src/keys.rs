@@ -65,35 +65,12 @@ pub fn source_entity_parts(uri: &str) -> Option<(SourceId, String, String)> {
     Some((SourceId::new(source), kind.to_string(), object))
 }
 
-pub fn normalize_direct_media_uri(uri: &str) -> Option<String> {
-    if document_media_id(uri).is_some() {
-        return Some(uri.to_owned());
-    }
-    let mut parsed = url::Url::parse(uri).ok()?;
-    if parsed.scheme() == "content" {
-        return Some(uri.to_owned());
-    }
-    if !matches!(parsed.scheme(), "file" | "http" | "https") {
-        return None;
-    }
-    parsed.set_fragment(None);
-    Some(parsed.to_string())
-}
-
 pub fn file_media_path(uri: &str) -> Option<std::path::PathBuf> {
     let parsed = url::Url::parse(uri).ok()?;
     if !parsed.username().is_empty() || parsed.password().is_some() {
         return None;
     }
     parsed.to_file_path().ok()
-}
-
-pub fn document_media_id(uri: &str) -> Option<String> {
-    let id = uri.strip_prefix("slopsonic:document/")?;
-    if id.is_empty() {
-        return None;
-    }
-    percent_decode_str(id).decode_utf8().ok().map(String::from)
 }
 
 fn encode(value: &str) -> String {
@@ -170,20 +147,6 @@ mod tests {
             source_entity_parts(&uri),
             Some((source, "track".to_string(), "opaque:/track%id".to_string()))
         );
-    }
-
-    #[test]
-    fn direct_identity_preserves_authentication_and_normalizes_paths() {
-        assert_eq!(
-            normalize_direct_media_uri("https://example.test/a/../song.flac#fragment").as_deref(),
-            Some("https://example.test/song.flac")
-        );
-        for uri in [
-            "https://user:secret@example.test/song",
-            "https://example.test/song?token=secret&signature=abc%2Bdef&token=other",
-        ] {
-            assert_eq!(normalize_direct_media_uri(uri).as_deref(), Some(uri));
-        }
     }
 
     #[test]

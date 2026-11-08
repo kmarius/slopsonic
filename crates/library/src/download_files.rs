@@ -36,18 +36,36 @@ mod tests {
         let database = Database::open(root.path().join("library.sqlite"))
             .await
             .unwrap();
-        let original = root.path().join("original.flac");
-        std::fs::write(&original, b"original").unwrap();
-        let uri = url::Url::from_file_path(&original).unwrap().to_string();
-        let item = crate::TrackReference::direct(&uri, "Track", "Artist", "Album", 180_000);
+        let source = crate::SourceId::new("source");
+        let uri = crate::source_entity_uri(&source, "track", "track");
         database
-            .write_direct_track_metadata(&uri, &item.metadata)
+            .reconcile_source(&source, "server", "Source")
+            .await
+            .unwrap();
+        database
+            .catalog("source", None)
+            .await
+            .unwrap()
+            .apply_catalog(
+                &crate::CatalogBatch {
+                    tracks: vec![crate::TrackObservation {
+                        object_id: "track".into(),
+                        metadata: crate::TrackMetadata {
+                            title: "Track".into(),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+                true,
+            )
             .await
             .unwrap();
         let copy = root.path().join("download.mp3");
         std::fs::write(&copy, b"download").unwrap();
         let access = crate::DownloadAccessWrite {
-            media_uri: item.media_uri.clone(),
+            media_uri: uri.clone(),
             path: copy.to_string_lossy().into_owned(),
             root: root.path().to_string_lossy().into_owned(),
             relative_path: "download.mp3".into(),

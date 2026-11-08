@@ -533,14 +533,7 @@ impl Source {
         source.freshness().await
     }
 
-    pub async fn stream(
-        &self,
-        database: &Database,
-        request: StreamRequest,
-    ) -> SourceResult<ResolvedStream> {
-        if let Some(stream) = direct_stream(database, &request.media_uri).await? {
-            return Ok(stream);
-        }
+    pub async fn stream(&self, request: StreamRequest) -> SourceResult<ResolvedStream> {
         let object_id = self.track_object_id(&request.media_uri)?;
         let source = &self.subsonic;
         source.resolve_stream(&object_id, request.quality).await
@@ -548,19 +541,9 @@ impl Source {
 
     pub async fn resolve_download(
         &self,
-        database: &Database,
         media_uri: &str,
         quality: DownloadQuality,
     ) -> SourceResult<ResolvedDownload> {
-        if library::file_media_path(media_uri).is_some() {
-            return Ok(ResolvedDownload::encode(
-                ResolvedStream::new(media_uri),
-                quality,
-            ));
-        }
-        if let Some(stream) = direct_stream(database, media_uri).await? {
-            return Ok(ResolvedDownload::encode(stream, quality));
-        }
         let object_id = self.track_object_id(media_uri)?;
         let source = &self.subsonic;
         source.resolve_download(&object_id, quality)
@@ -870,20 +853,6 @@ impl Source {
         let source = &self.subsonic;
         source.report_playback(&object_id, report).await
     }
-}
-
-async fn direct_stream(
-    database: &Database,
-    media_uri: &str,
-) -> SourceResult<Option<ResolvedStream>> {
-    let Some(uri) = library::normalize_direct_media_uri(media_uri) else {
-        return Ok(None);
-    };
-    let uri = match database.playback_access(media_uri).await? {
-        Some(uri) => uri,
-        None => uri,
-    };
-    Ok(Some(ResolvedStream::new(uri)))
 }
 
 pub(crate) fn configured_source_name(configured: Option<String>, provider: String) -> String {

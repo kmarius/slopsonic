@@ -138,7 +138,7 @@ async fn finish_queue(
 }
 
 fn restored_item() -> TrackReference {
-    let mut item = TrackReference::direct(
+    let mut item = TrackReference::new(
         "https://example.test/track-1",
         "Track",
         "Artist",
@@ -148,6 +148,36 @@ fn restored_item() -> TrackReference {
     item.metadata.disc_number = 1;
     item.metadata.track_number = 1;
     item
+}
+
+// Streams resolve only through downloads or a live source, so tests register a downloaded file.
+async fn make_playable(
+    database: &library::Database,
+    directory: &std::path::Path,
+    tracks: impl IntoIterator<Item = i64>,
+) {
+    for track in tracks {
+        let name = format!("track-{track}.flac");
+        let path = directory.join(&name);
+        std::fs::write(&path, b"audio").unwrap();
+        let access = library::DownloadAccessWrite {
+            media_uri: batch_item(track, Provenance::Manual).0.media_uri,
+            path: path.to_string_lossy().into_owned(),
+            root: directory.to_string_lossy().into_owned(),
+            relative_path: name,
+            size_bytes: 5,
+            mtime_ns: 0,
+            device_id: None,
+            inode: None,
+            parser_version: 1,
+            access_uri: url::Url::from_file_path(&path).unwrap().to_string(),
+            loudness_analysis_key: None,
+        };
+        database
+            .write_download_access(None, &[&access])
+            .await
+            .unwrap();
+    }
 }
 
 fn batch_item(track: i64, provenance: Provenance) -> (TrackReference, Provenance) {
@@ -170,6 +200,7 @@ async fn active_two_track_session() -> (
         batch_item(2, Provenance::Manual),
     ])
     .await;
+    make_playable(&_database, _directory.path(), 0..=2).await;
     let mut session = Player::new(
         sequence,
         "clear-queue-law",
@@ -365,7 +396,7 @@ async fn newer_captured_play_supersedes_pending_completion_and_stop_is_preserved
     let mut first = None;
     for identity in ["first", "latest"] {
         let input = library::QueueLoad::items(vec![(
-            TrackReference::direct(
+            TrackReference::new(
                 format!("https://example.test/{identity}"),
                 identity,
                 "",
@@ -1033,6 +1064,7 @@ async fn auto_dj_refills_after_track_changes_and_delayed_completion() {
                 .collect(),
         )
         .await;
+        make_playable(&database, _directory.path(), 1..=queue_length as i64 + 2).await;
         sequence.set_repeat_mode(repeat);
         let refill_threshold = if delayed_completion {
             3

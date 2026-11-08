@@ -64,9 +64,7 @@ impl Actor {
                 }
             }
             let resolved = if let Some(source) = source.as_ref() {
-                source
-                    .resolve_download(&self.database, &media_uri, quality)
-                    .await
+                source.resolve_download(&media_uri, quality).await
             } else {
                 Some(media_uri.as_str())
                     .filter(|uri| uri.starts_with("http://") || uri.starts_with("https://"))
@@ -160,7 +158,7 @@ impl Actor {
                             | ResolvedDownload::Encode {
                                 stream: original, ..
                             }) = source
-                                .resolve_download(&database, &uri, DownloadQuality::Original)
+                                .resolve_download(&uri, DownloadQuality::Original)
                                 .await
                                 .map_err(download_source_failure)?;
                             let encoding = quality

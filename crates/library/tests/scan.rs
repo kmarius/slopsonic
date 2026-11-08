@@ -673,7 +673,8 @@ async fn write_track(
     position: i64,
 ) {
     let normalized = format!("{} album one artist one note", title.to_lowercase());
-    let media_uri = format!("file:///music/{object_id}.flac");
+    let media_uri =
+        library::source_entity_uri(&library::SourceId::new("source-one"), "track", object_id);
     catalog
         .apply_catalog(
             &library::CatalogBatch {
@@ -985,8 +986,16 @@ async fn artwork_publication_keeps_one_effective_binding_per_entity() {
             let rows = database
                 .tracks_by_uris(
                     &([
-                        "file:///music/track-one.flac".to_string(),
-                        "file:///music/track-two.flac".to_string(),
+                        library::source_entity_uri(
+                            &library::SourceId::new("source-one"),
+                            "track",
+                            "track-one",
+                        ),
+                        library::source_entity_uri(
+                            &library::SourceId::new("source-one"),
+                            "track",
+                            "track-two",
+                        ),
                     ]),
                     &ReadCancellation::new(),
                 )
@@ -1042,8 +1051,16 @@ async fn artwork_publication_keeps_one_effective_binding_per_entity() {
             let rows = database
                 .tracks_by_uris(
                     &([
-                        "file:///music/track-one.flac".to_string(),
-                        "file:///music/track-two.flac".to_string(),
+                        library::source_entity_uri(
+                            &library::SourceId::new("source-one"),
+                            "track",
+                            "track-one",
+                        ),
+                        library::source_entity_uri(
+                            &library::SourceId::new("source-one"),
+                            "track",
+                            "track-two",
+                        ),
                     ]),
                     &ReadCancellation::new(),
                 )

@@ -448,20 +448,9 @@ pub(super) async fn tracks(
         );
         let uris = page
             .iter()
-            .map(|row| {
-                let direct = row.media_uri.as_deref().and_then(|uri| {
-                    if crate::source_entity_parts(uri).is_some() {
-                        Some(uri.to_owned())
-                    } else {
-                        crate::normalize_direct_media_uri(uri)
-                    }
-                });
-                match direct {
-                    Some(uri) => uri,
-                    None => {
-                        crate::source_entity_uri(&SourceId::new(source_id), "track", &row.object_id)
-                    }
-                }
+            .map(|row| match row.media_uri.as_deref() {
+                Some(uri) if crate::source_entity_parts(uri).is_some() => uri.to_owned(),
+                _ => crate::source_entity_uri(&SourceId::new(source_id), "track", &row.object_id),
             })
             .collect::<Vec<_>>();
         let with_albums = page
@@ -732,18 +721,6 @@ pub(super) async fn observation_stamp(
         return Ok(observed);
     }
     Ok(sqlx::query_scalar("UPDATE sources SET observation_stamp=observation_stamp+1 WHERE source_key=?1 RETURNING observation_stamp").bind(source).fetch_one(connection).await?)
-}
-
-impl Database {
-    pub async fn write_direct_track_metadata(
-        &self,
-        uri: &str,
-        metadata: &crate::TrackMetadata,
-    ) -> LibraryResult<bool> {
-        let mut writer = self.writer().await?;
-        Ok(sqlx::query("INSERT INTO tracks(media_uri,metadata,normalized_search,native_metadata) VALUES(?1,jsonb(?2),?3,1) ON CONFLICT(media_uri) DO UPDATE SET metadata=excluded.metadata,normalized_search=excluded.normalized_search,native_metadata=1 WHERE tracks.source_key IS NULL AND(tracks.metadata IS NOT excluded.metadata OR tracks.native_metadata=0)")
-            .bind(uri).bind(serde_json::to_string(metadata)?).bind(track_search(metadata)).execute(writer.as_mut().ok_or(LibraryError::WriterUnavailable)?).await?.rows_affected()>0)
-    }
 }
 
 pub(crate) async fn apply_on(

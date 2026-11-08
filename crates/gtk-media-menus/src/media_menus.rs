@@ -1332,12 +1332,8 @@ fn install_download_actions(
     downloaded: bool,
 ) {
     let available = media_uri.is_none_or(|uri| {
-        if let Some((source_id, _, _)) = library::source_entity_parts(uri) {
-            (menus.source_download_available)(&source_id)
-        } else {
-            library::normalize_direct_media_uri(uri)
-                .is_some_and(|uri| uri.starts_with("https:") || uri.starts_with("http:"))
-        }
+        library::source_entity_parts(uri)
+            .is_some_and(|(source_id, _, _)| (menus.source_download_available)(&source_id))
     });
     if !downloaded && !available {
         return;

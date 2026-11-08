@@ -2324,53 +2324,6 @@ async fn artist_orders_filter_roles_but_known_artists_remain_addressable() {
 }
 
 #[tokio::test]
-async fn completed_direct_download_keeps_access() {
-    let fixture = fixture().await;
-    let direct = "https://media.example/download.flac".to_string();
-    fixture
-        .database
-        .write_direct_track_metadata(
-            &direct,
-            &library::TrackMetadata {
-                title: "Direct artifact".into(),
-                duration_millis: 42_000,
-                ..Default::default()
-            },
-        )
-        .await
-        .unwrap();
-    fixture
-        .database
-        .write_download_access(
-            None,
-            &[&DownloadAccessWrite {
-                media_uri: direct.clone(),
-                path: "/downloads/direct.flac".to_string(),
-                root: "/downloads".to_string(),
-                relative_path: "direct.flac".to_string(),
-                size_bytes: 10,
-                mtime_ns: 1,
-                device_id: None,
-                inode: None,
-                parser_version: 5,
-                access_uri: "file:///downloads/direct.flac".to_string(),
-                loudness_analysis_key: None,
-            }],
-        )
-        .await
-        .expect("record completed direct download");
-    assert_eq!(
-        fixture
-            .database
-            .playback_access(&direct)
-            .await
-            .expect("resolve direct download access")
-            .as_deref(),
-        Some("file:///downloads/direct.flac")
-    );
-}
-
-#[tokio::test]
 async fn artist_and_home_activity_follow_membership_even_without_listen_source_ids() {
     let fixture = fixture().await;
     let mut raw = connection(&fixture.path).await;

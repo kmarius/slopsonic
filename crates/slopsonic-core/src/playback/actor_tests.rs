@@ -57,7 +57,7 @@ async fn canceled_queue_preparation_publishes_loading_completion() {
 async fn stream_and_backend_failures_publish_notices_and_keep_diagnostics() {
     for backend_failure in [false, true] {
         let (_directory, _database, sequence, owner, commands, _mailbox, _inbox) = seeded(vec![(
-            TrackReference::direct(
+            TrackReference::new(
                 "https://example.test/track",
                 "Track",
                 "Artist",
@@ -149,7 +149,7 @@ fn replace_queue(owner: &PlaybackOwner, prefix: &str, count: usize) {
             (0..count)
                 .map(|index| {
                     (
-                        TrackReference::direct(
+                        TrackReference::new(
                             format!("https://example.test/{prefix}/{index}"),
                             format!("{prefix} {index}"),
                             "Artist",

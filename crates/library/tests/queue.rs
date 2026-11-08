@@ -339,7 +339,7 @@ async fn saved_queue_keeps_compact_choices_and_reads_only_the_window() {
 #[tokio::test]
 async fn saved_membership_keeps_provenance_metadata_and_source_identity_across_formats() {
     let fixture = fixture().await;
-    let mut unavailable = TrackReference::direct(
+    let mut unavailable = TrackReference::new(
         "https://example.test/İstanbul/%2Fduplicate?name=\"a\"",
         "Unavailable title",
         "Saved artist",
@@ -411,7 +411,7 @@ async fn saved_membership_keeps_provenance_metadata_and_source_identity_across_f
         .database
         .queue_entries(
             library::QueueLoad::items(vec![(
-                TrackReference::direct(&missing_uri, "Missing", "", "", 0),
+                TrackReference::new(&missing_uri, "Missing", "", "", 0),
                 QueueProvenance::Manual,
             )]),
             None,
@@ -521,7 +521,7 @@ async fn rewritten_queue_keeps_member_order_and_known_song_facts() {
     let mut rows = (0..205)
         .map(|index| {
             let mut row = queue_row(
-                TrackReference::direct(
+                TrackReference::new(
                     format!("https://example.test/duplicate/{}", index % 3),
                     format!("Saved title {index}"),
                     "Artist",
@@ -619,7 +619,7 @@ async fn queue_replacement_retains_uri_metadata_without_writes_on_order_changes(
                     (0..2)
                         .map(|index| {
                             (
-                                TrackReference::direct(
+                                TrackReference::new(
                                     format!("https://example.test/{activation}/{index}"),
                                     format!("Title {index}"),
                                     "",

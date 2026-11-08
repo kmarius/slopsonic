@@ -562,21 +562,6 @@ async fn cached_selection_is_published_while_credentials_are_held() {
             assert_eq!(database.favorite(&favorite).await.unwrap(), value);
         }
         while receiver.try_recv().is_ok() {}
-        let local_uri = url::Url::from_file_path(directory.path().join("local.flac"))
-            .unwrap()
-            .to_string();
-        let local_stream = tokio::time::timeout(
-            Duration::from_secs(2),
-            crate::playback::prepare_stream(
-                &database,
-                playback::StreamRequest::new(&local_uri, playback::StreamQuality::Original),
-                |source_id| owner.open_client(source_id),
-            ),
-        )
-        .await
-        .expect("local streams do not wait for credentials")
-        .unwrap();
-        assert_eq!(local_stream.uri(), local_uri);
         owner
             .shared
             .settings

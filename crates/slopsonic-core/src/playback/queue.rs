@@ -743,7 +743,7 @@ mod tests {
                     position: i,
                     provenance: e.provenance.clone(),
                     track: {
-                        let reference = TrackReference::direct(
+                        let reference = TrackReference::new(
                             format!("https://example.test/{}", e.track_key.raw()),
                             format!("{i}"),
                             "",

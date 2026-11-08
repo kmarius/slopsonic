@@ -249,7 +249,7 @@ pub struct TrackView {
 }
 
 impl crate::TrackReference {
-    pub fn direct(
+    pub fn new(
         uri: impl Into<String>,
         title: impl Into<String>,
         artist: impl Into<String>,

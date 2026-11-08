@@ -768,10 +768,10 @@ async fn track_references_for_uris_on(
     Ok(uris
         .iter()
         .map(|uri| {
-            songs
-                .get(uri)
-                .cloned()
-                .unwrap_or_else(|| TrackReference::direct(uri.clone(), uri.clone(), "", "", 0))
+            songs.get(uri).cloned().unwrap_or_else(|| TrackReference {
+                media_uri: uri.clone(),
+                ..Default::default()
+            })
         })
         .collect())
 }

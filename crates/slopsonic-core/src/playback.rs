@@ -771,7 +771,7 @@ where
     } else {
         None
     };
-    if let Some(uri) = access.or_else(|| library::normalize_direct_media_uri(&request.media_uri)) {
+    if let Some(uri) = access {
         return Ok(audio_processing::ResolvedStream::new(uri).with_content_type(content_type));
     }
     let (source_id, kind, _) = library::source_entity_parts(&request.media_uri)
@@ -780,16 +780,13 @@ where
         return Err(crate::source::source_access_unavailable().into());
     }
     let source = source(source_id).await?;
-    source
-        .stream(database, request)
-        .await
-        .map_err(|error| match error {
-            sources::SourceError::NotFound => {
-                let kind = playback::FailureKind::UnavailableMedia;
-                playback::BackendFailure::with_kind(kind, kind.summary())
-            }
-            error => error.to_string().into(),
-        })
+    source.stream(request).await.map_err(|error| match error {
+        sources::SourceError::NotFound => {
+            let kind = playback::FailureKind::UnavailableMedia;
+            playback::BackendFailure::with_kind(kind, kind.summary())
+        }
+        error => error.to_string().into(),
+    })
 }
 
 // Catches a removed local file before it reaches playback, where a failed

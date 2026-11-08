@@ -223,7 +223,6 @@ CREATE TABLE IF NOT EXISTS albums (
     release_lookup_identity TEXT, release_identity TEXT,
     source_loudness_analysis_key BLOB NOT NULL DEFAULT (zeroblob(32)),
     loudness_analysis_key BLOB NOT NULL DEFAULT (zeroblob(32)),
-    accepted_audio BLOB,
     title TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.title')) VIRTUAL,
     display_artist TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.artist')) VIRTUAL,
     sort_text TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.sort_text')) VIRTUAL,
@@ -531,6 +530,8 @@ const MIGRATIONS: &[&str] = &[
      INSERT INTO download_locators_new SELECT * FROM download_locators;
      DROP TABLE download_locators;
      ALTER TABLE download_locators_new RENAME TO download_locators;",
+    // 66: drop the never-written album audio acceptance.
+    "ALTER TABLE albums DROP COLUMN accepted_audio;",
 ];
 
 pub(crate) const SCHEMA_VERSION: i64 = BASE_VERSION + MIGRATIONS.len() as i64;

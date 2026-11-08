@@ -61,9 +61,7 @@ async fn download_fixture(
 async fn queued_media_survives_restart_serialization() {
     let source_id = SourceId::new("source");
     let (root, database, source, _) = download_fixture("source", "track").await;
-    let media_uri = reqwest::Url::from_file_path(root.path().join("track.flac"))
-        .unwrap()
-        .to_string();
+    let media_uri = library::source_entity_uri(&source_id, "track", "track");
     database
         .catalog(source_id.as_str(), None)
         .await
@@ -148,138 +146,6 @@ async fn queued_media_survives_restart_serialization() {
         actor.jobs[&Some(source_id.clone())][0].quality,
         settings.quality
     );
-}
-
-#[tokio::test]
-async fn direct_http_media_uses_the_application_download_queue_without_a_source() {
-    let (_library, database, source_key, _) = download_fixture("unused", "track").await;
-    let root = tempfile::Builder::new()
-        .prefix("downloads café %")
-        .tempdir()
-        .expect("Downloads root");
-    let source_id = SourceId::new("unused");
-    let mut actor = actor_for_test(root.path(), database, &source_id, source_key);
-    let media_uri = "https://media.example/direct.flac".to_string();
-    let (events, received) = async_channel::unbounded();
-    actor.events.sender = events;
-    actor
-        .apply(
-            Command::Download {
-                subject: DownloadSubject::Prepared {
-                    context_id: "direct".to_string(),
-                    title: Some("Direct".to_string()),
-                },
-                media_uris: vec![media_uri.clone()],
-            },
-            &mut Vec::new(),
-        )
-        .await;
-
-    assert_eq!(
-        actor.jobs[&None][0].remaining,
-        std::slice::from_ref(&media_uri)
-    );
-    let queue = std::fs::read(source_directory(root.path(), None).join(QUEUE_FILE))
-        .expect("read direct Queue");
-    let queue: QueueFile = serde_json::from_slice(&queue).expect("decode direct Queue");
-    assert_eq!(queue.jobs[0].remaining, std::slice::from_ref(&media_uri));
-    let DownloadEvent::Queue { summary, .. } = received.recv().await.unwrap() else {
-        panic!("Queue event")
-    };
-    assert!(summary.source_id.is_none());
-    let page = actor
-        .queue_page(DownloadQueueScope::Direct, 0, 1)
-        .await
-        .unwrap();
-    assert_eq!(page.jobs[0].preview_uris, std::slice::from_ref(&media_uri));
-    let DownloadEvent::Feedback(feedback) = received.recv().await.unwrap() else {
-        panic!("feedback event")
-    };
-    assert_eq!(feedback.preview_uris, std::slice::from_ref(&media_uri));
-
-    let paths = download_paths(root.path(), None, &media_uri);
-    std::fs::create_dir_all(&paths.directory).expect("create download directory");
-    std::fs::write(&paths.audio_part, b"complete bytes").expect("write completed transfer");
-    let job = actor.jobs[&None][0].clone();
-    let subject = job.subject.clone();
-    let active = ActiveDownload {
-        source_id: None,
-        job_id: job.id,
-        media_uri: media_uri.clone(),
-        subject: job.subject,
-        paths: paths.clone(),
-        quality: DownloadQuality::Original,
-        cancellation: None,
-        task: tokio::spawn(async { Ok(()) }),
-    };
-    actor.finish(active, Ok(Ok(())), &mut Vec::new()).await;
-
-    assert_eq!(
-        received.recv().await.unwrap(),
-        DownloadEvent::Changed {
-            media_uri: media_uri.clone(),
-            downloaded: true,
-        }
-    );
-    let access = actor.database.playback_access(&media_uri).await.unwrap();
-    assert_eq!(
-        reqwest::Url::parse(access.as_deref().unwrap())
-            .unwrap()
-            .to_file_path()
-            .unwrap(),
-        paths.audio.native().unwrap()
-    );
-    assert_eq!(
-        received.recv().await.unwrap(),
-        DownloadEvent::SubjectChanged {
-            subject: subject.clone(),
-            downloaded: true,
-        }
-    );
-    let DownloadEvent::Queue { summary, .. } = received.recv().await.unwrap() else {
-        panic!("completed Queue event")
-    };
-    assert_eq!(summary.total_jobs, 0);
-    assert_eq!(summary.downloaded_tracks, 1);
-    for source_id in ["unused", "missing"] {
-        let count = actor
-            .database
-            .downloaded_count(Some(source_id))
-            .await
-            .unwrap();
-        assert_eq!(count, 0);
-    }
-
-    actor
-        .apply(
-            Command::Remove {
-                media_uris: vec![media_uri.clone()],
-                notify: false,
-            },
-            &mut Vec::new(),
-        )
-        .await;
-    assert_eq!(
-        received.recv().await.unwrap(),
-        DownloadEvent::Changed {
-            media_uri: media_uri.clone(),
-            downloaded: false,
-        }
-    );
-    let access = actor.database.playback_access(&media_uri).await.unwrap();
-    assert!(access.is_none());
-    assert!(!paths.audio.native().unwrap().exists());
-    assert_eq!(
-        received.recv().await.unwrap(),
-        DownloadEvent::SubjectChanged {
-            subject,
-            downloaded: false,
-        }
-    );
-    let DownloadEvent::Queue { summary, .. } = received.recv().await.unwrap() else {
-        panic!("removed Queue event")
-    };
-    assert_eq!(summary.downloaded_tracks, 0);
 }
 
 #[tokio::test]
