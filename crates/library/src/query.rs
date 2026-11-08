@@ -18,9 +18,6 @@ pub enum Collection {
     Genre(GenreKey),
     Mood(MoodKey),
     Playlist(PlaylistKey),
-    History {
-        source: Option<SourceId>,
-    },
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -178,14 +175,11 @@ impl MemberRead {
         self.sort.unwrap_or(match self.collection {
             Collection::Album(_) => CatalogSort::TrackNumber,
             Collection::Playlist(_) => CatalogSort::Position,
-            Collection::History { .. } => CatalogSort::LastPlayed,
             _ => CatalogSort::Title,
         })
     }
     pub fn activity_sensitive(&self) -> bool {
-        self.activity
-            || self.effective_sort().activity_sensitive()
-            || matches!(self.collection, Collection::History { .. })
+        self.activity || self.effective_sort().activity_sensitive()
     }
     pub fn selection(self) -> MemberSelection {
         MemberSelection::Members {
@@ -511,15 +505,6 @@ async fn member_rows(
     offset: usize,
     limit: usize,
 ) -> LibraryResult<Vec<MemberRow>> {
-    if matches!(read.collection, Collection::History { .. }) {
-        return Ok(
-            crate::activity::load_history_page(connection, query, offset, limit)
-                .await?
-                .into_iter()
-                .map(MemberRow::Track)
-                .collect(),
-        );
-    }
     let requested = query.requested_keys(offset, limit);
     if matches!(read.collection, Collection::Playlist(_)) {
         Ok(
@@ -554,9 +539,6 @@ pub(crate) fn list_query(read: &ListRead) -> OrderedQuery {
 pub(crate) fn member_query(read: &MemberRead) -> LibraryResult<OrderedQuery> {
     let sort = read.effective_sort();
     let mut query = match &read.collection {
-        Collection::History { source } => {
-            crate::activity::history_query(source.as_ref(), &read.filter, read.descending)
-        }
         Collection::Playlist(key) => {
             crate::playlists::playlist_query(*key, read.folder, sort, read.descending, &read.filter)
         }

@@ -23,7 +23,6 @@ async fn canceled_queue_preparation_publishes_loading_completion() {
         Arc::new(|| ClockSample {
             monotonic_millis: 0,
             unix_seconds: 0,
-            local_period: "1970-01".into(),
         }),
         Arc::downgrade(&owner),
     )
@@ -77,7 +76,6 @@ async fn stream_and_backend_failures_publish_notices_and_keep_diagnostics() {
             Arc::new(|| ClockSample {
                 monotonic_millis: 0,
                 unix_seconds: 0,
-                local_period: "1970-01".into(),
             }),
             Arc::downgrade(&owner),
         )
@@ -180,7 +178,6 @@ async fn runtime_queue_edits_publish_restorable_bounded_snapshots() {
         Arc::new(|| ClockSample {
             monotonic_millis: 0,
             unix_seconds: 0,
-            local_period: "1970-01".into(),
         }),
         Arc::downgrade(&owner),
     )

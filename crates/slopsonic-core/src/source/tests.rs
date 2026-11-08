@@ -355,36 +355,6 @@ async fn acquisition_progress_belongs_to_its_source() {
         };
         assert_eq!(publication.change, expected);
     }
-    let mut catalog = owner.catalog_changes();
-    let before = catalog.borrow().clone();
-    let listen: library::ListenWrite = serde_json::from_value(serde_json::json!({
-        "external_id":"direct", "media_uri":"https://audio.invalid/direct.flac",
-        "title":"Direct", "artist":"", "album":"", "duration_millis":1000,
-        "started_at":1_700_000_000,"local_period":"2023-11","listened_millis":1000,"skipped":false
-    }))
-    .unwrap();
-    owner
-        .shared
-        .database
-        .record_listen(&listen, None, &[])
-        .await
-        .unwrap();
-    let SourceEvent::CatalogPublished(publication) = receiver.recv().await.unwrap() else {
-        panic!("accepted direct listen publishes activity");
-    };
-    assert_eq!(publication.source_key, None);
-    assert_eq!(publication.change, CatalogChange::Activity);
-    let revision = catalog.borrow_and_update().clone();
-    assert_eq!(revision.catalog, before.catalog);
-    assert_eq!(revision.activity, before.activity + 1);
-    owner
-        .shared
-        .database
-        .record_listen(&listen, None, &[])
-        .await
-        .unwrap();
-    assert!(!catalog.has_changed().unwrap());
-    assert!(receiver.try_recv().is_err());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

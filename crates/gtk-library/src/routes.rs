@@ -246,7 +246,6 @@ impl CatalogUi {
     ) -> MountedRoute {
         match opened {
             OpenedCollection::Tracks(page) => match route {
-                Route::History => self.history_route(page, pending),
                 Route::Favorites => {
                     self.favorites_route(page, selected.expect("source collection"), pending)
                 }
@@ -640,53 +639,6 @@ impl CatalogUi {
             },
         );
         self.track_page_route(options, projection, favorites_only)
-    }
-
-    pub fn history_route(
-        self: &Rc<Self>,
-        initial: slopsonic_core::browse::MemberPage,
-        pending: bool,
-    ) -> MountedRoute {
-        let key = LibraryListKey::History;
-        let projection = self.searchable_track_collection(
-            initial,
-            key,
-            SearchableTrackOptions {
-                context_id: "history:all".to_string(),
-                content_inset: 0,
-                fixed_layout: None,
-                search: None,
-            },
-        );
-        let page = self.track_page_shell(key, "Nothing played yet", &projection);
-        let apply_page = page.clone();
-        let apply_projection = projection.clone();
-        let read = projection.page_read(self, "History filter", move || {
-            apply_page.set_empty(apply_projection.source_is_empty());
-        });
-        let filter_read = Rc::downgrade(&read);
-        let filter_projection = projection.clone();
-        let filter_shell = Rc::downgrade(self);
-        let current_source_name = self.history_source_name.clone();
-        page.configure_history_filter(current_source_name, move |current_only| {
-            let source = current_only
-                .then(|| {
-                    filter_shell
-                        .upgrade()
-                        .and_then(|shell| (shell.history_source_id)())
-                })
-                .flatten();
-            filter_projection
-                .model
-                .set_scope(library::Collection::History {
-                    source: source.clone(),
-                });
-            let Some(read) = filter_read.upgrade() else {
-                return;
-            };
-            read.request_with(filter_projection.query());
-        });
-        self.mount_track_page(key, projection, page, read, None, pending)
     }
 
     pub fn library_artist_list_route(

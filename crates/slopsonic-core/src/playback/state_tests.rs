@@ -225,7 +225,6 @@ async fn loaded_advancement_reuses_positions_without_a_store_read() {
     let sample = ClockSample {
         monotonic_millis: 1_000,
         unix_seconds: 1,
-        local_period: "1970-01".into(),
     };
     session
         .handle_command(
@@ -274,7 +273,6 @@ async fn failed_queue_replacement_keeps_the_existing_run_and_can_be_retried() {
     let sample = ClockSample {
         monotonic_millis: 1_000,
         unix_seconds: 1,
-        local_period: "1970-01".into(),
     };
     let run = session.current_run();
     let before = session.view().queue_window;
@@ -339,7 +337,6 @@ async fn refill_preserves_live_progress_and_prepared_positions() {
     let sample = ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
-        local_period: "1970-01".into(),
     };
     session.set_playing(true);
     for _ in 0..20 {
@@ -391,7 +388,6 @@ async fn newer_captured_play_supersedes_pending_completion_and_stop_is_preserved
     let sample = ClockSample {
         monotonic_millis: 1_000,
         unix_seconds: 1,
-        local_period: "1970-01".into(),
     };
     let mut first = None;
     for identity in ["first", "latest"] {
@@ -504,7 +500,6 @@ async fn catalog_publication_preserves_run_progress_prepared_next_and_positions(
     let sample = ClockSample {
         monotonic_millis: 1_000,
         unix_seconds: 1,
-        local_period: "1970-01".into(),
     };
     let before = session.view();
     let run = session.current_run();
@@ -591,7 +586,6 @@ async fn clearing_queue_without_current_keeps_the_active_run() {
     let sample = ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
-        local_period: "1970-01".into(),
     };
     commands.lock().unwrap().clear();
     session
@@ -622,7 +616,6 @@ async fn volume_commit_persists_the_requested_value_after_older_backend_feedback
     let sample = ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
-        local_period: "1970-01".into(),
     };
     session
         .handle_command(Command::SetVolume(0.6), &sample)
@@ -652,7 +645,6 @@ async fn stream_access_changes_leave_the_audible_run_untouched() {
     let sample = ClockSample {
         monotonic_millis: 10_000,
         unix_seconds: 10,
-        local_period: "1970-01".into(),
     };
     let run = session.current_run().unwrap();
     session.stream_resolved(
@@ -687,7 +679,6 @@ async fn clearing_queue_with_current_stops_the_run_and_empties_the_session() {
     let sample = ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
-        local_period: "1970-01".into(),
     };
     session
         .handle_command(
@@ -776,7 +767,6 @@ async fn restored_media_stays_paused_until_first_play_starts_one_resolution() {
             &ClockSample {
                 monotonic_millis: 0,
                 unix_seconds: 0,
-                local_period: "1970-01".into(),
             },
         )
         .unwrap();
@@ -806,7 +796,6 @@ async fn playback_modes_publish_their_state_without_an_active_run() {
     let sample = ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
-        local_period: "1970-01".into(),
     };
     session
         .handle_command(
@@ -845,7 +834,6 @@ async fn shuffled_batches_keep_placement_and_global_shuffle() {
     let sample = ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
-        local_period: "1970-01".into(),
     };
     for global_shuffle in [false, true] {
         for placement in [Placement::Now, Placement::Next, Placement::Last] {
@@ -950,7 +938,6 @@ async fn collection_starts_and_selected_rows_keep_distinct_shuffle_anchors() {
     let sample = ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
-        local_period: "1970-01".to_string(),
     };
     for shuffled in [false, true] {
         for (collection_start, anchor) in [(true, 0), (false, 0), (false, 1)] {
@@ -1049,7 +1036,6 @@ async fn auto_dj_refills_after_track_changes_and_delayed_completion() {
     let sample = ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
-        local_period: "1970-01".into(),
     };
     for (repeat, queue_length, request_position, delayed_completion) in [
         (RepeatMode::Off, 1, 0, true),
@@ -1175,7 +1161,6 @@ async fn unavailable_auto_dj_keeps_the_ready_queue_visible() {
     let sample = ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
-        local_period: "1970-01".into(),
     };
     session.publish(&sample);
     session.set_auto_dj(true, 3);
@@ -1207,7 +1192,6 @@ async fn failed_stream_preserves_selected_media_and_player_controls() {
     let sample = ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
-        local_period: "1970-01".into(),
     };
     session.stream_failed(run, "missing".into(), &sample);
     session.publish(&sample);
@@ -1238,7 +1222,6 @@ async fn playback_crosses_window_edges_and_wraps_without_truncating_the_queue() 
     let sample = ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
-        local_period: "1970-01".into(),
     };
     session
         .handle_command(Command::SetRepeat(RepeatMode::All), &sample)
@@ -1287,7 +1270,6 @@ async fn backend_advancing_during_removal_uses_the_exact_surviving_successor() {
         let sample = ClockSample {
             monotonic_millis: 0,
             unix_seconds: 0,
-            local_period: "1970-01".into(),
         };
         session.sequence.activate_index(removed_rank - 1);
         session.set_playing(true);
@@ -1321,7 +1303,6 @@ async fn pause_and_stop_during_queue_preparation_apply_to_the_requested_track() 
         let sample = ClockSample {
             monotonic_millis: 0,
             unix_seconds: 0,
-            local_period: "1970-01".into(),
         };
         session
             .apply_batch(
@@ -1420,7 +1401,6 @@ async fn repeat_wraps_when_source_exhaustion_is_discovered_after_a_full_page() {
     let sample = ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
-        local_period: "1970-01".into(),
     };
     session.set_repeat(RepeatMode::All);
     session.set_playing(true);
@@ -1456,7 +1436,6 @@ async fn removing_the_visible_window_continues_with_the_unbuffered_source() {
     let sample = ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
-        local_period: "1970-01".into(),
     };
     session.set_playing(true);
     let ids = session
@@ -1478,7 +1457,6 @@ fn skip_session_sample() -> ClockSample {
     ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
-        local_period: "1970-01".into(),
     }
 }
 

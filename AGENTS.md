@@ -46,6 +46,7 @@ Do not implement or expand. If you find leftover code for a non-feature, remove 
 - **Custom themes** — only light/dark/system color scheme plus an accent color
 - **Smart playlists and the rule editor**
 - **App-owned playlists** — playlists live on the server; no local-only playlists
+- **Local listening history** — play counts and last-played come from the server; the app only queues undelivered scrobbles
 - **Playlist folders**
 - **Localization**
 

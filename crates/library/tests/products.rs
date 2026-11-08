@@ -1033,8 +1033,6 @@ async fn uri_artwork_is_identical_across_owner_projections_and_current_scopes() 
     let empty_folder: library::FolderKey = sqlx::query_scalar(
         "INSERT INTO folders(source_key,object_id,metadata,media_uri,normalized_name) VALUES (?1,'empty',jsonb(json_object('name','Empty','sort_text','empty')),'folder:'||COALESCE(?1,0)||':'||'empty',lower(COALESCE(json_extract(jsonb(json_object('name','Empty','sort_text','empty')),'$.name'),''))) RETURNING folder_key",
     ).bind(fixture.source).fetch_one(&mut raw).await.unwrap();
-    sqlx::query("INSERT INTO listens(source_id,media_uri,track_title,artist_name,album_title,started_at,local_period,duration_millis,listened_millis,skipped) VALUES('source',?1,'Historical title','Artist','Album',100,'1970-01',42000,42000,0)")
-        .bind(uri).execute(&mut raw).await.unwrap();
     sqlx::query("INSERT INTO queue_entries(track_key,provenance) SELECT track_key,'\"Manual\"' FROM tracks WHERE media_uri=?1")
         .bind(uri)
         .execute(&mut raw)
@@ -1218,19 +1216,6 @@ async fn uri_artwork_is_identical_across_owner_projections_and_current_scopes() 
         assert_eq!(queue[0].track.artwork_binding, expected_binding);
         let restored = database.restore_queue().await.unwrap();
         assert_eq!(restored.rows[0].track.artwork_binding, expected_binding);
-        let history = (&library::MemberRead {
-            descending: true,
-            ..library::MemberRead::new(library::Collection::History { source: None })
-        })
-            .rows(&database, 0, 100, &cancel)
-            .await
-            .map(|rows| {
-                rows.into_iter()
-                    .map(library::MemberRow::into_track)
-                    .collect::<Vec<_>>()
-            })
-            .unwrap();
-        assert_eq!(history[0].artwork_binding, expected_binding);
         let scoped_samples = database
             .representative_artwork_page(
                 fixture.source,

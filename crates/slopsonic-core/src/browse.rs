@@ -187,7 +187,6 @@ pub fn library_list_key(route: &Route, category: CollectionCategory) -> LibraryL
         | Route::AlbumArtistFavoriteTracks(_) => LibraryListKey::ArtistTracks,
         Route::GenreDetail(_) => LibraryListKey::GenreTracks,
         Route::MoodDetail(_) => LibraryListKey::MoodTracks,
-        Route::History => LibraryListKey::History,
         Route::Folders { .. } => LibraryListKey::Folders,
         Route::Favorites if category == CollectionCategory::Tracks => {
             LibraryListKey::FavoriteTracks
@@ -205,7 +204,6 @@ pub struct OpenOptions {
     pub descending: Option<bool>,
     pub favorites_only: bool,
     pub downloaded_only: bool,
-    pub history_current_only: bool,
     pub release_filters: Option<[String; 6]>,
 }
 
@@ -218,7 +216,6 @@ impl Default for OpenOptions {
             descending: None,
             favorites_only: false,
             downloaded_only: false,
-            history_current_only: false,
             release_filters: None,
         }
     }
@@ -497,12 +494,6 @@ fn list_plan(
         Route::Favorites if favorites_tab(CollectionCategory::Tracks) => {
             ListPlan::Members(member(Collection::Source(require_source()?)))
         }
-        Route::History => ListPlan::Members(member(Collection::History {
-            source: options
-                .history_current_only
-                .then(|| selected.map(|selected| selected.source_id.clone()))
-                .flatten(),
-        })),
         Route::Albums => {
             require_source()?;
             ListPlan::Albums(list(ListKind::Albums))
@@ -630,7 +621,7 @@ fn list_read(
 }
 
 pub fn uses_activity(route: &Route, settings: &LibraryListSettings) -> bool {
-    matches!(route, Route::Home | Route::History)
+    matches!(route, Route::Home)
         || settings.sort_key.catalog_sort().activity_sensitive()
         || match settings.layout {
             LibraryLayout::Grid => &settings.grid_fields,
@@ -990,7 +981,6 @@ mod list_plan_tests {
     fn only_plain_list_routes_have_a_plan() {
         for route in [
             Route::Tracks,
-            Route::History,
             Route::Albums,
             Route::Artists,
             Route::AlbumArtists,
@@ -1033,15 +1023,11 @@ mod list_plan_tests {
     }
 
     #[test]
-    fn source_lists_need_a_source_but_history_and_playlists_do_not() {
+    fn source_lists_need_a_source_but_playlists_do_not() {
         let options = OpenOptions::default();
         let ui = Settings::default();
         assert!(list_plan(&Route::Tracks, None, &options, &ui).is_err());
         assert!(list_plan(&Route::Albums, None, &options, &ui).is_err());
-        assert!(matches!(
-            list_plan(&Route::History, None, &options, &ui),
-            Ok(Some(_))
-        ));
         assert!(matches!(
             list_plan(&Route::Playlists, None, &options, &ui),
             Ok(Some(_))

@@ -417,9 +417,6 @@ impl Scrobbler {
             let Some(state) = state else {
                 return Vec::new();
             };
-            if listen.skipped {
-                return Vec::new();
-            }
             if external_scrobble_threshold_millis(listen.duration_millis.max(0) as u64)
                 .is_some_and(|threshold| listen.listened_millis.max(0) as u64 >= threshold)
             {
@@ -791,7 +788,7 @@ fn unix_seconds() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use library::{CatalogSort, Database, ReadCancellation, SourceId};
+    use library::{CatalogSort, Database, ReadCancellation};
 
     use super::*;
 
@@ -845,7 +842,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn one_completed_play_owns_activity_and_each_delivery_target_once() {
+    async fn one_completed_play_queues_each_delivery_target_once() {
         let directory = tempfile::tempdir().expect("temporary Store");
         let database = Database::open(directory.path().join("library.sqlite3"))
             .await
@@ -935,53 +932,27 @@ mod tests {
             .pop()
             .expect("Track");
         let listen = ListenWrite {
-            external_id: Some("play".to_string()),
-            media_uri: track.media_uri.clone(),
+            play_id: "play".to_string(),
             title: track.metadata.title.clone(),
             artist: track.metadata.artist.clone(),
             album: track.metadata.album.clone(),
             duration_millis: track.metadata.duration_millis,
-            disc_number: Some(track.metadata.disc_number),
-            track_number: Some(track.metadata.track_number),
-            year: track.metadata.year,
-            release_date: track.metadata.release_date.clone(),
-            source_format: track.metadata.source_format.clone(),
-            musicbrainz_recording_id: track.metadata.musicbrainz_recording_id.clone(),
-            musicbrainz_release_track_id: track.metadata.musicbrainz_release_track_id.clone(),
             started_at: 100,
-            local_period: "1970-01".to_string(),
             listened_millis: 90_000,
-            skipped: false,
         };
         let deliveries = scrobbler.listen_delivery_targets(&listen);
         assert_eq!(deliveries.len(), 2);
         let mut early = listen.clone();
         early.listened_millis = 4_000;
         assert!(scrobbler.listen_delivery_targets(&early).is_empty());
-        early = listen.clone();
-        early.skipped = true;
-        assert!(scrobbler.listen_delivery_targets(&early).is_empty());
         database
-            .record_listen(&listen, None, &deliveries)
+            .queue_scrobbles(&listen, &deliveries)
             .await
-            .expect("record Activity");
+            .expect("queue scrobbles");
         database
-            .record_listen(&listen, None, &deliveries)
+            .queue_scrobbles(&listen, &deliveries)
             .await
-            .expect("record Activity idempotently");
-
-        assert_eq!(
-            library::MemberRead {
-                descending: true,
-                ..library::MemberRead::new(library::Collection::History {
-                    source: Some(SourceId::new("source"))
-                })
-            }
-            .count(&database, &cancellation)
-            .await
-            .expect("Activity"),
-            1
-        );
+            .expect("queue scrobbles idempotently");
         let due = database
             .due_listen_deliveries(i64::MAX, 10, &cancellation)
             .await
@@ -989,7 +960,6 @@ mod tests {
         assert_eq!(due.len(), 2);
         let retry_track = SubmissionTrack::from_pending(&due[0]);
         assert_eq!(retry_track.duration_millis, 180_000);
-        assert_eq!(due[0].listened_millis, 90_000);
         let lastfm_account = opaque_account_id(DeliveryService::LastFm, "listener");
         assert_eq!(
             database
@@ -1018,18 +988,6 @@ mod tests {
                 .remove_listen_deliveries("lastfm", &lastfm_account)
                 .await
                 .expect("remove account"),
-            1
-        );
-        assert_eq!(
-            library::MemberRead {
-                descending: true,
-                ..library::MemberRead::new(library::Collection::History {
-                    source: Some(SourceId::new("source"))
-                })
-            }
-            .count(&database, &cancellation)
-            .await
-            .expect("Activity after account removal"),
             1
         );
     }

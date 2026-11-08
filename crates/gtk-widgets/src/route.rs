@@ -14,7 +14,6 @@ pub fn sidebar_route_css_class(item: slopsonic_core::settings::SidebarRouteItem)
         SidebarRouteItem::AlbumArtists => "nav-route-album-artists",
         SidebarRouteItem::Genres => "nav-route-genres",
         SidebarRouteItem::Moods => "nav-route-moods",
-        SidebarRouteItem::History => "nav-route-history",
         SidebarRouteItem::Folders => "nav-route-folders",
         SidebarRouteItem::Playlists => "nav-route-playlists",
     }

@@ -20,14 +20,13 @@ pub enum SidebarRouteItem {
     Moods,
     Folders,
     Playlists,
-    History,
 }
 impl SidebarRouteItem {
     pub fn from_stable_id(stable_id: &str) -> Option<Self> {
         toml::Value::String(stable_id.to_owned()).try_into().ok()
     }
 
-    pub fn all() -> [Self; 12] {
+    pub fn all() -> [Self; 11] {
         [
             Self::Home,
             Self::Search,
@@ -38,7 +37,6 @@ impl SidebarRouteItem {
             Self::AlbumArtists,
             Self::Genres,
             Self::Moods,
-            Self::History,
             Self::Folders,
             Self::Playlists,
         ]

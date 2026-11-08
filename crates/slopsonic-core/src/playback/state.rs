@@ -20,14 +20,13 @@ use crate::playback::Placement;
 use playback::{
     BackendCommand, BackendEvent, BackendState, NextTransition, PlaybackSettings,
     PlaybackTransitionMode, PreparedNext, PreparedStream, Provenance, QueueRow, RepeatMode,
-    RunEndReason, RunId, StreamRequest, manual_end_is_skip, qualified_play_threshold_millis,
+    RunEndReason, RunId, StreamRequest, qualified_play_threshold_millis,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClockSample {
     pub monotonic_millis: u64,
     pub unix_seconds: i64,
-    pub local_period: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -93,7 +92,6 @@ struct RunContext {
     duration_millis: u64,
     audible_millis: u64,
     started_at_unix_seconds: Option<i64>,
-    local_period: Option<String>,
     last_monotonic_millis: Option<u64>,
     position_observed_at_millis: u64,
     qualified: bool,
@@ -114,7 +112,6 @@ impl RunContext {
             status: TransportStatus::Resolving,
             audible_millis: 0,
             started_at_unix_seconds: None,
-            local_period: None,
             last_monotonic_millis: None,
             position_observed_at_millis: 0,
             qualified: false,
@@ -126,27 +123,16 @@ impl RunContext {
         }
     }
 
-    fn listen(&self, skipped: bool) -> Option<library::ListenWrite> {
-        let track = &self.row.track;
-        let metadata = &track.metadata;
+    fn listen(&self) -> Option<library::ListenWrite> {
+        let metadata = &self.row.track.metadata;
         Some(library::ListenWrite {
-            external_id: Some(self.play_id.clone()),
-            media_uri: track.media_uri.clone(),
+            play_id: self.play_id.clone(),
             title: metadata.title.clone(),
             artist: metadata.artist.clone(),
             album: metadata.album.clone(),
             duration_millis: metadata.duration_millis,
-            disc_number: (metadata.disc_number > 0).then_some(metadata.disc_number),
-            track_number: (metadata.track_number > 0).then_some(metadata.track_number),
-            year: metadata.year,
-            release_date: metadata.release_date.clone(),
-            source_format: metadata.source_format.clone(),
-            musicbrainz_recording_id: metadata.musicbrainz_recording_id.clone(),
-            musicbrainz_release_track_id: metadata.musicbrainz_release_track_id.clone(),
             started_at: self.started_at_unix_seconds?,
-            local_period: self.local_period.clone()?,
             listened_millis: self.audible_millis.min(i64::MAX as u64) as i64,
-            skipped,
         })
     }
 
@@ -1473,7 +1459,6 @@ impl Player {
         };
         current.status = TransportStatus::Playing;
         current.started_at_unix_seconds = Some(sample.unix_seconds);
-        current.local_period = Some(sample.local_period.clone());
         current.last_monotonic_millis = Some(sample.monotonic_millis);
         let current = self.current_run.as_ref().unwrap();
         self.owner()
@@ -1492,9 +1477,8 @@ impl Player {
             return;
         }
         current.qualified = true;
-        let key = current.row.track.track_key;
-        if let Some(listen) = current.listen(false) {
-            self.owner().record_activity(key, Box::new(listen));
+        if let Some(listen) = current.listen() {
+            self.owner().record_scrobble(Box::new(listen));
         }
         if let Some(current) = self.current_run.as_ref() {
             self.owner().report_source(self.source_report(
@@ -1526,18 +1510,6 @@ impl Player {
                 SourceReportPhase::Ended,
                 reason == RunEndReason::Failed,
             ));
-            if !current.qualified
-                && manual_end_is_skip(
-                    reason,
-                    current.duration_millis,
-                    current.audible_millis,
-                    self.sequence.progress_millis(),
-                )
-                && let Some(listen) = current.listen(true)
-            {
-                self.owner()
-                    .record_activity(current.row.track.track_key, Box::new(listen));
-            }
         }
         if reason == RunEndReason::Completed {
             self.sequence.set_progress_millis(0);

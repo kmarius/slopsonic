@@ -348,7 +348,6 @@ pub fn collection_play_request(
         library::Collection::Genre(key) => format!("genre:{key}"),
         library::Collection::Mood(key) => format!("mood:{key}"),
         library::Collection::Playlist(key) => format!("playlist:{key}"),
-        library::Collection::History { source } => format!("history:{source:?}"),
     };
     slopsonic_core::playback::PlayRequest::ordered(
         library::MemberRead::new(scope).selection(),

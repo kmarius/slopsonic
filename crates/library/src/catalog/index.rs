@@ -409,10 +409,8 @@ fn refresh_group(kind: &str, role: i32, entity: &str, album: &str) -> String {
 fn display(scope: &str) -> String {
     format!("UPDATE tracks SET displayed_play_count=current.play_count,displayed_last_played=current.last_played,displayed_skip_count=current.skip_count,is_downloaded=current.downloaded_count FROM (
         SELECT track.track_key,EXISTS(SELECT 1 FROM download_locators WHERE media_uri=track.media_uri AND origin='download') downloaded_count,
-        CASE WHEN track.source_key IS NULL THEN track.local_play_count ELSE coalesce(native.play_count,0) END play_count,
-        CASE WHEN track.source_key IS NULL THEN (SELECT max(value) FROM(SELECT max(started_at) value FROM listens WHERE media_uri=track.media_uri ))ELSE native.last_played END last_played,
-        CASE WHEN track.source_key IS NULL THEN coalesce((SELECT sum(skipped) FROM listens WHERE media_uri=track.media_uri),0) ELSE coalesce(native.skip_count,0) END skip_count
-        FROM tracks track LEFT JOIN sources source USING(source_key) LEFT JOIN native_media_state native USING(media_uri) WHERE {scope}
+        coalesce(native.play_count,0) play_count,native.last_played last_played,coalesce(native.skip_count,0) skip_count
+        FROM tracks track LEFT JOIN native_media_state native USING(media_uri) WHERE {scope}
         ) current WHERE tracks.track_key=current.track_key AND (displayed_play_count,displayed_last_played,displayed_skip_count,is_downloaded) IS NOT (current.play_count,current.last_played,current.skip_count,current.downloaded_count);")
 }
 
@@ -422,7 +420,7 @@ fn triggers() -> String {
         ("AFTER INSERT", "insert", vec![("NEW", 1)]),
         ("AFTER DELETE", "delete", vec![("OLD", -1)]),
         (
-            "AFTER UPDATE OF source_key,album_key,indexed,metadata,media_uri,object_id,local_play_count",
+            "AFTER UPDATE OF source_key,album_key,indexed,metadata,media_uri,object_id",
             "update",
             vec![("OLD", -1), ("NEW", 1)],
         ),
@@ -454,7 +452,7 @@ fn triggers() -> String {
         }
         let when = match name {
             "update" => {
-                "WHEN (OLD.source_key,OLD.album_key,OLD.indexed,OLD.duration_millis,OLD.media_uri,OLD.object_id,OLD.local_play_count) IS NOT (NEW.source_key,NEW.album_key,NEW.indexed,NEW.duration_millis,NEW.media_uri,NEW.object_id,NEW.local_play_count)"
+                "WHEN (OLD.source_key,OLD.album_key,OLD.indexed,OLD.duration_millis,OLD.media_uri,OLD.object_id) IS NOT (NEW.source_key,NEW.album_key,NEW.indexed,NEW.duration_millis,NEW.media_uri,NEW.object_id)"
             }
             "display" => {
                 "WHEN (OLD.displayed_play_count,OLD.displayed_last_played,OLD.is_downloaded) IS NOT (NEW.displayed_play_count,NEW.displayed_last_played,NEW.is_downloaded)"
@@ -462,12 +460,6 @@ fn triggers() -> String {
             _ => "",
         };
         if name == "insert" || name == "update" {
-            let moved = if name == "update" {
-                "AND OLD.media_uri IS NOT NEW.media_uri"
-            } else {
-                ""
-            };
-            body.push_str(&format!("UPDATE tracks SET local_play_count=(SELECT count(*) FROM listens WHERE media_uri=tracks.media_uri) WHERE track_key=NEW.track_key {moved} AND local_play_count IS NOT (SELECT count(*) FROM listens WHERE media_uri=tracks.media_uri);"));
             body.push_str(&display("track.track_key=NEW.track_key"));
         }
         sql.push_str(&format!("CREATE TRIGGER IF NOT EXISTS catalog_index_track_{name} {event} ON tracks {when} BEGIN {body} END;"));
@@ -622,18 +614,12 @@ fn activity_triggers() -> String {
             "AFTER DELETE ON download_locators WHEN OLD.origin='download'",
             "track.media_uri=OLD.media_uri",
         ),
-        (
-            "source_update",
-            "AFTER UPDATE OF kind,object_id ON sources WHEN (OLD.kind,OLD.object_id) IS NOT (NEW.kind,NEW.object_id)",
-            "track.source_key=NEW.source_key",
-        ),
     ] {
         sql.push_str(&format!(
             "CREATE TRIGGER IF NOT EXISTS catalog_index_{name} {event} BEGIN {} END;",
             display(scope)
         ));
     }
-    sql.push_str(&format!("CREATE TRIGGER IF NOT EXISTS catalog_index_listen_update AFTER UPDATE OF media_uri,started_at,skipped ON listens WHEN (OLD.media_uri,OLD.started_at,OLD.skipped) IS NOT (NEW.media_uri,NEW.started_at,NEW.skipped) BEGIN UPDATE tracks SET local_play_count=local_play_count-1 WHERE media_uri=OLD.media_uri AND OLD.media_uri IS NOT NEW.media_uri; UPDATE tracks SET local_play_count=local_play_count+1 WHERE media_uri=NEW.media_uri AND OLD.media_uri IS NOT NEW.media_uri; {} END;",display("track.media_uri IN(OLD.media_uri,NEW.media_uri)")));
     let mut markers = String::new();
     for (kind, role) in [("artist", 1), ("genre", 0)] {
         markers.push_str(&format!("INSERT INTO collection_album_index(kind,entity_key,role,album_key,folder_key,album_count,track_count,duration_millis,downloaded_count,play_count) SELECT '{kind}',{kind}_key,{role},NEW.album_key,NULL,NEW.indexed=1,0,0,0,0 FROM album_{kind}s WHERE album_key=NEW.album_key ON CONFLICT DO UPDATE SET album_count=collection_album_index.track_count>0 OR NEW.indexed=1;"));
@@ -692,9 +678,19 @@ CREATE INDEX IF NOT EXISTS tracks_album_artist_desc_window ON tracks(source_key,
 const PLAYLIST_GENRES: &str = "INSERT INTO playlist_genres(playlist_key,genre_key,track_count)
     SELECT entry.playlist_key,credit.genre_key,count(*) FROM playlist_entries entry JOIN track_genres credit USING(track_key) GROUP BY entry.playlist_key,credit.genre_key;";
 
+/// Recreates the generated triggers, then refreshes the displayed stats through them.
+pub(crate) async fn recreate_triggers(connection: &mut SqliteConnection) -> LibraryResult<()> {
+    sqlx::raw_sql(sqlx::AssertSqlSafe(triggers()))
+        .execute(&mut *connection)
+        .await?;
+    sqlx::raw_sql(sqlx::AssertSqlSafe(display("true")))
+        .execute(connection)
+        .await?;
+    Ok(())
+}
+
 pub(crate) async fn initialize(connection: &mut SqliteConnection) -> LibraryResult<()> {
     sqlx::raw_sql(CREATE).execute(&mut *connection).await?;
-    sqlx::raw_sql("DROP TRIGGER IF EXISTS local_play_count_track_insert; DROP TRIGGER IF EXISTS local_play_count_track_uri;").execute(&mut *connection).await?;
     sqlx::raw_sql(sqlx::AssertSqlSafe(display("true")))
         .execute(&mut *connection)
         .await?;

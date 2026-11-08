@@ -11,12 +11,6 @@ impl Shell {
         let selected = self.selected_library().as_deref().cloned();
         let selected_source_id = selected.as_ref().map(|selected| selected.source_id.clone());
         let source = self.products.source.clone();
-        let history_source_name = {
-            let configured = self.source.configured.borrow();
-            configured.as_ref().map(|status| {
-                gtk_widgets::source_labels::configured_source_display_name(&status.source)
-            })
-        };
         Rc::new(gtk_library::CatalogUi {
             library: self.products.library.clone(),
             runtime: self.products.runtime.clone(),
@@ -39,7 +33,6 @@ impl Shell {
             media_playing_cells: RefCell::new(Vec::new()),
             track_selections: RefCell::new(Vec::new()),
             playlist_entry_selection: RefCell::new(None),
-            history_source_name,
             is_current: {
                 let weak = Rc::downgrade(self);
                 let route = route.clone();
@@ -61,19 +54,6 @@ impl Shell {
                 Rc::new(move || {
                     weak.upgrade()
                         .map_or(1, |shell| super::layout::route_content_width(&shell))
-                })
-            },
-            history_source_id: {
-                let weak = Rc::downgrade(self);
-                Rc::new(move || {
-                    weak.upgrade().and_then(|shell| {
-                        shell
-                            .source
-                            .configured
-                            .borrow()
-                            .as_ref()
-                            .map(|status| status.source.id.clone())
-                    })
                 })
             },
 

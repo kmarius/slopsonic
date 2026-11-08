@@ -22,9 +22,7 @@ async fn reopening_without_statistics_preserves_library_order() {
         .await
         .unwrap();
     let mut raw = super::support::connection(&fixture.path).await;
-    sqlx::raw_sql("DROP TABLE IF EXISTS sqlite_stat1;
-        INSERT INTO listens(media_uri,track_title,artist_name,album_title,started_at,local_period,duration_millis,listened_millis,skipped)
-            SELECT media_uri,'Captured title','Captured artist','Captured album',100,'1970-01',180000,90000,1 FROM tracks LIMIT 1")
+    sqlx::raw_sql("DROP TABLE IF EXISTS sqlite_stat1;")
         .execute(&mut raw)
         .await
         .unwrap();
@@ -75,7 +73,7 @@ async fn missing_indexed_column_returns_error_without_replacing_the_library() {
     fixture.database.close().await.unwrap();
     let mut raw = super::support::connection(&fixture.path).await;
     let triggers: Vec<String> = sqlx::query_scalar(
-        "SELECT name FROM sqlite_schema WHERE type='trigger' AND sql LIKE '%local_play_count%'",
+        "SELECT name FROM sqlite_schema WHERE type='trigger' AND sql LIKE '%native_artwork%'",
     )
     .fetch_all(&mut raw)
     .await
@@ -87,9 +85,8 @@ async fn missing_indexed_column_returns_error_without_replacing_the_library() {
             .unwrap();
     }
     sqlx::raw_sql(
-        "DROP INDEX tracks_local_play_order_idx; DROP INDEX tracks_global_play_order_idx;
-        DROP INDEX tracks_local_shuffle_idx; DROP INDEX tracks_global_local_shuffle_idx;
-        ALTER TABLE tracks DROP COLUMN local_play_count;",
+        "DROP INDEX tracks_native_artwork_idx;
+        ALTER TABLE tracks DROP COLUMN native_artwork;",
     )
     .execute(&mut raw)
     .await
@@ -106,12 +103,10 @@ async fn index_setup_failure_returns_error_without_replacing_the_library() {
     super::support::server_playlist(&fixture.database, "Keep me", &[]).await;
     fixture.database.close().await.unwrap();
     let mut raw = super::support::connection(&fixture.path).await;
-    sqlx::raw_sql(
-        "DROP INDEX tracks_local_shuffle_idx; CREATE TABLE tracks_local_shuffle_idx(value TEXT);",
-    )
-    .execute(&mut raw)
-    .await
-    .unwrap();
+    sqlx::raw_sql("DROP INDEX tracks_shuffle_idx; CREATE TABLE tracks_shuffle_idx(value TEXT);")
+        .execute(&mut raw)
+        .await
+        .unwrap();
     raw.close().await.unwrap();
     let before = durable_rows(&fixture.path).await;
     assert!(Database::open(&fixture.path).await.is_err());
@@ -166,8 +161,7 @@ async fn deleting_or_corrupting_catalog_preserves_exact_durable_records() {
         .execute(&mut raw)
         .await
         .unwrap();
-    sqlx::query("INSERT INTO listens(external_id,source_id,media_uri,track_title,artist_name,album_title,started_at,local_period,duration_millis,listened_millis,skipped) VALUES(NULL,'source',?1,'Snapshot','Artist','Album',100,'1970-01',100000,90000,0)").bind(uri).execute(&mut raw).await.unwrap();
-    sqlx::raw_sql("INSERT INTO listen_outbox(listen_key,service,account_id,attempts,next_attempt_at,last_error) SELECT listen_key,'lastfm','account',3,200,'retry' FROM listens;").execute(&mut raw).await.unwrap();
+    sqlx::raw_sql("INSERT INTO scrobble_outbox(play_id,service,account_id,track_title,artist_name,album_title,started_at,duration_millis,attempts,next_attempt_at,last_error) VALUES('play','lastfm','account','Snapshot','Artist','Album',100,100000,3,200,'retry');").execute(&mut raw).await.unwrap();
     raw.close().await.unwrap();
     fixture.database.close().await.unwrap();
     let mut before = durable_rows(&path).await;
@@ -317,24 +311,12 @@ async fn unsupported_version_preserves_library_data() {
 }
 
 #[tokio::test]
-async fn missing_listen_identity_returns_error_without_replacing_user_data() {
+async fn missing_scrobble_column_returns_error_without_replacing_user_data() {
     let fixture = super::support::fixture().await;
     super::support::server_playlist(&fixture.database, "Keep me", &[]).await;
     fixture.database.close().await.unwrap();
     let mut raw = connection(&fixture.path, false).await;
-    let triggers: Vec<String> = sqlx::query_scalar(
-        "SELECT name FROM sqlite_schema WHERE type='trigger' AND sql LIKE '%listens%'",
-    )
-    .fetch_all(&mut raw)
-    .await
-    .unwrap();
-    for trigger in triggers {
-        sqlx::query(sqlx::AssertSqlSafe(format!("DROP TRIGGER {trigger}")))
-            .execute(&mut raw)
-            .await
-            .unwrap();
-    }
-    sqlx::raw_sql("DROP INDEX listens_media_activity_idx; DROP INDEX listens_connect_key_idx; ALTER TABLE listens DROP COLUMN media_uri;").execute(&mut raw).await.unwrap();
+    sqlx::raw_sql("DROP INDEX scrobble_outbox_due_idx; ALTER TABLE scrobble_outbox DROP COLUMN next_attempt_at;").execute(&mut raw).await.unwrap();
     raw.close().await.unwrap();
     let before = durable_rows(&fixture.path).await;
     assert!(Database::open(&fixture.path).await.is_err());

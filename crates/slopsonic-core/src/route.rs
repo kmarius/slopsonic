@@ -36,7 +36,6 @@ pub enum Route {
     Home,
     Search,
     Favorites,
-    History,
     Albums,
     AlbumDetail(String),
     Tracks,
@@ -122,7 +121,6 @@ impl SidebarRouteDescriptor {
             SidebarRouteItem::AlbumArtists => SidebarRouteDescriptor::new("AlbumArtists", "Album Artists", "slopsonic-album-artists-symbolic", None, Route::AlbumArtists),
             SidebarRouteItem::Genres => SidebarRouteDescriptor::new("Genres", "Genres", "slopsonic-tag-outline-symbolic", None, Route::Genres),
             SidebarRouteItem::Moods => SidebarRouteDescriptor::new("Moods", "Moods", "slopsonic-moods-symbolic", None, Route::Moods),
-            SidebarRouteItem::History => SidebarRouteDescriptor::new("History", "History", "slopsonic-history-symbolic", None, Route::History),
             SidebarRouteItem::Folders => SidebarRouteDescriptor::new("Folders", "Folders", "slopsonic-folders-symbolic", Some("slopsonic-folders-selected-symbolic"), Route::Folders { path: Vec::new() }),
             SidebarRouteItem::Playlists => SidebarRouteDescriptor::new("Playlists", "Playlists", "slopsonic-playlists-symbolic", None, Route::Playlists),
         }

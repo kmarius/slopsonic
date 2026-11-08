@@ -36,8 +36,6 @@ pub struct CatalogUi {
     pub refresh_home_section: Rc<dyn Fn(slopsonic_core::settings::HomeSectionKind)>,
     pub set_favorite_category: Rc<dyn Fn(gtk_widgets::route::CollectionCategory)>,
     pub cycle_favorite_category: Rc<dyn Fn()>,
-    pub history_source_name: Option<String>,
-    pub history_source_id: Rc<dyn Fn() -> Option<sources::SourceId>>,
 
     pub current: RefCell<Option<RouteCurrentTrack>>,
     pub current_track_selections: RefCell<Vec<RouteCurrentTrackSelection>>,

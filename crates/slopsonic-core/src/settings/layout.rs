@@ -325,7 +325,6 @@ pub enum LibraryListKey {
     Tracks,
     Folders,
     FavoriteTracks,
-    History,
     Genres,
     Moods,
     Playlists,
@@ -339,7 +338,7 @@ pub enum LibraryListKey {
     FullscreenTracks,
 }
 impl LibraryListKey {
-    pub fn all() -> [Self; 18] {
+    pub fn all() -> [Self; 17] {
         [
             Self::Albums,
             Self::Artists,
@@ -347,7 +346,6 @@ impl LibraryListKey {
             Self::Tracks,
             Self::Folders,
             Self::FavoriteTracks,
-            Self::History,
             Self::Genres,
             Self::Moods,
             Self::Playlists,
@@ -381,7 +379,6 @@ impl LibraryListKey {
             | Self::Tracks
             | Self::Folders
             | Self::FavoriteTracks
-            | Self::History
             | Self::AlbumDetailTracks
             | Self::ArtistTracks
             | Self::GenreTracks
@@ -513,7 +510,7 @@ impl LibraryListSettings {
             grid_fields: default_grid_fields(key),
             detail_track_fields: default_detail_track_fields(),
             sort_key: default_sort_key(key),
-            descending: default_descending(key),
+            descending: false,
         }
     }
 
@@ -536,7 +533,7 @@ impl LibraryListSettings {
         ensure_usable_row_field(&mut self.detail_track_fields, default_detail_track_fields());
         if !available_sort_fields(key).contains(&self.sort_key) {
             self.sort_key = default_sort_key(key);
-            self.descending = default_descending(key);
+            self.descending = false;
         }
     }
 }
@@ -628,7 +625,6 @@ pub fn available_row_fields(key: LibraryListKey) -> &'static [LibraryField] {
         LibraryListKey::Tracks
         | LibraryListKey::Folders
         | LibraryListKey::FavoriteTracks
-        | LibraryListKey::History
         | LibraryListKey::AlbumDetailTracks
         | LibraryListKey::ArtistTracks
         | LibraryListKey::GenreTracks
@@ -691,7 +687,6 @@ pub fn available_grid_fields(key: LibraryListKey) -> &'static [LibraryField] {
         LibraryListKey::Playlists => &[LibraryField::SongCount, LibraryField::Duration],
         LibraryListKey::Tracks
         | LibraryListKey::FavoriteTracks
-        | LibraryListKey::History
         | LibraryListKey::AlbumDetailTracks
         | LibraryListKey::ArtistTracks
         | LibraryListKey::GenreTracks
@@ -771,7 +766,6 @@ pub fn available_sort_fields(key: LibraryListKey) -> &'static [LibraryField] {
             LibraryField::Duration,
         ],
         LibraryListKey::PlaylistTracks => TRACK_SORT_FIELDS,
-        LibraryListKey::History => &[LibraryField::LastPlayed],
         LibraryListKey::Tracks
         | LibraryListKey::Folders
         | LibraryListKey::FavoriteTracks
@@ -838,12 +832,6 @@ fn combined_row_fields(key: LibraryListKey) -> Vec<LibraryField> {
             LibraryField::Album,
             LibraryField::Tools,
         ],
-        LibraryListKey::History => vec![
-            LibraryField::RowIndex,
-            LibraryField::TitleMerged,
-            LibraryField::LastPlayed,
-            LibraryField::Tools,
-        ],
         LibraryListKey::AlbumDetailTracks => vec![
             LibraryField::RowIndex,
             LibraryField::Title,
@@ -880,11 +868,6 @@ fn default_grid_fields(key: LibraryListKey) -> Vec<LibraryField> {
         LibraryListKey::Genres => Vec::new(),
         LibraryListKey::Moods => vec![LibraryField::SongCount, LibraryField::Duration],
         LibraryListKey::Playlists => vec![LibraryField::SongCount],
-        LibraryListKey::History => vec![
-            LibraryField::Artist,
-            LibraryField::Album,
-            LibraryField::LastPlayed,
-        ],
         LibraryListKey::Tracks
         | LibraryListKey::FavoriteTracks
         | LibraryListKey::AlbumDetailTracks
@@ -939,7 +922,6 @@ fn default_sort_key(key: LibraryListKey) -> LibraryField {
         | LibraryListKey::Folders
         | LibraryListKey::FavoriteTracks
         | LibraryListKey::Playlists => LibraryField::Title,
-        LibraryListKey::History => LibraryField::LastPlayed,
         LibraryListKey::Queue
         | LibraryListKey::FullscreenTracks
         | LibraryListKey::PlaylistTracks => LibraryField::RowIndex,
@@ -948,9 +930,6 @@ fn default_sort_key(key: LibraryListKey) -> LibraryField {
         | LibraryListKey::GenreTracks
         | LibraryListKey::MoodTracks => LibraryField::TrackNumber,
     }
-}
-fn default_descending(key: LibraryListKey) -> bool {
-    key == LibraryListKey::History
 }
 fn sanitize_optional_fields(fields: &mut Vec<LibraryField>, available: &[LibraryField]) {
     let mut seen = Vec::new();
@@ -1018,21 +997,6 @@ mod disc_tests {
         assert!(!LibraryListKey::AlbumDetailTracks.supports_layout(LibraryLayout::Grid));
         assert!(LibraryListKey::Tracks.supports_layout(LibraryLayout::Grid));
         assert!(LibraryListKey::Albums.supports_layout(LibraryLayout::Grid));
-    }
-
-    #[test]
-    fn history_row_fields_default_to_index_title_last_played_favorite_and_tools() {
-        let defaults = default_row_fields(LibraryListKey::History);
-        assert_eq!(
-            defaults,
-            [
-                LibraryField::RowIndex,
-                LibraryField::TitleMerged,
-                LibraryField::LastPlayed,
-                LibraryField::Favorite,
-                LibraryField::Tools,
-            ]
-        );
     }
 
     #[test]

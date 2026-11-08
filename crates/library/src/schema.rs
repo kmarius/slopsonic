@@ -94,47 +94,23 @@ CREATE TABLE IF NOT EXISTS user_media_state (
 
 CREATE INDEX IF NOT EXISTS user_media_favorite_idx ON user_media_state(favorite,media_uri) WHERE favorite=1;
 
-CREATE TABLE IF NOT EXISTS listens (
-    listen_key INTEGER PRIMARY KEY,
-    external_id TEXT UNIQUE,
-    source_id TEXT,
-    captured_media_uri TEXT,
-    media_uri TEXT NOT NULL CHECK (media_uri <> ''),
+CREATE TABLE IF NOT EXISTS scrobble_outbox (
+    outbox_key INTEGER PRIMARY KEY,
+    play_id TEXT NOT NULL CHECK (play_id <> ''),
+    service TEXT NOT NULL CHECK (service <> ''),
+    account_id TEXT NOT NULL CHECK (account_id <> ''),
     track_title TEXT NOT NULL,
     artist_name TEXT NOT NULL,
     album_title TEXT NOT NULL,
-    disc_number INTEGER, track_number INTEGER, year INTEGER, release_date TEXT,
-    source_format TEXT, musicbrainz_recording_id TEXT, musicbrainz_release_track_id TEXT,
     started_at INTEGER NOT NULL CHECK (started_at >= 0),
-    local_period TEXT NOT NULL CHECK (
-        length(local_period)=7 AND substr(local_period,5,1)='-'
-        AND substr(local_period,1,4) NOT GLOB '*[^0-9]*'
-        AND substr(local_period,6,2) IN ('01','02','03','04','05','06','07','08','09','10','11','12')
-    ),
     duration_millis INTEGER NOT NULL CHECK (duration_millis >= 0),
-    listened_millis INTEGER NOT NULL CHECK (listened_millis >= 0),
-    skipped INTEGER NOT NULL DEFAULT 0 CHECK (skipped IN (0, 1))
-) STRICT;
-
-CREATE INDEX IF NOT EXISTS listens_history_idx ON listens(source_id, started_at DESC, listen_key DESC);
-CREATE INDEX IF NOT EXISTS listens_recent_idx ON listens(started_at DESC, listen_key DESC);
-CREATE INDEX IF NOT EXISTS listens_connect_key_idx ON listens(coalesce(external_id,'legacy-'||media_uri||'-'||started_at||'-'||listen_key));
-
-CREATE INDEX IF NOT EXISTS listens_media_activity_idx ON listens(media_uri, started_at DESC,listen_key DESC,skipped);
-CREATE INDEX IF NOT EXISTS listens_period_idx ON listens(local_period) WHERE skipped=0;
-
-CREATE TABLE IF NOT EXISTS listen_outbox (
-    outbox_key INTEGER PRIMARY KEY,
-    listen_key INTEGER NOT NULL REFERENCES listens ON DELETE CASCADE,
-    service TEXT NOT NULL CHECK (service <> ''),
-    account_id TEXT NOT NULL CHECK (account_id <> ''),
     attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
     next_attempt_at INTEGER CHECK (next_attempt_at IS NULL OR next_attempt_at >= 0),
     last_error TEXT,
-    UNIQUE (service, account_id, listen_key)
+    UNIQUE (service, account_id, play_id)
 ) STRICT;
 
-CREATE INDEX IF NOT EXISTS listen_outbox_due_idx ON listen_outbox(next_attempt_at, outbox_key)
+CREATE INDEX IF NOT EXISTS scrobble_outbox_due_idx ON scrobble_outbox(next_attempt_at, outbox_key)
     WHERE next_attempt_at IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS queue_state (
@@ -250,7 +226,6 @@ CREATE TABLE IF NOT EXISTS tracks (
     source_loudness_analysis_key BLOB NOT NULL DEFAULT (zeroblob(32)),
     loudness_analysis_key BLOB NOT NULL DEFAULT (zeroblob(32)),
     album_title_sort TEXT, album_artist_sort TEXT, album_year_sort INTEGER,
-    local_play_count INTEGER NOT NULL DEFAULT 0,
     displayed_play_count INTEGER NOT NULL DEFAULT 0, displayed_last_played INTEGER,
     displayed_skip_count INTEGER NOT NULL DEFAULT 0, is_downloaded INTEGER NOT NULL DEFAULT 0,
     title TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.title')) VIRTUAL,
@@ -285,10 +260,6 @@ CREATE INDEX IF NOT EXISTS tracks_added_idx ON tracks(source_key,indexed,(COALES
 CREATE INDEX IF NOT EXISTS tracks_added_desc_idx ON tracks(source_key,indexed,(COALESCE(unixepoch(date_added),first_seen_at) IS NULL),COALESCE(unixepoch(date_added),first_seen_at) DESC,sort_text,track_key);
 CREATE INDEX IF NOT EXISTS tracks_raw_album_year_idx ON tracks(album_key,source_path,disc_number,track_number,object_id) WHERE indexed=1 AND year IS NOT NULL;
 CREATE INDEX IF NOT EXISTS tracks_raw_album_release_idx ON tracks(album_key,source_path,disc_number,track_number,object_id) WHERE indexed=1 AND release_date IS NOT NULL;
-CREATE INDEX IF NOT EXISTS tracks_local_play_order_idx ON tracks(source_key,indexed,local_play_count DESC,sort_text,media_uri);
-CREATE INDEX IF NOT EXISTS tracks_global_play_order_idx ON tracks(indexed,local_play_count DESC,sort_text,media_uri);
-CREATE INDEX IF NOT EXISTS tracks_local_shuffle_idx ON tracks(source_key,local_play_count,((track_key*1103515245)%2147483647),media_uri);
-CREATE INDEX IF NOT EXISTS tracks_global_local_shuffle_idx ON tracks(local_play_count,((track_key*1103515245)%2147483647),media_uri);
 CREATE INDEX IF NOT EXISTS tracks_shuffle_idx ON tracks(source_key,((track_key*1103515245)%2147483647),media_uri);
 CREATE INDEX IF NOT EXISTS tracks_global_shuffle_idx ON tracks(((track_key*1103515245)%2147483647),media_uri);
 CREATE INDEX IF NOT EXISTS tracks_album_local_audio_idx ON tracks(album_key) WHERE indexed=1 AND source_loudness_analysis_key<>loudness_analysis_key;
@@ -476,12 +447,6 @@ CREATE TABLE IF NOT EXISTS download_access_metadata (
     parser_version INTEGER NOT NULL, loudness_analysis_key BLOB
 ) STRICT;
 
-CREATE TRIGGER IF NOT EXISTS local_play_count_listen_insert AFTER INSERT ON listens BEGIN
-             UPDATE tracks SET local_play_count=local_play_count+1 WHERE media_uri=NEW.media_uri;
-         END;
-         CREATE TRIGGER IF NOT EXISTS local_play_count_listen_delete AFTER DELETE ON listens BEGIN
-             UPDATE tracks SET local_play_count=local_play_count-1 WHERE media_uri=OLD.media_uri;
-         END;
 CREATE VIEW IF NOT EXISTS download_access_files AS
           SELECT locator.download_access_file_key,locator.source_key,locator.media_uri,
                  locator.origin,locator.path,locator.root,locator.relative_path,
@@ -533,6 +498,35 @@ const MIGRATIONS: &[&str] = &[
      ALTER TABLE playlists DROP COLUMN artwork_bytes;
      ALTER TABLE playlists DROP COLUMN artwork_mime;
      ALTER TABLE playlists DROP COLUMN artwork_revision;",
+    // 68: drop local listening history; keep only undelivered scrobbles, with their payload.
+    "CREATE TABLE scrobble_outbox (
+         outbox_key INTEGER PRIMARY KEY,
+         play_id TEXT NOT NULL CHECK (play_id <> ''),
+         service TEXT NOT NULL CHECK (service <> ''),
+         account_id TEXT NOT NULL CHECK (account_id <> ''),
+         track_title TEXT NOT NULL,
+         artist_name TEXT NOT NULL,
+         album_title TEXT NOT NULL,
+         started_at INTEGER NOT NULL CHECK (started_at >= 0),
+         duration_millis INTEGER NOT NULL CHECK (duration_millis >= 0),
+         attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+         next_attempt_at INTEGER CHECK (next_attempt_at IS NULL OR next_attempt_at >= 0),
+         last_error TEXT,
+         UNIQUE (service, account_id, play_id)
+     ) STRICT;
+     INSERT INTO scrobble_outbox(play_id,service,account_id,track_title,artist_name,album_title,
+             started_at,duration_millis,attempts,next_attempt_at,last_error)
+         SELECT coalesce(listen.external_id,'listen-'||listen.listen_key),outbox.service,outbox.account_id,
+             listen.track_title,listen.artist_name,listen.album_title,listen.started_at,listen.duration_millis,
+             outbox.attempts,outbox.next_attempt_at,outbox.last_error
+         FROM listen_outbox outbox JOIN listens listen USING(listen_key);
+     DROP TABLE listen_outbox;
+     DROP TABLE listens;
+     DROP INDEX tracks_local_play_order_idx;
+     DROP INDEX tracks_global_play_order_idx;
+     DROP INDEX tracks_local_shuffle_idx;
+     DROP INDEX tracks_global_local_shuffle_idx;
+     ALTER TABLE tracks DROP COLUMN local_play_count;",
 ];
 
 pub(crate) const SCHEMA_VERSION: i64 = BASE_VERSION + MIGRATIONS.len() as i64;
@@ -559,6 +553,20 @@ async fn migrate(
 pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> LibraryResult<()> {
     let version = pragma(connection, "user_version").await?;
     let mut transaction = connection.begin().await?;
+    let upgrading = version != 0 && version < SCHEMA_VERSION;
+    if upgrading {
+        // Catalog triggers are generated code that can reference dropped columns; rebuild them below.
+        let triggers: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'catalog\\_index\\_%' ESCAPE '\\'",
+        )
+        .fetch_all(&mut *transaction)
+        .await?;
+        for name in triggers {
+            sqlx::raw_sql(sqlx::AssertSqlSafe(format!("DROP TRIGGER \"{name}\"")))
+                .execute(&mut *transaction)
+                .await?;
+        }
+    }
     if version != 0 {
         migrate(&mut transaction, version, MIGRATIONS).await?;
     }
@@ -570,6 +578,8 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
         .execute(&mut *transaction).await?;
     if version == 0 {
         crate::catalog::index::initialize(&mut transaction).await?;
+    } else if upgrading {
+        crate::catalog::index::recreate_triggers(&mut transaction).await?;
     }
     sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "PRAGMA user_version = {SCHEMA_VERSION}"

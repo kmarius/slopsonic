@@ -751,9 +751,27 @@ fn recover_setting(
     }
 }
 
+// Entries for the removed History page would otherwise reset the whole list they sit in.
+fn drop_removed_entries(raw: &mut toml::Value) {
+    let strip = |list: Option<&mut toml::Value>, field: &str| {
+        if let Some(items) = list.and_then(toml::Value::as_array_mut) {
+            items.retain(|item| item.get(field).and_then(toml::Value::as_str) != Some("History"));
+        }
+    };
+    strip(
+        raw.get_mut("sidebar")
+            .and_then(|sidebar| sidebar.get_mut("route_items")),
+        "item",
+    );
+    strip(raw.get_mut("library_lists"), "key");
+}
+
 pub(crate) fn decode_settings(
     raw: &toml::Value,
 ) -> Result<(StoredSettings, Vec<Vec<String>>), String> {
+    let mut raw = raw.clone();
+    drop_removed_entries(&mut raw);
+    let raw = &raw;
     if let Ok(stored) = raw.clone().try_into::<StoredSettings>() {
         stored.equalizer.validate()?;
         return Ok((stored, Vec::new()));
@@ -883,6 +901,32 @@ mod tests {
     use super::*;
     use secrets::SecretResult;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn removed_history_entries_keep_the_rest_of_their_lists() {
+        let mut saved = toml::Value::try_from(StoredSettings::default()).unwrap();
+        let routes = saved["sidebar"]["route_items"].as_array_mut().unwrap();
+        routes.retain(|item| item["item"].as_str() != Some("Moods"));
+        routes.push(
+            toml::toml! { item = "History"
+            visible = true }
+            .into(),
+        );
+        let lists = saved["library_lists"].as_array_mut().unwrap();
+        let mut history = lists[0].clone();
+        history["key"] = "History".into();
+        lists.push(history);
+        let (stored, unsupported) = decode_settings(&saved).unwrap();
+        assert!(unsupported.is_empty());
+        assert!(
+            stored
+                .ui
+                .sidebar
+                .route_items
+                .iter()
+                .all(|entry| entry.item != SidebarRouteItem::Moods)
+        );
+    }
 
     #[test]
     fn pending_settings_update_leaves_committed_values_readable_and_serializes_saves() {

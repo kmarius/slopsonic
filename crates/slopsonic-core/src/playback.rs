@@ -58,7 +58,7 @@ pub struct PlaybackOwner {
 }
 
 enum PlaybackStoreWork {
-    Activity(library::TrackKey, Box<ListenWrite>),
+    Scrobble(Box<ListenWrite>),
     Flush(std::sync::mpsc::SyncSender<()>),
     Output {
         volume: f64,
@@ -276,7 +276,7 @@ impl PlaybackOwner {
                 self.equalizer_write_finished(&result);
                 let _ = reply.send(result);
             }
-            PlaybackStoreWork::Activity(key, activity) => self.store_activity(key, *activity).await,
+            PlaybackStoreWork::Scrobble(listen) => self.queue_scrobbles(*listen).await,
             PlaybackStoreWork::Flush(reply) => {
                 if let Err(error) =
                     save_pending_queue(&self.database, &self.pending_queue, failed_queue_save).await
@@ -302,10 +302,10 @@ impl PlaybackOwner {
         }
     }
 
-    fn record_activity(&self, key: library::TrackKey, activity: Box<ListenWrite>) {
+    fn record_scrobble(&self, listen: Box<ListenWrite>) {
         let _ = self
             .store_sender
-            .try_send(PlaybackStoreWork::Activity(key, activity));
+            .try_send(PlaybackStoreWork::Scrobble(listen));
     }
 
     fn report_source(&self, report: playback::SourceReportFact) {
@@ -354,15 +354,11 @@ impl PlaybackOwner {
         });
     }
 
-    async fn store_activity(&self, current_track: library::TrackKey, listen: ListenWrite) {
+    async fn queue_scrobbles(&self, listen: ListenWrite) {
         let deliveries = self.scrobbler.listen_delivery_targets(&listen);
-        match self
-            .database
-            .record_listen(&listen, Some(current_track), &deliveries)
-            .await
-        {
-            Ok(_) => self.scrobbler.listen_recorded(deliveries.len()),
-            Err(error) => warn!(%error, "could not record Slopsonic Activity"),
+        match self.database.queue_scrobbles(&listen, &deliveries).await {
+            Ok(()) => self.scrobbler.listen_recorded(deliveries.len()),
+            Err(error) => warn!(%error, "could not queue scrobbles"),
         }
     }
 
@@ -484,7 +480,6 @@ impl PlaybackOwner {
                 .as_millis()
                 .min(u128::from(u64::MAX)) as u64,
             unix_seconds,
-            local_period: local_calendar_period(unix_seconds),
         }
     }
 }
@@ -878,18 +873,10 @@ fn unix_seconds(now: SystemTime) -> i64 {
         .map(|duration| duration.as_secs().min(i64::MAX as u64) as i64)
         .unwrap_or_default()
 }
-fn local_calendar_period(unix_seconds: i64) -> String {
-    glib::DateTime::from_unix_local(unix_seconds)
-        .or_else(|_| glib::DateTime::from_unix_utc(unix_seconds))
-        .and_then(|date| date.format("%Y-%m"))
-        .map(|period| period.to_string())
-        .unwrap_or_else(|_| "1970-01".to_string())
-}
 fn empty_clock_sample() -> ClockSample {
     ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
-        local_period: "1970-01".to_string(),
     }
 }
 fn string_error(error: impl std::fmt::Display) -> String {

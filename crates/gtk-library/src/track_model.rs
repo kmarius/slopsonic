@@ -346,11 +346,11 @@ mod tests {
             links: Default::default(),
         };
         let settings =
-            LibraryListSettings::for_key(slopsonic_core::settings::LibraryListKey::History);
+            LibraryListSettings::for_key(slopsonic_core::settings::LibraryListKey::Tracks);
         let query = library::MemberRead {
             sort: Some(settings.sort_key.catalog_sort()),
             descending: settings.descending,
-            ..library::MemberRead::new(library::Collection::History { source: None })
+            ..library::MemberRead::new(library::Collection::Source(library::SourceKey::from_raw(1)))
         };
         let directory = tempfile::tempdir().unwrap();
         let database = runtime

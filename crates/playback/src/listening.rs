@@ -47,19 +47,6 @@ pub fn qualified_play_threshold_millis(duration_millis: u64) -> u64 {
     }
 }
 
-pub fn manual_end_is_skip(
-    reason: RunEndReason,
-    duration_millis: u64,
-    audible_millis: u64,
-    playhead_millis: u64,
-) -> bool {
-    if !matches!(reason, RunEndReason::ManualSkip | RunEndReason::Replaced) {
-        return false;
-    }
-    audible_millis < qualified_play_threshold_millis(duration_millis)
-        && duration_millis.saturating_sub(playhead_millis) > 5_000
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -72,28 +59,5 @@ mod tests {
         assert_eq!(qualified_play_threshold_millis(20_000), 10_000);
         assert_eq!(qualified_play_threshold_millis(180_000), 90_000);
         assert_eq!(qualified_play_threshold_millis(900_000), 240_000);
-    }
-
-    #[test]
-    fn seeked_playhead_does_not_qualify_a_play_or_hide_an_early_skip() {
-        assert!(manual_end_is_skip(
-            RunEndReason::ManualSkip,
-            180_000,
-            4_000,
-            170_000,
-        ));
-        assert!(!manual_end_is_skip(
-            RunEndReason::ManualSkip,
-            180_000,
-            90_000,
-            170_000,
-        ));
-    }
-
-    #[test]
-    fn natural_end_and_explicit_stop_are_not_skips() {
-        for reason in [RunEndReason::Completed, RunEndReason::Stopped] {
-            assert!(!manual_end_is_skip(reason, 180_000, 4_000, 10_000));
-        }
     }
 }

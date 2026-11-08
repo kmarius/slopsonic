@@ -169,7 +169,6 @@ pub fn library_list_title(value: LibraryListKey) -> &'static str {
         LibraryListKey::Tracks => "Tracks",
         LibraryListKey::Folders => "Folders",
         LibraryListKey::FavoriteTracks => "Favorites",
-        LibraryListKey::History => "History",
         LibraryListKey::Genres => "Genres",
         LibraryListKey::Moods => "Moods",
         LibraryListKey::Playlists => "Playlists",

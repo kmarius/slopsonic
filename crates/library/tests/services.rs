@@ -262,31 +262,20 @@ async fn source_artwork_pages_distinct_bindings() {
 }
 
 #[tokio::test]
-async fn source_removal_preserves_listens_and_pending_delivery_only() {
+async fn source_removal_preserves_pending_scrobbles() {
     let fixture = fixture().await;
     fixture
         .database
-        .record_listen(
+        .queue_scrobbles(
             &ListenWrite {
-                external_id: Some("remove-play".to_string()),
-                media_uri: fixture.track_uris[0].clone(),
+                play_id: "remove-play".to_string(),
                 title: "Track".to_string(),
                 artist: "Artist".to_string(),
                 album: "Album".to_string(),
                 duration_millis: 180_000,
-                disc_number: None,
-                track_number: None,
-                year: None,
-                release_date: None,
-                source_format: None,
-                musicbrainz_recording_id: None,
-                musicbrainz_release_track_id: None,
                 started_at: 100,
-                local_period: "1970-01".to_string(),
                 listened_millis: 1000,
-                skipped: false,
             },
-            None,
             &[ListenDeliveryTarget {
                 service: "lastfm".to_string(),
                 account_id: "account".to_string(),
@@ -294,7 +283,7 @@ async fn source_removal_preserves_listens_and_pending_delivery_only() {
             }],
         )
         .await
-        .expect("record retained listen");
+        .expect("queue scrobble");
 
     let mut scan_catalog = fixture.database.catalog("source", None).await.unwrap();
     {
@@ -353,16 +342,7 @@ async fn source_removal_preserves_listens_and_pending_delivery_only() {
     );
     let mut raw = connection(&fixture.path).await;
     assert_eq!(
-        sqlx::query_as::<_, (Option<String>, String)>(
-            "SELECT source_id,media_uri FROM listens WHERE external_id='remove-play'"
-        )
-        .fetch_one(&mut raw)
-        .await
-        .expect("retained listen identity"),
-        (Some("source".to_string()), fixture.track_uris[0].clone())
-    );
-    assert_eq!(
-        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM listen_outbox")
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM scrobble_outbox")
             .fetch_one(&mut raw)
             .await
             .unwrap(),

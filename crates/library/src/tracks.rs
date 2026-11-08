@@ -335,19 +335,6 @@ pub(crate) fn displayed_stat(field: &str) -> String {
     format!("track.displayed_{field}")
 }
 
-pub(crate) fn local_stat(field: &str) -> &'static str {
-    match field {
-        "play_count" => "track.local_play_count",
-        "skip_count" => {
-            "COALESCE((SELECT sum(skipped) FROM listens WHERE media_uri=track.media_uri),0)"
-        }
-        "last_played" => {
-            "(SELECT max(value) FROM (SELECT max(started_at) value FROM listens WHERE media_uri=track.media_uri))"
-        }
-        _ => unreachable!(),
-    }
-}
-
 pub(crate) async fn load_track_rows(
     connection: &mut SqliteConnection,
     keys: &[TrackKey],

@@ -118,22 +118,6 @@ impl LibraryPageShell {
             (self.has_visible_results)(),
         );
     }
-
-    pub fn configure_history_filter(
-        &self,
-        current_source_name: Option<String>,
-        changed: impl Fn(bool) + 'static,
-    ) {
-        let dropdown = &self.toolbar.sort_dropdown;
-        let labels = gtk::StringList::new(&["All"]);
-        if let Some(name) = current_source_name.as_deref() {
-            labels.append(name);
-        }
-        dropdown.set_model(Some(&labels));
-        dropdown.set_selected(0);
-        dropdown.set_sensitive(current_source_name.is_some());
-        dropdown.connect_selected_notify(move |dropdown| changed(dropdown.selected() == 1));
-    }
 }
 
 #[derive(Clone)]
@@ -185,15 +169,13 @@ impl LibraryToolbarProjection {
             return;
         }
         self.syncing.set(true);
-        if key != LibraryListKey::History {
-            self.sort_dropdown.set_selected(
-                state
-                    .sort_fields
-                    .iter()
-                    .position(|field| *field == settings.sort_key)
-                    .unwrap_or(0) as u32,
-            );
-        }
+        self.sort_dropdown.set_selected(
+            state
+                .sort_fields
+                .iter()
+                .position(|field| *field == settings.sort_key)
+                .unwrap_or(0) as u32,
+        );
         self.direction
             .set_icon_name(sort_order_icon(settings.descending));
         let layout = toolbar_layout(settings.layout, state.include_detail);
@@ -356,9 +338,6 @@ impl CatalogUi {
                     return;
                 }
                 let state = *state.borrow();
-                if state.key == LibraryListKey::History {
-                    return;
-                }
                 let sort_key = state
                     .sort_fields
                     .get(dropdown.selected() as usize)
