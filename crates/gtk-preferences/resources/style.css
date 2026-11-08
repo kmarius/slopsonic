@@ -234,6 +234,7 @@ button.preference-selection-button,
   border-right: 1px solid var(--shell-separator-color);
 }
 
+.sidebar-pane.wide-sidebar-slot,
 .sidebar-pane.compact-rail-slot {
   padding-right: 7px;
 }
@@ -272,7 +273,6 @@ overlay-split-view > .sidebar-pane {
 
 .wide-sidebar {
   padding-top: 0;
-  margin-right: 8px;
 }
 
 .wide-sidebar sidebar list.navigation-sidebar {
@@ -1647,12 +1647,6 @@ link.inline-detail-link:visited,
 link.inline-detail-link:active {
   color: inherit;
   text-decoration: none;
-}
-
-label:hover link.inline-detail-link:hover {
-  color: inherit;
-  text-decoration-line: underline;
-  text-decoration-color: color-mix(in srgb, currentColor 65%, var(--window-bg-color));
 }
 
 label link.inline-detail-link:focus:focus-visible {

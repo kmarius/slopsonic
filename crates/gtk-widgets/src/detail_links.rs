@@ -1,7 +1,8 @@
 use crate::route::Route;
 use gtk::glib;
 use gtk::prelude::*;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+use std::ops::Range;
 use std::rc::Rc;
 
 pub use slopsonic_core::route::detail_links::{
@@ -41,6 +42,41 @@ fn markup(links: &DetailLinks) -> String {
 pub struct DetailLinkBinding {
     label: glib::WeakRef<gtk::Label>,
     links: Rc<RefCell<DetailLinks>>,
+    hovered: Rc<Cell<Option<Range<usize>>>>,
+}
+
+/// GTK marks every link of a hovered label as `:hover`, so the hovered link is found by hit-testing.
+fn link_at(label: &gtk::Label, links: &DetailLinks, x: f64, y: f64) -> Option<Range<usize>> {
+    let (left, top) = label.layout_offsets();
+    let (inside, index, _) = label.layout().xy_to_index(
+        (x as i32 - left) * gtk::pango::SCALE,
+        (y as i32 - top) * gtk::pango::SCALE,
+    );
+    let index = usize::try_from(index).ok().filter(|_| inside)?;
+    links
+        .spans()
+        .iter()
+        .map(|link| link.range.clone())
+        .find(|range| range.contains(&index))
+}
+
+fn set_hovered_link(
+    label: &gtk::Label,
+    hovered: &Cell<Option<Range<usize>>>,
+    range: Option<Range<usize>>,
+) {
+    if hovered.replace(range.clone()) == range {
+        return;
+    }
+    let attributes = range.map(|range| {
+        let attributes = gtk::pango::AttrList::new();
+        let mut underline = gtk::pango::AttrInt::new_underline(gtk::pango::Underline::Single);
+        underline.set_start_index(range.start as u32);
+        underline.set_end_index(range.end as u32);
+        attributes.insert(underline);
+        attributes
+    });
+    label.set_attributes(attributes.as_ref());
 }
 
 impl DetailLinkBinding {
@@ -57,6 +93,24 @@ impl DetailLinkBinding {
             }
         });
 
+        let hovered = Rc::new(Cell::new(None));
+        let motion = gtk::EventControllerMotion::new();
+        let motion_links = Rc::clone(&links);
+        let motion_hovered = Rc::clone(&hovered);
+        motion.connect_motion(move |motion, x, y| {
+            if let Some(label) = motion.widget().and_downcast::<gtk::Label>() {
+                let link = link_at(&label, &motion_links.borrow(), x, y);
+                set_hovered_link(&label, &motion_hovered, link);
+            }
+        });
+        let leave_hovered = Rc::clone(&hovered);
+        motion.connect_leave(move |motion| {
+            if let Some(label) = motion.widget().and_downcast::<gtk::Label>() {
+                set_hovered_link(&label, &leave_hovered, None);
+            }
+        });
+        label.add_controller(motion);
+
         let activate_links = Rc::clone(&links);
         label.connect_activate_link(move |_, link| {
             let route = activate_links.borrow().route_for_link(link);
@@ -68,6 +122,7 @@ impl DetailLinkBinding {
         Self {
             label: label.downgrade(),
             links,
+            hovered,
         }
     }
 
@@ -84,6 +139,7 @@ impl DetailLinkBinding {
         };
         self.links.replace(links);
         if let Some(label) = self.label.upgrade() {
+            set_hovered_link(&label, &self.hovered, None);
             if has_links {
                 label.set_markup(&text);
             } else {
@@ -95,6 +151,7 @@ impl DetailLinkBinding {
     pub fn clear(&self) {
         self.links.replace(DetailLinks::default());
         if let Some(label) = self.label.upgrade() {
+            set_hovered_link(&label, &self.hovered, None);
             label.set_text("");
         }
     }
