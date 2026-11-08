@@ -825,6 +825,8 @@ fn combined_row_fields(key: LibraryListKey) -> Vec<LibraryField> {
             LibraryField::Image,
             LibraryField::Title,
             LibraryField::Tools,
+            LibraryField::SongCount,
+            LibraryField::Duration,
         ],
         LibraryListKey::Tracks | LibraryListKey::Folders | LibraryListKey::FavoriteTracks => vec![
             LibraryField::RowIndex,
