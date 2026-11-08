@@ -179,12 +179,11 @@ mod freedesktop {
     impl MediaControls {
         pub fn start(
             transport: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
-            open_uri: impl Fn(&str) + 'static,
         ) -> Rc<Self> {
             let mpris = Rc::new(Self::new(transport));
             let setup = Rc::clone(&mpris);
             glib::spawn_future_local(async move {
-                setup.install(open_uri).await;
+                setup.install().await;
             });
             mpris
         }
@@ -246,12 +245,10 @@ mod freedesktop {
             }
         }
 
-        async fn install(self: Rc<Self>, open_uri: impl Fn(&str) + 'static) {
+        async fn install(self: Rc<Self>) {
             let player = match MprisPlayer::builder(APP_ID)
                 .identity(DISPLAY_NAME)
                 .desktop_entry(APP_ID)
-                .supported_uri_schemes(["http", "https", "file"])
-                .supported_mime_types(["audio/mpeg", "audio/flac", "audio/ogg", "audio/x-wav"])
                 .can_play(true)
                 .can_pause(true)
                 .can_go_next(true)
@@ -270,7 +267,6 @@ mod freedesktop {
 
             let transport = self.transport.clone();
             player.connect_play_pause(move |_| transport.play_pause());
-            player.connect_open_uri(move |_, uri| open_uri(uri));
             let transport = self.transport.clone();
             player.connect_play(move |_| transport.play());
             let transport = self.transport.clone();

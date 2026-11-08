@@ -364,8 +364,8 @@ mod tests {
 
     #[test]
     fn playlist_import_appends_globally_once_and_preserves_unpinning() {
-        let first = SourceId::new("plex");
-        let second = SourceId::new("emby");
+        let first = SourceId::new("first");
+        let second = SourceId::new("second");
         let mut settings = SidebarSettings::default();
         assert!(settings.import_playlist_pins_once(first.clone(), ["mix".into()]));
         assert!(settings.import_playlist_pins_once(second.clone(), ["mix".into()]));

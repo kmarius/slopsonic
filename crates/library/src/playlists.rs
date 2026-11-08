@@ -853,7 +853,6 @@ async fn insert_playlist_tracks(
     Ok(accepted)
 }
 
-/// Playlist identity and rank in backups and exported files.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct PlaylistIdentity {
     #[serde(default)]

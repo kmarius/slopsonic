@@ -1130,7 +1130,7 @@ fn move_sidebar_item(shell: &Rc<Preferences>, item: SidebarRouteItem, delta: isi
 fn sidebar_route_item_subtitle(entry: &SidebarRouteItemSettings, position: usize) -> String {
     let state = visibility_position_subtitle(entry.visible, position);
     if entry.item == SidebarRouteItem::Moods {
-        format!("{state} · Files need Mood/BPM tags written on them. Not supported for Jellyfin")
+        format!("{state} · Files need Mood/BPM tags written on them")
     } else {
         state
     }

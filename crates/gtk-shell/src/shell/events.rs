@@ -662,9 +662,6 @@ mod tests {
             super::playback_error_toast("Could not play this track"),
             "Could not play this track".to_string()
         );
-        let rejected =
-            "Plex Companion queues require Plex music from one configured server and profile";
-        assert_eq!(super::playback_error_toast(rejected), rejected);
     }
 
     fn adding() -> SourceOperation {

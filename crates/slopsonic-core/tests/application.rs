@@ -47,24 +47,17 @@ fn application_starts_on_a_worker_and_reopens_saved_settings_without_a_ui() {
     let artwork = paths.artwork_dir().join("keep.img");
     std::fs::create_dir_all(artwork.parent().unwrap()).unwrap();
     std::fs::write(&artwork, b"cached artwork").unwrap();
-    for path in [paths.catalog_file()] {
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(path, b"old database").unwrap();
-    }
     // The user recovers by deleting the unreadable Store files while the app is closed.
-    for path in [paths.store_file(), paths.catalog_file()] {
-        for suffix in ["", "-wal", "-shm"] {
-            let mut file = path.as_os_str().to_os_string();
-            file.push(suffix);
-            match std::fs::remove_file(file) {
-                Ok(()) => {}
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => panic!("{error}"),
-            }
+    for suffix in ["", "-wal", "-shm"] {
+        let mut file = paths.store_file().into_os_string();
+        file.push(suffix);
+        match std::fs::remove_file(file) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => panic!("{error}"),
         }
     }
     assert!(!paths.store_file().exists());
-    assert!(!paths.catalog_file().exists());
     assert_eq!(std::fs::read(paths.settings_file()).unwrap(), settings);
     assert_eq!(std::fs::read(&artwork).unwrap(), b"cached artwork");
     for reopening in [false, true] {

@@ -86,9 +86,6 @@ pub fn run_startup_error_application(error: String) -> ExitCode {
 
 fn application() -> (adw::Application, Rc<RefCell<ApplicationOptions>>) {
     let app = adw::Application::builder().application_id(APP_ID).build();
-    app.set_option_context_summary(Some(
-        "Open audio files or M3U, PLS and XSPF playlists. Use --headless --help for playback without a window.",
-    ));
     app.add_main_option(
         GTK_DECORATION_LAYOUT_OPTION,
         0u8.into(),

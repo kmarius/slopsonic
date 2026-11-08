@@ -113,7 +113,7 @@ impl NamedDetailId {
     fn missing_body(self) -> &'static str {
         match self {
             Self::Genre(_) => "This isn't available",
-            Self::Mood(_) => "Files need Mood/BPM tags written on them. Not supported for Jellyfin",
+            Self::Mood(_) => "Files need Mood/BPM tags written on them",
         }
     }
 }

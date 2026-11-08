@@ -26,10 +26,8 @@ pub(crate) async fn albums(
         return Ok(Vec::new());
     }
     let input = serde_json::to_string(keys)?;
-    sqlx::query("UPDATE albums SET input_metadata=NULL,indexed=0,cached_local=0,accepted_audio=NULL WHERE cached_local=1 AND album_key IN(SELECT value FROM json_each(?1)) AND NOT EXISTS(SELECT 1 FROM tracks WHERE tracks.album_key=albums.album_key AND indexed=1 AND json_type(metadata,'$.album_tags') IS NOT 'object')")
-        .bind(&input).execute(&mut *connection).await?;
     // Observed file tags own the album even when its header is derived.
-    sqlx::query("UPDATE albums SET native_metadata=1,input_metadata=NULL WHERE native_metadata=0 AND cached_local=0 AND album_key IN(SELECT value FROM json_each(?1)) AND EXISTS(SELECT 1 FROM tracks WHERE tracks.album_key=albums.album_key AND indexed=1 AND json_type(metadata,'$.album_tags')='object')")
+    sqlx::query("UPDATE albums SET native_metadata=1,input_metadata=NULL WHERE native_metadata=0 AND album_key IN(SELECT value FROM json_each(?1)) AND EXISTS(SELECT 1 FROM tracks WHERE tracks.album_key=albums.album_key AND indexed=1 AND json_type(metadata,'$.album_tags')='object')")
         .bind(&input).execute(&mut *connection).await?;
     for (relation, target, edge, array) in [
         (
@@ -88,12 +86,11 @@ pub(crate) async fn albums(
     let expected="SELECT album_key,release_type,row_number() OVER(PARTITION BY album_key ORDER BY path,disc,number,object_id,ordinal)-1 position FROM (
         SELECT *,row_number() OVER(PARTITION BY album_key,release_type ORDER BY path,disc,number,object_id,ordinal) first_credit FROM (
             SELECT album.album_key,item.value release_type,NULL path,0 disc,0 number,'' object_id,CAST(item.key AS INTEGER) ordinal,1 native
-            FROM albums album JOIN json_each(coalesce((SELECT release_types FROM album_release_observations accepted WHERE accepted.album_key=album.album_key AND accepted.lookup_identity=album.release_lookup_identity),json_extract(album.input_metadata,'$.release_types'))) item
-            WHERE album.album_key IN(SELECT value FROM json_each(?1)) AND (album.input_metadata IS NOT NULL OR EXISTS(SELECT 1 FROM album_release_observations accepted WHERE accepted.album_key=album.album_key AND accepted.lookup_identity=album.release_lookup_identity))
+            FROM albums album JOIN json_each(json_extract(album.input_metadata,'$.release_types')) item
+            WHERE album.album_key IN(SELECT value FROM json_each(?1)) AND album.input_metadata IS NOT NULL
             UNION ALL SELECT track.album_key,item.value,track.source_path,track.disc_number,track.track_number,track.object_id,CAST(item.key AS INTEGER),0
             FROM tracks track INDEXED BY tracks_album_order_idx JOIN albums album USING(album_key) JOIN json_each(track.metadata,'$.album_tags.release_types') item
             WHERE track.album_key IN(SELECT value FROM json_each(?1)) AND track.indexed=1 AND album.input_metadata IS NULL
-              AND NOT EXISTS(SELECT 1 FROM album_release_observations accepted WHERE accepted.album_key=album.album_key AND accepted.lookup_identity=album.release_lookup_identity)
         )) WHERE native=1 OR first_credit=1";
     replace(
         connection,

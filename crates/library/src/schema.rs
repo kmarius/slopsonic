@@ -52,7 +52,6 @@ CREATE TABLE IF NOT EXISTS playlists (
     artwork_binding BLOB,
     writable INTEGER NOT NULL DEFAULT 1,
     metadata_writable INTEGER NOT NULL DEFAULT 1,
-    playlist_folder_key INTEGER REFERENCES playlist_folders(folder_key) ON DELETE SET NULL,
     provider_revision TEXT,
     valid_until INTEGER,
     UNIQUE (source_key, object_id)
@@ -80,13 +79,6 @@ CREATE TABLE IF NOT EXISTS playlist_entries (
 CREATE INDEX IF NOT EXISTS playlist_entries_order_idx ON playlist_entries(playlist_key, position);
 CREATE INDEX IF NOT EXISTS playlist_entries_shuffle_idx ON playlist_entries(playlist_key,((playlist_entry_key*1103515245)%2147483647),playlist_entry_key);
 CREATE INDEX IF NOT EXISTS playlist_entries_track_idx ON playlist_entries(track_key,playlist_key);
-
-CREATE TABLE IF NOT EXISTS playlist_folders (
-    folder_key INTEGER PRIMARY KEY,
-    object_id TEXT NOT NULL UNIQUE,
-    name TEXT NOT NULL,
-    playlist_cover_key INTEGER REFERENCES playlists ON DELETE SET NULL
-) STRICT;
 
 CREATE TABLE IF NOT EXISTS favorite_outbox (
     outbox_key INTEGER PRIMARY KEY,
@@ -180,7 +172,7 @@ CREATE TABLE IF NOT EXISTS download_locators (
     download_access_file_key INTEGER PRIMARY KEY,
     source_key INTEGER REFERENCES sources ON DELETE CASCADE,
     media_uri TEXT NOT NULL CHECK(media_uri<>''),
-    origin TEXT NOT NULL CHECK(origin IN ('local','mapping','download','import')),
+    origin TEXT NOT NULL CHECK(origin='download'),
     path TEXT NOT NULL CHECK(path<>''), root TEXT NOT NULL, relative_path TEXT NOT NULL,
     access_uri TEXT NOT NULL CHECK(access_uri<>''),
     UNIQUE(media_uri,origin)
@@ -224,7 +216,6 @@ CREATE TABLE IF NOT EXISTS albums (
     track_count INTEGER NOT NULL DEFAULT 0, duration_millis INTEGER NOT NULL DEFAULT 0,
     downloaded_count INTEGER NOT NULL DEFAULT 0, play_count INTEGER NOT NULL DEFAULT 0, last_played INTEGER,
     native_metadata INTEGER NOT NULL DEFAULT 0,
-    cached_local INTEGER NOT NULL DEFAULT 0,
     normalized_title TEXT,
     native_artwork BLOB,
     artwork_binding BLOB, artwork_track_key INTEGER, artwork_artist_key INTEGER,
@@ -472,11 +463,6 @@ CREATE TABLE IF NOT EXISTS album_release_types (
     PRIMARY KEY (album_key, position)
 ) STRICT;
 
-CREATE TABLE IF NOT EXISTS album_release_observations (
-    album_key INTEGER PRIMARY KEY REFERENCES albums ON DELETE CASCADE,
-    lookup_identity TEXT NOT NULL,
-    release_types BLOB NOT NULL
-) STRICT;
 CREATE TABLE IF NOT EXISTS home_entries (
     source_key INTEGER NOT NULL REFERENCES sources ON DELETE CASCADE,
     section_id TEXT NOT NULL CHECK (section_id <> ''),
@@ -488,10 +474,6 @@ CREATE TABLE IF NOT EXISTS home_entries (
     section_title TEXT,
     PRIMARY KEY (source_key, section_id, position)
 ) STRICT;
-
-DROP TABLE IF EXISTS fingerprint_cache;
-DROP TABLE IF EXISTS metadata_lookup_cache;
-DROP TABLE IF EXISTS waveform_cache;
 
 CREATE TABLE IF NOT EXISTS artwork_previews(family TEXT PRIMARY KEY,hash TEXT NOT NULL) WITHOUT ROWID;
 
@@ -529,7 +511,27 @@ CREATE TABLE IF NOT EXISTS native_playlist_pending (
 
 const BASE_VERSION: i64 = 64;
 
-const MIGRATIONS: &[&str] = &[];
+const MIGRATIONS: &[&str] = &[
+    // 65: drop storage for playlist folders, local-file albums and non-download locators.
+    "ALTER TABLE playlists DROP COLUMN playlist_folder_key;
+     DROP TABLE playlist_folders;
+     DROP TABLE album_release_observations;
+     ALTER TABLE albums DROP COLUMN cached_local;
+     DROP VIEW download_access_files;
+     DELETE FROM download_locators WHERE origin<>'download';
+     CREATE TABLE download_locators_new (
+         download_access_file_key INTEGER PRIMARY KEY,
+         source_key INTEGER REFERENCES sources ON DELETE CASCADE,
+         media_uri TEXT NOT NULL CHECK(media_uri<>''),
+         origin TEXT NOT NULL CHECK(origin='download'),
+         path TEXT NOT NULL CHECK(path<>''), root TEXT NOT NULL, relative_path TEXT NOT NULL,
+         access_uri TEXT NOT NULL CHECK(access_uri<>''),
+         UNIQUE(media_uri,origin)
+     ) STRICT;
+     INSERT INTO download_locators_new SELECT * FROM download_locators;
+     DROP TABLE download_locators;
+     ALTER TABLE download_locators_new RENAME TO download_locators;",
+];
 
 pub(crate) const SCHEMA_VERSION: i64 = BASE_VERSION + MIGRATIONS.len() as i64;
 

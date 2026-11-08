@@ -28,16 +28,6 @@ impl Actor {
             return Ok(());
         }
         let mut attachment_error = None;
-        if let Err(error) = migrate_download_records(
-            &self.root,
-            &self.database,
-            Some((source_key, &source_id)),
-            directory.as_ref(),
-        )
-        .await
-        {
-            attachment_error = Some(error);
-        }
         self.events
             .counts_dirty
             .lock()

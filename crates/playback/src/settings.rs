@@ -33,9 +33,7 @@ pub enum PlaybackTransitionMode {
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub enum LoudnessNormalization {
     Off,
-    /// Stored settings from versions with local EBU R128 analysis map here.
     #[default]
-    #[serde(alias = "EbuR128")]
     ReplayGain,
 }
 
@@ -202,18 +200,6 @@ mod tests {
         assert_eq!(
             restored.loudness_normalization_scope,
             LoudnessNormalizationScope::Album
-        );
-    }
-
-    #[test]
-    fn stored_ebu_mode_restores_as_replay_gain() {
-        let restored = serde_json::from_str::<PlaybackSettings>(
-            r#"{"loudness_normalization":"EbuR128","ebu_r128_target_lufs":-21.0}"#,
-        )
-        .expect("restore settings from a version with EBU R128 analysis");
-        assert_eq!(
-            restored.loudness_normalization,
-            LoudnessNormalization::ReplayGain
         );
     }
 

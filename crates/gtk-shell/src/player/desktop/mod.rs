@@ -20,17 +20,9 @@ pub(crate) struct DesktopState {
 }
 
 impl DesktopState {
-    pub(crate) fn new(
-        application: &adw::Application,
-        transport: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
-    ) -> Self {
-        let weak = application.downgrade();
+    pub(crate) fn new(transport: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>) -> Self {
         Self {
-            media_controls: desktop_integration::MediaControls::start(transport, move |uri| {
-                if let Some(application) = weak.upgrade() {
-                    application.open(&[gtk::gio::File::for_uri(uri)], "");
-                }
-            }),
+            media_controls: desktop_integration::MediaControls::start(transport),
         }
     }
 }

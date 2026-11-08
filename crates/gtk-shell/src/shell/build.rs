@@ -162,7 +162,7 @@ pub async fn build(
     };
     let downloads = gtk_widgets::downloads::DownloadsState::new(Rc::clone(&settings_state));
 
-    let desktop = DesktopState::new(app, products.playback.clone());
+    let desktop = DesktopState::new(products.playback.clone());
 
     let navigation_resource = crate::ui_resource::NAVIGATION_RESOURCE;
     let navigation_builder = gtk_widgets::ui_resource::builder(navigation_resource);

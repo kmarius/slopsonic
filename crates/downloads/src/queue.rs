@@ -82,7 +82,7 @@ pub(super) async fn load_direct_queue(
     let Some((bytes, recovered, path, part)) = read_queue_file(root, None)? else {
         return Ok(Vec::new());
     };
-    let mut queue: QueueFile = serde_json::from_slice(&bytes)
+    let queue: QueueFile = serde_json::from_slice(&bytes)
         .map_err(|error| format!("could not decode {}: {error}", path.display()))?;
     if queue.version != QUEUE_VERSION {
         return Err("the saved direct download queue has an unsupported version".to_string());
@@ -90,7 +90,6 @@ pub(super) async fn load_direct_queue(
     if recovered && let Err(error) = std::fs::rename(&part, &path) {
         warn!(%error, path=%part.display(), "could not finish recovering the direct download queue");
     }
-    queue.jobs.retain(|job| !matches!(&job.subject, DownloadSubject::Prepared { context_id, .. } if context_id=="connect-local"));
     let mut grouped = HashMap::<Option<SourceId>, Vec<DownloadJob>>::new();
     for mut job in queue.jobs {
         let completed = std::mem::take(&mut job.completed);

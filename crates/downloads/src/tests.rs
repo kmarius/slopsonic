@@ -148,52 +148,6 @@ async fn queued_media_survives_restart_serialization() {
         actor.jobs[&Some(source_id.clone())][0].quality,
         settings.quality
     );
-    let paths = download_paths(root.path(), None, &media_uri);
-    let audio = paths.audio.native().unwrap();
-    std::fs::write(audio, b"saved audio").unwrap();
-    let record = ReleasedDownloadRecord {
-        version: RECORD_VERSION,
-        media_uri: media_uri.clone(),
-        quality: Some(DownloadQuality::Original),
-        owners: HashSet::from([DownloadOwner::Retained]),
-        audio: RecordedAudio::Native {
-            storage_root: None,
-            custom_storage: false,
-            relative_audio_path: Some(audio.file_name().unwrap().into()),
-        },
-        retired_documents: Vec::new(),
-        completed_size: Some(11),
-    };
-    std::fs::write(&paths.record, serde_json::to_vec(&record).unwrap()).unwrap();
-    migrate_download_records(root.path(), &actor.database, None, None)
-        .await
-        .unwrap();
-    let receipt = actor
-        .database
-        .download_file(&media_uri, "original")
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(receipt.source_id.as_deref(), Some(source_id.as_str()));
-    assert_eq!(std::fs::read(audio).unwrap(), b"saved audio");
-    assert_eq!(
-        actor
-            .database
-            .downloaded_count(Some(source_id.as_str()))
-            .await
-            .unwrap(),
-        1
-    );
-    actor
-        .apply(
-            Command::Remove {
-                media_uris: vec![media_uri],
-                notify: false,
-            },
-            &mut Vec::new(),
-        )
-        .await;
-    assert!(actor.jobs[&Some(source_id)].is_empty());
 }
 
 #[tokio::test]

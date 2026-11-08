@@ -77,12 +77,6 @@ impl Paths {
         self.data_dir().join(STORE_DIRECTORY).join(STORE_FILE)
     }
 
-    pub fn catalog_file(&self) -> PathBuf {
-        self.cache_dir()
-            .join(STORE_DIRECTORY)
-            .join("slopsonic-catalog.sqlite")
-    }
-
     pub fn artwork_dir(&self) -> PathBuf {
         self.cache_dir().join(ARTWORK_DIRECTORY)
     }

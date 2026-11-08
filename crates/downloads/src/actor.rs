@@ -22,9 +22,6 @@ pub(super) async fn run(
     receiver: Receiver<Command>,
     rule_results: Receiver<PreparedRules>,
 ) {
-    if let Err(error) = migrate_download_records(&actor.root, &actor.database, None, None).await {
-        warn!(%error, "could not restore direct download access");
-    }
     match load_direct_queue(&actor.root, &actor.database).await {
         Ok(jobs) if !jobs.is_empty() => {
             actor.jobs.insert(None, jobs);
