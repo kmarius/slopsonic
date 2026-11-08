@@ -1155,7 +1155,8 @@ where
     F: Fn(&ArtistView) -> String + 'static,
 {
     let factory = gtk::SignalListItemFactory::new();
-    if matches!(field, LibraryField::Title | LibraryField::TitleMerged) {
+    let title_field = matches!(field, LibraryField::Title | LibraryField::TitleMerged);
+    if title_field {
         bind_collection_title::<ArtistView>(&factory, shell, move |row| {
             Some(gtk_widgets::selection::artist_play_request(
                 row,
@@ -1192,7 +1193,11 @@ where
             object_item::<ArtistView, _>(object, |row| {
                 (
                     value(row),
-                    collection_is_downloaded(row.summary.track_count, row.summary.downloaded_count),
+                    title_field
+                        && collection_is_downloaded(
+                            row.summary.track_count,
+                            row.summary.downloaded_count,
+                        ),
                 )
             })
         }) else {
