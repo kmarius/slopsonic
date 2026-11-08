@@ -92,7 +92,7 @@ When in doubt, prefer simplicity and removing code over adding features.
 
 ## Commits
 
-Keep the commit subject extremely brief—a few words, not sentences. The body may add up to two lines of text.
+Keep the commit subject to one short line that says what changed, as `area: phrase` (e.g. "artists: show downloaded badge on title column only"), not a full sentence. The body may add up to two lines of text.
 
 ## Code Style
 
