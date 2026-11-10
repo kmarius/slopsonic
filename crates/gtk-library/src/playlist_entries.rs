@@ -110,8 +110,9 @@ impl PlaylistEntriesView {
         rows: Vec<PlaylistEntryView>,
     ) {
         let empty = count == 0;
+        let filtered = !request.query.filter.is_empty();
         self.model.replace_prepared(count, request, rows);
-        self.toolbar_widget.set_visible(!empty);
+        self.toolbar_widget.set_visible(!empty || filtered);
         self.stack
             .set_visible_child_name(if empty { "empty" } else { "content" });
     }
