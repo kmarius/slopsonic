@@ -283,6 +283,7 @@ pub mod merged_imp {
         #[template_child]
         pub(super) subtitle: TemplateChild<gtk::Label>,
         pub(super) links: RefCell<Option<DetailLinkBinding>>,
+        pub(super) downloads: RefCell<Option<Rc<DownloadsState>>>,
         pub(super) downloaded: RefCell<Option<gtk::Image>>,
     }
 
@@ -305,6 +306,7 @@ pub mod merged_imp {
     impl ObjectImpl for RecycledMergedCell {
         fn dispose(&self) {
             self.links.take();
+            self.downloads.take();
             self.downloaded.take();
             self.dispose_template();
         }
@@ -333,9 +335,7 @@ impl RecycledMergedCell {
         imp.links
             .replace(Some(DetailLinkBinding::new(&imp.subtitle, navigate)));
         if downloaded {
-            let badge = downloads.download_badge();
-            imp.title_row.append(&badge);
-            imp.downloaded.replace(Some(badge));
+            imp.downloads.replace(Some(Rc::clone(downloads)));
         }
         cell
     }
@@ -361,8 +361,34 @@ impl RecycledMergedCell {
         self.imp().subtitle.get()
     }
 
-    pub fn downloaded(&self) -> Option<gtk::Image> {
-        self.imp().downloaded.borrow().clone()
+    /// The badge widget is created the first time a downloaded item is bound.
+    pub fn bind_downloaded(&self, downloaded: bool) {
+        let imp = self.imp();
+        let Some(downloads) = imp.downloads.borrow().clone() else {
+            return;
+        };
+        let existing = imp.downloaded.borrow().clone();
+        let badge = match existing {
+            Some(badge) => badge,
+            None if downloaded => {
+                let badge = downloads.download_badge();
+                imp.title_row.append(&badge);
+                imp.downloaded.replace(Some(badge.clone()));
+                badge
+            }
+            None => return,
+        };
+        downloads.bind_download_badge(&badge, downloaded);
+    }
+
+    pub fn clear_downloaded(&self) {
+        let imp = self.imp();
+        if let (Some(downloads), Some(badge)) = (
+            imp.downloads.borrow().as_ref(),
+            imp.downloaded.borrow().as_ref(),
+        ) {
+            downloads.clear_download_badge(badge);
+        }
     }
 
     pub fn bind_subtitle(&self, links: DetailLinks) {
@@ -450,9 +476,26 @@ impl RecycledFolderCell {
 }
 
 pub fn track_row_index_cell(text: &str, activate: impl Fn(&gtk::Button) + 'static) -> gtk::Overlay {
-    let resource = crate::ui_resource::TRACK_ROW_INDEX_RESOURCE;
-    let builder = crate::ui_resource::builder(resource);
-    crate::objects!(builder, resource, { cell: gtk::Overlay, number: gtk::Label, play: gtk::Button });
+    let number = gtk::Label::builder()
+        .xalign(0.5)
+        .hexpand(true)
+        .single_line_mode(true)
+        .css_classes(["muted", "track-row-index-number"])
+        .build();
+    let play = gtk::Button::builder()
+        .focus_on_click(false)
+        .halign(gtk::Align::Center)
+        .valign(gtk::Align::Center)
+        .icon_name("slopsonic-media-playback-start-symbolic")
+        .tooltip_text("Play track")
+        .css_classes(["flat", "track-row-play"])
+        .build();
+    let cell = gtk::Overlay::builder()
+        .hexpand(true)
+        .css_classes(["track-row-index-cell"])
+        .child(&number)
+        .build();
+    cell.add_overlay(&play);
     let focus_cell = cell.downgrade();
     play.connect_state_flags_changed(move |play, _| {
         if let Some(cell) = focus_cell.upgrade() {

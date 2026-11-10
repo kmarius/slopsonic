@@ -94,7 +94,6 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     TEXT_SLIDE_RESOURCE,
     DISPLAY_SETTINGS_RESOURCE,
     "/io/github/kmarius/Slopsonic/ui/routes/row_actions.ui",
-    TRACK_ROW_INDEX_RESOURCE,
     PLAY_MENU_RESOURCE,
     MANAGE_SERVER_RESOURCE,
     PLAYLIST_NAME_DIALOG_RESOURCE,
@@ -118,9 +117,6 @@ pub const TABLE_FRAME_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/t
 pub const DISPLAY_SETTINGS_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/preferences/display.ui";
 pub const TEXT_SLIDE_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/text_slide.ui";
-
-pub const TRACK_ROW_INDEX_RESOURCE: &str =
-    "/io/github/kmarius/Slopsonic/ui/routes/track_row_index.ui";
 
 pub const PLAY_MENU_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/routes/play_menu.ui";
 

@@ -722,9 +722,7 @@ fn folder_merged_column(shell: &Rc<CatalogUi>, path: Vec<FolderPathItem>) -> gtk
                 icon.set_visible(true);
                 cell.title().set_text(&folder.name);
                 cell.clear_subtitle();
-                if let Some(downloaded) = cell.downloaded() {
-                    downloaded.set_visible(false);
-                }
+                cell.clear_downloaded();
             }
             FolderTableRow::Track(track) => {
                 icon.set_visible(false);
@@ -737,15 +735,10 @@ fn folder_merged_column(shell: &Rc<CatalogUi>, path: Vec<FolderPathItem>) -> gtk
                 cell.title().set_text(&track.metadata.title);
                 cell.bind_subtitle(gtk_widgets::detail_links::track_artist_links(&track));
                 cell.subtitle().set_visible(true);
-                if let Some(downloaded) = cell.downloaded() {
-                    bind_shell.downloads.bind_download_badge(
-                        &downloaded,
-                        gtk_widgets::downloads::media_download_badge(
-                            &track.media_uri,
-                            track.access.is_downloaded,
-                        ),
-                    );
-                }
+                cell.bind_downloaded(gtk_widgets::downloads::media_download_badge(
+                    &track.media_uri,
+                    track.access.is_downloaded,
+                ));
             }
         }
     });
@@ -762,9 +755,7 @@ fn folder_merged_column(shell: &Rc<CatalogUi>, path: Vec<FolderPathItem>) -> gtk
             cell.cover().widget().set_visible(true);
             cell.title().set_text("");
             cell.clear_subtitle();
-            if let Some(downloaded) = cell.downloaded() {
-                downloaded.set_visible(false);
-            }
+            cell.clear_downloaded();
         }
     });
     let column = gtk::ColumnViewColumn::new(

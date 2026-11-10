@@ -484,16 +484,13 @@ impl AlbumTableCell {
                     cell.bind_subtitle(album_artist_links(&row));
                     cell.subtitle()
                         .set_visible(!row.metadata.artist.trim().is_empty());
-                    shell.bind_download_badge(
-                        &cell.downloaded().unwrap(),
-                        collection_is_downloaded(
-                            row.summary.track_count,
-                            row.summary.downloaded_count,
-                        ),
-                    );
+                    cell.bind_downloaded(collection_is_downloaded(
+                        row.summary.track_count,
+                        row.summary.downloaded_count,
+                    ));
                 } else {
                     cell.title().set_text("");
-                    cell.downloaded().unwrap().set_visible(false);
+                    cell.clear_downloaded();
                     cell.clear_subtitle();
                     clear_merged_artwork(&shell, &cover);
                 }
@@ -1527,9 +1524,7 @@ where
             })
         else {
             title.set_text("");
-            cell.downloaded()
-                .expect("track cell badge")
-                .set_visible(false);
+            cell.clear_downloaded();
             bind_playing.unbind(title.upcast_ref());
             cell.clear_subtitle();
             clear_merged_artwork(&bind_shell, &cover);
@@ -1538,9 +1533,7 @@ where
         set_cover_placeholder(&bind_shell, &cover, false);
         bind_shell.artwork.bind_artwork_tile(&cover, artwork, 48);
         title.set_text(&text);
-        bind_shell
-            .downloads
-            .bind_download_badge(&cell.downloaded().expect("track cell badge"), downloaded);
+        cell.bind_downloaded(downloaded);
         if let Some(uri) = track {
             bind_playing.bind(title.upcast_ref(), item.position(), &uri);
         }
@@ -1559,9 +1552,7 @@ where
         {
             let title = cell.title();
             title.set_text("");
-            cell.downloaded()
-                .expect("track cell badge")
-                .set_visible(false);
+            cell.clear_downloaded();
             playing.unbind(title.upcast_ref());
             cell.clear_subtitle();
             clear_merged_artwork(&unbind_shell, &cell.cover());

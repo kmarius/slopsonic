@@ -534,13 +534,10 @@ fn playlist_entry_title_column(
         title.set_text(&entry.track.metadata.title);
         cell.bind_subtitle(playlist_entry_field_links(&entry, LibraryField::Artist));
         cell.subtitle().set_visible(true);
-        bind_shell.downloads.bind_download_badge(
-            &cell.downloaded().expect("playlist title badge"),
-            gtk_widgets::downloads::media_download_badge(
-                &entry.track.media_uri,
-                entry.track.access.is_downloaded,
-            ),
-        );
+        cell.bind_downloaded(gtk_widgets::downloads::media_download_badge(
+            &entry.track.media_uri,
+            entry.track.access.is_downloaded,
+        ));
         bind_playing.bind(title.upcast_ref(), item.position(), &entry.track.media_uri);
     });
     let clear_shell = Rc::clone(shell);
@@ -551,9 +548,7 @@ fn playlist_entry_title_column(
         if let Some(cell) = list_cell::<RecycledMergedCell>(item) {
             let title = cell.title();
             clear_shell.artwork.clear_artwork_tile(&cell.cover());
-            clear_shell
-                .downloads
-                .clear_download_badge(&cell.downloaded().expect("playlist title badge"));
+            cell.clear_downloaded();
             title.set_text("");
             cell.clear_subtitle();
             playing.unbind(title.upcast_ref());

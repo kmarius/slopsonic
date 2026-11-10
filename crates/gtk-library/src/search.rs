@@ -1156,9 +1156,7 @@ fn search_merged_column(
             bind_shell.artwork.clear_artwork_tile(&cover);
             title.set_text("");
             cell.clear_subtitle();
-            if let Some(downloaded) = cell.downloaded() {
-                bind_shell.downloads.clear_download_badge(&downloaded);
-            }
+            cell.clear_downloaded();
             if let Some(playing) = bind_playing.as_ref() {
                 playing.unbind(title.upcast_ref());
             }
@@ -1170,11 +1168,7 @@ fn search_merged_column(
         title.set_text(value.title());
         cell.bind_subtitle(value.subtitle_links());
         cell.subtitle().set_visible(!value.subtitle().is_empty());
-        if let Some(downloaded) = cell.downloaded() {
-            bind_shell
-                .downloads
-                .bind_download_badge(&downloaded, value.is_downloaded());
-        }
+        cell.bind_downloaded(value.is_downloaded());
         if let Some(playing) = bind_playing.as_ref() {
             if let Some(uri) = value.media_uri() {
                 playing.bind(title.upcast_ref(), item.position(), &uri);
@@ -1191,9 +1185,7 @@ fn search_merged_column(
             clear_shell.artwork.clear_artwork_tile(&cell.cover());
             title.set_text("");
             cell.clear_subtitle();
-            if let Some(downloaded) = cell.downloaded() {
-                clear_shell.downloads.clear_download_badge(&downloaded);
-            }
+            cell.clear_downloaded();
             if let Some(playing) = playing.as_ref() {
                 playing.unbind(title.upcast_ref());
             }
