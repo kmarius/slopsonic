@@ -488,8 +488,9 @@ pub fn track_row_index_cell(text: &str, activate: impl Fn(&gtk::Button) + 'stati
         .valign(gtk::Align::Center)
         .icon_name("slopsonic-media-playback-start-symbolic")
         .tooltip_text("Play track")
-        .css_classes(["flat", "track-row-play"])
         .build();
+    play.add_css_class("flat");
+    play.add_css_class("track-row-play");
     let cell = gtk::Overlay::builder()
         .hexpand(true)
         .css_classes(["track-row-index-cell"])
