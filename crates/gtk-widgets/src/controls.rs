@@ -26,8 +26,21 @@ pub fn configure_search_entry(entry: &gtk::SearchEntry) {
 }
 
 /// For entries that narrow the visible list rather than search the library.
+/// Call before connecting `search-changed` handlers: changing the delay makes GTK emit one
+/// spurious empty `search-changed`, which is swallowed here.
 pub fn configure_filter_entry(entry: &gtk::SearchEntry) {
     configure_entry(entry, "slopsonic-filter-symbolic");
+    entry.set_search_delay(250);
+    let handler = std::rc::Rc::new(std::cell::Cell::new(None));
+    let first = std::rc::Rc::clone(&handler);
+    handler.set(Some(entry.connect_search_changed(move |entry| {
+        if entry.text().is_empty() {
+            entry.stop_signal_emission_by_name("search-changed");
+        }
+        if let Some(handler) = first.take() {
+            entry.disconnect(handler);
+        }
+    })));
 }
 
 fn configure_entry(entry: &gtk::SearchEntry, icon: &str) {

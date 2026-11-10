@@ -1,8 +1,7 @@
 use slopsonic_core::browse::{MemberPage, OpenedCollection};
-use std::{cell::RefCell, rc::Rc, sync::Arc, time::Duration};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use adw::prelude::*;
-use gtk::glib;
 use tracing::warn;
 
 use crate::CatalogUi;
@@ -16,8 +15,6 @@ use super::collections::{
 use super::route_shell::{LibraryPageShellOptions, LibraryToolbarProjection};
 use crate::track_model::TrackCollectionModel;
 use gtk_widgets::route::{CollectionCategory, Route};
-
-const TRACK_FILTER_DEBOUNCE: Duration = Duration::from_millis(150);
 
 struct RootTrackRouteOptions {
     key: LibraryListKey,
@@ -126,28 +123,8 @@ impl TrackListProjection {
 
     pub fn connect_search_request(&self, callback: impl Fn(library::MemberRead) + 'static) {
         let model = self.model.clone();
-        let callback = Rc::new(callback);
-        let pending = Rc::new(RefCell::new(None::<glib::SourceId>));
-        self.search.connect_search_changed(move |_| {
-            if let Some(source) = pending.borrow_mut().take() {
-                source.remove();
-            }
-            let request = model.query();
-            if request.filter.is_empty() {
-                callback(request);
-                return;
-            }
-            let callback = Rc::clone(&callback);
-            let model = model.clone();
-            let pending_timeout = Rc::clone(&pending);
-            pending.replace(Some(glib::timeout_add_local_once(
-                TRACK_FILTER_DEBOUNCE,
-                move || {
-                    pending_timeout.borrow_mut().take();
-                    callback(model.query());
-                },
-            )));
-        });
+        self.search
+            .connect_search_changed(move |_| callback(model.query()));
     }
 
     pub fn replace_page(&self, prepared: slopsonic_core::browse::MemberPage) -> bool {

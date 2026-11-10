@@ -206,8 +206,13 @@ impl PositionSelectionModel {
             let Some(selection) = weak.upgrade() else {
                 return;
             };
-            selection.clear_for_model_change();
+            let previous = selection.clear_for_model_change();
             selection.items_changed(position, removed, added);
+            if !previous.is_empty() && previous.minimum() < position {
+                let first = previous.minimum();
+                let end = previous.maximum().saturating_add(1).min(position);
+                selection.selection_changed(first, end - first);
+            }
         });
         selection.imp().model_handler.replace(Some(handler));
         if let Some(model) = model.downcast_ref::<crate::sparse_model::SparseObjectModel>() {
@@ -222,10 +227,13 @@ impl PositionSelectionModel {
         selection
     }
 
-    pub fn clear_for_model_change(&self) {
+    fn clear_for_model_change(&self) -> gtk::Bitset {
         use glib::subclass::types::ObjectSubclassIsExt;
 
-        self.imp().selected.replace(Some(gtk::Bitset::new_empty()));
+        self.imp()
+            .selected
+            .replace(Some(gtk::Bitset::new_empty()))
+            .unwrap_or_else(gtk::Bitset::new_empty)
     }
     pub fn set_collection_selection(&self, capture: CollectionSelection) {
         self.imp().collection_selection.replace(Some(capture));

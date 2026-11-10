@@ -176,9 +176,37 @@ impl<T: Send + 'static, R: Clone + Send + 'static> LatestMountedRouteRead<T, R> 
                 read.start();
                 return;
             }
+            next_paint().await;
+            if read.generation.get() != generation {
+                read.start();
+                return;
+            }
             (read.apply)(request, value);
         });
     }
+}
+
+/// Let the pending frame (e.g. an edited filter entry) paint before a result rebuilds rows.
+async fn next_paint() {
+    if !gtk::is_initialized_main_thread() {
+        return;
+    }
+    let Some(clock) = gtk::Window::list_toplevels()
+        .into_iter()
+        .filter_map(|widget| widget.downcast::<gtk::Window>().ok())
+        .filter(|window| window.is_mapped())
+        .max_by_key(|window| window.is_active())
+        .and_then(|window| window.frame_clock())
+    else {
+        return;
+    };
+    let (painted, receiver) = async_channel::bounded(1);
+    let handler = clock.connect_after_paint(move |_| {
+        let _ = painted.try_send(());
+    });
+    clock.request_phase(gtk::gdk::FrameClockPhase::PAINT);
+    let _ = glib::future_with_timeout(std::time::Duration::from_millis(100), receiver.recv()).await;
+    clock.disconnect(handler);
 }
 
 impl<T: Send + 'static, R: Send + 'static> Drop for LatestMountedRouteRead<T, R> {

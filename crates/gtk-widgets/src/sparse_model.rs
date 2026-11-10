@@ -720,9 +720,7 @@ impl SparseObjectModel {
         let (preserve_items, updates) = self.with_typed_mut::<K, R, _>(|state| {
             let preserve_items = match (&state.sparse.order, &order) {
                 (SparseSource::Keys(previous), SparseSource::Keys(next)) => previous == next,
-                (SparseSource::Query { count: previous }, SparseSource::Query { count: next }) => {
-                    previous == next
-                }
+                (SparseSource::Query { .. }, SparseSource::Query { .. }) => true,
                 _ => false,
             };
             state.sparse.replace_order(order);
@@ -731,7 +729,10 @@ impl SparseObjectModel {
                 state.objects.clear();
                 return (false, Vec::new());
             }
-            state.objects.retain(|_, item| item.upgrade().is_some());
+            let kept = state.sparse.len();
+            state
+                .objects
+                .retain(|position, item| *position < kept && item.upgrade().is_some());
             let positions = state.objects.keys().copied().collect::<Vec<_>>();
             let updates = positions
                 .into_iter()
@@ -746,9 +747,14 @@ impl SparseObjectModel {
                 .collect::<Vec<_>>();
             (true, updates)
         });
+        let new_len = self.n_items();
         if !preserve_items {
-            self.items_changed(0, old_len, self.n_items());
+            self.items_changed(0, old_len, new_len);
             return;
+        }
+        let kept = old_len.min(new_len);
+        if old_len != new_len {
+            self.items_changed(kept, old_len - kept, new_len - kept);
         }
         if sections_changed && self.n_items() > 0 {
             self.sections_changed(0, self.n_items());
@@ -1716,6 +1722,33 @@ mod tests {
             .and_then(|item| item.downcast::<SparseObjectItem>().ok())
             .and_then(|item| item.typed_value::<u64, String>());
         assert!(matches!(first, Some(SparseItem::Ready(value)) if value.as_str() == "ten"));
+    }
+
+    #[test]
+    fn query_count_change_splices_only_the_tail() {
+        let model = SparseObjectModel::new::<u64, String>(SparseSource::Query { count: 3 }, 0);
+        let first = model.item(0).expect("first row");
+        let splices = Rc::new(RefCell::new(Vec::new()));
+        let recorded = Rc::clone(&splices);
+        model.connect_items_changed(move |_, position, removed, added| {
+            recorded.borrow_mut().push((position, removed, added));
+        });
+
+        model.replace_prepared::<u64, String>(
+            SparseSource::Query { count: 5 },
+            0,
+            vec!["one".to_string()],
+            Vec::new(),
+        );
+        model.replace_prepared::<u64, String>(
+            SparseSource::Query { count: 2 },
+            0,
+            Vec::new(),
+            Vec::new(),
+        );
+
+        assert_eq!(*splices.borrow(), vec![(3, 0, 2), (2, 3, 0)]);
+        assert_eq!(model.item(0).as_ref(), Some(&first));
     }
 
     #[test]
