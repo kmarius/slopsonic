@@ -382,7 +382,7 @@ impl ArtistRouteListCell {
                     .unwrap_or_default();
                 gtk_widgets::table_header::HeaderCell::new(&title, Some(*field), position).upcast()
             } else {
-                AlbumTableCell::new(shell, *field, None).upcast()
+                AlbumTableCell::new(shell, *field, None, false).upcast()
             };
             self.append(&widget);
             imp.table_cells.borrow_mut().push(widget);
@@ -1104,7 +1104,8 @@ fn artist_route_list(
                     state.set_homogeneous(true);
                     state.add_css_class("album-grid");
                     for _ in 0..columns {
-                        let cell = AlbumGridCell::new(&bind_shell, &bind_fields.borrow(), None);
+                        let cell =
+                            AlbumGridCell::new(&bind_shell, &bind_fields.borrow(), None, false);
                         cell.enable_card_activation();
                         let widget = cell.widget();
                         let wrapper = cards::collection_grid_card_inset(

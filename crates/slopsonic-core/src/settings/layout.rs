@@ -363,9 +363,15 @@ impl LibraryListKey {
     pub fn supports_layout(self, layout: LibraryLayout) -> bool {
         match layout {
             LibraryLayout::Detail => matches!(self, Self::Albums),
-            LibraryLayout::Grid => !matches!(
+            LibraryLayout::Grid => matches!(
                 self,
-                Self::AlbumDetailTracks | Self::Queue | Self::FullscreenTracks | Self::Folders
+                Self::Albums
+                    | Self::ArtistAlbums
+                    | Self::Artists
+                    | Self::AlbumArtists
+                    | Self::Genres
+                    | Self::Moods
+                    | Self::Playlists
             ),
             LibraryLayout::Row => true,
         }
@@ -662,7 +668,16 @@ pub fn available_row_fields(key: LibraryListKey) -> &'static [LibraryField] {
 }
 pub fn available_grid_fields(key: LibraryListKey) -> &'static [LibraryField] {
     match key {
-        LibraryListKey::Queue | LibraryListKey::FullscreenTracks | LibraryListKey::Folders => &[],
+        LibraryListKey::Queue
+        | LibraryListKey::FullscreenTracks
+        | LibraryListKey::Folders
+        | LibraryListKey::Tracks
+        | LibraryListKey::FavoriteTracks
+        | LibraryListKey::AlbumDetailTracks
+        | LibraryListKey::ArtistTracks
+        | LibraryListKey::GenreTracks
+        | LibraryListKey::MoodTracks
+        | LibraryListKey::PlaylistTracks => &[],
         LibraryListKey::Albums | LibraryListKey::ArtistAlbums => &[
             LibraryField::AlbumArtist,
             LibraryField::Year,
@@ -685,25 +700,6 @@ pub fn available_grid_fields(key: LibraryListKey) -> &'static [LibraryField] {
         LibraryListKey::Genres => &[LibraryField::AlbumCount, LibraryField::SongCount],
         LibraryListKey::Moods => &[LibraryField::SongCount, LibraryField::Duration],
         LibraryListKey::Playlists => &[LibraryField::SongCount, LibraryField::Duration],
-        LibraryListKey::Tracks
-        | LibraryListKey::FavoriteTracks
-        | LibraryListKey::AlbumDetailTracks
-        | LibraryListKey::ArtistTracks
-        | LibraryListKey::GenreTracks
-        | LibraryListKey::MoodTracks
-        | LibraryListKey::PlaylistTracks => &[
-            LibraryField::Artist,
-            LibraryField::AlbumArtist,
-            LibraryField::Album,
-            LibraryField::Year,
-            LibraryField::ReleaseDate,
-            LibraryField::DateAdded,
-            LibraryField::LastPlayed,
-            LibraryField::PlayCount,
-            LibraryField::UserRating,
-            LibraryField::Genre,
-            LibraryField::Duration,
-        ],
     }
 }
 
@@ -860,9 +856,16 @@ fn combined_row_fields(key: LibraryListKey) -> Vec<LibraryField> {
 }
 fn default_grid_fields(key: LibraryListKey) -> Vec<LibraryField> {
     match key {
-        LibraryListKey::Queue | LibraryListKey::FullscreenTracks | LibraryListKey::Folders => {
-            Vec::new()
-        }
+        LibraryListKey::Queue
+        | LibraryListKey::FullscreenTracks
+        | LibraryListKey::Folders
+        | LibraryListKey::Tracks
+        | LibraryListKey::FavoriteTracks
+        | LibraryListKey::AlbumDetailTracks
+        | LibraryListKey::ArtistTracks
+        | LibraryListKey::GenreTracks
+        | LibraryListKey::MoodTracks
+        | LibraryListKey::PlaylistTracks => Vec::new(),
         LibraryListKey::Albums | LibraryListKey::ArtistAlbums => {
             vec![LibraryField::AlbumArtist, LibraryField::Year]
         }
@@ -870,19 +873,6 @@ fn default_grid_fields(key: LibraryListKey) -> Vec<LibraryField> {
         LibraryListKey::Genres => Vec::new(),
         LibraryListKey::Moods => vec![LibraryField::SongCount, LibraryField::Duration],
         LibraryListKey::Playlists => vec![LibraryField::SongCount],
-        LibraryListKey::Tracks
-        | LibraryListKey::FavoriteTracks
-        | LibraryListKey::AlbumDetailTracks
-        | LibraryListKey::ArtistTracks
-        | LibraryListKey::GenreTracks
-        | LibraryListKey::MoodTracks
-        | LibraryListKey::PlaylistTracks => {
-            vec![
-                LibraryField::Artist,
-                LibraryField::Album,
-                LibraryField::Duration,
-            ]
-        }
     }
 }
 pub fn available_detail_track_fields() -> &'static [LibraryField] {
@@ -989,15 +979,20 @@ mod disc_tests {
         assert_eq!(stored.theme, ThemePreference::System);
     }
     #[test]
-    fn album_detail_uses_rows_when_grid_was_saved() {
-        let mut settings = LibraryListSettings::for_key(LibraryListKey::AlbumDetailTracks);
-        settings.layout = LibraryLayout::Grid;
-        let fields = settings.row_fields.clone();
-        settings.sanitize(LibraryListKey::AlbumDetailTracks);
-        assert_eq!(settings.layout, LibraryLayout::Row);
-        assert_eq!(settings.row_fields, fields);
-        assert!(!LibraryListKey::AlbumDetailTracks.supports_layout(LibraryLayout::Grid));
-        assert!(LibraryListKey::Tracks.supports_layout(LibraryLayout::Grid));
+    fn track_lists_use_rows_when_grid_was_saved() {
+        for key in [
+            LibraryListKey::AlbumDetailTracks,
+            LibraryListKey::PlaylistTracks,
+        ] {
+            let mut settings = LibraryListSettings::for_key(key);
+            settings.layout = LibraryLayout::Grid;
+            let fields = settings.row_fields.clone();
+            settings.sanitize(key);
+            assert_eq!(settings.layout, LibraryLayout::Row);
+            assert_eq!(settings.row_fields, fields);
+            assert!(settings.grid_fields.is_empty());
+        }
+        assert!(!LibraryListKey::Tracks.supports_layout(LibraryLayout::Grid));
         assert!(LibraryListKey::Albums.supports_layout(LibraryLayout::Grid));
     }
 
@@ -1010,11 +1005,11 @@ mod disc_tests {
     }
 
     #[test]
-    fn default_row_fields_do_not_exceed_five_columns() {
+    fn default_row_fields_do_not_exceed_six_columns() {
         for key in LibraryListKey::all() {
             let defaults = default_row_fields(key);
             assert!(
-                defaults.len() <= 5,
+                defaults.len() <= 6,
                 "key {:?} has {} default row columns: {:?}",
                 key,
                 defaults.len(),

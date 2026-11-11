@@ -111,7 +111,6 @@ impl CatalogUi {
         favorite_section.append(&heading);
         let favorite_toolbar =
             self.library_toolbar_projection(LibraryListKey::ArtistTracks, favorite.search());
-        favorite_toolbar.set_layout_control_visible(false);
         favorite_section.append(&favorite_toolbar.widget());
         let favorite_scroller = gtk::ScrolledWindow::new();
         favorite_scroller.add_css_class("non-propagating-width-clip");

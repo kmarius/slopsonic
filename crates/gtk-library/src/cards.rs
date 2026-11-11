@@ -493,65 +493,6 @@ pub fn collection_grid_card_inset(
     inset
 }
 
-mod square_cover_frame_imp {
-    use gtk::{glib, prelude::*, subclass::prelude::*};
-
-    #[derive(Default)]
-    pub struct SquareCoverFrame {
-        pub transport: glib::WeakRef<gtk::Box>,
-    }
-
-    #[glib::object_subclass]
-    impl ObjectSubclass for SquareCoverFrame {
-        const NAME: &'static str = "SlopsonicSquareCoverFrame";
-        type Type = super::SquareCoverFrame;
-        type ParentType = gtk::Widget;
-    }
-
-    impl ObjectImpl for SquareCoverFrame {
-        fn dispose(&self) {
-            while let Some(child) = self.obj().first_child() {
-                child.unparent();
-            }
-        }
-    }
-
-    impl WidgetImpl for SquareCoverFrame {
-        fn request_mode(&self) -> gtk::SizeRequestMode {
-            gtk::SizeRequestMode::HeightForWidth
-        }
-
-        fn measure(&self, orientation: gtk::Orientation, for_size: i32) -> (i32, i32, i32, i32) {
-            if orientation == gtk::Orientation::Vertical {
-                super::square_cover_vertical_measure(for_size)
-            } else {
-                self.obj()
-                    .first_child()
-                    .map(|child| child.measure(orientation, for_size))
-                    .unwrap_or((0, 0, -1, -1))
-            }
-        }
-
-        fn size_allocate(&self, width: i32, height: i32, baseline: i32) {
-            if let Some(transport) = self.transport.upgrade() {
-                let spacing = super::cover_hover_transport_spacing(width);
-                if transport.spacing() != spacing {
-                    transport.set_spacing(spacing);
-                }
-            }
-            if let Some(child) = self.obj().first_child() {
-                child.allocate(width, height, baseline, None);
-            }
-        }
-
-        fn snapshot(&self, snapshot: &gtk::Snapshot) {
-            if let Some(child) = self.obj().first_child() {
-                self.obj().snapshot_child(&child, snapshot);
-            }
-        }
-    }
-}
-
 fn square_cover_vertical_measure(for_size: i32) -> (i32, i32, i32, i32) {
     let size = if for_size >= 0 {
         for_size
@@ -559,30 +500,6 @@ fn square_cover_vertical_measure(for_size: i32) -> (i32, i32, i32, i32) {
         COLLECTION_GRID_MIN_CARD_WIDTH
     };
     (size, size, -1, -1)
-}
-
-gtk::glib::wrapper! {
-    pub struct SquareCoverFrame(ObjectSubclass<square_cover_frame_imp::SquareCoverFrame>)
-        @extends gtk::Widget,
-        @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
-}
-
-pub fn square_cover_frame(
-    child: &impl IsA<gtk::Widget>,
-    transport: Option<&gtk::Box>,
-) -> SquareCoverFrame {
-    use gtk::subclass::prelude::ObjectSubclassIsExt;
-
-    let frame: SquareCoverFrame = gtk::glib::Object::new();
-    if let Some(transport) = transport {
-        frame.imp().transport.set(Some(transport));
-    }
-    frame.set_hexpand(true);
-    frame.set_halign(gtk::Align::Fill);
-    frame.set_valign(gtk::Align::Start);
-    frame.set_accessible_role(gtk::AccessibleRole::Presentation);
-    child.set_parent(&frame);
-    frame
 }
 
 use gtk_widgets::cover_controls::{

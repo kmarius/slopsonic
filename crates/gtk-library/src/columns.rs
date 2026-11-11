@@ -7,7 +7,7 @@ use adw::prelude::*;
 use artwork::ArtworkBinding;
 use gtk::glib;
 
-use super::collection_context::present_track_context_menu;
+use super::collection_context::{present_collection_menu, present_row_context_menu};
 use crate::CatalogUi;
 use crate::{LibraryField, LibraryListKey};
 use gtk_media_menus::media_menus::{present_album_context_menu, present_artist_context_menu};
@@ -184,6 +184,7 @@ pub fn album_column(
     shell: &Rc<CatalogUi>,
     field: LibraryField,
     playback_context: Option<String>,
+    prepare: bool,
 ) -> gtk::ColumnViewColumn {
     let factory = gtk::SignalListItemFactory::new();
     let shell = Rc::clone(shell);
@@ -193,6 +194,7 @@ pub fn album_column(
                 &shell,
                 field,
                 playback_context.clone(),
+                prepare,
             )));
         }
     });
@@ -293,6 +295,7 @@ impl AlbumTableCell {
         shell: &Rc<CatalogUi>,
         field: LibraryField,
         playback_context: Option<String>,
+        prepare: bool,
     ) -> Self {
         use gtk::subclass::prelude::ObjectSubclassIsExt;
         let cell: Self = glib::Object::new();
@@ -375,13 +378,22 @@ impl AlbumTableCell {
                     };
                     let row = cell.imp().row.borrow().clone();
                     if let (Some(shell), Some(row)) = (cell.imp().shell.borrow().upgrade(), row) {
-                        present_album_context_menu(
+                        let row = (*row).clone();
+                        let menus = Rc::clone(&shell.media_menus);
+                        let context = playback_context.clone();
+                        present_collection_menu(
                             target,
-                            &shell.media_menus,
-                            (*row).clone(),
-                            playback_context.clone(),
-                            None,
+                            &shell,
+                            prepare,
+                            gtk_widgets::selection::album_play_request(&row),
+                            row.media_uri.clone(),
                             position,
+                            Rc::clone(&shell.is_current),
+                            move |target| {
+                                present_album_context_menu(
+                                    target, &menus, row, context, None, position,
+                                )
+                            },
                         );
                     }
                 }),
@@ -507,6 +519,7 @@ pub fn artist_column(
     shell: &Rc<CatalogUi>,
     field: LibraryField,
     album_artist: bool,
+    prepare: bool,
 ) -> gtk::ColumnViewColumn {
     match field {
         LibraryField::RowIndex => {
@@ -517,14 +530,18 @@ pub fn artist_column(
                 ))
             })
         }
-        LibraryField::Image => artist_image_column(shell, album_artist),
-        LibraryField::TitleMerged | LibraryField::Title => {
-            artist_text_column(shell, field, "Title", 220, album_artist, |artist| {
-                artist.metadata.name.clone()
-            })
-        }
+        LibraryField::Image => artist_image_column(shell, album_artist, prepare),
+        LibraryField::TitleMerged | LibraryField::Title => artist_text_column(
+            shell,
+            field,
+            "Title",
+            220,
+            album_artist,
+            prepare,
+            |artist| artist.metadata.name.clone(),
+        ),
         LibraryField::Favorite | LibraryField::Tools => {
-            artist_actions_column(shell, album_artist, field)
+            artist_actions_column(shell, album_artist, prepare, field)
         }
         _ => artist_text_column(
             shell,
@@ -532,6 +549,7 @@ pub fn artist_column(
             gtk_widgets::settings::library_field_title(field),
             column_width(field),
             album_artist,
+            prepare,
             move |artist| artist_field(artist, field),
         ),
     }
@@ -545,6 +563,7 @@ pub fn track_column_for_key<T: gtk_widgets::library_fields::TrackPresentation>(
     let width = track_column_width(key, field);
     match field {
         LibraryField::RowIndex => mapped_track_row_index_column_with_width::<T, _>(
+            shell,
             width,
             playing.clone(),
             |item| Some(item.media_uri()),
@@ -581,34 +600,17 @@ pub fn track_column_for_key<T: gtk_widgets::library_fields::TrackPresentation>(
                 context_menu: true,
             },
         ),
-        LibraryField::Title => {
-            let column = mapped_track_position_text_column(
-                shell,
-                field,
-                "Title",
-                width,
-                0.0,
-                Some(playing.clone()),
-                |item: &T| Some(item.media_uri().to_string()),
-                |item: &T| item.download_badge(),
-                |_, item: &T| item.title().to_string(),
-            );
-            if key == LibraryListKey::PlaylistTracks
-                && let Some(factory) = column
-                    .factory()
-                    .and_then(|factory| factory.downcast::<gtk::SignalListItemFactory>().ok())
-            {
-                factory.connect_setup(|_, item| {
-                    if let Some(label) = item
-                        .downcast_ref::<gtk::ListItem>()
-                        .and_then(gtk::ListItem::child)
-                    {
-                        label.add_css_class("playlist-entry-title");
-                    }
-                });
-            }
-            column
-        }
+        LibraryField::Title => mapped_track_position_text_column(
+            shell,
+            field,
+            "Title",
+            width,
+            0.0,
+            Some(playing.clone()),
+            |item: &T| Some(item.media_uri().to_string()),
+            |item: &T| item.download_badge(),
+            |_, item: &T| item.title().to_string(),
+        ),
         LibraryField::Favorite | LibraryField::Tools => mapped_track_actions_column(
             shell,
             field,
@@ -681,6 +683,12 @@ fn track_rating_column<T: gtk_widgets::library_fields::TrackPresentation>(
         let control = gtk_widgets::ratings::RatingControl::new(None);
         control.widget().set_halign(gtk::Align::Start);
         control.widget().set_valign(gtk::Align::Center);
+        install_track_list_item_context_menu(
+            control.widget(),
+            &setup_shell,
+            item,
+            Rc::new(|row: &T| Some(row.media_uri().to_string())),
+        );
         let weak = item.downgrade();
         let shell = Rc::clone(&setup_shell);
         control.connect_commit(move |rating| {
@@ -725,6 +733,25 @@ fn track_rating_column<T: gtk_widgets::library_fields::TrackPresentation>(
     );
     column.set_fixed_width(width.max(110));
     column
+}
+
+pub fn connect_column_cell_setup(
+    column: &gtk::ColumnViewColumn,
+    setup: impl Fn(&gtk::ListItem, &gtk::Widget) + 'static,
+) {
+    let Some(factory) = column
+        .factory()
+        .and_downcast::<gtk::SignalListItemFactory>()
+    else {
+        return;
+    };
+    factory.connect_setup(move |_, item| {
+        if let Some(item) = item.downcast_ref::<gtk::ListItem>()
+            && let Some(child) = item.child()
+        {
+            setup(item, &child);
+        }
+    });
 }
 
 pub fn track_column_title(field: LibraryField) -> &'static str {
@@ -839,37 +866,6 @@ where
     column.set_fixed_width(width);
     column
 }
-pub fn row_index_column_with_width(width: i32) -> gtk::ColumnViewColumn {
-    let factory = gtk::SignalListItemFactory::new();
-    factory.connect_setup(|_, item| {
-        if let Some(item) = item.downcast_ref::<gtk::ListItem>() {
-            let label = gtk::Label::new(None);
-            label.add_css_class("muted");
-            label.set_xalign(0.5);
-            label.set_halign(gtk::Align::Fill);
-            label.set_hexpand(true);
-            label.set_wrap(false);
-            label.set_ellipsize(gtk::pango::EllipsizeMode::End);
-            label.set_single_line_mode(true);
-            item.set_child(Some(&label));
-        }
-    });
-    connect_sparse_bind(&factory, |item| {
-        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-            return;
-        };
-        let Some(label) = item
-            .child()
-            .and_then(|child| child.downcast::<gtk::Label>().ok())
-        else {
-            return;
-        };
-        label.set_text(&(item.position() + 1).to_string());
-    });
-    let column = gtk::ColumnViewColumn::new(Some("#"), Some(factory));
-    column.set_fixed_width(width);
-    column
-}
 
 pub fn mapped_row_index_column<T: Clone + 'static>(
     shell: &Rc<CatalogUi>,
@@ -910,6 +906,7 @@ pub fn mapped_row_index_column<T: Clone + 'static>(
 }
 
 pub fn mapped_track_row_index_column_with_width<T, Number>(
+    shell: &Rc<CatalogUi>,
     width: i32,
     playing: TrackRowPlayingIndicator,
     track: impl Fn(&T) -> Option<&str> + 'static,
@@ -920,11 +917,21 @@ where
     Number: Fn(u32, &T) -> Option<String> + 'static,
 {
     let factory = gtk::SignalListItemFactory::new();
-    factory.connect_setup(|_, item| {
+    let track = Rc::new(track);
+    let setup_shell = Rc::clone(shell);
+    let context_track = Rc::clone(&track);
+    let context_value: Rc<dyn Fn(&T) -> Option<String>> =
+        Rc::new(move |row| context_track(row).map(str::to_string));
+    factory.connect_setup(move |_, item| {
         if let Some(item) = item.downcast_ref::<gtk::ListItem>() {
-            item.set_child(Some(
-                &gtk_widgets::recycled_cells::track_list_row_index_cell(item),
-            ));
+            let cell = gtk_widgets::recycled_cells::track_list_row_index_cell(item);
+            install_track_list_item_context_menu(
+                &cell,
+                &setup_shell,
+                item,
+                Rc::clone(&context_value),
+            );
+            item.set_child(Some(&cell));
         }
     });
     let bind_playing = playing.clone();
@@ -982,6 +989,7 @@ fn install_artist_list_item_context_menu(
     shell: &Rc<CatalogUi>,
     item: &gtk::ListItem,
     album_artist: bool,
+    prepare: bool,
 ) {
     install_collection_cell_drag(
         target,
@@ -1004,13 +1012,25 @@ fn install_artist_list_item_context_menu(
             let Some(artist) = item.upgrade().and_then(|item| item_at_from_item(&item)) else {
                 return;
             };
-            present_artist_context_menu(
+            let menus = Rc::clone(&shell.media_menus);
+            present_collection_menu(
                 target,
-                &shell.media_menus,
-                artist,
-                album_artist,
-                None,
+                &shell,
+                prepare,
+                gtk_widgets::selection::artist_play_request(&artist, album_artist),
+                artist.media_uri.clone(),
                 position,
+                Rc::clone(&shell.is_current),
+                move |target| {
+                    present_artist_context_menu(
+                        target,
+                        &menus,
+                        artist,
+                        album_artist,
+                        None,
+                        position,
+                    )
+                },
             );
         }),
     );
@@ -1091,7 +1111,11 @@ where
     column.set_fixed_width(width);
     column
 }
-pub fn artist_image_column(shell: &Rc<CatalogUi>, album_artist: bool) -> gtk::ColumnViewColumn {
+pub fn artist_image_column(
+    shell: &Rc<CatalogUi>,
+    album_artist: bool,
+    prepare: bool,
+) -> gtk::ColumnViewColumn {
     let factory = gtk::SignalListItemFactory::new();
     let shell = Rc::clone(shell);
 
@@ -1104,7 +1128,7 @@ pub fn artist_image_column(shell: &Rc<CatalogUi>, album_artist: bool) -> gtk::Co
         cell.artwork()
             .widget()
             .set_cursor_from_name(Some("pointer"));
-        install_artist_list_item_context_menu(&cell, &setup_shell, item, album_artist);
+        install_artist_list_item_context_menu(&cell, &setup_shell, item, album_artist, prepare);
         item.set_child(Some(&cell));
     });
 
@@ -1146,6 +1170,7 @@ pub fn artist_text_column<F>(
     title: &str,
     width: i32,
     album_artist: bool,
+    prepare: bool,
     value: F,
 ) -> gtk::ColumnViewColumn
 where
@@ -1174,7 +1199,7 @@ where
         if matches!(field, LibraryField::Title | LibraryField::TitleMerged) {
             super::grid_cells::install_title_link_hover(&cell.label(), None);
         }
-        install_artist_list_item_context_menu(&cell, &setup_shell, item, album_artist);
+        install_artist_list_item_context_menu(&cell, &setup_shell, item, album_artist, prepare);
         item.set_child(Some(&cell));
     });
 
@@ -1216,26 +1241,25 @@ where
     column
 }
 
-fn install_track_list_item_context_menu<T: Clone + 'static>(
+pub(crate) fn install_track_list_item_context_menu<T: Clone + 'static>(
     target: &impl IsA<gtk::Widget>,
     shell: &Rc<CatalogUi>,
     item: &gtk::ListItem,
     track_value: Rc<dyn Fn(&T) -> Option<String>>,
 ) {
     let item = item.downgrade();
-    let shell = Rc::clone(shell);
+    let shell = Rc::downgrade(shell);
     install_context_menu_openers(
         target,
         Rc::new(move |target, position| {
-            let Some(track) = item
-                .upgrade()
-                .and_then(|item| item.item())
-                .and_then(|object| object_item::<T, _>(object, |row| track_value(row)))
-                .flatten()
-            else {
+            let (Some(row), Some(shell)) = (
+                item.upgrade()
+                    .and_then(|item| item_at_from_item::<T>(&item)),
+                shell.upgrade(),
+            ) else {
                 return;
             };
-            present_track_context_menu(target, &shell, track, position);
+            present_row_context_menu(target, &shell, &row, track_value(&row), position);
         }),
     );
 }
@@ -1570,6 +1594,7 @@ fn favorite_cell_button(item: &gtk::ListItem) -> Option<gtk::Button> {
 pub fn artist_actions_column(
     shell: &Rc<CatalogUi>,
     album_artist: bool,
+    prepare: bool,
     field: LibraryField,
 ) -> gtk::ColumnViewColumn {
     let factory = gtk::SignalListItemFactory::new();
@@ -1580,7 +1605,7 @@ pub fn artist_actions_column(
             return;
         };
         let actions = gtk_widgets::recycled_cells::row_action_cell(field, "Favorite artist");
-        install_artist_list_item_context_menu(&actions, &shell, item, album_artist);
+        install_artist_list_item_context_menu(&actions, &shell, item, album_artist, prepare);
         item.set_child(Some(&actions));
         let Some(button) = favorite_cell_button(item) else {
             return;

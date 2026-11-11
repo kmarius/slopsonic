@@ -1,6 +1,4 @@
-use gtk_widgets::media_drag::{
-    MediaDragSource, install_compact_media_drag_source, install_media_drag_source,
-};
+use gtk_widgets::media_drag::{MediaDragSource, install_media_drag_source};
 use gtk_widgets::sparse_model::item_at_from_item;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
@@ -16,21 +14,18 @@ use slopsonic_core::playback::QueuePlacement;
 
 use crate::CatalogUi;
 use crate::{LibraryField, LibraryLayout};
-use gtk_widgets::artwork::ArtworkTile;
-use gtk_widgets::favorites::{favorite_button_is_active, set_favorite_button_active};
-use gtk_widgets::interactions::install_context_menu_openers;
 use gtk_widgets::mounted_route::{MountedRoute, MountedRouteItemNavigation};
 use slopsonic_core::runtime::SelectedLibrary;
 
-use super::cards;
-use super::collection_context::present_track_context_menu;
+use super::collection_context::{present_collection_menu, present_track_context_menu};
 use super::collections::{
     LibraryCollectionProjection, LibraryPresentationProjection, dynamic_collection_table,
 };
-use super::grid_cells::{
-    CollectionGridCardCell, ReusableCollectionGridCell, collection_grid_with_selection_and_demand,
-    install_grid_context, install_grid_play,
+use super::columns::{
+    album_column, artist_column, connect_column_cell_setup, track_column_fit_width,
+    track_column_for_key,
 };
+use super::grid_cells::{AlbumGridCell, ArtistGridCell, collection_grid_with_selection_and_demand};
 use gtk_media_menus::media_menus::{
     present_album_context_menu, present_artist_context_menu, present_collection_selection_menu,
 };
@@ -39,17 +34,10 @@ use slopsonic_core::settings::app::{RecentSearchKind, RecentSearchResult};
 
 use super::route_shell::{LibraryPageShell, LibraryToolbarProjection};
 use super::table_sizing::route_column_view_initial_width;
-use gtk_widgets::detail_links::{
-    DetailLinks, album_artist_links, track_album_artist_links, track_artist_links,
-};
-use gtk_widgets::library_fields::{
-    COLLECTION_GRID_MAX_CARD_WIDTH, add_field_skeleton_class, album_field, artist_field,
-    column_width, track_field,
-};
-use gtk_widgets::recycled_cells::{RecycledMergedCell, RecycledTextCell, list_cell};
+use gtk_widgets::library_fields::{album_field, artist_field, column_width, track_field};
 use gtk_widgets::route::CollectionCategory;
 use gtk_widgets::route::Route;
-use gtk_widgets::sparse_model::{SparseObjectItem, connect_sparse_bind};
+use gtk_widgets::sparse_model::SparseObjectItem;
 
 const SEARCH_DEBOUNCE: Duration = Duration::from_millis(300);
 pub mod session;
@@ -89,21 +77,11 @@ impl SearchItem {
             artwork_binding: artwork_binding.clone(),
         }
     }
-    fn drag_source(&self, _: &CatalogUi) -> Option<MediaDragSource> {
-        Some(MediaDragSource::capture_target(self.play_request()))
-    }
     fn play_request(&self) -> slopsonic_core::playback::PlayRequest {
         match self {
             Self::Track(row) => gtk_widgets::selection::track_play_request(row.track_key),
             Self::Album(row) => gtk_widgets::selection::album_play_request(row),
             Self::Artist(row) => gtk_widgets::selection::artist_play_request(row, false),
-        }
-    }
-
-    fn media_uri(&self) -> Option<&str> {
-        match self {
-            Self::Track(row) => Some(&row.media_uri),
-            _ => None,
         }
     }
     fn title(&self) -> &str {
@@ -131,47 +109,12 @@ impl SearchItem {
             Self::Artist(row) => artist_field(row, field),
         }
     }
-    fn field_links(&self, field: LibraryField) -> DetailLinks {
-        let text = self.field(field);
-        match self {
-            Self::Track(row) => match field {
-                LibraryField::Artist => track_artist_links(row),
-                LibraryField::AlbumArtist => track_album_artist_links(row),
-                LibraryField::Album => DetailLinks::route(
-                    &text,
-                    row.links.album_media_uri.clone().map(Route::AlbumDetail),
-                ),
-                _ => DetailLinks::text(&text),
-            },
-            Self::Album(row) => match field {
-                LibraryField::Artist | LibraryField::AlbumArtist => album_artist_links(row),
-                LibraryField::Title => {
-                    DetailLinks::route(&text, Some(Route::AlbumDetail(row.media_uri.clone())))
-                }
-                _ => DetailLinks::text(&text),
-            },
-            Self::Artist(row) if field == LibraryField::Title => {
-                DetailLinks::route(&text, Some(Route::ArtistDetail(row.media_uri.clone())))
-            }
-            _ => DetailLinks::text(&text),
-        }
-    }
-    fn subtitle_links(&self) -> DetailLinks {
-        match self {
-            Self::Track(row) => track_artist_links(row),
-            Self::Album(row) => album_artist_links(row),
-            _ => DetailLinks::text(self.subtitle()),
-        }
-    }
     fn subtitle(&self) -> &str {
         match self {
             Self::Track(row) => &row.metadata.artist,
             Self::Album(row) => &row.metadata.artist,
             Self::Artist(_) => "",
         }
-    }
-    fn is_downloaded(&self) -> bool {
-        matches!(self, Self::Track(row) if gtk_widgets::library_fields::TrackPresentation::download_badge(row))
     }
     fn numeric_field(&self, field: LibraryField) -> Option<i64> {
         match self {
@@ -217,22 +160,6 @@ impl SearchItem {
             Self::Artist(_) => None,
         }
     }
-    fn favorite(&self) -> Option<(library::FavoriteTarget, bool)> {
-        Some(match self {
-            Self::Track(row) => (
-                library::FavoriteTarget::Track(row.media_uri.clone()),
-                row.state.favorite,
-            ),
-            Self::Album(row) => (
-                library::FavoriteTarget::Album(row.media_uri.clone()),
-                row.state.favorite,
-            ),
-            Self::Artist(row) => (
-                library::FavoriteTarget::Artist(row.media_uri.clone()),
-                row.state.favorite,
-            ),
-        })
-    }
     fn play(&self, shell: &Rc<CatalogUi>, placement: QueuePlacement) {
         shell
             .settings
@@ -257,188 +184,36 @@ impl SearchItem {
         position: Option<(f64, f64)>,
         is_current: Rc<dyn Fn() -> bool>,
     ) {
-        if present_collection_selection_menu(
-            target,
-            &shell.media_menus,
-            self.play_request(),
-            position,
-        ) {
-            return;
-        }
-        let media_uri = match self {
-            Self::Track(row) => {
-                present_track_context_menu(target, shell, row.media_uri.clone(), position);
-                return;
-            }
-            Self::Album(row) => row.media_uri.clone(),
-            Self::Artist(row) => row.media_uri.clone(),
-        };
-        let receiver = shell.source.prepare_collection(media_uri);
-        let item = self.clone();
-        let target = target.downgrade();
         let menus = Rc::clone(&shell.media_menus);
-        gtk::glib::spawn_future_local(async move {
-            if let Ok(Err(error)) = receiver.recv().await {
-                tracing::warn!(%error, "could not acquire Search collection");
-            }
-            let Some(target) = target.upgrade() else {
-                return;
-            };
-            if !target.is_mapped() || !is_current() {
-                return;
-            }
-            match item {
-                Self::Album(row) => {
-                    present_album_context_menu(&target, &menus, row, None, None, position)
+        match self.clone() {
+            Self::Track(row) => {
+                if !present_collection_selection_menu(target, &menus, self.play_request(), position)
+                {
+                    present_track_context_menu(target, shell, row.media_uri, position);
                 }
-                Self::Artist(row) => {
-                    present_artist_context_menu(&target, &menus, row, false, None, position)
-                }
-                Self::Track(..) => unreachable!(),
             }
-        });
-    }
-}
-
-struct SearchGridCell {
-    body: CollectionGridCardCell,
-    shell: Rc<CatalogUi>,
-    cover: ArtworkTile,
-    current: Rc<RefCell<Option<SearchItem>>>,
-    favorite: gtk::Button,
-}
-
-impl SearchGridCell {
-    fn new(shell: Rc<CatalogUi>, fields: &[LibraryField]) -> Self {
-        let current = Rc::new(RefCell::new(None::<SearchItem>));
-        let controls = cards::CollectionGridCoverView::new("Play");
-        let cover_host = controls.imp().cover_host.get();
-        let favorite = controls.favorite();
-        let cover = ArtworkTile::new_elastic_square();
-        cover_host.append(&cover.widget());
-        let favorite_shell = Rc::clone(&shell);
-        let favorite_item = Rc::clone(&current);
-        favorite.connect_clicked(move |button| {
-            let Some((target, _)) = favorite_item
-                .borrow()
-                .as_ref()
-                .and_then(SearchItem::favorite)
-            else {
-                return;
-            };
-            favorite_shell.set_favorite_with_feedback(
+            Self::Album(row) => present_collection_menu(
                 target,
-                !favorite_button_is_active(button),
-                Some(button),
-            );
-        });
-        let menu = controls.imp().menu.get();
-        let overlay = controls.imp().overlay.get();
-        install_grid_play(
-            &shell,
-            &current,
-            [
-                controls.imp().play.get(),
-                controls.imp().play_next.get(),
-                controls.imp().play_last.get(),
-            ],
-            |shell, item, placement| item.play(shell, placement),
-        );
-        let body = CollectionGridCardCell::new(&shell, fields, controls.upcast());
-        let drag_current = Rc::clone(&current);
-        let drag_shell = Rc::downgrade(&shell);
-        let drag_artwork = cover.drag_paintable_source();
-        install_compact_media_drag_source(&body.card, &drag_artwork, move || {
-            let shell = drag_shell.upgrade()?;
-            let item = drag_current.borrow();
-            let item = item.as_ref()?;
-            Some((item.drag_source(&shell)?, item.title().to_string()))
-        });
-        install_grid_context(
-            &shell,
-            &current,
-            &menu,
-            &overlay,
-            &body.card,
-            |target, shell, item, point| {
-                item.present_context(target, shell, point, Rc::clone(&shell.is_current))
-            },
-        );
-        Self {
-            body,
-            shell,
-            cover,
-            current,
-            favorite,
-        }
-    }
-
-    fn bind_current_artwork(&self) {
-        let Some(item) = self.current.borrow().as_ref().cloned() else {
-            return;
-        };
-        self.cover
-            .widget()
-            .remove_css_class("collection-grid-cover-skeleton");
-        self.shell.artwork.bind_artwork_tile(
-            &self.cover,
-            item.artwork(),
-            COLLECTION_GRID_MAX_CARD_WIDTH,
-        );
-    }
-
-    fn release_artwork(&self) {
-        self.shell.artwork.clear_artwork_tile(&self.cover);
-        self.cover
-            .widget()
-            .add_css_class("collection-grid-cover-skeleton");
-        self.cover.widget().set_opacity(1.0);
-    }
-}
-
-impl ReusableCollectionGridCell<SearchItem> for SearchGridCell {
-    fn widget(&self) -> gtk::Widget {
-        self.body.widget()
-    }
-
-    fn bind(&self, _: u32, item: SearchItem) {
-        let target = match &item {
-            SearchItem::Track(row) => gtk_widgets::selection::track_play_request(row.track_key),
-            SearchItem::Album(row) => gtk_widgets::selection::album_play_request(&row),
-            SearchItem::Artist(row) => gtk_widgets::selection::artist_play_request(&row, false),
-        };
-        self.body.bind_playing_target(&self.shell, target);
-        self.body
-            .bind(item.title(), |field| item.field_links(field));
-        let favorite = item.favorite();
-        set_favorite_button_active(
-            &self.favorite,
-            favorite.as_ref().is_some_and(|(_, value)| *value),
-        );
-        self.favorite.set_sensitive(favorite.is_some());
-        self.favorite
-            .set_opacity(if favorite.is_some() { 1.0 } else { 0.0 });
-        *self.current.borrow_mut() = Some(item);
-        self.bind_current_artwork();
-    }
-
-    fn clear(&self) {
-        self.release_artwork();
-        self.body.clear(&self.shell);
-        self.favorite.set_visible(false);
-        self.favorite.set_sensitive(false);
-        self.current.take();
-    }
-
-    fn set_ready(&self, ready: bool) {
-        self.body.set_ready(ready);
-    }
-
-    fn apply_fields(&self, fields: &[LibraryField]) {
-        self.body.replace_fields(&self.shell, fields);
-        if let Some(item) = self.current.borrow().as_ref() {
-            self.body
-                .bind(item.title(), |field| DetailLinks::text(&item.field(field)));
+                shell,
+                true,
+                self.play_request(),
+                row.media_uri.clone(),
+                position,
+                is_current,
+                move |target| present_album_context_menu(target, &menus, row, None, None, position),
+            ),
+            Self::Artist(row) => present_collection_menu(
+                target,
+                shell,
+                true,
+                self.play_request(),
+                row.media_uri.clone(),
+                position,
+                is_current,
+                move |target| {
+                    present_artist_context_menu(target, &menus, row, false, None, position)
+                },
+            ),
         }
     }
 }
@@ -555,7 +330,7 @@ impl SearchRouteProjection {
             &shell,
             self.models[category as usize].clone(),
             category,
-            (category == CollectionCategory::Tracks).then(|| self.playing.clone()),
+            self.playing.clone(),
         );
         let toolbar = shell.library_toolbar_projection_without_detail(
             category.key(),
@@ -585,9 +360,9 @@ impl SearchRouteProjection {
                         model
                             .item(*position)
                             .and_then(|item| {
-                                gtk_widgets::sparse_model::object_item::<SearchItem, _>(
+                                gtk_widgets::sparse_model::object_item::<library::TrackView, _>(
                                     item,
-                                    |item| item.media_uri() == Some(current.media_uri.as_str()),
+                                    |track| track.media_uri == current.media_uri,
                                 )
                             })
                             .unwrap_or(false)
@@ -618,27 +393,6 @@ impl SearchRouteProjection {
         self.status.set_visible_child_name(self.session.status());
     }
 
-    fn update_matching(
-        &self,
-        matches: impl Fn(&SearchItem) -> bool,
-        update: impl Fn(&mut SearchItem),
-    ) {
-        for model in &self.models {
-            for position in 0..model.n_items() {
-                let Some(item) = model.item(position).and_downcast::<SparseObjectItem>() else {
-                    continue;
-                };
-                let Some(mut row) = item.value::<Arc<SearchItem>>() else {
-                    continue;
-                };
-                if matches(&row) {
-                    update(Arc::make_mut(&mut row));
-                    item.replace(row, true);
-                }
-            }
-        }
-    }
-
     fn apply(&self, mut items: [Vec<SearchItem>; 3]) {
         for index in 0..3 {
             if let Some(shell) = self.shell.upgrade() {
@@ -649,7 +403,7 @@ impl SearchRouteProjection {
             let additions = items[index]
                 .iter()
                 .cloned()
-                .map(|row| SparseObjectItem::new(Arc::new(row), true))
+                .map(search_object)
                 .collect::<Vec<_>>();
             self.models[index].splice(0, self.models[index].n_items(), &additions);
         }
@@ -685,15 +439,10 @@ impl SearchRouteProjection {
         let settings = shell.settings.current.borrow().library_list(category.key());
         let model = &self.models[category as usize];
         let mut items = (0..model.n_items())
-            .filter_map(|position| {
-                gtk_widgets::sparse_model::item_at::<SearchItem>(model, position)
-            })
+            .filter_map(|position| search_item(model, category, position))
             .collect::<Vec<_>>();
         sort_search_items(&mut items, settings.sort_key, settings.descending);
-        let additions = items
-            .into_iter()
-            .map(|row| SparseObjectItem::new(Arc::new(row), true))
-            .collect::<Vec<_>>();
+        let additions = items.into_iter().map(search_object).collect::<Vec<_>>();
         model.splice(0, model.n_items(), &additions);
     }
 
@@ -826,40 +575,25 @@ impl CatalogUi {
         let download_counts = Rc::downgrade(&projection);
         let download_tracks = Rc::downgrade(&projection);
         let downloads = crate::collection_download_change(move |identity, downloaded| {
-            if let Some(projection) = download_counts.upgrade() {
-                projection.update_matching(
-                    |row| match row {
-                        SearchItem::Album(row) => {
-                            identity.strip_prefix("album:") == Some(row.media_uri.as_str())
-                                && (row.summary.downloaded_count == row.summary.track_count)
-                                    != downloaded
-                        }
-                        SearchItem::Artist(row) => {
-                            identity.strip_prefix("artist:") == Some(row.media_uri.as_str())
-                                && (row.summary.downloaded_count == row.summary.track_count)
-                                    != downloaded
-                        }
-                        SearchItem::Track(..) => false,
-                    },
-                    |row| match row {
-                        SearchItem::Album(row) => {
-                            row.summary.downloaded_count = if downloaded {
-                                row.summary.track_count
-                            } else {
-                                0
-                            }
-                        }
-                        SearchItem::Artist(row) => {
-                            row.summary.downloaded_count = if downloaded {
-                                row.summary.track_count
-                            } else {
-                                0
-                            }
-                        }
-                        SearchItem::Track(..) => {}
-                    },
-                );
-            }
+            let Some(projection) = download_counts.upgrade() else {
+                return;
+            };
+            update_rows::<library::AlbumView>(
+                &projection.models[CollectionCategory::Albums as usize],
+                |row| {
+                    identity.strip_prefix("album:") == Some(row.media_uri.as_str())
+                        && downloaded_summary_changes(&row.summary, downloaded)
+                },
+                |row| set_downloaded_summary(&mut row.summary, downloaded),
+            );
+            update_rows::<library::ArtistView>(
+                &projection.models[CollectionCategory::Artists as usize],
+                |row| {
+                    identity.strip_prefix("artist:") == Some(row.media_uri.as_str())
+                        && downloaded_summary_changes(&row.summary, downloaded)
+                },
+                |row| set_downloaded_summary(&mut row.summary, downloaded),
+            );
         });
         MountedRoute::new(
             projection.root.clone(),
@@ -867,16 +601,19 @@ impl CatalogUi {
         )
         .with_download_change(downloads)
         .with_download_change(Rc::new(move |event| {
-            let downloads::DownloadEvent::Changed { media_uri: uri, downloaded } = event else { return };
+            let downloads::DownloadEvent::Changed {
+                media_uri: uri,
+                downloaded,
+            } = event
+            else {
+                return;
+            };
             let (uri, downloaded) = (uri.as_str(), *downloaded);
             if let Some(projection) = download_tracks.upgrade() {
-                projection.update_matching(
-                    |row| matches!(row, SearchItem::Track(row) if row.media_uri == uri && row.access.is_downloaded != downloaded),
-                    |row| {
-                        if let SearchItem::Track(row) = row {
-                            row.access.is_downloaded = downloaded;
-                        }
-                    },
+                update_rows::<library::TrackView>(
+                    &projection.models[CollectionCategory::Tracks as usize],
+                    |row| row.media_uri == uri && row.access.is_downloaded != downloaded,
+                    |row| row.access.is_downloaded = downloaded,
                 );
             }
         }))
@@ -891,9 +628,10 @@ fn search_collection(
     shell: &Rc<CatalogUi>,
     model: gio::ListStore,
     category: CollectionCategory,
-    playing: Option<super::columns::TrackRowPlayingIndicator>,
+    playing: super::columns::TrackRowPlayingIndicator,
 ) -> LibraryCollectionProjection {
-    let settings = shell.settings.current.borrow().library_list(category.key());
+    let key = category.key();
+    let settings = shell.settings.current.borrow().library_list(key);
     let selection = gtk_widgets::selection::PositionSelectionModel::new(model.clone());
     let selected_model = model.downgrade();
     selection.set_collection_selection(Box::new(move |clicked, positions| {
@@ -901,9 +639,7 @@ fn search_collection(
         let (iter, first) = gtk::BitsetIter::init_first(positions)?;
         let targets = std::iter::once(first)
             .chain(iter)
-            .filter_map(|position| {
-                gtk_widgets::sparse_model::item_at::<SearchItem>(&model, position)
-            })
+            .filter_map(|position| search_item(&model, category, position))
             .map(|item| item.play_request())
             .collect::<Vec<_>>();
         targets
@@ -911,361 +647,185 @@ fn search_collection(
             .any(|target| target.selection() == clicked.selection())
             .then_some(gtk_widgets::media_drag::CollectionTargets::Ready(targets))
     }));
+    let selection: gtk::SelectionModel = selection.upcast();
     let shell = Rc::clone(shell);
     LibraryCollectionProjection::new(
         settings,
-        Rc::new(move |layout| match layout {
-            LibraryLayout::Grid => {
-                let fields = shell
-                    .settings
-                    .current
-                    .borrow()
-                    .library_list(category.key())
-                    .grid_fields;
-                let cell_shell = Rc::clone(&shell);
-                let activate_shell = Rc::clone(&shell);
-                LibraryPresentationProjection::Grid(collection_grid_with_selection_and_demand(
-                    model.clone(),
-                    Some(selection.clone().upcast()),
-                    &fields,
-                    move |fields| SearchGridCell::new(Rc::clone(&cell_shell), fields),
-                    move |_, item: SearchItem| item.activate(&activate_shell),
-                    |_| {},
-                ))
-            }
-            LibraryLayout::Row | LibraryLayout::Detail => {
-                let fields = shell
-                    .settings
-                    .current
-                    .borrow()
-                    .library_list(category.key())
-                    .row_fields;
-                let activate_shell = Rc::clone(&shell);
-                LibraryPresentationProjection::Row(dynamic_collection_table(
-                    &shell,
-                    category.key(),
-                    model.clone(),
-                    &fields,
-                    Vec::new(),
-                    {
-                        let column_shell = Rc::clone(&shell);
-                        let playing = playing.clone();
-                        move |field| search_column(&column_shell, category, field, playing.as_ref())
-                    },
-                    move |field| {
-                        if category == CollectionCategory::Tracks {
-                            super::columns::track_column_fit_width(category.key(), field)
-                        } else {
-                            column_fit_width(field, column_width(field))
-                        }
-                    },
-                    true,
-                    Some(Box::new(move |_, item: SearchItem| {
-                        item.activate(&activate_shell)
-                    })),
-                    Some(selection.clone().upcast()),
-                    route_column_view_initial_width(&shell),
-                ))
+        Rc::new(move |layout| {
+            let list = shell.settings.current.borrow().library_list(key);
+            let activate_shell = Rc::clone(&shell);
+            let activate_model = model.clone();
+            let activate = move |position| {
+                if let Some(item) = search_item(&activate_model, category, position) {
+                    item.activate(&activate_shell);
+                }
+            };
+            match (layout, category) {
+                (LibraryLayout::Grid, CollectionCategory::Albums) => {
+                    let cell_shell = Rc::clone(&shell);
+                    LibraryPresentationProjection::Grid(collection_grid_with_selection_and_demand(
+                        model.clone(),
+                        Some(selection.clone()),
+                        &list.grid_fields,
+                        move |fields| AlbumGridCell::new(&cell_shell, fields, None, true),
+                        move |position, _: library::AlbumView| activate(position),
+                        |_| {},
+                    ))
+                }
+                (LibraryLayout::Grid, CollectionCategory::Artists) => {
+                    let cell_shell = Rc::clone(&shell);
+                    LibraryPresentationProjection::Grid(collection_grid_with_selection_and_demand(
+                        model.clone(),
+                        Some(selection.clone()),
+                        &list.grid_fields,
+                        move |fields| ArtistGridCell::new(&cell_shell, fields, false, true),
+                        move |position, _: library::ArtistView| activate(position),
+                        |_| {},
+                    ))
+                }
+                _ => LibraryPresentationProjection::Row(match category {
+                    CollectionCategory::Tracks => search_table::<library::TrackView>(
+                        &shell,
+                        category,
+                        &model,
+                        &list.row_fields,
+                        &selection,
+                        &playing,
+                        activate,
+                    ),
+                    CollectionCategory::Albums => search_table::<library::AlbumView>(
+                        &shell,
+                        category,
+                        &model,
+                        &list.row_fields,
+                        &selection,
+                        &playing,
+                        activate,
+                    ),
+                    CollectionCategory::Artists => search_table::<library::ArtistView>(
+                        &shell,
+                        category,
+                        &model,
+                        &list.row_fields,
+                        &selection,
+                        &playing,
+                        activate,
+                    ),
+                }),
             }
         }),
     )
+}
+
+fn search_table<T: Clone + 'static>(
+    shell: &Rc<CatalogUi>,
+    category: CollectionCategory,
+    model: &gio::ListStore,
+    fields: &[LibraryField],
+    selection: &gtk::SelectionModel,
+    playing: &super::columns::TrackRowPlayingIndicator,
+    activate: impl Fn(u32) + 'static,
+) -> super::collections::CollectionTableProjection {
+    let key = category.key();
+    let column_shell = Rc::clone(shell);
+    let playing = playing.clone();
+    let table = dynamic_collection_table(
+        shell,
+        key,
+        model.clone(),
+        fields,
+        Vec::new(),
+        move |field| search_column(&column_shell, category, field, &playing),
+        move |field| match category {
+            CollectionCategory::Tracks => track_column_fit_width(key, field),
+            _ => column_fit_width(field, column_width(field)),
+        },
+        category != CollectionCategory::Tracks,
+        Some(Box::new(move |position, _: T| activate(position))),
+        Some(selection.clone()),
+        route_column_view_initial_width(shell),
+    );
+    if category == CollectionCategory::Tracks {
+        table.widget().add_css_class("track-list");
+    }
+    table
 }
 
 fn search_column(
     shell: &Rc<CatalogUi>,
     category: CollectionCategory,
     field: LibraryField,
-    playing: Option<&super::columns::TrackRowPlayingIndicator>,
+    playing: &super::columns::TrackRowPlayingIndicator,
 ) -> gtk::ColumnViewColumn {
-    if field == LibraryField::RowIndex {
-        if category == CollectionCategory::Tracks
-            && let Some(playing) = playing
-        {
-            return super::columns::mapped_track_row_index_column_with_width::<SearchItem, _>(
-                super::columns::track_column_width(category.key(), field),
-                playing.clone(),
-                SearchItem::media_uri,
-                |position, item| {
-                    matches!(item, SearchItem::Track(..)).then(|| (position + 1).to_string())
-                },
-            );
-        }
-        return super::columns::row_index_column_with_width(column_width(field));
-    }
-    if field == LibraryField::Image {
-        return super::columns::artwork_column::<SearchItem, _>(
-            shell,
-            gtk_widgets::settings::library_field_title(field),
-            column_width(field),
-            SearchItem::artwork,
-            None,
-        );
-    }
-    if field == LibraryField::TitleMerged {
-        let width = if category == CollectionCategory::Tracks {
-            super::columns::track_column_fit_width(category.key(), field)
-        } else {
-            column_width(field)
-        };
-        return search_merged_column(shell, category, width, playing.cloned());
-    }
-    if matches!(field, LibraryField::Favorite | LibraryField::Tools) {
-        return search_actions_column(shell, field);
-    }
-    let playing = (field == LibraryField::Title)
-        .then(|| playing.cloned())
-        .flatten();
-    let factory = gtk::SignalListItemFactory::new();
-    let setup_shell = Rc::clone(shell);
-    factory.connect_setup(move |_, item| {
-        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-            return;
-        };
-        let cell = RecycledTextCell::new();
-        let label = cell.label();
-        if field == LibraryField::Title && category == CollectionCategory::Tracks {
-            cell.set_spacing(5);
-        }
-        label.set_halign(gtk::Align::Fill);
-        label.set_hexpand(true);
-        add_field_skeleton_class(&label, field);
-        cell.enable_links(setup_shell.route_navigation());
-        let context_shell = Rc::downgrade(&setup_shell);
-        let context_item = item.downgrade();
-        install_context_menu_openers(
-            &cell,
-            Rc::new(move |target, position| {
-                if let (Some(shell), Some(item)) = (context_shell.upgrade(), context_item.upgrade())
-                    && let Some(value) = item_at_from_item::<SearchItem>(&item)
-                {
-                    value.present_context(target, &shell, position, Rc::clone(&shell.is_current));
-                }
-            }),
-        );
-        let drag_item = item.downgrade();
-        let drag_shell = Rc::downgrade(&setup_shell);
-        install_media_drag_source(&cell, move || {
-            let shell = drag_shell.upgrade()?;
-            let item = drag_item.upgrade()?;
-            let row = item_at_from_item::<SearchItem>(&item)?;
-            Some((row.drag_source(&shell)?, row.title().to_string()))
-        });
-        item.set_child(Some(&cell));
-    });
-    let bind_playing = playing.clone();
-    connect_sparse_bind(&factory, move |item| {
-        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-            return;
-        };
-        let Some(cell) = list_cell::<RecycledTextCell>(item) else {
-            return;
-        };
-        if let Some(row) = item_at_from_item::<SearchItem>(item) {
-            cell.bind_links(row.field_links(field));
-            if let Some(playing) = bind_playing.as_ref() {
-                if let Some(uri) = row.media_uri() {
-                    playing.bind(cell.label().upcast_ref(), item.position(), &uri);
-                }
+    match category {
+        CollectionCategory::Albums => album_column(shell, field, None, true),
+        CollectionCategory::Artists => artist_column(shell, field, false, true),
+        CollectionCategory::Tracks => {
+            let column =
+                track_column_for_key::<library::TrackView>(shell, category.key(), field, playing);
+            if field != LibraryField::Favorite {
+                connect_column_cell_setup(&column, |item, child| {
+                    let item = item.downgrade();
+                    install_media_drag_source(child, move || {
+                        let track = item_at_from_item::<library::TrackView>(&item.upgrade()?)?;
+                        Some((
+                            MediaDragSource::capture_target(
+                                gtk_widgets::selection::track_play_request(track.track_key),
+                            ),
+                            track.metadata.title,
+                        ))
+                    });
+                });
             }
-        } else {
-            if let Some(playing) = bind_playing.as_ref() {
-                playing.unbind(cell.label().upcast_ref());
-            }
-            cell.clear();
+            column
         }
-    });
-    factory.connect_unbind(move |_, item| {
-        if let Some(item) = item.downcast_ref::<gtk::ListItem>()
-            && let Some(cell) = list_cell::<RecycledTextCell>(item)
-        {
-            if let Some(playing) = playing.as_ref() {
-                playing.unbind(cell.label().upcast_ref());
-            }
-            cell.clear();
-        }
-    });
-    gtk::ColumnViewColumn::new(
-        Some(gtk_widgets::settings::library_field_title(field)),
-        Some(factory),
-    )
+    }
 }
 
-fn search_merged_column(
-    shell: &Rc<CatalogUi>,
+fn search_object(item: SearchItem) -> SparseObjectItem {
+    match item {
+        SearchItem::Track(row) => SparseObjectItem::new(Arc::new(row), true),
+        SearchItem::Album(row) => SparseObjectItem::new(Arc::new(row), true),
+        SearchItem::Artist(row) => SparseObjectItem::new(Arc::new(row), true),
+    }
+}
+
+fn search_item(
+    model: &impl IsA<gio::ListModel>,
     category: CollectionCategory,
-    width: i32,
-    playing: Option<super::columns::TrackRowPlayingIndicator>,
-) -> gtk::ColumnViewColumn {
-    let factory = gtk::SignalListItemFactory::new();
-    let setup_shell = Rc::clone(shell);
-    factory.connect_setup(move |_, item| {
-        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-            return;
-        };
-        let cell = RecycledMergedCell::new(
-            setup_shell.route_navigation(),
-            &setup_shell.downloads,
-            48,
-            category == CollectionCategory::Tracks,
-        );
-        let title = cell.title();
-        if category == CollectionCategory::Tracks {
-            title.add_css_class("track-list-title");
-        }
-        let subtitle = cell.subtitle();
-        if category == CollectionCategory::Tracks {
-            subtitle.add_css_class("artist-label");
-            subtitle.add_css_class("table-link-label");
-        } else {
-            subtitle.add_css_class("muted");
-        }
-        let context_shell = Rc::downgrade(&setup_shell);
-        let context_item = item.downgrade();
-        install_context_menu_openers(
-            &cell,
-            Rc::new(move |target, position| {
-                if let (Some(shell), Some(item)) = (context_shell.upgrade(), context_item.upgrade())
-                    && let Some(value) = item_at_from_item::<SearchItem>(&item)
-                {
-                    value.present_context(target, &shell, position, Rc::clone(&shell.is_current));
-                }
-            }),
-        );
-        let drag_item = item.downgrade();
-        let drag_shell = Rc::downgrade(&setup_shell);
-        install_media_drag_source(&cell, move || {
-            let shell = drag_shell.upgrade()?;
-            let item = drag_item.upgrade()?;
-            let row = item_at_from_item::<SearchItem>(&item)?;
-            Some((row.drag_source(&shell)?, row.title().to_string()))
-        });
-        item.set_child(Some(&cell));
-    });
-    let bind_shell = Rc::clone(shell);
-    let bind_playing = playing.clone();
-    connect_sparse_bind(&factory, move |item| {
-        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-            return;
-        };
-        let Some(cell) = list_cell::<RecycledMergedCell>(item) else {
-            return;
-        };
-        let cover = cell.cover();
-        let title = cell.title();
-        let Some(value) = item_at_from_item::<SearchItem>(item) else {
-            bind_shell.artwork.clear_artwork_tile(&cover);
-            title.set_text("");
-            cell.clear_subtitle();
-            cell.clear_downloaded();
-            if let Some(playing) = bind_playing.as_ref() {
-                playing.unbind(title.upcast_ref());
-            }
-            return;
-        };
-        bind_shell
-            .artwork
-            .bind_artwork_tile(&cover, value.artwork(), 48);
-        title.set_text(value.title());
-        cell.bind_subtitle(value.subtitle_links());
-        cell.subtitle().set_visible(!value.subtitle().is_empty());
-        cell.bind_downloaded(value.is_downloaded());
-        if let Some(playing) = bind_playing.as_ref() {
-            if let Some(uri) = value.media_uri() {
-                playing.bind(title.upcast_ref(), item.position(), &uri);
-            }
-        }
-    });
-    let clear_shell = Rc::clone(shell);
-    factory.connect_unbind(move |_, item| {
-        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-            return;
-        };
-        if let Some(cell) = list_cell::<RecycledMergedCell>(item) {
-            let title = cell.title();
-            clear_shell.artwork.clear_artwork_tile(&cell.cover());
-            title.set_text("");
-            cell.clear_subtitle();
-            cell.clear_downloaded();
-            if let Some(playing) = playing.as_ref() {
-                playing.unbind(title.upcast_ref());
-            }
-        }
-    });
-    let column = gtk::ColumnViewColumn::new(Some("Title"), Some(factory));
-    column.set_fixed_width(width);
-    column
+    position: u32,
+) -> Option<SearchItem> {
+    use gtk_widgets::sparse_model::item_at;
+    match category {
+        CollectionCategory::Tracks => item_at(model, position).map(SearchItem::Track),
+        CollectionCategory::Albums => item_at(model, position).map(SearchItem::Album),
+        CollectionCategory::Artists => item_at(model, position).map(SearchItem::Artist),
+    }
 }
 
-fn search_actions_column(shell: &Rc<CatalogUi>, field: LibraryField) -> gtk::ColumnViewColumn {
-    let factory = gtk::SignalListItemFactory::new();
-    let setup_shell = Rc::clone(shell);
-    factory.connect_setup(move |_, item| {
-        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-            return;
+fn update_rows<T: Clone + 'static>(
+    model: &gio::ListStore,
+    matches: impl Fn(&T) -> bool,
+    update: impl Fn(&mut T),
+) {
+    for position in 0..model.n_items() {
+        let Some(item) = model.item(position).and_downcast::<SparseObjectItem>() else {
+            continue;
         };
-        let actions = gtk_widgets::recycled_cells::row_action_cell(field, "Favorite");
-        let context_shell = Rc::downgrade(&setup_shell);
-        let context_item = item.downgrade();
-        install_context_menu_openers(
-            &actions,
-            Rc::new(move |target, position| {
-                if let (Some(shell), Some(item)) = (context_shell.upgrade(), context_item.upgrade())
-                    && let Some(value) = item_at_from_item::<SearchItem>(&item)
-                    && value.favorite().is_some()
-                {
-                    value.present_context(target, &shell, position, Rc::clone(&shell.is_current));
-                }
-            }),
-        );
-        item.set_child(Some(&actions));
-        let Some(button) = gtk_widgets::recycled_cells::row_favorite_button(item) else {
-            return;
-        };
-        let click_shell = Rc::clone(&setup_shell);
-        let click_item = item.downgrade();
-        button.connect_clicked(move |button| {
-            let Some((target, _)) = click_item
-                .upgrade()
-                .and_then(|item| item_at_from_item::<SearchItem>(&item))
-                .as_ref()
-                .and_then(SearchItem::favorite)
-            else {
-                return;
-            };
-            click_shell.set_favorite_with_feedback(
-                target,
-                !favorite_button_is_active(button),
-                Some(button),
-            );
-        });
-    });
-    connect_sparse_bind(&factory, move |item| {
-        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-            return;
-        };
-        let Some(value) = item_at_from_item::<SearchItem>(item) else {
-            return;
-        };
-        let Some(button) = gtk_widgets::recycled_cells::row_favorite_button(item) else {
-            return;
-        };
-        let favorite = value.favorite();
-        set_favorite_button_active(
-            &button,
-            favorite.as_ref().is_some_and(|(_, active)| *active),
-        );
-        button.set_sensitive(favorite.is_some());
-    });
-    factory.connect_unbind(move |_, item| {
-        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-            return;
-        };
-        if let Some(button) = gtk_widgets::recycled_cells::row_favorite_button(item) {
-            set_favorite_button_active(&button, false);
-            button.set_sensitive(false);
+        if let Some(row) = item.value::<Arc<T>>().filter(|row| matches(row)) {
+            let mut row = (*row).clone();
+            update(&mut row);
+            item.replace(Arc::new(row), true);
         }
-    });
-    gtk_widgets::recycled_cells::row_action_column(field, &factory)
+    }
+}
+
+fn downloaded_summary_changes(summary: &library::CollectionSummary, downloaded: bool) -> bool {
+    (summary.downloaded_count == summary.track_count) != downloaded
+}
+
+fn set_downloaded_summary(summary: &mut library::CollectionSummary, downloaded: bool) {
+    summary.downloaded_count = if downloaded { summary.track_count } else { 0 };
 }
 
 fn cached_items(results: SearchResults) -> [Vec<SearchItem>; 3] {
@@ -1313,52 +873,6 @@ mod tests {
         assert_eq!(
             compare_optional(Some(1_i64), Some(2)),
             std::cmp::Ordering::Less
-        );
-    }
-
-    #[test]
-    fn accepted_search_metadata_keeps_its_exact_route_link() {
-        let artist_key = library::ArtistKey::from_raw(7);
-        let item = SearchItem::Artist(library::ArtistView {
-            artist_key,
-            source_key: library::SourceKey::from_raw(3),
-            object_id: "artist-object".to_string(),
-            media_uri: library::source_entity_uri(
-                &library::SourceId::new("source"),
-                "artist",
-                "artist-object",
-            ),
-            artwork_binding: None,
-            metadata: library::ArtistMetadata {
-                name: "Performer".to_string(),
-                musicbrainz_artist_id: None,
-                ..Default::default()
-            },
-            state: library::TrackState {
-                favorite: false,
-                rating: None,
-                play_count: 0,
-                last_played: None,
-                ..Default::default()
-            },
-            summary: library::CollectionSummary {
-                album_count: 1,
-                track_count: 1,
-                duration_millis: 1,
-                downloaded_count: 0,
-                ..Default::default()
-            },
-        });
-        assert_eq!(
-            item.field_links(LibraryField::Title),
-            DetailLinks::route(
-                "Performer",
-                Some(Route::ArtistDetail(library::source_entity_uri(
-                    &library::SourceId::new("source"),
-                    "artist",
-                    "artist-object"
-                )))
-            )
         );
     }
 }

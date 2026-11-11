@@ -866,7 +866,7 @@ fn home_item_widget(shell: &Rc<CatalogUi>, item: HomeItem) -> (gtk::Widget, Home
                 ),
                 _ => DetailLinks::text(&track_field(track, field)),
             });
-            let cell = TrackGridCell::new(shell, &HOME_TRACK_GRID_FIELDS, play, field, None);
+            let cell = TrackGridCell::new(shell, &HOME_TRACK_GRID_FIELDS, play, field);
             cell.bind(0, track);
             (
                 cell.widget(),
@@ -882,7 +882,7 @@ fn home_item_widget(shell: &Rc<CatalogUi>, item: HomeItem) -> (gtk::Widget, Home
         HomeItem::Album(item) => {
             let mut album = item.album;
             album.metadata.title = item.title;
-            let cell = AlbumGridCell::new(shell, &HOME_ALBUM_GRID_FIELDS, None);
+            let cell = AlbumGridCell::new(shell, &HOME_ALBUM_GRID_FIELDS, None, false);
             cell.bind(0, album);
             (
                 cell.widget(),

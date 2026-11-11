@@ -144,10 +144,6 @@ impl LibraryToolbarProjection {
         self.widget.clone()
     }
 
-    pub fn set_layout_control_visible(&self, visible: bool) {
-        self.layout.set_visible(visible);
-    }
-
     pub fn set_configure_control_visible(&self, visible: bool) {
         self.configure.set_visible(visible);
     }
@@ -369,6 +365,7 @@ impl CatalogUi {
         }
         let current_layout = toolbar_layout(settings.layout, include_detail);
         let layout = toolbar.imp().layout.get();
+        layout.set_visible(supported_layouts(key).len() > 1);
         layout.set_icon_name(layout_icon(current_layout));
         configure_library_toolbar_icon_button(&layout, "Layout");
         let layout_mode = Rc::new(Cell::new(current_layout));
@@ -452,6 +449,7 @@ impl CatalogUi {
             title: adw::WindowTitle,
             scroller: gtk::ScrolledWindow,
             reset: gtk::Button,
+            layout_row: adw::ActionRow,
             layout_box: gtk::Box,
             fields_group: adw::PreferencesGroup,
             display_host: gtk::Box,
@@ -490,6 +488,7 @@ impl CatalogUi {
             layout_box.append(&button);
             layout_buttons.borrow_mut().push((layout, button));
         }
+        layout_row.set_visible(layout_buttons.borrow().len() > 1);
         let rows = Rc::new(RefCell::new(Vec::<adw::ActionRow>::new()));
         let display = {
             let settings = Rc::clone(&self.settings);

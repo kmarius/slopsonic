@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use ::library::{AlbumView, ArtistView, PlaylistRow, QueueRow, TrackView};
+use ::library::{AlbumView, ArtistView, PlaylistEntryView, PlaylistRow, QueueRow, TrackView};
 use adw::prelude::*;
 use artwork::ArtworkBinding;
 #[cfg(test)]
@@ -55,6 +55,7 @@ macro_rules! song_presentation {
     };
 }
 song_presentation!(TrackView, self, self, self);
+song_presentation!(PlaylistEntryView, self, self.track, self.track);
 song_presentation!(
     std::sync::Arc<QueueRow>,
     self,
@@ -206,11 +207,14 @@ pub fn sync_layout_buttons(
     }
 }
 pub fn supported_layouts(key: LibraryListKey) -> Vec<LibraryLayout> {
-    let mut layouts = vec![LibraryLayout::Row, LibraryLayout::Grid];
-    if key.supports_layout(LibraryLayout::Detail) {
-        layouts.push(LibraryLayout::Detail);
-    }
-    layouts
+    [
+        LibraryLayout::Row,
+        LibraryLayout::Grid,
+        LibraryLayout::Detail,
+    ]
+    .into_iter()
+    .filter(|layout| key.supports_layout(*layout))
+    .collect()
 }
 pub fn field_group_title(field_set: LibraryFieldSet) -> &'static str {
     match field_set {
@@ -345,11 +349,13 @@ pub fn next_layout(key: LibraryListKey, layout: LibraryLayout) -> LibraryLayout 
             LibraryLayout::Detail => LibraryLayout::Row,
             LibraryLayout::Row => LibraryLayout::Grid,
         }
-    } else {
+    } else if key.supports_layout(LibraryLayout::Grid) {
         match layout {
             LibraryLayout::Grid => LibraryLayout::Row,
             LibraryLayout::Row | LibraryLayout::Detail => LibraryLayout::Grid,
         }
+    } else {
+        LibraryLayout::Row
     }
 }
 pub fn layout_icon(layout: LibraryLayout) -> &'static str {

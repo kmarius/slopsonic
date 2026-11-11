@@ -21,8 +21,7 @@ use super::columns::{
     track_column_for_key,
 };
 use super::grid_cells::{
-    AlbumGridCell, ArtistGridCell, CollectionGridProjection, TrackGridCell,
-    collection_grid_with_demand,
+    AlbumGridCell, ArtistGridCell, CollectionGridProjection, collection_grid_with_demand,
 };
 use super::table_sizing::{column_view_initial_width, route_column_view_initial_width};
 use crate::route_layout::{PRIMARY_ROUTE_MARGIN_END, PRIMARY_ROUTE_MARGIN_START};
@@ -586,43 +585,21 @@ pub fn track_collection_projection(
     let shell = Rc::clone(shell);
     let selection = TrackSelection::new(model.clone());
     shell.register_current_route_track_selection_owner(selection.clone());
-    let play_model = model.clone();
-    let play_queue = shell.playback.clone();
-    let play_context_id = context_id.clone();
-    let play_from_collection = Rc::new(move |position: u32| {
-        play_model.play(
-            play_queue.clone(),
-            position as usize,
-            slopsonic_core::playback::QueuePlacement::Now,
-            &play_context_id,
-            false,
-            false,
-        );
-    }) as Rc<dyn Fn(u32)>;
     LibraryCollectionProjection::new(
         settings,
-        Rc::new(move |layout| match layout {
-            LibraryLayout::Grid => LibraryPresentationProjection::Grid(track_grid(
+        Rc::new(move |_| {
+            LibraryPresentationProjection::Row(track_table(
                 &shell,
                 model.clone(),
                 key,
-                Rc::clone(&play_from_collection),
+                TrackTableOptions {
+                    detail: false,
+                    context_id: context_id.clone(),
+                    content_inset,
+                    fields: None,
+                },
                 selection.clone(),
-            )),
-            LibraryLayout::Row | LibraryLayout::Detail => {
-                LibraryPresentationProjection::Row(track_table(
-                    &shell,
-                    model.clone(),
-                    key,
-                    TrackTableOptions {
-                        detail: false,
-                        context_id: context_id.clone(),
-                        content_inset,
-                        fields: None,
-                    },
-                    selection.clone(),
-                ))
-            }
+            ))
         }),
     )
 }
@@ -650,7 +627,7 @@ pub fn album_grid(
     collection_grid_with_demand(
         sparse.list_model(),
         &fields,
-        move |fields| AlbumGridCell::new(&cell_shell, fields, None),
+        move |fields| AlbumGridCell::new(&cell_shell, fields, None, false),
         move |_, album: AlbumView| {
             activate_shell.navigate(Route::AlbumDetail(album.media_uri.clone()))
         },
@@ -676,7 +653,7 @@ pub fn artist_grid(
     collection_grid_with_demand(
         sparse.list_model(),
         &fields,
-        move |fields| ArtistGridCell::new(&cell_shell, fields, album_artist),
+        move |fields| ArtistGridCell::new(&cell_shell, fields, album_artist, false),
         move |_, artist: ArtistView| {
             activate_shell.navigate(super::artist::artist_detail_route(
                 artist.media_uri.clone(),
@@ -684,46 +661,6 @@ pub fn artist_grid(
             ));
         },
         move |position| demand.demand_positions([position as usize]),
-    )
-}
-pub fn track_grid(
-    shell: &Rc<CatalogUi>,
-    model: TrackCollectionModel,
-    key: LibraryListKey,
-    play_from_collection: Rc<dyn Fn(u32)>,
-    selection: TrackSelection,
-) -> CollectionGridProjection {
-    let sparse = model.sparse_model();
-    let demand = Rc::clone(&sparse);
-    let model = sparse.list_model();
-    let demand: Rc<dyn Fn(u32)> =
-        Rc::new(move |position| demand.demand_positions([position as usize]));
-    let fields = shell
-        .settings
-        .current
-        .borrow()
-        .library_list(key)
-        .grid_fields;
-    let field = Rc::new(move |_: u32, item: &TrackView, field| item.links(field));
-    let cell_shell = Rc::clone(shell);
-    let cell_play = Rc::clone(&play_from_collection);
-    let activate = Rc::clone(&play_from_collection);
-    let bind_demand = Rc::clone(&demand);
-    super::grid_cells::collection_grid_with_selection_and_demand(
-        model,
-        Some(selection.selection_model()),
-        &fields,
-        move |fields| {
-            TrackGridCell::new(
-                &cell_shell,
-                fields,
-                Rc::clone(&cell_play),
-                field.clone(),
-                Some(selection.clone()),
-            )
-        },
-        move |position, _: TrackView| activate(position),
-        move |position| bind_demand(position),
     )
 }
 pub fn album_table<M>(
@@ -745,7 +682,7 @@ where
         model,
         &fields,
         Vec::new(),
-        move |field| album_column(&column_shell, field, column_playback_context.clone()),
+        move |field| album_column(&column_shell, field, column_playback_context.clone(), false),
         |field| column_fit_width(field, column_width(field)),
         true,
         Some(Box::new(move |_, album: AlbumView| {
@@ -774,7 +711,7 @@ where
         model,
         &fields,
         Vec::new(),
-        move |field| artist_column(&column_shell, field, album_artist),
+        move |field| artist_column(&column_shell, field, album_artist, false),
         |field| column_fit_width(field, column_width(field)),
         true,
         Some(Box::new(move |_, artist: ArtistView| {
@@ -1154,25 +1091,13 @@ fn install_track_column_drag_source<T: TrackPresentation>(
     shell: &Rc<CatalogUi>,
     selection: TrackSelection,
 ) {
-    let Some(factory) = column
-        .factory()
-        .and_then(|factory| factory.downcast::<gtk::SignalListItemFactory>().ok())
-    else {
-        return;
-    };
     let drag_shell = Rc::downgrade(shell);
-    factory.connect_setup(move |_, item| {
-        let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-            return;
-        };
-        let Some(child) = item.child() else {
-            return;
-        };
+    super::columns::connect_column_cell_setup(column, move |item, child| {
         let Some(shell) = drag_shell.upgrade() else {
             return;
         };
         let item = item.downgrade();
-        install_track_drag_source(&child, &shell.artwork, selection.clone(), move || {
+        install_track_drag_source(child, &shell.artwork, selection.clone(), move || {
             let item = item.upgrade()?;
             item_at_from_item::<T>(&item).map(|track| {
                 let artwork = track

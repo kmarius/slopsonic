@@ -19,11 +19,12 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use super::cards;
+use super::collection_context::present_collection_menu;
 use super::collections::collection_grid_field_label;
+use gtk_widgets::library_fields::TrackPresentation;
 use gtk_widgets::selection::track_play_request;
 use slopsonic_core::playback::PlayRequest;
 
-use crate::track_selection::TrackSelection;
 use gtk_widgets::detail_links::{DetailLinkBinding, DetailLinks, album_artist_links};
 use gtk_widgets::library_fields::{
     COLLECTION_GRID_CARD_MARGIN, COLLECTION_GRID_MAX_CARD_WIDTH, COLLECTION_GRID_MIN_CARD_WIDTH,
@@ -647,25 +648,24 @@ fn album_playback_target(album: &library::AlbumView, context: Option<&str>) -> P
         .unwrap_or(target)
 }
 
-pub struct TrackGridCell<T: gtk_widgets::library_fields::TrackPresentation = library::TrackView> {
+pub struct TrackGridCell {
     body: CollectionGridCardCell,
     shell: std::rc::Weak<CatalogUi>,
     cover: ArtworkTile,
     favorite: gtk::Button,
-    current: Rc<RefCell<Option<T>>>,
+    current: Rc<RefCell<Option<library::TrackView>>>,
     position: Rc<Cell<u32>>,
-    field: Rc<dyn Fn(u32, &T, LibraryField) -> DetailLinks>,
+    field: Rc<dyn Fn(u32, &library::TrackView, LibraryField) -> DetailLinks>,
 }
 
-impl<T: gtk_widgets::library_fields::TrackPresentation> TrackGridCell<T> {
+impl TrackGridCell {
     pub fn new(
         shell: &Rc<CatalogUi>,
         fields: &[LibraryField],
         play: Rc<dyn Fn(u32)>,
-        field: Rc<dyn Fn(u32, &T, LibraryField) -> DetailLinks>,
-        selection: Option<TrackSelection>,
+        field: Rc<dyn Fn(u32, &library::TrackView, LibraryField) -> DetailLinks>,
     ) -> Self {
-        let current = Rc::new(RefCell::new(None::<T>));
+        let current = Rc::new(RefCell::new(None::<library::TrackView>));
         let position = Rc::new(Cell::new(0));
         let controls = cards::CollectionGridCoverView::new("Play track");
         let cover_host = controls.imp().cover_host.get();
@@ -725,15 +725,12 @@ impl<T: gtk_widgets::library_fields::TrackPresentation> TrackGridCell<T> {
         install_compact_media_drag_source(&body.card, &drag_artwork, move || {
             let current = drag_current.borrow();
             let track = current.as_ref()?;
-            let source = match selection.as_ref() {
-                Some(selection) => {
-                    MediaDragSource::selection(selection.dragged_tracks_for(track.media_uri()))
-                }
-                None => MediaDragSource::capture_target(track_play_request(
+            Some((
+                MediaDragSource::capture_target(track_play_request(
                     track.track_key().expect("catalog song key"),
                 )),
-            };
-            Some((source, track.title().to_string()))
+                track.title().to_string(),
+            ))
         });
         body.set_download_badge(shell.downloads.download_badge());
         Self {
@@ -748,13 +745,11 @@ impl<T: gtk_widgets::library_fields::TrackPresentation> TrackGridCell<T> {
     }
 }
 
-impl<T: gtk_widgets::library_fields::TrackPresentation> ReusableCollectionGridCell<T>
-    for TrackGridCell<T>
-{
+impl ReusableCollectionGridCell<library::TrackView> for TrackGridCell {
     fn widget(&self) -> gtk::Widget {
         self.body.widget()
     }
-    fn bind(&self, position: u32, row: T) {
+    fn bind(&self, position: u32, row: library::TrackView) {
         let Some(shell) = self.shell.upgrade() else {
             return;
         };
@@ -829,7 +824,12 @@ impl AlbumGridCell {
         self.body.card.add_controller(click);
     }
 
-    pub fn new(shell: &Rc<CatalogUi>, fields: &[LibraryField], context: Option<String>) -> Self {
+    pub fn new(
+        shell: &Rc<CatalogUi>,
+        fields: &[LibraryField],
+        context: Option<String>,
+        prepare: bool,
+    ) -> Self {
         let current = Rc::new(RefCell::new(None::<AlbumView>));
         let controls = cards::CollectionGridCoverView::new("Play album");
         let cover_host = controls.imp().cover_host.get();
@@ -861,13 +861,19 @@ impl AlbumGridCell {
             &controls.imp().overlay,
             &body.card,
             move |target, shell, row, point| {
-                present_album_context_menu(
+                let menus = Rc::clone(&shell.media_menus);
+                let context = menu_context.clone();
+                present_collection_menu(
                     target,
-                    &shell.media_menus,
-                    row,
-                    menu_context.clone(),
-                    None,
+                    shell,
+                    prepare,
+                    album_playback_target(&row, context.as_deref()),
+                    row.media_uri.clone(),
                     point,
+                    Rc::clone(&shell.is_current),
+                    move |target| {
+                        present_album_context_menu(target, &menus, row, context, None, point)
+                    },
                 )
             },
         );
@@ -913,7 +919,12 @@ pub struct ArtistGridCell {
 }
 
 impl ArtistGridCell {
-    pub fn new(shell: &Rc<CatalogUi>, fields: &[LibraryField], album_artist: bool) -> Self {
+    pub fn new(
+        shell: &Rc<CatalogUi>,
+        fields: &[LibraryField],
+        album_artist: bool,
+        prepare: bool,
+    ) -> Self {
         let current = Rc::new(RefCell::new(None::<ArtistView>));
         let controls = cards::CollectionGridCoverView::new("Play artist");
         let cover_host = controls.imp().cover_host.get();
@@ -947,13 +958,18 @@ impl ArtistGridCell {
             &controls.imp().overlay,
             &body.card,
             move |target, shell, row, point| {
-                present_artist_context_menu(
+                let menus = Rc::clone(&shell.media_menus);
+                present_collection_menu(
                     target,
-                    &shell.media_menus,
-                    row,
-                    album_artist,
-                    None,
+                    shell,
+                    prepare,
+                    gtk_widgets::selection::artist_play_request(&row, album_artist),
+                    row.media_uri.clone(),
                     point,
+                    Rc::clone(&shell.is_current),
+                    move |target| {
+                        present_artist_context_menu(target, &menus, row, album_artist, None, point)
+                    },
                 )
             },
         );

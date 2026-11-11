@@ -51,7 +51,6 @@ impl CatalogUi {
             Some(search.clone()),
             crate::available_sort_fields(LibraryListKey::Folders),
         );
-        toolbar.set_layout_control_visible(false);
         wrapper.imp().toolbar_host.append(&toolbar.widget());
         wrapper
             .imp()

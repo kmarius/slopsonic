@@ -973,18 +973,10 @@ fn named_collection_column<T: NamedCollectionRow>(
         }
     };
     if field != LibraryField::Tools {
-        let factory = column
-            .factory()
-            .and_downcast::<gtk::SignalListItemFactory>()
-            .expect("Collection column factory");
         let shell = Rc::downgrade(shell);
-        factory.connect_setup(move |_, item| {
-            let Some(item) = item.downcast_ref::<gtk::ListItem>() else {
-                return;
-            };
-            let child = item.child().expect("Collection column child");
+        super::columns::connect_column_cell_setup(&column, move |item, child| {
             if let Some(shell) = shell.upgrade() {
-                T::install_extra(&child, &shell, {
+                T::install_extra(child, &shell, {
                     let item = item.downgrade();
                     Rc::new(move || {
                         item.upgrade()
@@ -995,7 +987,7 @@ fn named_collection_column<T: NamedCollectionRow>(
             let item = item.downgrade();
             let shell = shell.clone();
             install_context_menu_openers(
-                &child,
+                child,
                 Rc::new(move |target, position| {
                     if let (Some(shell), Some(item)) = (shell.upgrade(), item.upgrade())
                         && let Some(row) = item_at_from_item::<T>(&item)

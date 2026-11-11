@@ -73,7 +73,6 @@ impl CatalogUi {
             "album-detail",
             context_id.clone(),
         );
-        track_toolbar.set_layout_control_visible(false);
         let cover_size = detail_showcase_cover_size(inner_content_width);
         let cover = media_cover_projection(
             self,

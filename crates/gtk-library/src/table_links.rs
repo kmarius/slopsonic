@@ -3,8 +3,7 @@ use std::rc::Rc;
 use adw::prelude::*;
 
 use crate::CatalogUi;
-use crate::collection_context::present_track_context_menu;
-use gtk_widgets::interactions::install_context_menu_openers;
+use crate::columns::install_track_list_item_context_menu;
 
 use gtk_widgets::detail_links::DetailLinks;
 use gtk_widgets::recycled_cells::{RecycledTextCell, list_cell};
@@ -39,23 +38,11 @@ where
         let label = cell.label();
         label.add_css_class("table-link-label");
         cell.enable_links(setup_shell.route_navigation());
-        let weak_item = list_item.downgrade();
-        let weak_shell = Rc::downgrade(&setup_shell);
-        let item_track_value = Rc::clone(&setup_track_value);
-        install_context_menu_openers(
+        install_track_list_item_context_menu(
             &cell,
-            Rc::new(move |target, position| {
-                let (Some(item), Some(shell)) = (weak_item.upgrade(), weak_shell.upgrade()) else {
-                    return;
-                };
-                if let Some(track) = item
-                    .item()
-                    .and_then(|object| object_item::<T, _>(object, |value| item_track_value(value)))
-                    .flatten()
-                {
-                    present_track_context_menu(target, &shell, track, position);
-                }
-            }),
+            &setup_shell,
+            list_item,
+            Rc::clone(&setup_track_value),
         );
         list_item.set_child(Some(&cell));
     });
