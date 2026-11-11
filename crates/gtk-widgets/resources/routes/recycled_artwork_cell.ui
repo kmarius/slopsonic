@@ -6,20 +6,19 @@
     <property name="hexpand">false</property>
     <property name="vexpand">false</property>
     <property name="halign">start</property>
-    <property name="valign">start</property>
+    <property name="valign">center</property>
     <child>
       <object class="GtkOverlay" id="area">
-        <property name="width-request">48</property>
-        <property name="height-request">48</property>
         <property name="hexpand">false</property>
         <property name="vexpand">false</property>
         <property name="halign">start</property>
-        <property name="valign">start</property>
+        <property name="valign">center</property>
         <property name="overflow">hidden</property>
         <property name="opacity">0</property>
         <style>
           <class name="cover-tile"/>
           <class name="card"/>
+          <class name="row-cover"/>
         </style>
         <child>
           <object class="GtkBox">

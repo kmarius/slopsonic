@@ -9,7 +9,7 @@
         <property name="can-shrink">true</property>
         <child><object class="AdwToggle"><property name="label" translatable="yes">Compact</property></object></child>
         <child><object class="AdwToggle"><property name="label" translatable="yes">Default</property></object></child>
-        <child><object class="AdwToggle"><property name="label" translatable="yes">Large</property></object></child>
+        <child><object class="AdwToggle" id="size_large"><property name="label" translatable="yes">Large</property></object></child>
       </object></child>
     </object></child>
     <child><object class="AdwActionRow" id="spacing_row">

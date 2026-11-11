@@ -31,8 +31,7 @@ fn display_track_height(display: &slopsonic_core::settings::layout::DisplaySetti
     use slopsonic_core::settings::layout::DisplaySize;
     match display.size {
         DisplaySize::Compact => 32,
-        DisplaySize::Default => ALBUM_TRACK_HEIGHT,
-        DisplaySize::Large => 48,
+        DisplaySize::Default | DisplaySize::Large => ALBUM_TRACK_HEIGHT,
     }
 }
 
@@ -1450,6 +1449,9 @@ impl AlbumTrackSlot {
                     }
                     LibraryField::Image => {
                         let tile = ArtworkTile::new(32);
+                        tile.widget().set_size_request(-1, -1);
+                        tile.widget().set_valign(gtk::Align::Center);
+                        tile.widget().add_css_class("album-track-cover");
                         (tile.widget(), AlbumTrackField::Image(tile))
                     }
                     LibraryField::RowIndex => {
@@ -1473,6 +1475,9 @@ impl AlbumTrackSlot {
                     field => {
                         let label = album_track_label("", *field, 1);
                         label.set_hexpand(true);
+                        if matches!(field, LibraryField::Artist | LibraryField::AlbumArtist) {
+                            label.add_css_class("artist-label");
+                        }
                         (label.clone().upcast(), AlbumTrackField::Text(*field, label))
                     }
                 };

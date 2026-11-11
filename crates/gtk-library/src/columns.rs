@@ -422,6 +422,7 @@ impl AlbumTableCell {
             _ => {}
         }
         if let Some(title) = title {
+            title.add_css_class("track-title");
             cell.imp()
                 .title_playing
                 .replace(Some(super::grid_cells::MediaPlayingBinding::new(
@@ -618,27 +619,15 @@ pub fn track_column_for_key<T: gtk_widgets::library_fields::TrackPresentation>(
             |item: &T| Some((item.media_uri().to_string(), item.favorite())),
         ),
         LibraryField::UserRating => track_rating_column::<T>(shell, width),
-        LibraryField::Artist => mapped_track_link_column(
-            shell,
-            "Artist",
-            width,
-            |item: &T| Some(item.media_uri().to_string()),
-            |item: &T| item.links(LibraryField::Artist),
-        ),
-        LibraryField::AlbumArtist => mapped_track_link_column(
-            shell,
-            gtk_widgets::settings::library_field_title(LibraryField::AlbumArtist),
-            width,
-            |item: &T| Some(item.media_uri().to_string()),
-            |item: &T| item.links(LibraryField::AlbumArtist),
-        ),
-        LibraryField::Album => mapped_track_link_column(
-            shell,
-            "Album",
-            width,
-            |item: &T| Some(item.media_uri().to_string()),
-            |item: &T| item.links(LibraryField::Album),
-        ),
+        LibraryField::Artist | LibraryField::AlbumArtist | LibraryField::Album => {
+            mapped_track_link_column(
+                shell,
+                field,
+                width,
+                |item: &T| Some(item.media_uri().to_string()),
+                move |item: &T| item.links(field),
+            )
+        }
         _ => mapped_track_position_text_column(
             shell,
             field,
@@ -1197,6 +1186,7 @@ where
         let cell = RecycledBadgedTextCell::with_downloads(&setup_shell.downloads);
         add_field_skeleton_class(&cell, field);
         if matches!(field, LibraryField::Title | LibraryField::TitleMerged) {
+            cell.label().add_css_class("track-title");
             super::grid_cells::install_title_link_hover(&cell.label(), None);
         }
         install_artist_list_item_context_menu(&cell, &setup_shell, item, album_artist, prepare);

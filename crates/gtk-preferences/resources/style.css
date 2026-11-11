@@ -388,13 +388,15 @@ scrolledwindow.sidebar-scroller overshoot,
   background: transparent;
 }
 
-.display-compact:not(.fullscreen-player) { font-size: 90%; }
-.display-large:not(.fullscreen-player) { font-size: 115%; }
+.display-grid-compact { font-size: 90%; }
+.display-large { font-size: 115%; }
 
 columnview.display-compact > listview > row > cell { padding-top: 2px; padding-bottom: 2px; }
-columnview.display-large > listview > row > cell { padding-top: 12px; padding-bottom: 12px; }
 .display-compact.artist-album-table-row > * { padding-top: 3px; padding-bottom: 3px; }
-.display-large.artist-album-table-row > * { padding-top: 12px; padding-bottom: 12px; }
+.row-cover { min-width: 48px; min-height: 48px; }
+.display-compact .row-cover { min-width: 36px; min-height: 36px; }
+.album-track-cover { min-width: 32px; min-height: 32px; }
+.display-compact .album-track-cover { min-width: 26px; min-height: 26px; }
 
 columnview.display-striped > listview > row:nth-child(even):not(:selected):not(:hover),
 .display-striped .album-detail-track-row.display-even:not(.album-detail-track-hover),
@@ -2109,10 +2111,6 @@ listview.queue-list row {
 .fullscreen-player.display-compact .fullscreen-player-title { font-size: 19px; }
 .fullscreen-player.display-compact .fullscreen-player-artist { font-size: 14px; }
 .fullscreen-player.display-compact .fullscreen-player-album { font-size: 12px; }
-.fullscreen-player.display-large .fullscreen-player-title { font-size: 28px; }
-.fullscreen-player.display-large .fullscreen-player-artist { font-size: 20px; }
-.fullscreen-player.display-large .fullscreen-player-album { font-size: 18px; }
-.fullscreen-player.display-large .fullscreen-player-meta-pill { font-size: 15px; }
 
 .fullscreen-player-pane {
   margin: 0 0 12px 12px;

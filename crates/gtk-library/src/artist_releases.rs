@@ -1097,7 +1097,10 @@ fn artist_route_list(
                     return;
                 };
                 let imp = state.imp();
-                gtk_widgets::display::apply(&state, &section.applied_settings.borrow().display);
+                gtk_widgets::display::apply_grid(
+                    &state,
+                    &section.applied_settings.borrow().display,
+                );
                 if imp.kind.get() != ArtistCellKind::Grid || imp.grid_columns.get() != columns {
                     state.clear_content(true);
                     state.set_orientation(gtk::Orientation::Horizontal);

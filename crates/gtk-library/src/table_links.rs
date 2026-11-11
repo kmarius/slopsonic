@@ -12,7 +12,7 @@ use gtk_widgets::sparse_model::object_item;
 
 pub fn mapped_track_link_column<T, TrackValue, Value>(
     shell: &Rc<CatalogUi>,
-    title: &'static str,
+    field: slopsonic_core::settings::LibraryField,
     width: i32,
     track_value: TrackValue,
     value: Value,
@@ -37,6 +37,7 @@ where
         cell.set_valign(gtk::Align::Center);
         let label = cell.label();
         label.add_css_class("table-link-label");
+        gtk_widgets::library_fields::add_field_skeleton_class(&cell, field);
         cell.enable_links(setup_shell.route_navigation());
         install_track_list_item_context_menu(
             &cell,
@@ -72,7 +73,10 @@ where
         }
     });
 
-    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory.clone()));
+    let column = gtk::ColumnViewColumn::new(
+        Some(gtk_widgets::settings::library_field_title(field)),
+        Some(factory.clone()),
+    );
     column.set_fixed_width(width);
     column
 }

@@ -10,6 +10,7 @@ pub struct DisplayEditor {
     pub group: adw::PreferencesGroup,
     size_row: adw::ActionRow,
     size: adw::ToggleGroup,
+    size_large: adw::Toggle,
     spacing: adw::ToggleGroup,
     spacing_row: adw::ActionRow,
     switches: [adw::SwitchRow; 5],
@@ -41,6 +42,7 @@ impl DisplayEditor {
             display_group: adw::PreferencesGroup,
             size_row: adw::ActionRow,
             size: adw::ToggleGroup,
+            size_large: adw::Toggle,
             spacing: adw::ToggleGroup,
             spacing_row: adw::ActionRow,
             show_header: adw::SwitchRow,
@@ -53,6 +55,7 @@ impl DisplayEditor {
             group: display_group,
             size_row,
             size,
+            size_large,
             spacing,
             spacing_row,
             switches: [
@@ -115,6 +118,17 @@ impl DisplayEditor {
     }
 
     pub fn set_layout(&self, layout: Option<LibraryLayout>) {
+        let grid = layout == Some(LibraryLayout::Grid);
+        if grid != (self.size.n_toggles() == 3) {
+            self.syncing.set(true);
+            if grid {
+                self.size.add(self.size_large.clone());
+            } else {
+                self.size.remove(&self.size_large);
+            }
+            let value = self.value.borrow().clone();
+            self.sync(&value);
+        }
         self.spacing_row
             .set_visible(layout == Some(LibraryLayout::Grid));
         for row in &self.switches {
@@ -132,7 +146,8 @@ impl DisplayEditor {
             DisplaySize::Default => 1,
             DisplaySize::Large => 2,
         };
-        self.size.set_active(index(settings.size));
+        self.size
+            .set_active(index(settings.size).min(self.size.n_toggles() - 1));
         self.spacing.set_active(index(settings.grid_spacing));
         for (row, active) in self.switches.iter().zip([
             settings.show_header,
@@ -148,10 +163,24 @@ impl DisplayEditor {
     }
 }
 
+/// Applies `settings` plus the grid-only size classes.
+pub fn apply_grid(widget: &impl IsA<gtk::Widget>, settings: &DisplaySettings) {
+    apply(widget, settings);
+    for (class, size) in [
+        ("display-grid-compact", DisplaySize::Compact),
+        ("display-large", DisplaySize::Large),
+    ] {
+        if settings.size == size {
+            widget.add_css_class(class);
+        }
+    }
+}
+
 pub fn apply(widget: &impl IsA<gtk::Widget>, settings: &DisplaySettings) {
+    widget.remove_css_class("display-grid-compact");
+    widget.remove_css_class("display-large");
     for (class, active) in [
         ("display-compact", settings.size == DisplaySize::Compact),
-        ("display-large", settings.size == DisplaySize::Large),
         ("display-no-hover", !settings.hover_highlight),
         ("display-striped", settings.alternate_rows),
         ("display-row-borders", settings.row_borders),

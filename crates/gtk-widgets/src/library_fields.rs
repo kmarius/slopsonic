@@ -67,6 +67,9 @@ pub fn add_field_skeleton_class(widget: &impl IsA<gtk::Widget>, field: LibraryFi
     if field == LibraryField::Duration {
         widget.add_css_class("tabular-numeric");
     }
+    if matches!(field, LibraryField::Artist | LibraryField::AlbumArtist) {
+        widget.add_css_class("artist-label");
+    }
     let class = match field {
         LibraryField::Year
         | LibraryField::UserRating

@@ -169,13 +169,13 @@ impl LibraryPresentationProjection {
     }
 
     fn apply_fields(&self, settings: &crate::LibraryListSettings) {
-        if let Self::Row(table) = self {
-            table.apply_display(&settings.display);
-        } else {
-            gtk_widgets::display::apply(&self.widget(), &settings.display);
-        }
-        if let Self::Grid(grid) = self {
-            grid.apply_display(&settings.display);
+        match self {
+            Self::Row(table) => table.apply_display(&settings.display),
+            Self::Grid(grid) => {
+                gtk_widgets::display::apply_grid(&self.widget(), &settings.display);
+                grid.apply_display(&settings.display);
+            }
+            Self::AlbumDetail(_) => gtk_widgets::display::apply(&self.widget(), &settings.display),
         }
         match self {
             Self::Row(table) => {
