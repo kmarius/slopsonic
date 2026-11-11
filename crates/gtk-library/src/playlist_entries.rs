@@ -112,6 +112,7 @@ impl PlaylistEntriesView {
         self.toolbar.apply(key, settings);
         previous.settings.sort_key != settings.sort_key
             || previous.settings.descending != settings.descending
+            || previous.settings.played_only != settings.played_only
     }
 }
 

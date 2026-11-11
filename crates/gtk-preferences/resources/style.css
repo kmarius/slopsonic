@@ -437,13 +437,13 @@ listview.artist-release-list row:not(:selected) .display-no-hover.display-stripe
 }
 
 listview.artist-release-list,
-listview.artist-release-list row,
-listview.artist-release-list row:hover,
-listview.artist-release-list row:selected {
+listview.artist-release-list > row,
+listview.artist-release-list > row:hover,
+listview.artist-release-list > row:selected {
   background: transparent;
 }
 
-listview.artist-release-list row {
+listview.artist-release-list > row {
   padding: 0;
 }
 

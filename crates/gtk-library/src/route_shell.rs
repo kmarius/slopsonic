@@ -449,6 +449,7 @@ impl CatalogUi {
             title: adw::WindowTitle,
             scroller: gtk::ScrolledWindow,
             reset: gtk::Button,
+            layout_group: adw::PreferencesGroup,
             layout_row: adw::ActionRow,
             layout_box: gtk::Box,
             fields_group: adw::PreferencesGroup,
@@ -489,6 +490,23 @@ impl CatalogUi {
             layout_buttons.borrow_mut().push((layout, button));
         }
         layout_row.set_visible(layout_buttons.borrow().len() > 1);
+        let played_only = adw::SwitchRow::builder()
+            .title("Played tracks only")
+            .active(self.settings.current.borrow().library_list(key).played_only)
+            .visible(key.supports_played_only())
+            .build();
+        layout_group.add(&played_only);
+        {
+            let settings = Rc::clone(&self.settings);
+            let changed = self.library_settings_changed();
+            played_only.connect_active_notify(move |row| {
+                if settings.update_library_list_settings(key, |settings| {
+                    settings.played_only = row.is_active();
+                }) {
+                    changed();
+                }
+            });
+        }
         let rows = Rc::new(RefCell::new(Vec::<adw::ActionRow>::new()));
         let display = {
             let settings = Rc::clone(&self.settings);
@@ -549,6 +567,7 @@ impl CatalogUi {
             reset.connect_clicked(move |_| {
                 let default_settings = LibraryListSettings::for_key(key);
                 display.sync(&default_settings.display);
+                played_only.set_active(default_settings.played_only);
                 display.set_layout(Some(toolbar_layout(
                     default_settings.layout,
                     include_detail,

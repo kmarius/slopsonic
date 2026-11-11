@@ -145,6 +145,7 @@ impl PlaylistEntryModel {
         }
         request.query.sort = Some(settings.sort_key.catalog_sort());
         request.query.descending = settings.descending;
+        request.query.played_only = settings.played_only;
         request.settings = settings;
         true
     }

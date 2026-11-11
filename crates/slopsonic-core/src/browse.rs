@@ -263,7 +263,7 @@ pub enum DetailContent {
     Tracks(MemberPage),
     Releases {
         page: Box<ArtistReleasePage>,
-        favorites: Option<MemberPage>,
+        top_tracks: Option<MemberPage>,
     },
 }
 
@@ -458,6 +458,7 @@ fn member_read(
     read.folder = folder;
     read.filter.clone_from(&options.filter);
     read.favorites_only = flags.favorites_only;
+    read.played_only = display.played_only;
     read.downloaded_only =
         options.downloaded_only && supports_downloaded_filter(route, options.category);
     read.activity = flags.activity;
@@ -622,6 +623,7 @@ fn list_read(
 
 pub fn uses_activity(route: &Route, settings: &LibraryListSettings) -> bool {
     matches!(route, Route::Home)
+        || settings.played_only
         || settings.sort_key.catalog_sort().activity_sensitive()
         || match settings.layout {
             LibraryLayout::Grid => &settings.grid_fields,
@@ -788,13 +790,13 @@ impl crate::source::SourceOwner {
                     }
                     let page =
                         Box::new(ArtistReleasePage::load(database, query, window, cancel).await?);
-                    let favorites =
+                    let top_tracks =
                         if matches!(route, Route::ArtistDetail(_) | Route::AlbumArtistDetail(_)) {
-                            let tracks = settings.ui.library_list(LibraryListKey::ArtistTracks);
+                            let tracks = settings.ui.library_list(LibraryListKey::ArtistTopTracks);
                             let mut read = read;
                             read.sort = Some(tracks.sort_key.catalog_sort());
                             read.descending = tracks.descending;
-                            read.favorites_only = true;
+                            read.played_only = tracks.played_only;
                             Some(
                                 MemberPage::load(
                                     database,
@@ -809,7 +811,7 @@ impl crate::source::SourceOwner {
                         };
                     return Ok(OpenedCollection::Detail(Some(DetailPage {
                         summary: DetailSummary::Artist(Box::new(row)),
-                        content: DetailContent::Releases { page, favorites },
+                        content: DetailContent::Releases { page, top_tracks },
                     })));
                 }
                 Some((DetailSummary::Artist(Box::new(row)), read))
@@ -850,6 +852,7 @@ impl crate::source::SourceOwner {
             let page = if read.filter.trim().is_empty()
                 && !read.favorites_only
                 && !read.downloaded_only
+                && !read.played_only
                 && (read.folder.is_none()
                     || matches!(&summary, DetailSummary::Playlist(row) if row.source_key.is_none()))
             {

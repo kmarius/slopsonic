@@ -29,6 +29,8 @@ pub struct MemberRead {
     pub descending: bool,
     pub favorites_only: bool,
     pub downloaded_only: bool,
+    /// Only tracks played at least once.
+    pub played_only: bool,
     pub activity: bool,
 }
 
@@ -168,6 +170,7 @@ impl MemberRead {
             descending: false,
             favorites_only: false,
             downloaded_only: false,
+            played_only: false,
             activity: false,
         }
     }
@@ -406,7 +409,11 @@ async fn member_count(
     read: &MemberRead,
     query: &OrderedQuery,
 ) -> LibraryResult<usize> {
-    if read.filter.trim().is_empty() && !read.favorites_only && !read.downloaded_only {
+    if read.filter.trim().is_empty()
+        && !read.favorites_only
+        && !read.downloaded_only
+        && !read.played_only
+    {
         let stored = match read.collection {
             Collection::Source(source) => Some(if let Some(folder) = read.folder {
                 format!(
@@ -581,6 +588,12 @@ pub(crate) fn member_query(read: &MemberRead) -> LibraryResult<OrderedQuery> {
     }
     if read.downloaded_only {
         crate::tracks::downloaded_filter(&mut query);
+    }
+    if read.played_only {
+        query.predicate.push_str(&format!(
+            " AND {}>0",
+            crate::tracks::displayed_stat("play_count")
+        ));
     }
     Ok(query)
 }

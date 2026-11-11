@@ -72,7 +72,7 @@ impl CatalogUi {
             content:
                 DetailContent::Releases {
                     page,
-                    favorites: Some(favorite_tracks),
+                    top_tracks: Some(favorite_tracks),
                 },
         }) = detail
         else {
@@ -87,10 +87,10 @@ impl CatalogUi {
         let favorite_count = favorite_tracks.page.count;
         let favorite = self.searchable_track_collection(
             favorite_tracks,
-            LibraryListKey::ArtistTracks,
+            LibraryListKey::ArtistTopTracks,
             SearchableTrackOptions {
                 context_id: format!(
-                    "{}:{artist}|favorites",
+                    "{}:{artist}",
                     if album_artist {
                         "album-artist"
                     } else {
@@ -105,12 +105,12 @@ impl CatalogUi {
         let favorite_present = !favorite.source_is_empty();
         let favorite_section = gtk::Box::new(gtk::Orientation::Vertical, 10);
         favorite_section.set_visible(favorite_present);
-        let heading = gtk::Label::new(Some("Favorite tracks"));
+        let heading = gtk::Label::new(Some("Top songs"));
         heading.add_css_class("section-heading");
         heading.set_xalign(0.0);
         favorite_section.append(&heading);
         let favorite_toolbar =
-            self.library_toolbar_projection(LibraryListKey::ArtistTracks, favorite.search());
+            self.library_toolbar_projection(LibraryListKey::ArtistTopTracks, favorite.search());
         favorite_section.append(&favorite_toolbar.widget());
         let favorite_scroller = gtk::ScrolledWindow::new();
         favorite_scroller.add_css_class("non-propagating-width-clip");
@@ -120,10 +120,21 @@ impl CatalogUi {
         );
         favorite_scroller.set_overlay_scrolling(true);
         favorite_scroller.set_width_request(1);
-        let height = 30 + favorite_count.min(4) as i32 * 64;
+        let height = favorite_count.min(5) as i32 * 56;
         favorite_scroller.set_min_content_height(height);
         favorite_scroller.set_max_content_height(height);
         favorite_scroller.set_propagate_natural_height(false);
+        let weak_scroller = favorite_scroller.downgrade();
+        favorite_scroller
+            .vadjustment()
+            .connect_upper_notify(move |_| {
+                let weak_scroller = weak_scroller.clone();
+                gtk::glib::idle_add_local_once(move || {
+                    if let Some(scroller) = weak_scroller.upgrade() {
+                        fit_top_songs(&scroller);
+                    }
+                });
+            });
         favorite_section.append(&favorite.mount_in_scroller(&favorite_scroller));
         let releases = Rc::new(ArtistReleaseProjections::new(
             self,
@@ -138,10 +149,10 @@ impl CatalogUi {
         ));
         connect_artist_release_requests(self, &releases);
         let refresh_lane = releases.lane();
+        route_scroll_to_page(&releases.widget(), &favorite_scroller);
         let refresh = {
             let shell = Rc::downgrade(self);
             let favorite = favorite.clone();
-            let favorite_scroller = favorite_scroller.clone();
             let releases = Rc::clone(&releases);
             let header = header.clone();
             let apply = {
@@ -160,7 +171,7 @@ impl CatalogUi {
                             content:
                                 DetailContent::Releases {
                                     page,
-                                    favorites: Some(favorite_tracks),
+                                    top_tracks: Some(favorite_tracks),
                                 },
                         } = detail
                         else {
@@ -170,10 +181,6 @@ impl CatalogUi {
                         favorite.replace_page(favorite_tracks);
                         let present = !favorite.source_is_empty();
                         releases.set_favorite_present(present);
-                        let height = 30 + favorite.source_count().min(4) as i32 * 64;
-                        favorite_scroller.set_max_content_height(-1);
-                        favorite_scroller.set_min_content_height(height);
-                        favorite_scroller.set_max_content_height(height);
                         releases.replace_page(*page);
                         releases.apply_library_list_settings(&album_settings);
                     },
@@ -191,6 +198,7 @@ impl CatalogUi {
                 let filters = releases.filters();
                 let favorite_query = favorite.query();
                 let route = artist_detail_route(artist_uri.clone(), album_artist);
+                let selected = shell.selected_library().cloned();
                 let task = shell.runtime.spawn(async move {
                     let options = slopsonic_core::browse::OpenOptions {
                         category: slopsonic_core::route::CollectionCategory::Albums,
@@ -201,7 +209,7 @@ impl CatalogUi {
                     match owner
                         .open_collection(
                             &route,
-                            None,
+                            selected.as_ref(),
                             &options,
                             library::RouteSeedWindow::top(),
                             &cancellation,
@@ -238,10 +246,11 @@ impl CatalogUi {
                     .settings
                     .current
                     .borrow()
-                    .library_list(LibraryListKey::ArtistTracks);
+                    .library_list(LibraryListKey::ArtistTopTracks);
                 let previous = favorite.query();
-                favorite.apply_library_list_settings(LibraryListKey::ArtistTracks, &track_settings);
-                favorite_toolbar.apply(LibraryListKey::ArtistTracks, &track_settings);
+                favorite
+                    .apply_library_list_settings(LibraryListKey::ArtistTopTracks, &track_settings);
+                favorite_toolbar.apply(LibraryListKey::ArtistTopTracks, &track_settings);
                 let album_settings = shell
                     .settings
                     .current
@@ -811,6 +820,101 @@ fn artist_subroute_header(
         }
     })
     .upcast()
+}
+
+/// Sizes the Top songs scroller to five measured rows.
+fn fit_top_songs(scroller: &gtk::ScrolledWindow) {
+    let rows = scroller
+        .child()
+        .and_downcast::<gtk::ColumnView>()
+        .and_then(|table| table.model())
+        .map_or(0, |model| model.n_items());
+    let upper = scroller.vadjustment().upper();
+    if rows == 0 || upper <= 0.0 {
+        return;
+    }
+    let height = (upper * f64::from(rows.min(5)) / f64::from(rows)).round() as i32;
+    if height != scroller.max_content_height() {
+        scroller.set_max_content_height(-1);
+        scroller.set_min_content_height(height);
+        scroller.set_max_content_height(height);
+    }
+}
+
+/// Wheel scrolling that starts outside Top songs keeps scrolling the page while the pointer
+/// stays still and the wheel rests under five seconds; otherwise the list scrolls.
+fn route_scroll_to_page(page: &gtk::Widget, scroller: &gtk::ScrolledWindow) {
+    use std::cell::Cell;
+    let inner: Rc<Vec<(gtk::EventControllerScroll, gtk::PropagationPhase)>> = Rc::new(
+        scroller
+            .observe_controllers()
+            .iter::<gtk::glib::Object>()
+            .flatten()
+            .filter_map(|controller| controller.downcast::<gtk::EventControllerScroll>().ok())
+            .map(|controller| {
+                let phase = controller.propagation_phase();
+                (controller, phase)
+            })
+            .collect(),
+    );
+    let hover = gtk::EventControllerMotion::new();
+    scroller.add_controller(hover.clone());
+    let page_owned = Rc::new(Cell::new(false));
+    let release: Rc<RefCell<Option<gtk::glib::SourceId>>> = Rc::default();
+
+    let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::BOTH_AXES);
+    scroll.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let scroll_owned = Rc::clone(&page_owned);
+    let scroll_release = Rc::clone(&release);
+    scroll.connect_scroll(move |_, _, _| {
+        if !hover.contains_pointer() {
+            scroll_owned.set(true);
+        }
+        if scroll_owned.get() {
+            if let Some(source) = scroll_release.borrow_mut().take() {
+                source.remove();
+            }
+            let owned = Rc::clone(&scroll_owned);
+            let release = Rc::clone(&scroll_release);
+            scroll_release.replace(Some(gtk::glib::timeout_add_local_once(
+                std::time::Duration::from_secs(5),
+                move || {
+                    release.borrow_mut().take();
+                    owned.set(false);
+                },
+            )));
+        }
+        for (controller, phase) in inner.iter() {
+            controller.set_propagation_phase(if scroll_owned.get() {
+                gtk::PropagationPhase::None
+            } else {
+                *phase
+            });
+        }
+        gtk::glib::Propagation::Proceed
+    });
+    page.add_controller(scroll);
+
+    let motion = gtk::EventControllerMotion::new();
+    let last = Cell::new(None::<(f64, f64)>);
+    motion.connect_motion(move |controller, _, _| {
+        let Some((x, y)) = controller
+            .current_event()
+            .and_then(|event| event.position())
+        else {
+            return;
+        };
+        let moved = last
+            .replace(Some((x, y)))
+            .is_none_or(|(px, py)| (px - x).abs() > 0.5 || (py - y).abs() > 0.5);
+        if moved {
+            page_owned.set(false);
+            if let Some(source) = release.borrow_mut().take() {
+                source.remove();
+            }
+        }
+    });
+    page.add_controller(motion);
 }
 
 fn artist_count_button(icon_name: &str, text: &str) -> (gtk::Button, gtk::Label) {

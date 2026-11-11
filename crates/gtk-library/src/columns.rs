@@ -759,6 +759,7 @@ pub fn track_column_width(key: LibraryListKey, field: LibraryField) -> i32 {
         key,
         LibraryListKey::AlbumDetailTracks
             | LibraryListKey::ArtistTracks
+            | LibraryListKey::ArtistTopTracks
             | LibraryListKey::GenreTracks
             | LibraryListKey::MoodTracks
             | LibraryListKey::PlaylistTracks
@@ -775,6 +776,7 @@ pub fn track_column_width(key: LibraryListKey, field: LibraryField) -> i32 {
 
     match key {
         LibraryListKey::ArtistTracks
+        | LibraryListKey::ArtistTopTracks
         | LibraryListKey::GenreTracks
         | LibraryListKey::PlaylistTracks => track_list_column_width(field),
         _ => column_width(field),

@@ -236,7 +236,15 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
                             &current, category,
                         )),
                     )
-                });
+                })
+                || (matches!(
+                    current,
+                    Route::ArtistDetail(_) | Route::AlbumArtistDetail(_)
+                ) && slopsonic_core::browse::uses_activity(
+                    &current,
+                    &settings
+                        .library_list(slopsonic_core::settings::LibraryListKey::ArtistTopTracks),
+                ));
             drop(settings);
             if sensitive {
                 if current == Route::Home {

@@ -666,3 +666,32 @@ async fn search_matches_playlists_by_every_name_term() {
         [road]
     );
 }
+
+#[tokio::test]
+async fn played_only_member_reads_skip_unplayed_tracks() {
+    let fixture = fixture().await;
+    let mut raw = connection(&fixture.path).await;
+    sqlx::query("UPDATE tracks SET displayed_play_count=3 WHERE track_key=?1")
+        .bind(fixture.tracks[0])
+        .execute(&mut raw)
+        .await
+        .unwrap();
+    drop(raw);
+    let read = library::MemberRead {
+        played_only: true,
+        ..library::MemberRead::new(library::Collection::Source(fixture.source))
+    };
+    let rows = read
+        .page(
+            &fixture.database,
+            library::RouteSeedWindow::top(),
+            &ReadCancellation::new(),
+        )
+        .await
+        .unwrap()
+        .rows
+        .into_iter()
+        .map(|row| row.into_track().track_key)
+        .collect::<Vec<_>>();
+    assert_eq!(rows, [fixture.tracks[0]]);
+}

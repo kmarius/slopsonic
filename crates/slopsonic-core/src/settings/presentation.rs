@@ -175,6 +175,7 @@ pub fn library_list_title(value: LibraryListKey) -> &'static str {
         LibraryListKey::AlbumDetailTracks => "Album tracks",
         LibraryListKey::ArtistAlbums => "Artist albums",
         LibraryListKey::ArtistTracks => "Artist tracks",
+        LibraryListKey::ArtistTopTracks => "Top songs",
         LibraryListKey::GenreTracks => "Genre tracks",
         LibraryListKey::MoodTracks => "Mood tracks",
         LibraryListKey::PlaylistTracks => "Playlist tracks",

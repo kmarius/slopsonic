@@ -102,10 +102,6 @@ impl TrackListProjection {
         self.model.source_is_empty()
     }
 
-    pub fn source_count(&self) -> usize {
-        self.model.visible_count()
-    }
-
     pub fn play_source(
         &self,
         queue: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,

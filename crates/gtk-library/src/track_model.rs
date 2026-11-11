@@ -191,6 +191,7 @@ impl TrackCollectionModel {
         };
         query.sort = Some(settings.sort_key.catalog_sort());
         query.descending = settings.descending;
+        query.played_only = settings.played_only;
     }
 
     pub fn replace_page(&self, page: slopsonic_core::browse::MemberPage) -> bool {
