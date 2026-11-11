@@ -10,6 +10,14 @@ fn search_result_matches(
         RecentSearchKind::Album => "album:",
         RecentSearchKind::Artist => "artist:",
     };
+    context_matches(prefix, media_uri, current)
+}
+
+fn context_matches(
+    prefix: &str,
+    media_uri: &str,
+    current: &gtk_widgets::mounted_route::RouteCurrentTrack,
+) -> bool {
     current.context.as_ref().is_some_and(|context| {
         context
             .context_id
@@ -34,7 +42,7 @@ pub struct SearchSession {
     runtime: tokio::runtime::Handle,
     selected: RefCell<Option<SelectedLibrary>>,
     query: RefCell<String>,
-    pub(super) items: RefCell<[Vec<SearchItem>; 3]>,
+    pub(super) items: RefCell<[Vec<SearchItem>; 4]>,
     status: Cell<&'static str>,
     pub(super) revision: Cell<u64>,
     generation: Cell<u64>,
@@ -282,9 +290,9 @@ impl SearchSession {
         });
     }
 
-    pub fn previews(&self) -> [Vec<SearchPreview>; 3] {
+    pub fn previews(&self) -> [Vec<SearchPreview>; 4] {
         let items = self.items.borrow();
-        let mut counts = [0; 3];
+        let mut counts = [0; 4];
         let mut total = 0;
         while total < SEARCH_PREVIEW_LIMIT {
             let previous = total;
@@ -293,6 +301,7 @@ impl SearchSession {
                 CollectionCategory::Tracks,
                 CollectionCategory::Albums,
                 CollectionCategory::Artists,
+                CollectionCategory::Playlists,
             ] {
                 let index = category as usize;
                 if total < SEARCH_PREVIEW_LIMIT && counts[index] < items[index].len() {
@@ -344,6 +353,13 @@ impl SearchSession {
                     SearchItem::Track(row) => (RecentSearchKind::Track, row.media_uri.as_str()),
                     SearchItem::Album(row) => (RecentSearchKind::Album, row.media_uri.as_str()),
                     SearchItem::Artist(row) => (RecentSearchKind::Artist, row.media_uri.as_str()),
+                    SearchItem::Playlist(row) => {
+                        return context_matches(
+                            "playlist:",
+                            &row.playlist_key.to_string(),
+                            current,
+                        );
+                    }
                 };
                 search_result_matches(kind, uri, current)
             })

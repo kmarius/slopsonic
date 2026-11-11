@@ -34,7 +34,9 @@ use slopsonic_core::settings::app::{RecentSearchKind, RecentSearchResult};
 
 use super::route_shell::{LibraryPageShell, LibraryToolbarProjection};
 use super::table_sizing::route_column_view_initial_width;
-use gtk_widgets::library_fields::{album_field, artist_field, column_width, track_field};
+use gtk_widgets::library_fields::{
+    album_field, artist_field, column_width, playlist_field, track_field,
+};
 use gtk_widgets::route::CollectionCategory;
 use gtk_widgets::route::Route;
 use gtk_widgets::sparse_model::SparseObjectItem;
@@ -48,10 +50,11 @@ enum SearchItem {
     Track(library::TrackView),
     Album(library::AlbumView),
     Artist(library::ArtistView),
+    Playlist(library::PlaylistRow),
 }
 
 impl SearchItem {
-    fn recent_result(&self) -> RecentSearchResult {
+    fn recent_result(&self) -> Option<RecentSearchResult> {
         let (kind, media_uri, artwork_binding) = match self {
             Self::Track(row) => (
                 RecentSearchKind::Track,
@@ -68,20 +71,24 @@ impl SearchItem {
                 &row.media_uri,
                 &row.artwork_binding,
             ),
+            Self::Playlist(_) => return None,
         };
-        RecentSearchResult {
+        Some(RecentSearchResult {
             kind,
             media_uri: media_uri.clone(),
             title: self.title().to_owned(),
             subtitle: self.subtitle().to_owned(),
             artwork_binding: artwork_binding.clone(),
-        }
+        })
     }
     fn play_request(&self) -> slopsonic_core::playback::PlayRequest {
         match self {
             Self::Track(row) => gtk_widgets::selection::track_play_request(row.track_key),
             Self::Album(row) => gtk_widgets::selection::album_play_request(row),
             Self::Artist(row) => gtk_widgets::selection::artist_play_request(row, false),
+            Self::Playlist(row) => gtk_widgets::selection::collection_play_request(
+                library::Collection::Playlist(row.playlist_key),
+            ),
         }
     }
     fn title(&self) -> &str {
@@ -89,6 +96,7 @@ impl SearchItem {
             Self::Track(row) => &row.metadata.title,
             Self::Album(row) => &row.metadata.title,
             Self::Artist(row) => &row.metadata.name,
+            Self::Playlist(row) => &row.name,
         }
     }
     fn artwork(&self) -> ArtworkBinding {
@@ -96,6 +104,7 @@ impl SearchItem {
             Self::Track(row) => &row.artwork_binding,
             Self::Album(row) => &row.artwork_binding,
             Self::Artist(row) => &row.artwork_binding,
+            Self::Playlist(row) => &row.artwork_binding,
         };
         bytes
             .as_deref()
@@ -107,13 +116,14 @@ impl SearchItem {
             Self::Track(row) => track_field(row, field),
             Self::Album(row) => album_field(row, field),
             Self::Artist(row) => artist_field(row, field),
+            Self::Playlist(row) => playlist_field(row, field),
         }
     }
     fn subtitle(&self) -> &str {
         match self {
             Self::Track(row) => &row.metadata.artist,
             Self::Album(row) => &row.metadata.artist,
-            Self::Artist(_) => "",
+            Self::Artist(_) | Self::Playlist(_) => "",
         }
     }
     fn numeric_field(&self, field: LibraryField) -> Option<i64> {
@@ -143,6 +153,11 @@ impl SearchItem {
                 LibraryField::Favorite => Some(i64::from(row.state.favorite)),
                 _ => None,
             },
+            Self::Playlist(row) => match field {
+                LibraryField::Duration => Some(row.duration_millis),
+                LibraryField::SongCount => Some(row.track_count),
+                _ => None,
+            },
         }
     }
     fn date_field(&self, field: LibraryField) -> Option<&str> {
@@ -157,24 +172,27 @@ impl SearchItem {
                 LibraryField::DateAdded => row.metadata.date_added.as_deref(),
                 _ => None,
             },
-            Self::Artist(_) => None,
+            Self::Artist(_) | Self::Playlist(_) => None,
         }
     }
     fn play(&self, shell: &Rc<CatalogUi>, placement: QueuePlacement) {
-        shell
-            .settings
-            .update_app_settings("recent search", |settings| {
-                settings.remember_search_result(self.recent_result())
-            });
+        if let Some(result) = self.recent_result() {
+            shell
+                .settings
+                .update_app_settings("recent search", |settings| {
+                    settings.remember_search_result(result)
+                });
+        }
         let mut request = self.play_request();
         request.placement = placement;
         shell.playback.play_selection(request);
     }
     fn activate(&self, shell: &Rc<CatalogUi>) {
-        if matches!(self, Self::Track(..)) {
-            self.play(shell, QueuePlacement::Now);
-        } else {
-            session::SearchSession::activate_recent(&self.recent_result(), shell);
+        match (self, self.recent_result()) {
+            (Self::Track(..), _) => self.play(shell, QueuePlacement::Now),
+            (Self::Playlist(row), _) => shell.navigate(Route::PlaylistDetail(row.playlist_key)),
+            (_, Some(result)) => session::SearchSession::activate_recent(&result, shell),
+            (_, None) => {}
         }
     }
     fn present_context(
@@ -214,6 +232,7 @@ impl SearchItem {
                     present_artist_context_menu(target, &menus, row, false, None, position)
                 },
             ),
+            Self::Playlist(row) => (shell.playlist_context_menu)(target, row, None, position),
         }
     }
 }
@@ -229,7 +248,7 @@ struct SearchRouteProjection {
     results: adw::ViewStack,
     result_page: gtk::Stack,
     toolbar_host: gtk::Box,
-    models: [gio::ListStore; 3],
+    models: [gio::ListStore; 4],
     playing: super::columns::TrackRowPlayingIndicator,
     active: RefCell<Option<SearchPresentation>>,
 }
@@ -260,10 +279,10 @@ impl SearchRouteProjection {
         let search = shell.global_search.clone();
 
         let models = CollectionCategory::ALL.map(|_| gio::ListStore::new::<SparseObjectItem>());
-        let category_pages =
-            CollectionCategory::ALL.map(|_| gtk::Box::new(gtk::Orientation::Vertical, 0).upcast());
-        let (results, switcher) =
-            collection_category_tabs(category_pages, shell.search_session.category.get());
+        let (results, switcher) = collection_category_tabs(
+            &CollectionCategory::ALL,
+            shell.search_session.category.get(),
+        );
         wrapper.imp().category_host.append(&switcher);
         let toolbar_host = wrapper.imp().toolbar_host.get();
         let status = wrapper.imp().status.get();
@@ -393,8 +412,8 @@ impl SearchRouteProjection {
         self.status.set_visible_child_name(self.session.status());
     }
 
-    fn apply(&self, mut items: [Vec<SearchItem>; 3]) {
-        for index in 0..3 {
+    fn apply(&self, mut items: [Vec<SearchItem>; 4]) {
+        for index in 0..items.len() {
             if let Some(shell) = self.shell.upgrade() {
                 let category = CollectionCategory::ALL[index];
                 let settings = shell.settings.current.borrow().library_list(category.key());
@@ -454,7 +473,8 @@ impl SearchRouteProjection {
             .map_or(CollectionCategory::default(), |presentation| {
                 presentation.category
             });
-        self.results.set_visible_child_name(current.next().name());
+        self.results
+            .set_visible_child_name(current.next_in(&CollectionCategory::ALL).name());
     }
 
     fn cycle_layout(&self) {
@@ -485,16 +505,16 @@ fn compare_optional<T: Ord>(left: Option<T>, right: Option<T>) -> std::cmp::Orde
 }
 
 fn collection_category_tabs(
-    pages: [gtk::Widget; 3],
+    categories: &[CollectionCategory],
     active: CollectionCategory,
 ) -> (adw::ViewStack, adw::ViewSwitcher) {
     let stack = adw::ViewStack::builder()
         .hexpand(true)
         .vexpand(true)
         .build();
-    for (category, page) in CollectionCategory::ALL.into_iter().zip(pages) {
+    for &category in categories {
         stack.add_titled_with_icon(
-            &page,
+            &gtk::Box::new(gtk::Orientation::Vertical, 0),
             Some(category.name()),
             &String::from(category.title()),
             category.icon_name(),
@@ -515,9 +535,7 @@ impl CatalogUi {
         active: CollectionCategory,
         page: &mut LibraryPageShell,
     ) {
-        let category_pages =
-            CollectionCategory::ALL.map(|_| gtk::Box::new(gtk::Orientation::Vertical, 0).upcast());
-        let (pages, switcher) = collection_category_tabs(category_pages, active);
+        let (pages, switcher) = collection_category_tabs(&CollectionCategory::FAVORITES, active);
         page.set_category_switcher(&switcher);
 
         let shell = Rc::downgrade(self);
@@ -594,6 +612,15 @@ impl CatalogUi {
                 },
                 |row| set_downloaded_summary(&mut row.summary, downloaded),
             );
+            update_rows::<library::PlaylistRow>(
+                &projection.models[CollectionCategory::Playlists as usize],
+                |row| {
+                    identity.strip_prefix("playlist:")
+                        == Some(row.playlist_key.to_string().as_str())
+                        && (row.downloaded_count == row.track_count) != downloaded
+                },
+                |row| row.downloaded_count = if downloaded { row.track_count } else { 0 },
+            );
         });
         MountedRoute::new(
             projection.root.clone(),
@@ -661,6 +688,9 @@ fn search_collection(
                 }
             };
             match (layout, category) {
+                (_, CollectionCategory::Playlists) => {
+                    super::named_collections::playlist_presentation(&shell, model.clone(), layout)
+                }
                 (LibraryLayout::Grid, CollectionCategory::Albums) => {
                     let cell_shell = Rc::clone(&shell);
                     LibraryPresentationProjection::Grid(collection_grid_with_selection_and_demand(
@@ -711,6 +741,7 @@ fn search_collection(
                         &playing,
                         activate,
                     ),
+                    CollectionCategory::Playlists => unreachable!("playlist search presentation"),
                 }),
             }
         }),
@@ -760,6 +791,7 @@ fn search_column(
     match category {
         CollectionCategory::Albums => album_column(shell, field, None, true),
         CollectionCategory::Artists => artist_column(shell, field, false, true),
+        CollectionCategory::Playlists => unreachable!("playlist search presentation"),
         CollectionCategory::Tracks => {
             let column =
                 track_column_for_key::<library::TrackView>(shell, category.key(), field, playing);
@@ -787,6 +819,7 @@ fn search_object(item: SearchItem) -> SparseObjectItem {
         SearchItem::Track(row) => SparseObjectItem::new(Arc::new(row), true),
         SearchItem::Album(row) => SparseObjectItem::new(Arc::new(row), true),
         SearchItem::Artist(row) => SparseObjectItem::new(Arc::new(row), true),
+        SearchItem::Playlist(row) => SparseObjectItem::new(Arc::new(row), true),
     }
 }
 
@@ -800,6 +833,7 @@ fn search_item(
         CollectionCategory::Tracks => item_at(model, position).map(SearchItem::Track),
         CollectionCategory::Albums => item_at(model, position).map(SearchItem::Album),
         CollectionCategory::Artists => item_at(model, position).map(SearchItem::Artist),
+        CollectionCategory::Playlists => item_at(model, position).map(SearchItem::Playlist),
     }
 }
 
@@ -828,7 +862,7 @@ fn set_downloaded_summary(summary: &mut library::CollectionSummary, downloaded: 
     summary.downloaded_count = if downloaded { summary.track_count } else { 0 };
 }
 
-fn cached_items(results: SearchResults) -> [Vec<SearchItem>; 3] {
+fn cached_items(results: SearchResults) -> [Vec<SearchItem>; 4] {
     [
         results.tracks.into_iter().map(SearchItem::Track).collect(),
         results.albums.into_iter().map(SearchItem::Album).collect(),
@@ -836,6 +870,11 @@ fn cached_items(results: SearchResults) -> [Vec<SearchItem>; 3] {
             .artists
             .into_iter()
             .map(SearchItem::Artist)
+            .collect(),
+        results
+            .playlists
+            .into_iter()
+            .map(SearchItem::Playlist)
             .collect(),
     ]
 }
@@ -845,17 +884,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn collection_tabs_cycle_tracks_albums_and_artists() {
+    fn collection_tabs_cycle_within_their_categories() {
+        let all = &CollectionCategory::ALL;
+        let favorites = &CollectionCategory::FAVORITES;
         assert_eq!(
-            CollectionCategory::Tracks.next(),
+            CollectionCategory::Tracks.next_in(all),
             CollectionCategory::Albums
         );
         assert_eq!(
-            CollectionCategory::Albums.next(),
-            CollectionCategory::Artists
+            CollectionCategory::Artists.next_in(all),
+            CollectionCategory::Playlists
         );
         assert_eq!(
-            CollectionCategory::Artists.next(),
+            CollectionCategory::Playlists.next_in(all),
+            CollectionCategory::Tracks
+        );
+        assert_eq!(
+            CollectionCategory::Artists.next_in(favorites),
             CollectionCategory::Tracks
         );
     }

@@ -16,7 +16,16 @@ pub async fn acquire_search(
             result = live => result,
             () = cancellation.cancelled() => return Err(library::LibraryError::ReadCancelled.to_string()),
         };
-        if let Ok(rows) = result {
+        if let Ok(mut rows) = result {
+            rows.playlists = database
+                .search_playlists(
+                    selected.source_key,
+                    selected.music_folder_key,
+                    &SearchRequest::with_limit(query, limit),
+                    &cancellation,
+                )
+                .await
+                .unwrap_or_default();
             return Ok(rows);
         }
     }

@@ -84,10 +84,10 @@ pub(super) struct SearchPopup {
     empty_results: gtk::Label,
     history_heading: gtk::ListBoxRow,
     history_footer: gtk::ListBoxRow,
-    headings: [gtk::ListBoxRow; 3],
-    more: [gtk::Button; 3],
+    headings: [gtk::ListBoxRow; 4],
+    more: [gtk::Button; 4],
     history: Vec<PreviewRow>,
-    previews: [Vec<PreviewRow>; 3],
+    previews: [Vec<PreviewRow>; 4],
     actions: RefCell<Vec<(gtk::ListBoxRow, SearchAction)>>,
     observer: RefCell<Option<Rc<dyn Fn()>>>,
     entry_handlers: RefCell<Vec<glib::SignalHandlerId>>,
@@ -103,7 +103,9 @@ impl SearchPopup {
             empty_results: gtk::Label, history_heading: gtk::ListBoxRow, history_footer: gtk::ListBoxRow,
             clear_history: gtk::Button,
             tracks_heading: gtk::ListBoxRow, albums_heading: gtk::ListBoxRow, artists_heading: gtk::ListBoxRow,
+            playlists_heading: gtk::ListBoxRow,
             tracks_more: gtk::Button, albums_more: gtk::Button, artists_more: gtk::Button,
+            playlists_more: gtk::Button,
         });
         popover.set_parent(host);
         let popup = Rc::new(Self {
@@ -118,8 +120,13 @@ impl SearchPopup {
             empty_results,
             history_heading,
             history_footer,
-            headings: [tracks_heading, albums_heading, artists_heading],
-            more: [tracks_more, albums_more, artists_more],
+            headings: [
+                tracks_heading,
+                albums_heading,
+                artists_heading,
+                playlists_heading,
+            ],
+            more: [tracks_more, albums_more, artists_more, playlists_more],
             history: (0..20).map(|_| PreviewRow::new(true)).collect(),
             previews: std::array::from_fn(|_| {
                 (0..gtk_library::SEARCH_PREVIEW_LIMIT)

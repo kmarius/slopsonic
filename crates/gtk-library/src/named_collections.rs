@@ -1044,3 +1044,37 @@ fn single_playlist_drag(source: &gtk_widgets::media_drag::MediaDragSource) -> bo
         _ => false,
     }
 }
+
+pub(crate) fn playlist_presentation(
+    shell: &Rc<CatalogUi>,
+    model: gio::ListStore,
+    layout: LibraryLayout,
+) -> LibraryPresentationProjection {
+    let key = LibraryListKey::Playlists;
+    if layout == LibraryLayout::Row {
+        return LibraryPresentationProjection::Row(
+            named_collection_table::<library::PlaylistRow, _>(shell, model, key),
+        );
+    }
+    let fields = shell
+        .settings
+        .current
+        .borrow()
+        .library_list(key)
+        .grid_fields;
+    let cell_shell = Rc::clone(shell);
+    let activate_shell = Rc::clone(shell);
+    LibraryPresentationProjection::Grid(collection_grid_with_demand(
+        model,
+        &fields,
+        move |fields| {
+            NamedCollectionGridCell::<library::PlaylistRow>::new(
+                Rc::clone(&cell_shell),
+                fields,
+                key,
+            )
+        },
+        move |_, row: library::PlaylistRow| activate_shell.navigate(row.route()),
+        |_| {},
+    ))
+}

@@ -17,17 +17,19 @@ pub enum CollectionCategory {
     Tracks,
     Albums,
     Artists,
+    Playlists,
 }
 
 impl CollectionCategory {
-    pub const ALL: [Self; 3] = [Self::Tracks, Self::Albums, Self::Artists];
+    pub const ALL: [Self; 4] = [Self::Tracks, Self::Albums, Self::Artists, Self::Playlists];
+    pub const FAVORITES: [Self; 3] = [Self::Tracks, Self::Albums, Self::Artists];
 
-    pub const fn next(self) -> Self {
-        match self {
-            Self::Tracks => Self::Albums,
-            Self::Albums => Self::Artists,
-            Self::Artists => Self::Tracks,
-        }
+    pub fn next_in(self, categories: &[Self]) -> Self {
+        let index = categories.iter().position(|category| *category == self);
+        index
+            .and_then(|index| categories.get(index + 1))
+            .unwrap_or(&categories[0])
+            .to_owned()
     }
 }
 
@@ -133,6 +135,7 @@ impl CollectionCategory {
             Self::Tracks => "tracks",
             Self::Albums => "albums",
             Self::Artists => "artists",
+            Self::Playlists => "playlists",
         }
     }
 
@@ -140,6 +143,7 @@ impl CollectionCategory {
         match name {
             "albums" => Self::Albums,
             "artists" => Self::Artists,
+            "playlists" => Self::Playlists,
             _ => Self::Tracks,
         }
     }
@@ -149,6 +153,7 @@ impl CollectionCategory {
             Self::Tracks => "Tracks",
             Self::Albums => "Albums",
             Self::Artists => "Artists",
+            Self::Playlists => "Playlists",
         }
     }
 
@@ -157,6 +162,7 @@ impl CollectionCategory {
             Self::Tracks => "slopsonic-tracks-symbolic",
             Self::Albums => "slopsonic-albums-symbolic",
             Self::Artists => "slopsonic-artists-symbolic",
+            Self::Playlists => "slopsonic-playlists-symbolic",
         }
     }
 
@@ -165,12 +171,14 @@ impl CollectionCategory {
             Self::Tracks => LibraryListKey::Tracks,
             Self::Albums => LibraryListKey::Albums,
             Self::Artists => LibraryListKey::Artists,
+            Self::Playlists => LibraryListKey::Playlists,
         }
     }
 
     pub fn sort_fields(self) -> &'static [LibraryField] {
         match self {
             Self::Tracks => crate::settings::available_sort_fields(LibraryListKey::Tracks),
+            Self::Playlists => crate::settings::available_sort_fields(LibraryListKey::Playlists),
             Self::Albums => &[
                 LibraryField::Title,
                 LibraryField::AlbumArtist,

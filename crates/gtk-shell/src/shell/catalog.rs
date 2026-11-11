@@ -109,8 +109,13 @@ impl Shell {
                 let weak = Rc::downgrade(self);
                 Rc::new(move || {
                     if let Some(shell) = weak.upgrade() {
-                        shell
-                            .set_favorite_category(shell.navigation.favorite_category.get().next());
+                        shell.set_favorite_category(
+                            shell
+                                .navigation
+                                .favorite_category
+                                .get()
+                                .next_in(&gtk_widgets::route::CollectionCategory::FAVORITES),
+                        );
                     }
                 })
             },

@@ -616,3 +616,53 @@ async fn rating_override_lives_only_until_the_server_answers() {
         "a rejected edit falls back to the server value"
     );
 }
+
+#[tokio::test]
+async fn search_matches_playlists_by_every_name_term() {
+    let fixture = fixture().await;
+    let road = super::support::server_playlist(
+        &fixture.database,
+        "Road Trip Mix",
+        &[fixture.track_uris[0].clone()],
+    )
+    .await
+    .0;
+    super::support::server_playlist(&fixture.database, "Trip Hop", &[]).await;
+    let cancel = ReadCancellation::new();
+    let names =
+        |rows: Vec<library::PlaylistRow>| rows.into_iter().map(|row| row.name).collect::<Vec<_>>();
+    let search = async |query: &str| {
+        fixture
+            .database
+            .search_playlists(
+                fixture.source,
+                None,
+                &library::SearchRequest::new(query),
+                &cancel,
+            )
+            .await
+            .unwrap()
+    };
+    assert_eq!(names(search("trip").await), ["Road Trip Mix", "Trip Hop"]);
+    assert_eq!(names(search("mix road").await), ["Road Trip Mix"]);
+    assert!(search("jazz").await.is_empty());
+    let cached = fixture
+        .database
+        .search(
+            fixture.source,
+            None,
+            false,
+            &library::SearchRequest::new("road"),
+            &cancel,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        cached
+            .playlists
+            .iter()
+            .map(|row| row.playlist_key)
+            .collect::<Vec<_>>(),
+        [road]
+    );
+}

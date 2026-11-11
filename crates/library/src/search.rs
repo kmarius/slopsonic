@@ -6,7 +6,7 @@ use sqlx::Connection;
 use crate::query::{OrderedQuery, RequestedKeys};
 use crate::{
     AlbumView, ArtistView, CatalogSort, Collection, Database, FolderKey, LibraryResult, ListKind,
-    ListRead, MemberRead, ReadCancellation, SourceKey, TrackView,
+    ListRead, MemberRead, PlaylistRow, ReadCancellation, SourceKey, TrackView,
 };
 
 const SEARCH_LIMIT: usize = 100;
@@ -51,6 +51,7 @@ pub struct SearchResults {
     pub tracks: Vec<TrackView>,
     pub albums: Vec<AlbumView>,
     pub artists: Vec<ArtistView>,
+    pub playlists: Vec<PlaylistRow>,
 }
 
 impl Database {
@@ -111,9 +112,28 @@ impl Database {
                 false,
             )
             .await?,
+            playlists: Vec::new(),
         };
         transaction.commit().await?;
         Ok(result)
+    }
+
+    pub async fn search_playlists(
+        &self,
+        source: SourceKey,
+        folder: Option<FolderKey>,
+        request: &SearchRequest,
+        cancellation: &ReadCancellation,
+    ) -> LibraryResult<Vec<PlaylistRow>> {
+        if request.query.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut connection = self.acquire_general(cancellation).await?;
+        Self::load_playlist_requested(
+            &mut connection,
+            playlist_search_keys(source, folder, request)?,
+        )
+        .await
     }
 
     pub async fn search(
@@ -127,12 +147,6 @@ impl Database {
         if request.query.is_empty() {
             return Ok(SearchResults::default());
         }
-        let terms = request
-            .query
-            .split_whitespace()
-            .filter(|term| !term.is_empty())
-            .collect::<Vec<_>>();
-        let terms = crate::query::quote(&serde_json::to_string(&terms)?);
         let mut connection = self.acquire_general(cancellation).await?;
         let mut transaction = connection.begin().await?;
         let mut tracks = MemberRead::new(Collection::Source(source));
@@ -156,33 +170,62 @@ impl Database {
             term_match("artist.normalized_name"),
             term_match("genre.normalized_name")
         );
-        let request = |mut relation: OrderedQuery, condition: String| {
-            relation.predicate.push_str(&format!(" AND NOT EXISTS(SELECT 1 FROM json_each({terms}) term WHERE NOT COALESCE({condition},0))"));
-            relation.requested_keys(0, request.limit)
+        let terms_match = |mut relation: OrderedQuery, condition: &str| {
+            relation
+                .predicate
+                .push_str(&all_terms_match(request, condition)?);
+            LibraryResult::Ok(relation.requested_keys(0, request.limit))
         };
         let result = SearchResults {
             tracks: crate::tracks::load_track_requested(
                 &mut transaction,
-                request(tracks, term_match("track.normalized_search")),
+                terms_match(tracks, &term_match("track.normalized_search"))?,
             )
             .await?,
             albums: crate::collections::load_album_requested(
                 &mut transaction,
-                request(albums, album_condition),
+                terms_match(albums, &album_condition)?,
                 false,
             )
             .await?,
             artists: crate::collections::load_artist_requested(
                 &mut transaction,
-                request(artists, term_match("artist.normalized_name")),
+                terms_match(artists, &term_match("artist.normalized_name"))?,
                 album_artists,
                 false,
+            )
+            .await?,
+            playlists: Self::load_playlist_requested(
+                &mut transaction,
+                playlist_search_keys(source, folder, request)?,
             )
             .await?,
         };
         transaction.commit().await?;
         Ok(result)
     }
+}
+
+fn playlist_search_keys(
+    source: SourceKey,
+    folder: Option<FolderKey>,
+    request: &SearchRequest,
+) -> LibraryResult<RequestedKeys> {
+    let mut playlists =
+        crate::playlists::playlist_list_query(Some(source), folder, CatalogSort::Title, false, "");
+    playlists.predicate.push_str(&all_terms_match(
+        request,
+        &term_match("playlist.normalized_name"),
+    )?);
+    Ok(playlists.requested_keys(0, request.limit))
+}
+
+fn all_terms_match(request: &SearchRequest, condition: &str) -> LibraryResult<String> {
+    let terms = request.query.split_whitespace().collect::<Vec<_>>();
+    let terms = crate::query::quote(&serde_json::to_string(&terms)?);
+    Ok(format!(
+        " AND NOT EXISTS(SELECT 1 FROM json_each({terms}) term WHERE NOT COALESCE({condition},0))"
+    ))
 }
 
 fn term_match(text: &str) -> String {

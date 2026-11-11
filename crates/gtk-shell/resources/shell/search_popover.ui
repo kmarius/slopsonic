@@ -76,4 +76,16 @@
       </object></child>
     </object></property>
   </object>
+  <object class="GtkListBoxRow" id="playlists_heading">
+    <property name="focusable">false</property><property name="selectable">false</property><property name="activatable">false</property>
+    <property name="child"><object class="GtkBox">
+      <property name="spacing">12</property>
+      <child><object class="GtkLabel"><property name="label" translatable="yes">Playlists</property><property name="xalign">0</property><property name="hexpand">true</property><style><class name="heading"/></style></object></child>
+      <child><object class="GtkButton" id="playlists_more">
+        <property name="label" translatable="yes">View all</property>
+        <property name="focus-on-click">false</property>
+        <style><class name="flat"/><class name="search-category-link"/></style>
+      </object></child>
+    </object></property>
+  </object>
 </interface>
