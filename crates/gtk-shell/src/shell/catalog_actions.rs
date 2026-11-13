@@ -37,4 +37,3 @@ pub(crate) fn play_target(
     request.placement = placement;
     shell.products.playback.play_selection(request);
 }
-

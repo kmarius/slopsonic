@@ -113,7 +113,10 @@ impl Player {
             Ok(rows) => self.dirty |= self.sequence.hydrate(rows),
             Err(error) => self.report_error(error),
         }
-        if matches!(self.pending_queue, Some((_, QueueCompletion::Replace { .. }, _))) {
+        if matches!(
+            self.pending_queue,
+            Some((_, QueueCompletion::Replace { .. }, _))
+        ) {
             return;
         }
         if self.current_run.is_none()

@@ -182,8 +182,12 @@ struct FailedRun {
 #[derive(Clone, Debug)]
 enum QueueCompletion {
     /// Drops the first `superseded` deferred commands, which waited for the request it cancelled.
-    Replace { superseded: usize },
-    Insert { target: QueueReorderTarget },
+    Replace {
+        superseded: usize,
+    },
+    Insert {
+        target: QueueReorderTarget,
+    },
 }
 
 pub(super) struct Player {

@@ -38,7 +38,7 @@ use super::layout::{
 };
 use super::navigation::{
     NavigationState, NavigationWidgets, build_compact_navigation, build_normal_navigation,
-    install_normal_navigation_activation,
+    install_drag_edge_scroll, install_normal_navigation_activation,
 };
 use super::route::RouteViewport;
 use super::selected_ui::SelectedUiState;
@@ -170,6 +170,7 @@ pub async fn build(
         normal_nav_panel: gtk::Box,
         sidebar_modes: gtk::Stack,
         normal_nav_routes: adw::Sidebar,
+        normal_nav_scroller: gtk::ScrolledWindow,
         normal_nav_pins: gtk::Box,
         compact_nav_slot: gtk::Box,
         compact_nav_scroller: gtk::ScrolledWindow,
@@ -179,6 +180,8 @@ pub async fn build(
     compact_nav_scroller.set_min_content_width(COMPACT_RAIL_WIDTH);
     compact_nav_scroller.set_max_content_width(COMPACT_RAIL_WIDTH);
     compact_nav.set_width_request(COMPACT_RAIL_WIDTH);
+    install_drag_edge_scroll(&normal_nav_scroller);
+    install_drag_edge_scroll(&compact_nav_scroller);
     let player_right_panel = build_right_panel();
     let right_panel = player_right_panel.root.clone();
 

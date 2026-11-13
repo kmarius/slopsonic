@@ -1329,6 +1329,57 @@ fn install_sidebar_pin_drag(
     target.add_controller(drop);
 }
 
+const DRAG_EDGE_SCROLL_ZONE: f64 = 48.0;
+const DRAG_EDGE_SCROLL_MAX_STEP: f64 = 20.0;
+
+/// Scrolls `scroller` while a drag hovers near its top or bottom edge.
+pub(super) fn install_drag_edge_scroll(scroller: &gtk::ScrolledWindow) {
+    let step = Rc::new(Cell::new(0.0));
+    let tick = Rc::new(RefCell::new(None::<gtk::TickCallbackId>));
+    let motion = gtk::DropControllerMotion::new();
+    motion.set_propagation_phase(gtk::PropagationPhase::Capture);
+    motion.connect_motion({
+        let step = Rc::clone(&step);
+        let tick = Rc::clone(&tick);
+        move |motion, _, y| {
+            let Some(scroller) = motion.widget() else {
+                return;
+            };
+            step.set(drag_edge_scroll_step(y, f64::from(scroller.height())));
+            if tick.borrow().is_none() {
+                let step = Rc::clone(&step);
+                tick.replace(Some(scroller.add_tick_callback(move |scroller, _| {
+                    if let Some(scroller) = scroller.downcast_ref::<gtk::ScrolledWindow>() {
+                        let adjustment = scroller.vadjustment();
+                        adjustment.set_value(adjustment.value() + step.get());
+                    }
+                    glib::ControlFlow::Continue
+                })));
+            }
+        }
+    });
+    motion.connect_leave(move |_| {
+        step.set(0.0);
+        if let Some(tick) = tick.borrow_mut().take() {
+            tick.remove();
+        }
+    });
+    scroller.add_controller(motion);
+}
+
+fn drag_edge_scroll_step(y: f64, height: f64) -> f64 {
+    let zone = DRAG_EDGE_SCROLL_ZONE.min(height / 4.0);
+    if zone <= 0.0 {
+        0.0
+    } else if y < zone {
+        -DRAG_EDGE_SCROLL_MAX_STEP * (zone - y) / zone
+    } else if y > height - zone {
+        DRAG_EDGE_SCROLL_MAX_STEP * (y - (height - zone)) / zone
+    } else {
+        0.0
+    }
+}
+
 fn sidebar_pin_drag_variant(pin: &SidebarPin) -> glib::Variant {
     let (kind, source_id, object_id, album_artist) = match pin {
         SidebarPin::Album {
@@ -1618,6 +1669,22 @@ fn configure_sidebar_entry_label(label: &gtk::Label) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn drag_edge_scroll_step_scrolls_only_near_edges() {
+        assert_eq!(drag_edge_scroll_step(200.0, 400.0), 0.0);
+        assert_eq!(
+            drag_edge_scroll_step(0.0, 400.0),
+            -DRAG_EDGE_SCROLL_MAX_STEP
+        );
+        assert_eq!(
+            drag_edge_scroll_step(400.0, 400.0),
+            DRAG_EDGE_SCROLL_MAX_STEP
+        );
+        assert!(drag_edge_scroll_step(30.0, 400.0) < 0.0);
+        assert!(drag_edge_scroll_step(370.0, 400.0) > 0.0);
+        assert_eq!(drag_edge_scroll_step(10.0, 0.0), 0.0);
+    }
 
     #[test]
     fn sidebar_position_uses_visible_configured_route_order() {
