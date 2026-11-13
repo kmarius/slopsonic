@@ -808,7 +808,11 @@ fn default_row_fields(key: LibraryListKey) -> Vec<LibraryField> {
 
 fn combined_row_fields(key: LibraryListKey) -> Vec<LibraryField> {
     match key {
-        LibraryListKey::Queue => vec![LibraryField::TitleMerged, LibraryField::Year],
+        LibraryListKey::Queue => vec![
+            LibraryField::RowIndex,
+            LibraryField::TitleMerged,
+            LibraryField::Duration,
+        ],
         LibraryListKey::FullscreenTracks => vec![
             LibraryField::RowIndex,
             LibraryField::TitleMerged,
