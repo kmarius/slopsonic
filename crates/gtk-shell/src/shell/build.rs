@@ -1,4 +1,3 @@
-use gtk_player::right_panel::apply_sidebar_queue_visibility;
 use gtk_player::right_panel::build_right_panel;
 use gtk_player::{
     PlayerDesktopWidgets,
@@ -474,7 +473,6 @@ pub async fn build(
     }
     shell.player_ui.update_bottom_player();
     shell.player_ui.update_right_panel_button();
-    apply_sidebar_queue_visibility(&shell.player_ui);
     install_product_event_receivers(&shell, receivers);
 
     if shell.source.configured.borrow().is_none() {

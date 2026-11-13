@@ -8,7 +8,6 @@ pub mod layout;
 mod library_lists;
 mod pins;
 pub mod presentation;
-pub mod right_panel;
 pub mod sidebar;
 
 pub use app::{

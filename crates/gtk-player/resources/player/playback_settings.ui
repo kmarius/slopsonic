@@ -32,7 +32,4 @@
       </object>
     </property>
   </object>
-  <object class="AdwSwitchRow" id="queue">
-    <property name="title" translatable="yes">Show playback queue</property>
-  </object>
 </interface>

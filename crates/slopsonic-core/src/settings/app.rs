@@ -213,8 +213,6 @@ pub struct Settings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window_height: Option<i32>,
     #[serde(default)]
-    pub right_panel: super::right_panel::RightPanelSettings,
-    #[serde(default)]
     pub library_lists: Vec<LibraryListSettingsEntry>,
 }
 
@@ -237,7 +235,6 @@ impl Default for Settings {
             random_play: RandomPlaySettings::default(),
             window_width: None,
             window_height: None,
-            right_panel: super::right_panel::RightPanelSettings::default(),
             library_lists: default_library_list_settings(),
         }
     }

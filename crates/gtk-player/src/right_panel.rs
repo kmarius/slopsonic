@@ -1,7 +1,5 @@
 use adw::prelude::*;
-use slopsonic_core::settings::right_panel::RightPanelSettings;
 use std::cell::RefCell;
-use std::rc::Rc;
 
 pub struct RightPanelWidgets {
     pub queue_loading: adw::Spinner,
@@ -13,7 +11,6 @@ pub struct RightPanelWidgets {
     pub queue_playlist_button: gtk::Button,
     pub queue_customize_button: gtk::Button,
     pub(crate) queue_width_fit: RefCell<Option<gtk_widgets::table_sizing::ColumnViewWidthFit>>,
-    queue_region: gtk::Overlay,
 }
 
 pub fn build_right_panel() -> RightPanelWidgets {
@@ -54,13 +51,6 @@ pub fn build_right_panel() -> RightPanelWidgets {
         queue_playlist_button,
         queue_customize_button,
         queue_width_fit: RefCell::new(None),
-        queue_region,
-    }
-}
-
-impl RightPanelWidgets {
-    fn rebuild(&self, settings: &RightPanelSettings) {
-        self.queue_region.set_visible(settings.queue_visible);
     }
 }
 
@@ -82,21 +72,4 @@ impl crate::PlayerUi {
             .queue_button
             .update_property(&[gtk::accessible::Property::Label(&label)]);
     }
-
-    pub fn set_sidebar_queue_visible(&self, visible: bool) {
-        self.settings
-            .set_app_setting("sidebar queue visibility", visible, |settings| {
-                &mut settings.right_panel.queue_visible
-            });
-        self.arrange_sidebar_panels();
-    }
-
-    fn arrange_sidebar_panels(&self) {
-        let settings = self.settings.current.borrow().right_panel.clone();
-        self.right_panel.rebuild(&settings);
-    }
-}
-
-pub fn apply_sidebar_queue_visibility(shell: &Rc<crate::PlayerUi>) {
-    shell.arrange_sidebar_panels();
 }

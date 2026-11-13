@@ -17,29 +17,18 @@ pub fn configure_playback_settings_popover(button: &gtk::MenuButton, shell: &Rc<
 }
 
 fn playback_settings_popover(shell: &Rc<PlayerUi>) -> gtk::Popover {
-    let settings = shell.settings.current.borrow().clone();
-    let playback = settings.playback;
+    let playback = shell.settings.current.borrow().playback.clone();
 
     let resource = crate::ui_resource::PLAYBACK_SETTINGS_POPOVER_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
         popover: gtk::Popover,
         settings_group: adw::PreferencesGroup,
-        queue: adw::SwitchRow,
     });
     let (transition_row, crossfade_options) =
         transition_rows(shell, &playback, PLAYBACK_SETTINGS_SCALE_WIDTH);
     settings_group.add(&transition_row);
     settings_group.add(&crossfade_options);
-
-    queue.set_active(settings.right_panel.queue_visible);
-    let queue_shell = Rc::downgrade(shell);
-    queue.connect_active_notify(move |row| {
-        if let Some(shell) = queue_shell.upgrade() {
-            shell.set_sidebar_queue_visible(row.is_active());
-        }
-    });
-    settings_group.add(&queue);
 
     popover
 }
