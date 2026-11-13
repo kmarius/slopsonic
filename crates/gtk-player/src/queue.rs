@@ -842,6 +842,10 @@ pub(super) fn configure_queue_columns(
                 gtk_widgets::recycled_cells::ROW_ACTIONS_WIDTH
             } else if *field == LibraryField::Year {
                 62
+            } else if *field == LibraryField::Duration {
+                48
+            } else if *field == LibraryField::RowIndex {
+                34
             } else {
                 gtk_widgets::library_fields::column_width(*field)
             };
