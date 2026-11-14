@@ -24,6 +24,7 @@ pub(super) async fn run(
     if let Err(error) = merge_legacy_queues(&actor.root, &actor.database).await {
         warn!(%error, "could not merge the former download queues");
     }
+    sweep_former_folders(&actor.root, &actor.database).await;
     actor.publish().await;
     let mut retry = tokio::time::interval(RETRY_INTERVAL);
     retry.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);

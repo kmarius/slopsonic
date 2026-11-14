@@ -137,6 +137,35 @@ pub(super) async fn merge_legacy_queues(root: &Path, database: &Database) -> Res
     Ok(())
 }
 
+/// Empties the former per-server folders after their queues merged: partial downloads there no
+/// longer resume, and files no download record uses belong to dropped servers. Files a record
+/// still uses, and queue files that could not be merged, stay. Unused files are only judged when
+/// the database records downloads under this root as spelled now; a temporary database or a moved
+/// root keeps them.
+pub(super) async fn sweep_former_folders(root: &Path, database: &Database) {
+    let records_trusted = matches!(database.downloads_recorded_under(root).await, Ok(true));
+    for folder in former_server_folders(root).await {
+        let Ok(mut entries) = tokio::fs::read_dir(&folder).await else {
+            continue;
+        };
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            let name = entry.file_name();
+            if !path.is_file() || name == QUEUE_FILE || name == QUEUE_PART_FILE {
+                continue;
+            }
+            // A failed lookup keeps the file.
+            let unused = managed_staging_file(&path)
+                || records_trusted
+                    && matches!(database.download_path_in_use(&path).await, Ok(false));
+            if unused && let Err(error) = remove_file_if_present(&path).await {
+                warn!(%error, path = %path.display(), "could not remove a former download file");
+            }
+        }
+        let _ = tokio::fs::remove_dir(&folder).await;
+    }
+}
+
 pub(super) async fn is_server_media(database: &Database, media_uri: &str) -> bool {
     library::entity_parts(media_uri).is_some()
         || database

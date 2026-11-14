@@ -214,6 +214,31 @@ impl Database {
         )
     }
 
+    /// Whether a download record is stored under `root`, spelled as `root` is now. An empty or
+    /// replaced database, or a root whose path changed since the downloads, has none.
+    pub async fn downloads_recorded_under(&self, root: &std::path::Path) -> LibraryResult<bool> {
+        let Ok(uri) = url::Url::from_directory_path(root) else {
+            return Ok(false);
+        };
+        let mut reader = self.acquire_reader().await?;
+        Ok(sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM download_files WHERE substr(path,1,length(?1))=?1)",
+        )
+        .bind(uri.as_str())
+        .fetch_one(&mut *reader)
+        .await?)
+    }
+
+    /// Whether a download record or locator still uses the file at `path`.
+    pub async fn download_path_in_use(&self, path: &std::path::Path) -> LibraryResult<bool> {
+        let Ok(uri) = url::Url::from_file_path(path) else {
+            return Ok(true);
+        };
+        let mut reader = self.acquire_reader().await?;
+        Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM download_files WHERE path=?1) OR EXISTS(SELECT 1 FROM download_locators WHERE path=?2)")
+            .bind(uri.as_str()).bind(path.to_string_lossy()).fetch_one(&mut *reader).await?)
+    }
+
     pub async fn download_file_shared(&self, file: &DownloadFile) -> LibraryResult<bool> {
         let mut reader = self.acquire_reader().await?;
         Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM download_files WHERE path=?1 AND (media_uri,encoding,revision)<>(?2,?3,?4))")

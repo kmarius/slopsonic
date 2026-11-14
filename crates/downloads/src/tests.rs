@@ -121,6 +121,77 @@ async fn queued_media_survives_restart_serialization() {
 }
 
 #[tokio::test]
+async fn former_server_folders_keep_only_files_a_record_uses() {
+    let (_directory, database, _) = download_fixture("track").await;
+    let root = tempfile::tempdir().unwrap();
+    let write = |relative: &str| {
+        let path = root.path().join(relative);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, b"bytes").unwrap();
+        path
+    };
+    let hashed = hash_id_bytes(b"slopsonic-source-abc");
+    let kept = write(&format!("{hashed}/kept.audio"));
+    let orphan = write(&format!("{hashed}/orphan.audio"));
+    let unmerged = write(&format!("{hashed}/{QUEUE_FILE}"));
+    let partial = write("direct/track.audio.part");
+    let artwork = write("artwork/cover.png");
+    let current = write("server/track.audio.part");
+    let nested = write(&format!("{hashed}/Artist/Album/track.flac"));
+
+    // Without records under this root (a temporary or replaced database, a moved root) only
+    // partial downloads go.
+    sweep_former_folders(root.path(), &database).await;
+    assert!(orphan.exists() && kept.exists());
+    assert!(!partial.exists());
+
+    database
+        .save_download_file(&library::DownloadFile {
+            media_uri: library::entity_uri("track", "kept"),
+            encoding: "original".into(),
+            path: reqwest::Url::from_file_path(&kept).unwrap().to_string(),
+            managed: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    sweep_former_folders(root.path(), &database).await;
+
+    assert!(
+        kept.exists() && unmerged.exists(),
+        "used files and unmerged queues stay"
+    );
+    assert!(
+        nested.exists(),
+        "only top-level files of a former folder are judged"
+    );
+    assert!(!orphan.exists());
+    assert!(!root.path().join("direct").exists());
+    assert!(
+        artwork.exists() && current.exists(),
+        "other folders are left alone"
+    );
+
+    // A custom download folder's former staging keeps only what is not a partial download.
+    let custom = tempfile::tempdir().unwrap();
+    let staged = |relative: &str| {
+        let path = custom.path().join(CUSTOM_STAGING_DIRECTORY).join(relative);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, b"bytes").unwrap();
+        path
+    };
+    let direct = staged("direct/track.audio.part");
+    let resume = staged(&format!("{hashed}/track.audio.part.resume"));
+    let foreign = staged(&format!("{hashed}/notes.txt"));
+    cleanup_staging(root.path(), Some(custom.path()), &HashSet::new())
+        .await
+        .unwrap();
+    assert!(!direct.exists() && !resume.exists());
+    assert!(foreign.exists(), "files the app did not stage stay");
+}
+
+#[tokio::test]
 async fn collection_completion_follows_its_download_jobs() {
     for fail_first in [false, true] {
         let (_directory, database, _) = download_fixture("track").await;
