@@ -12,12 +12,11 @@ impl GstEngine {
         use gst::MessageView;
         if self.is_active_slot(slot)
             && let Some(peak_db) = self.pipeline_for_slot(slot).processing_peak(message)
-            && let Some(output) = self.pipeline_for_slot(slot).processing_output()
+            && self.pipeline_for_slot(slot).has_audio_graph()
         {
             push_event(
                 &self.events,
                 BackendEvent::ProcessingMeter {
-                    output,
                     peak_db,
                     spectrum_db: Vec::new(),
                 },

@@ -182,8 +182,6 @@ pub enum BackendState {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProcessingRequest {
-    pub output: String,
-    pub local_device: Option<String>,
     pub config: audio_processing::effects::ProcessingConfig,
     pub meter: bool,
     pub spectrum: bool,
@@ -191,8 +189,6 @@ pub struct ProcessingRequest {
 impl Default for ProcessingRequest {
     fn default() -> Self {
         Self {
-            output: "local:default".into(),
-            local_device: None,
             config: Default::default(),
             meter: false,
             spectrum: false,
@@ -302,17 +298,14 @@ pub enum BackendEvent {
         error: BackendFailure,
     },
     ProcessingApplied {
-        output: String,
         config: audio_processing::effects::ProcessingConfig,
         sample_rate: Option<u32>,
         preamp_db: f64,
     },
     ProcessingFailed {
-        output: String,
         message: String,
     },
     ProcessingMeter {
-        output: String,
         peak_db: Vec<f64>,
         spectrum_db: Vec<f64>,
     },

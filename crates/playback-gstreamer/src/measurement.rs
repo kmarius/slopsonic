@@ -21,12 +21,11 @@ pub(super) struct MeasurementTap {
     pipeline_id: PipelineId,
     run: RunId,
     sender: SyncSender<MeasurementFrame>,
-    output: String,
 }
 
 impl MeasurementTap {
-    pub(super) fn measurement_key(&self) -> (PipelineId, RunId, String) {
-        (self.pipeline_id, self.run, self.output.clone())
+    pub(super) fn measurement_key(&self) -> (PipelineId, RunId) {
+        (self.pipeline_id, self.run)
     }
 
     pub(super) fn install(&self, pad: &gst::Pad) -> Option<gst::PadProbeId> {
@@ -101,7 +100,6 @@ impl MeasurementTap {
                     run: tap.run,
                     samples,
                     sample_rate: info.rate(),
-                    output: tap.output.clone(),
                     channels: info.channels() as usize,
                     pool: Arc::clone(&pool),
                 };
@@ -123,7 +121,6 @@ struct MeasurementFrame {
     run: RunId,
     samples: Vec<f32>,
     sample_rate: u32,
-    output: String,
     channels: usize,
     pool: Arc<Mutex<Vec<Vec<f32>>>>,
 }
@@ -145,19 +142,12 @@ impl MeasurementAnalyzer {
         Self { sender }
     }
 
-    pub(super) fn tap(
-        &self,
-        slot: Slot,
-        pipeline_id: PipelineId,
-        run: RunId,
-        output: String,
-    ) -> MeasurementTap {
+    pub(super) fn tap(&self, slot: Slot, pipeline_id: PipelineId, run: RunId) -> MeasurementTap {
         MeasurementTap {
             slot,
             pipeline_id,
             run,
             sender: self.sender.clone(),
-            output,
         }
     }
 }
@@ -177,7 +167,6 @@ fn run_measurement_worker(
             run,
             samples,
             sample_rate,
-            output,
             channels,
             pool,
         } = frame;
@@ -188,10 +177,7 @@ fn run_measurement_worker(
                     .current
                     .as_ref()
                     .is_some_and(|current| current.run == run)
-                && shared
-                    .processing
-                    .as_ref()
-                    .is_some_and(|p| p.spectrum && p.output == output)
+                && shared.processing.as_ref().is_some_and(|p| p.spectrum)
         };
         if live {
             let stream = (pipeline_id, run, sample_rate, channels);
@@ -223,7 +209,6 @@ fn run_measurement_worker(
                     push_event(
                         &events,
                         BackendEvent::ProcessingMeter {
-                            output,
                             peak_db: Vec::new(),
                             spectrum_db,
                         },

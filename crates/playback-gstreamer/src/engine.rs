@@ -66,17 +66,14 @@ impl EventMailbox {
 
     fn insert(&mut self, event: BackendEvent) {
         if let BackendEvent::ProcessingMeter {
-            output,
             mut peak_db,
             spectrum_db,
         } = event
         {
             if let Some(BackendEvent::ProcessingMeter {
-                output: old_output,
                 peak_db: old_peak,
                 spectrum_db: old_spectrum,
             }) = self.processing_meter.as_mut()
-                && *old_output == output
             {
                 if peak_db.len() == old_peak.len() {
                     for (peak, old) in peak_db.iter_mut().zip(old_peak.iter()) {
@@ -91,7 +88,6 @@ impl EventMailbox {
                 }
             } else {
                 self.processing_meter = Some(BackendEvent::ProcessingMeter {
-                    output,
                     peak_db,
                     spectrum_db,
                 });
@@ -994,13 +990,7 @@ impl GstEngine {
         if let Err(message) =
             audio_processing::effects::EffectsBin::validate_available(&request.config)
         {
-            push_event(
-                &self.events,
-                BackendEvent::ProcessingFailed {
-                    output: request.output,
-                    message,
-                },
-            );
+            push_event(&self.events, BackendEvent::ProcessingFailed { message });
             return;
         }
         lock_recover(&self.shared).processing = Some(request.clone());
@@ -1014,7 +1004,6 @@ impl GstEngine {
                 push_event(
                     &self.events,
                     BackendEvent::ProcessingFailed {
-                        output: request.output.clone(),
                         message: message.to_string(),
                     },
                 );
@@ -1034,7 +1023,6 @@ impl GstEngine {
             push_event(
                 &self.events,
                 BackendEvent::ProcessingApplied {
-                    output: request.output,
                     config: request.config,
                     sample_rate: None,
                     preamp_db,
@@ -1047,11 +1035,10 @@ impl GstEngine {
         for slot in [Slot::Primary, Slot::Secondary] {
             match self.pipeline_for_slot_mut(slot).poll_processing() {
                 Ok(Some((config, sample_rate, preamp_db))) if self.is_active_slot(slot) => {
-                    if let Some(output) = self.pipeline_for_slot(slot).processing_output() {
+                    if self.pipeline_for_slot(slot).has_audio_graph() {
                         push_event(
                             &self.events,
                             BackendEvent::ProcessingApplied {
-                                output,
                                 config,
                                 sample_rate,
                                 preamp_db,
@@ -1060,11 +1047,8 @@ impl GstEngine {
                     }
                 }
                 Err(message) => {
-                    if let Some(output) = self.pipeline_for_slot(slot).processing_output() {
-                        push_event(
-                            &self.events,
-                            BackendEvent::ProcessingFailed { output, message },
-                        );
+                    if self.pipeline_for_slot(slot).has_audio_graph() {
+                        push_event(&self.events, BackendEvent::ProcessingFailed { message });
                     }
                 }
                 _ => {}
@@ -1212,23 +1196,19 @@ impl GstEngine {
     }
 
     fn sync_processing_taps(&mut self) {
-        let output = lock_recover(&self.shared)
+        let spectrum = lock_recover(&self.shared)
             .processing
             .as_ref()
-            .filter(|request| request.spectrum)
-            .map(|request| request.output.clone());
+            .is_some_and(|request| request.spectrum);
         for slot in [Slot::Primary, Slot::Secondary] {
-            let tap = output
-                .as_ref()
-                .filter(|output| {
-                    self.pipeline_for_slot(slot).processing_output().as_ref() == Some(*output)
-                })
-                .and_then(|output| {
+            let tap = (spectrum && self.pipeline_for_slot(slot).has_audio_graph())
+                .then(|| {
                     let shared = lock_recover(&self.shared);
                     let pipeline_id = shared.pipeline_id(slot)?;
                     let run = shared.current.as_ref()?.run;
-                    Some(self.measurement.tap(slot, pipeline_id, run, output.clone()))
-                });
+                    Some(self.measurement.tap(slot, pipeline_id, run))
+                })
+                .flatten();
             self.pipeline_for_slot_mut(slot).set_processing_tap(tap);
         }
     }

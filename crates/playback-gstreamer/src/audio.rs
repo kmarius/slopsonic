@@ -27,8 +27,6 @@ pub(super) struct AudioGraph {
     transition: BaseTransform,
     transition_curve: controller::InterpolationControlSource,
     gain_frontier: Arc<AtomicU64>,
-    audio_output: Option<String>,
-    processing_output: String,
     state: Arc<Mutex<AudioGraphState>>,
 }
 
@@ -252,11 +250,6 @@ impl AudioGraph {
             transition,
             transition_curve,
             gain_frontier,
-            audio_output: settings.audio_output.clone(),
-            processing_output: format!(
-                "local:{}",
-                settings.audio_output.as_deref().unwrap_or("default")
-            ),
             state,
         })
     }
@@ -380,18 +373,6 @@ impl AudioGraph {
     pub(super) fn retarget_output(&self, target: f64, muted: bool) {
         self.gain.set_property("mute", muted);
         self.fade_output(None, target, self.fade_remaining());
-    }
-
-    pub(super) fn uses_output(&self, selected: Option<&str>) -> bool {
-        self.audio_output.as_deref() == selected
-    }
-
-    pub(super) fn processing_output(&self) -> String {
-        self.processing_output.clone()
-    }
-
-    pub(super) fn set_processing_output(&mut self, output: &str) {
-        self.processing_output = output.into();
     }
 
     pub(super) fn set_loudness(&mut self, loudness: TrackLoudness) {
@@ -588,9 +569,7 @@ pub(super) fn passthrough_allowed(
         ["audio/x-ac3", "audio/x-eac3", "audio/x-dts"].contains(&format.name().as_str())
     }) && settings.output_gain() >= 1.0
         && !settings.muted
-        && processing.is_none_or(|request| {
-            request.config.is_neutral() || request.local_device != settings.audio_output
-        })
+        && processing.is_none_or(|request| request.config.is_neutral())
         && loudness
             .and_then(|loudness| selected_loudness(settings, loudness))
             .is_none_or(|(gain, peak)| clipping_safe_gain_db(gain, peak).abs() < 0.01)

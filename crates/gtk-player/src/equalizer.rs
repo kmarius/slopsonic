@@ -175,7 +175,6 @@ struct Editor {
     listener: RefCell<Option<glib::JoinHandle<()>>>,
     widgets: RefCell<Vec<BandWidgets>>,
     enabled: gtk::Switch,
-    assigned: gtk::CheckButton,
     preset: adw::ComboRow,
     save: gtk::Button,
     preset_indicator: crate::preset_name::PresetIndicator,
@@ -251,7 +250,7 @@ impl EqualizerSurface {
         let resource = crate::ui_resource::EQUALIZER_RESOURCE;
         let builder = gtk_widgets::ui_resource::builder(resource);
         gtk_widgets::objects!(builder, resource, {
-            root: gtk::Box, enabled: gtk::Switch, assigned: gtk::CheckButton,
+            root: gtk::Box, enabled: gtk::Switch,
             preset: adw::ComboRow, save: gtk::Button,
             rename: gtk::Button, delete: gtk::Button, duplicate: gtk::Button,
             import: gtk::Button, export: gtk::Button,
@@ -272,7 +271,7 @@ impl EqualizerSurface {
             reset: gtk::Button,
             error: gtk::Label,
         });
-        let view = player.playback_owner.equalizer_view(String::new());
+        let view = player.playback_owner.equalizer_view();
         let editor = Rc::new(Editor {
             root: root.downgrade(),
             owner: player.playback_owner.clone(),
@@ -288,7 +287,6 @@ impl EqualizerSurface {
             listener: RefCell::new(None),
             widgets: RefCell::new(Vec::new()),
             enabled,
-            assigned,
             preset,
             save,
             preset_indicator: crate::preset_name::PresetIndicator::default(),
@@ -354,10 +352,7 @@ impl EqualizerSurface {
             let update = editor.view.borrow().save_target.is_some();
             if update {
                 let owner = editor.owner.clone();
-                let output = editor.output();
-                editor.run(
-                    async move { owner.save_equalizer_preset(output, None).await.map(|_| ()) },
-                );
+                editor.run(async move { owner.save_equalizer_preset(None).await.map(|_| ()) });
             } else {
                 editor.name_dialog(NameAction::Save);
             }
@@ -446,10 +441,6 @@ impl EqualizerSurface {
 }
 
 impl Editor {
-    fn output(&self) -> String {
-        self.view.borrow().output.clone()
-    }
-
     fn run<T, E>(self: &Rc<Self>, future: impl Future<Output = Result<T, E>> + Send + 'static)
     where
         T: Send + 'static,
@@ -474,7 +465,7 @@ impl Editor {
         if self.syncing.get() {
             return;
         }
-        if let Err(error) = self.owner.preview_equalizer(self.output(), edit) {
+        if let Err(error) = self.owner.preview_equalizer(edit) {
             self.feedback.show_feedback_toast(error.to_string());
         }
     }
@@ -492,8 +483,7 @@ impl Editor {
             source.remove();
         }
         let owner = self.owner.clone();
-        let output = self.output();
-        self.run(async move { owner.commit_equalizer(output).await });
+        self.run(async move { owner.commit_equalizer().await });
     }
 
     fn commit_pending(self: &Rc<Self>) {
@@ -525,11 +515,11 @@ impl Editor {
         if self.subscription.borrow().is_some() {
             return;
         }
-        let subscription = self.owner.clone().subscribe_equalizer(String::new());
+        let subscription = self.owner.clone().subscribe_equalizer();
         subscription.set_measurement(true, self.spectrum.is_active());
         *self.subscription.borrow_mut() = Some(subscription.clone());
         self.refresh_presets();
-        self.refresh(self.owner.equalizer_view(String::new()));
+        self.refresh(self.owner.equalizer_view());
         self.request_response();
         let weak = Rc::downgrade(self);
         *self.listener.borrow_mut() = Some(glib::spawn_future_local(async move {
@@ -557,17 +547,6 @@ impl Editor {
                 }
             });
         }
-        let weak = Rc::downgrade(self);
-        self.assigned.connect_toggled(move |check| {
-            let Some(editor) = weak.upgrade() else { return };
-            if editor.syncing.get() {
-                return;
-            }
-            let owner = editor.owner.clone();
-            let output = editor.output();
-            let assigned = check.is_active();
-            editor.run(async move { owner.assign_equalizer(output, assigned).await });
-        });
         let weak = Rc::downgrade(self);
         self.mode.connect_clicked(move |_| {
             if let Some(editor) = weak.upgrade() {
@@ -996,10 +975,8 @@ impl Editor {
                 },
             ));
         }
-        let controls_unchanged = previous.output == view.output
-            && previous.profile == view.profile
+        let controls_unchanged = previous.profile == view.profile
             && previous.enabled == view.enabled
-            && previous.assigned == view.assigned
             && previous.preset_id == view.preset_id
             && previous.save_target == view.save_target
             && previous.name == view.name
@@ -1020,19 +997,6 @@ impl Editor {
             || first;
         if profile_changed {
             self.response_curve.borrow_mut().take();
-        }
-        let output_changed = previous.output != view.output;
-        if output_changed {
-            let pending = self.pending.borrow_mut().take();
-            if pending.is_some() || self.pointer.get() {
-                if let Some(source) = pending {
-                    source.remove();
-                }
-                let owner = self.owner.clone();
-                let output = previous.output.clone();
-                self.run(async move { owner.commit_equalizer(output).await });
-            }
-            self.pointer.set(false);
         }
         self.syncing.set(true);
         if previous.profile.layout != view.profile.layout || first {
@@ -1065,7 +1029,6 @@ impl Editor {
                 .min(view.profile.bands.len().saturating_sub(1)),
         );
         self.enabled.set_active(view.enabled);
-        self.assigned.set_active(view.assigned);
         if first
             || previous.preset_id != view.preset_id
             || previous.name != view.name
@@ -1332,8 +1295,7 @@ impl Editor {
     fn select_preset(self: &Rc<Self>, preset: Option<String>) {
         self.commit_pending();
         let owner = self.owner.clone();
-        let output = self.output();
-        self.run(async move { owner.select_equalizer_preset(output, preset).await });
+        self.run(async move { owner.select_equalizer_preset(preset).await });
     }
 }
 
@@ -1352,14 +1314,10 @@ impl Editor {
             let view = view.clone();
             editor.run(async move {
                 match action {
-                    NameAction::Save => owner
-                        .save_equalizer_preset(view.output, Some(name))
-                        .await
-                        .map(|_| ()),
-                    NameAction::Duplicate => owner
-                        .duplicate_equalizer_preset(view.output, name)
-                        .await
-                        .map(|_| ()),
+                    NameAction::Save => owner.save_equalizer_preset(Some(name)).await.map(|_| ()),
+                    NameAction::Duplicate => {
+                        owner.duplicate_equalizer_preset(name).await.map(|_| ())
+                    }
                     NameAction::Rename => match view.preset_id {
                         Some(id) => owner.rename_equalizer_preset(id, name).await,
                         None => Ok(()),
@@ -1395,15 +1353,10 @@ impl Editor {
         };
         let owner = self.owner.clone();
         let runtime = self.runtime.clone();
-        let output = self.output();
         crate::preset_transfer::import(&root, true, move |text, apo| {
             let owner = owner.clone();
-            let output = output.clone();
-            let task = runtime.spawn(async move {
-                owner
-                    .import_equalizer(output, text, preset_format(apo))
-                    .await
-            });
+            let task = runtime
+                .spawn(async move { owner.import_equalizer(text, preset_format(apo)).await });
             async move {
                 task.await
                     .map_err(|error| error.to_string())?
@@ -1418,13 +1371,12 @@ impl Editor {
             return;
         };
         let owner = self.owner.clone();
-        let output = self.output();
         crate::preset_transfer::export(
             &root,
             &["equalizer.slopsonic-eq.json", "equalizer.txt"],
             move |apo| {
                 owner
-                    .export_equalizer(output.clone(), preset_format(apo))
+                    .export_equalizer(preset_format(apo))
                     .map_err(|error| error.to_string())
             },
         );

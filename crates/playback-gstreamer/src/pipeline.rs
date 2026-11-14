@@ -57,7 +57,7 @@ pub(super) struct PlayerPipeline {
     about_to_finish_id: Option<glib::SignalHandlerId>,
     audio_graph: Option<AudioGraph>,
     processing_probe: Option<(gst::Pad, gst::PadProbeId)>,
-    processing_tap_key: Option<(PipelineId, RunId, String)>,
+    processing_tap_key: Option<(PipelineId, RunId)>,
     current_stream: Option<PreparedStream>,
     queued_loudness: SharedQueuedLoudness,
     gapless: Arc<Mutex<GaplessPlayback>>,
@@ -156,32 +156,6 @@ impl PlayerPipeline {
         fade_in: Option<Duration>,
         bitstream: Option<gst::Caps>,
     ) -> Result<(), BackendFailure> {
-        if self
-            .audio_graph
-            .as_ref()
-            .is_some_and(|graph| !graph.uses_output(settings.audio_output.as_deref()))
-        {
-            // Keep the working output until its replacement has opened.
-            let mut replacement = Self::new(
-                &self.name,
-                self.slot,
-                Arc::clone(&self.shared),
-                self.inputs.clone(),
-            );
-            replacement.play_item(
-                id,
-                slot,
-                item,
-                settings,
-                volume,
-                muted,
-                startup_state,
-                fade_in,
-                bitstream,
-            )?;
-            *self = replacement;
-            return Ok(());
-        }
         self.stop();
         self.initialize()?;
         lock_recover(&self.gapless).bitstream = bitstream.is_some();
@@ -634,12 +608,9 @@ impl PlayerPipeline {
             Arc::clone(&self.queued_loudness),
         )?;
         let processing = lock_recover(&self.shared).processing.clone();
-        if let Some(request) = processing
-            && graph.uses_output(request.local_device.as_deref())
-        {
+        if let Some(request) = processing {
             graph.processing.update(&request.config)?;
             graph.processing.set_meter(request.meter)?;
-            graph.set_processing_output(&request.output);
         }
         graph
             .output()
@@ -817,18 +788,15 @@ impl PlayerPipeline {
         &mut self,
         request: &ProcessingRequest,
     ) -> Result<(), BackendFailure> {
-        if let Some(graph) = self.audio_graph.as_mut()
-            && graph.uses_output(request.local_device.as_deref())
-        {
+        if let Some(graph) = self.audio_graph.as_mut() {
             graph.processing.update(&request.config)?;
             graph.processing.set_meter(request.meter)?;
-            graph.set_processing_output(&request.output);
         }
         Ok(())
     }
 
-    pub(super) fn processing_output(&self) -> Option<String> {
-        self.audio_graph.as_ref().map(AudioGraph::processing_output)
+    pub(super) fn has_audio_graph(&self) -> bool {
+        self.audio_graph.is_some()
     }
 
     pub(super) fn poll_processing(

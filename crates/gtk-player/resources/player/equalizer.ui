@@ -102,24 +102,9 @@
                 <property name="hexpand">true</property>
                 <property name="spacing">8</property>
                 <child>
-                  <object class="GtkCheckButton" id="assigned">
-                    <property name="valign">center</property>
-                    <property name="child"><object class="GtkLabel">
-                      <property name="label" translatable="yes">Use for this output</property>
-                      <property name="wrap">true</property>
-                      <property name="wrap-mode">word-char</property>
-                      <property name="xalign">0</property>
-                      <property name="natural-wrap-mode">none</property>
-                    </object></property>
-                    <accessibility>
-                      <property name="label" translatable="yes">Use for this output</property>
-                    </accessibility>
-                  </object>
-                </child>
-                <child>
                   <object class="GtkToggleButton" id="mode">
                     <property name="halign">end</property>
-                    <property name="margin-start">12</property>
+                    <property name="hexpand">true</property>
                     <property name="valign">center</property>
                     <property name="icon-name">slopsonic-spring-graph-symbolic</property>
                     <property name="tooltip-text" translatable="yes">Parametric</property>

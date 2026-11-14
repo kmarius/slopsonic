@@ -794,24 +794,22 @@ impl Player {
                 self.report_error(error.message().to_string());
             }
             BackendEvent::ProcessingApplied {
-                output,
                 config,
                 sample_rate,
                 preamp_db,
             } => {
                 self.owner()
-                    .equalizer_applied(output, config, sample_rate, preamp_db);
+                    .equalizer_applied(config, sample_rate, preamp_db);
             }
-            BackendEvent::ProcessingFailed { output, message } => {
-                self.owner().equalizer_failed(output, message.clone());
+            BackendEvent::ProcessingFailed { message } => {
+                self.owner().equalizer_failed(message.clone());
                 self.report_error(message);
             }
             BackendEvent::ProcessingMeter {
-                output,
                 peak_db,
                 spectrum_db,
             } => {
-                self.owner().equalizer_meter(output, peak_db, spectrum_db);
+                self.owner().equalizer_meter(peak_db, spectrum_db);
             }
             BackendEvent::AudioApplied { volume, muted } => {
                 let unchanged = self.output_volume == volume && self.output_muted == muted;

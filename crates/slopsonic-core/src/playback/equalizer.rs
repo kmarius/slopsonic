@@ -1,11 +1,10 @@
-//! Equalizer editing, presets and output assignments owned by playback.
+//! Equalizer editing and presets owned by playback.
 use super::{PlaybackError, PlaybackOwner, PlaybackStoreWork};
 use audio_processing::effects::{
     BandLayout, EqProfile, Filter, FilterKind, FilterWidth, ProcessingConfig,
 };
 use playback::ProcessingRequest;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::sync::{
     Arc, Weak,
     atomic::{AtomicBool, Ordering},
@@ -146,14 +145,13 @@ impl Default for OutputEq {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct EqualizerPreferences {
-    pub default_output: OutputEq,
-    pub outputs: BTreeMap<String, OutputEq>,
+    #[serde(alias = "default_output")]
+    pub current: OutputEq,
     pub presets: Vec<SavedPreset>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct EqView {
-    pub output: String,
     pub enabled: bool,
     pub profile: EqProfile,
     pub preset_id: Option<String>,
@@ -161,7 +159,6 @@ pub struct EqView {
     pub name: String,
     pub preset_builtin: bool,
     pub modified: bool,
-    pub assigned: bool,
     pub crossfeed: bool,
     pub balance: f64,
     pub sample_rate: Option<u32>,
@@ -181,109 +178,67 @@ struct ExecutionFacts {
 }
 struct Observer {
     id: u64,
-    output: String,
     sender: watch::Sender<EqView>,
     meter: bool,
     spectrum: bool,
 }
 pub(super) struct EqualizerState {
     pub preferences: EqualizerPreferences,
-    current_output: String,
-    observed_route: Option<String>,
-    processing: BTreeMap<String, watch::Sender<ProcessingRequest>>,
+    processing: Option<watch::Sender<ProcessingRequest>>,
     observers: Vec<Observer>,
     next_observer: u64,
-    facts: BTreeMap<String, ExecutionFacts>,
+    facts: ExecutionFacts,
     write_error: Option<String>,
 }
 impl EqualizerState {
     pub fn new(preferences: EqualizerPreferences) -> Self {
         Self {
             preferences,
-            current_output: local_id(None),
-            observed_route: None,
-            processing: BTreeMap::new(),
+            processing: None,
             observers: Vec::new(),
             next_observer: 0,
-            facts: BTreeMap::new(),
+            facts: ExecutionFacts::default(),
             write_error: None,
         }
     }
-    fn resolve(&self, output: &str) -> String {
-        if output.is_empty() {
-            self.current_output.clone()
-        } else {
-            output.into()
-        }
-    }
-    fn request(&self, output: &str) -> ProcessingRequest {
-        let (meter, spectrum) = self
-            .observers
+    fn measurement(&self) -> (bool, bool) {
+        self.observers
             .iter()
-            .filter(|o| self.resolve(&o.output) == output)
-            .fold((false, false), |(m, s), o| (m || o.meter, s || o.spectrum));
+            .fold((false, false), |(m, s), o| (m || o.meter, s || o.spectrum))
+    }
+    fn request(&self) -> ProcessingRequest {
+        let (meter, spectrum) = self.measurement();
         ProcessingRequest {
-            output: output.into(),
-            local_device: None,
-            config: self.preferences.config(output),
+            config: self.preferences.config(),
             meter,
             spectrum,
         }
     }
-    fn submit(&mut self, output: &str, force: bool) {
-        if output != self.current_output
-            && (self.preferences.outputs.contains_key(output)
-                || self.preferences.outputs.contains_key(&self.current_output))
-        {
+    fn submit(&mut self) {
+        let request = self.request();
+        let Some(sender) = self
+            .processing
+            .as_ref()
+            .filter(|sender| !sender.is_closed())
+        else {
             return;
-        }
-        let active = self.current_output.clone();
-        let output = active.as_str();
-        self.processing.retain(|_, sender| !sender.is_closed());
-        let request = self.request(output);
-        if let Some(sender) = self.processing.get(&backend_key(output)) {
-            if force {
-                sender.send_replace(request);
+        };
+        sender.send_if_modified(|current| {
+            if current.config.same_processing(&request.config)
+                && current.meter == request.meter
+                && current.spectrum == request.spectrum
+            {
+                false
             } else {
-                sender.send_if_modified(|current| {
-                    if current.config.same_processing(&request.config)
-                        && current.output == request.output
-                        && current.meter == request.meter
-                        && current.spectrum == request.spectrum
-                    {
-                        false
-                    } else {
-                        *current = request;
-                        true
-                    }
-                });
+                *current = request;
+                true
             }
-        }
+        });
     }
-    fn refresh_measurement(&self) {
-        for sender in self.processing.values() {
-            let output = sender.borrow().output.clone();
-            let (meter, spectrum) = self
-                .observers
-                .iter()
-                .filter(|o| self.resolve(&o.output) == output)
-                .fold((false, false), |(m, s), o| (m || o.meter, s || o.spectrum));
-            sender.send_if_modified(|request| {
-                if request.meter == meter && request.spectrum == spectrum {
-                    false
-                } else {
-                    request.meter = meter;
-                    request.spectrum = spectrum;
-                    true
-                }
-            });
-        }
-    }
-    fn view(&self, output: &str, settings: &crate::settings::SettingsFile) -> EqView {
-        let output = self.resolve(output);
-        let entry = self.preferences.output(&output);
+    fn view(&self, settings: &crate::settings::SettingsFile) -> EqView {
+        let entry = &self.preferences.current;
         let profile = self.preferences.profile(entry);
-        let facts = self.facts.get(&output);
+        let facts = Some(&self.facts);
         let preset_id = entry
             .selection
             .as_ref()
@@ -302,7 +257,6 @@ impl EqualizerState {
             saved.as_ref().is_none_or(|p| p.profile != profile)
         };
         EqView {
-            output: output.clone(),
             enabled: entry.enabled,
             profile: profile.clone(),
             preset_id: preset_id.cloned(),
@@ -313,7 +267,6 @@ impl EqualizerState {
                 .unwrap_or_else(|| "Custom".into()),
             preset_builtin,
             modified,
-            assigned: self.preferences.outputs.contains_key(&output),
             crossfeed: entry.crossfeed,
             balance: entry.balance,
             sample_rate: facts.and_then(|f| f.sample_rate),
@@ -333,7 +286,7 @@ impl EqualizerState {
     fn publish(&mut self, settings: &crate::settings::SettingsFile) {
         self.observers.retain(|o| o.sender.receiver_count() > 0);
         for observer in &self.observers {
-            let view = self.view(&observer.output, settings);
+            let view = self.view(settings);
             observer.sender.send_if_modified(|old| {
                 if *old == view {
                     false
@@ -346,16 +299,6 @@ impl EqualizerState {
     }
 }
 
-fn local_id(device: Option<&str>) -> String {
-    format!("local:{}", device.unwrap_or("default"))
-}
-fn backend_key(output: &str) -> String {
-    if output.starts_with("local:") {
-        "local".into()
-    } else {
-        output.into()
-    }
-}
 fn error(message: impl Into<String>) -> PlaybackError {
     PlaybackError::Message(message.into())
 }
@@ -430,12 +373,6 @@ impl EqualizerPreferences {
     fn preset(&self, id: &str) -> Option<SavedPreset> {
         builtin(id).or_else(|| self.presets.iter().find(|p| p.id == id).cloned())
     }
-    fn output(&self, id: &str) -> &OutputEq {
-        self.outputs.get(id).unwrap_or(&self.default_output)
-    }
-    fn output_mut(&mut self, id: &str) -> &mut OutputEq {
-        self.outputs.get_mut(id).unwrap_or(&mut self.default_output)
-    }
     fn profile(&self, entry: &OutputEq) -> EqProfile {
         entry
             .selection
@@ -444,20 +381,19 @@ impl EqualizerPreferences {
             .map(|p| p.profile)
             .unwrap_or_else(|| entry.draft.profile.clone())
     }
-    fn config(&self, output: &str) -> ProcessingConfig {
-        let entry = self.output(output);
+    fn config(&self) -> ProcessingConfig {
+        let entry = &self.current;
         ProcessingConfig {
             equalizer: entry.enabled.then(|| self.profile(entry)),
             crossfeed: entry.crossfeed,
             balance: entry.balance,
         }
     }
-    fn begin_edit(&mut self, output: &str) {
-        let entry = self.output(output);
-        if let Some(id) = entry.selection.clone() {
-            let profile = self.profile(entry);
+    fn begin_edit(&mut self) {
+        if let Some(id) = self.current.selection.clone() {
+            let profile = self.profile(&self.current);
             let save_target = Some(id);
-            let entry = self.output_mut(output);
+            let entry = &mut self.current;
             entry.selection = None;
             entry.draft = EqDraft {
                 profile,
@@ -477,7 +413,8 @@ impl EqualizerPreferences {
                 return Err("Invalid equalizer preset identity".into());
             }
         }
-        for entry in std::iter::once(&self.default_output).chain(self.outputs.values()) {
+        {
+            let entry = &self.current;
             entry.draft.profile.validate()?;
             if let Some(id) = &entry.selection
                 && self.preset(id).is_none()
@@ -519,7 +456,7 @@ impl EqSubscription {
                 o.meter = meter;
                 o.spectrum = spectrum;
             }
-            state.refresh_measurement();
+            state.submit();
         }
     }
 }
@@ -528,27 +465,26 @@ impl Drop for EqSubscription {
         if let Some(owner) = self.owner.upgrade() {
             let mut state = owner.equalizer.lock().unwrap_or_else(|e| e.into_inner());
             state.observers.retain(|o| o.id != self.id);
-            state.refresh_measurement();
+            state.submit();
         }
     }
 }
 
 impl PlaybackOwner {
-    pub fn equalizer_view(&self, output: String) -> EqView {
+    pub fn equalizer_view(&self) -> EqView {
         self.equalizer
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .view(&output, &self.settings)
+            .view(&self.settings)
     }
-    pub fn subscribe_equalizer(self: Arc<Self>, output: String) -> Arc<EqSubscription> {
+    pub fn subscribe_equalizer(self: Arc<Self>) -> Arc<EqSubscription> {
         let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-        let view = state.view(&output, &self.settings);
+        let view = state.view(&self.settings);
         let (sender, receiver) = watch::channel(view);
         let id = state.next_observer;
         state.next_observer += 1;
         state.observers.push(Observer {
             id,
-            output,
             sender,
             meter: false,
             spectrum: false,
@@ -576,16 +512,14 @@ impl PlaybackOwner {
             }))
             .collect()
     }
-    pub fn preview_equalizer(&self, output: String, edit: EqEdit) -> Result<(), PlaybackError> {
+    pub fn preview_equalizer(&self, edit: EqEdit) -> Result<(), PlaybackError> {
         let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-        let output = state.resolve(&output);
-        let mut entry = state.preferences.output(&output).clone();
+        let mut entry = state.preferences.current.clone();
         if let EqEdit::Layout { value } = &edit
             && state.preferences.profile(&entry).layout == *value
         {
             return Ok(());
         }
-        let discrete = matches!(edit, EqEdit::Enabled { .. });
         let is_profile = !matches!(
             edit,
             EqEdit::Enabled { .. } | EqEdit::Crossfeed { .. } | EqEdit::Balance { .. }
@@ -597,11 +531,7 @@ impl PlaybackOwner {
             };
             entry.selection = None;
         }
-        let rate = state
-            .facts
-            .get(&output)
-            .and_then(|facts| facts.sample_rate)
-            .unwrap_or(48_000);
+        let rate = state.facts.sample_rate.unwrap_or(48_000);
         let profile = &mut entry.draft.profile;
         match edit {
             EqEdit::Enabled { value } => entry.enabled = value,
@@ -687,17 +617,14 @@ impl PlaybackOwner {
         }
         .validate()
         .map_err(error)?;
-        *state.preferences.output_mut(&output) = entry;
-        if !state.current_output.starts_with("remote:") || discrete {
-            state.submit(&output, false);
-        }
+        state.preferences.current = entry;
+        state.submit();
         state.publish(&self.settings);
         Ok(())
     }
-    pub async fn commit_equalizer(&self, output: String) -> Result<(), PlaybackError> {
+    pub async fn commit_equalizer(&self) -> Result<(), PlaybackError> {
         let receiver = {
             let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-            let _ = state.resolve(&output);
             self.queue_equalizer_write(&mut state)?
         };
         receiver
@@ -707,19 +634,17 @@ impl PlaybackOwner {
     }
     pub async fn select_equalizer_preset(
         &self,
-        output: String,
         preset: Option<String>,
     ) -> Result<(), PlaybackError> {
         let done = {
             let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-            let output = state.resolve(&output);
             if let Some(id) = &preset
                 && state.preferences.preset(id).is_none()
             {
                 return Err(error("Preset does not exist"));
             }
-            state.preferences.output_mut(&output).selection = preset;
-            state.submit(&output, false);
+            state.preferences.current.selection = preset;
+            state.submit();
             state.publish(&self.settings);
             self.queue_equalizer_write(&mut state)?
         };
@@ -727,17 +652,13 @@ impl PlaybackOwner {
     }
     pub async fn save_equalizer_preset(
         &self,
-        output: String,
         name: Option<String>,
     ) -> Result<String, PlaybackError> {
         let name = name.map(|name| checked_name(&name)).transpose()?;
         let (id, done) = {
             let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-            let output = state.resolve(&output);
-            let active = state.current_output.clone();
-            let previous_processing = state.preferences.config(&active);
-            state.preferences.begin_edit(&output);
-            let draft = state.preferences.output(&output).draft.clone();
+            state.preferences.begin_edit();
+            let draft = state.preferences.current.draft.clone();
             let id = match draft.save_target.filter(|id| builtin(id).is_none()) {
                 Some(id) => {
                     let p = state
@@ -763,11 +684,9 @@ impl PlaybackOwner {
                     id
                 }
             };
-            state.preferences.output_mut(&output).draft.save_target = Some(id.clone());
-            state.preferences.output_mut(&output).selection = Some(id.clone());
-            if !previous_processing.same_processing(&state.preferences.config(&active)) {
-                state.submit(&active, false);
-            }
+            state.preferences.current.draft.save_target = Some(id.clone());
+            state.preferences.current.selection = Some(id.clone());
+            state.submit();
             state.publish(&self.settings);
             let done = self.queue_equalizer_write(&mut state)?;
             (id, done)
@@ -775,23 +694,18 @@ impl PlaybackOwner {
         await_write(done).await?;
         Ok(id)
     }
-    pub async fn duplicate_equalizer_preset(
-        &self,
-        output: String,
-        name: String,
-    ) -> Result<String, PlaybackError> {
+    pub async fn duplicate_equalizer_preset(&self, name: String) -> Result<String, PlaybackError> {
         let name = checked_name(&name)?;
         let (id, done) = {
             let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-            let output = state.resolve(&output);
-            let profile = state.preferences.profile(state.preferences.output(&output));
+            let profile = state.preferences.profile(&state.preferences.current);
             let id = identity();
             state.preferences.presets.push(SavedPreset {
                 id: id.clone(),
                 name,
                 profile,
             });
-            state.preferences.output_mut(&output).selection = Some(id.clone());
+            state.preferences.current.selection = Some(id.clone());
             state.publish(&self.settings);
             let done = self.queue_equalizer_write(&mut state)?;
             (id, done)
@@ -830,9 +744,8 @@ impl PlaybackOwner {
                 .cloned()
                 .ok_or_else(|| error("Choose a custom preset"))?;
             let prefs = &mut state.preferences;
-            for entry in
-                std::iter::once(&mut prefs.default_output).chain(prefs.outputs.values_mut())
             {
+                let entry = &mut prefs.current;
                 if entry.selection.as_deref() == Some(&id) {
                     entry.selection = None;
                     entry.draft.profile = preset.profile.clone();
@@ -848,33 +761,8 @@ impl PlaybackOwner {
         };
         await_write(done).await
     }
-    pub async fn assign_equalizer(
-        &self,
-        output: String,
-        assigned: bool,
-    ) -> Result<(), PlaybackError> {
-        let done = {
-            let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-            let output = state.resolve(&output);
-            if assigned {
-                let entry = state.preferences.default_output.clone();
-                state
-                    .preferences
-                    .outputs
-                    .entry(output.clone())
-                    .or_insert(entry);
-            } else {
-                state.preferences.outputs.remove(&output);
-            }
-            state.submit(&output, false);
-            state.publish(&self.settings);
-            self.queue_equalizer_write(&mut state)?
-        };
-        await_write(done).await
-    }
     pub async fn import_equalizer(
         &self,
-        output: String,
         text: String,
         format: EqPresetFormat,
     ) -> Result<String, PlaybackError> {
@@ -882,15 +770,14 @@ impl PlaybackOwner {
         profile.validate().map_err(error)?;
         let (id, done) = {
             let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-            let output = state.resolve(&output);
             let id = identity();
             state.preferences.presets.push(SavedPreset {
                 id: id.clone(),
                 name,
                 profile,
             });
-            state.preferences.output_mut(&output).selection = Some(id.clone());
-            state.submit(&output, false);
+            state.preferences.current.selection = Some(id.clone());
+            state.submit();
             state.publish(&self.settings);
             let done = self.queue_equalizer_write(&mut state)?;
             (id, done)
@@ -898,12 +785,8 @@ impl PlaybackOwner {
         await_write(done).await?;
         Ok(id)
     }
-    pub fn export_equalizer(
-        &self,
-        output: String,
-        format: EqPresetFormat,
-    ) -> Result<String, PlaybackError> {
-        let view = self.equalizer_view(output);
+    pub fn export_equalizer(&self, format: EqPresetFormat) -> Result<String, PlaybackError> {
+        let view = self.equalizer_view();
         match format {
             EqPresetFormat::Json => serde_json::to_string_pretty(&PresetDocument {
                 version: 1,
@@ -934,15 +817,12 @@ impl PlaybackOwner {
     }
     pub(super) fn processing_receiver(&self) -> watch::Receiver<ProcessingRequest> {
         let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-        let id = local_id(state.observed_route.as_deref());
-        let (tx, rx) = watch::channel(state.request(&id));
-        state.processing.retain(|_, tx| !tx.is_closed());
-        state.processing.insert(backend_key(&id), tx);
+        let (tx, rx) = watch::channel(state.request());
+        state.processing = Some(tx);
         rx
     }
     pub(super) fn equalizer_applied(
         &self,
-        output: String,
         config: ProcessingConfig,
         sample_rate: Option<u32>,
         preamp_db: f64,
@@ -950,9 +830,9 @@ impl PlaybackOwner {
         let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
         let matches_request = state
             .processing
-            .get(&backend_key(&output))
+            .as_ref()
             .is_some_and(|sender| sender.borrow().config.same_processing(&config));
-        let facts = state.facts.entry(output).or_default();
+        let facts = &mut state.facts;
         facts.config = Some(config);
         facts.sample_rate = sample_rate;
         facts.preamp_db = preamp_db;
@@ -961,14 +841,14 @@ impl PlaybackOwner {
         }
         state.publish(&self.settings);
     }
-    pub(super) fn equalizer_failed(&self, output: String, message: String) {
+    pub(super) fn equalizer_failed(&self, message: String) {
         let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-        state.facts.entry(output).or_default().error = Some(message);
+        state.facts.error = Some(message);
         state.publish(&self.settings);
     }
-    pub(super) fn equalizer_meter(&self, output: String, peak_db: Vec<f64>, spectrum_db: Vec<f64>) {
+    pub(super) fn equalizer_meter(&self, peak_db: Vec<f64>, spectrum_db: Vec<f64>) {
         let mut state = self.equalizer.lock().unwrap_or_else(|e| e.into_inner());
-        let facts = state.facts.entry(output).or_default();
+        let facts = &mut state.facts;
         if !peak_db.is_empty() {
             facts.peak_db = peak_db;
         }
