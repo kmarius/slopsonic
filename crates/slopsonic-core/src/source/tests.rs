@@ -14,8 +14,8 @@ fn subsonic_configuration(name: impl Into<String>) -> SourceConfiguration {
 
 use super::*;
 
-#[tokio::test]
-async fn adding_the_first_server_connects() {
+/// A Navidrome stand-in that answers every request for `username`; returns its port.
+async fn fake_server(username: &'static str) -> u16 {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -25,7 +25,9 @@ async fn adding_the_first_server_connects() {
             tokio::spawn(async move {
                 let mut buffer = [0_u8; 4096];
                 let _ = socket.read(&mut buffer).await;
-                let body = r#"{"subsonic-response":{"status":"ok","version":"1.16.1","type":"navidrome","user":{"username":"listener"}}}"#;
+                let body = format!(
+                    r#"{{"subsonic-response":{{"status":"ok","version":"1.16.1","type":"navidrome","user":{{"username":"{username}"}}}}}}"#
+                );
                 let _ = socket
                     .write_all(
                         format!(
@@ -38,6 +40,25 @@ async fn adding_the_first_server_connects() {
             });
         }
     });
+    port
+}
+
+fn server_setup(url: String, name: Option<&str>) -> SourceSetup {
+    SourceSetup {
+        authentication: sources::SubsonicAuthentication::Password,
+        credentials: sources::CredentialInput {
+            source_name: name.map(str::to_owned),
+            server_url: url,
+            username: "listener".into(),
+            secret: "pw".into(),
+            trust_invalid_cert: false,
+        },
+    }
+}
+
+#[tokio::test]
+async fn adding_the_first_server_connects() {
+    let port = fake_server("listener").await;
     let directory = tempfile::tempdir().unwrap();
     let database = Arc::new(
         Database::open(directory.path().join("library.sqlite"))
@@ -65,16 +86,7 @@ async fn adding_the_first_server_connects() {
     let result = tokio::time::timeout(
         std::time::Duration::from_secs(20),
         owner
-            .configure_source(SourceSetup {
-                authentication: sources::SubsonicAuthentication::Password,
-                credentials: sources::CredentialInput {
-                    source_name: None,
-                    server_url: format!("http://127.0.0.1:{port}"),
-                    username: "listener".into(),
-                    secret: "pw".into(),
-                    trust_invalid_cert: false,
-                },
-            })
+            .configure_source(server_setup(format!("http://127.0.0.1:{port}"), None))
             .recv(),
     )
     .await;
@@ -721,8 +733,35 @@ async fn server_reset_drops_its_local_state_and_keeps_the_configuration() {
         },
     );
 
+    let downloads = directory.path().join("downloads");
+    let downloaded = downloads.join("music/track.flac");
+    std::fs::create_dir_all(downloaded.parent().unwrap()).unwrap();
+    std::fs::write(&downloaded, b"audio").unwrap();
+    let track = library::entity_uri("track", "t");
+    database
+        .save_download_file(&library::DownloadFile {
+            media_uri: track.clone(),
+            encoding: "original".into(),
+            path: url::Url::from_file_path(&downloaded).unwrap().to_string(),
+            managed: true,
+            storage_root: downloads.to_string_lossy().into_owned(),
+            relative_path: "music/track.flac".into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
     owner.reset_server_state().await.unwrap();
 
+    // The downloads lane clears in the background.
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while (downloaded.exists() || !database.download_files(&track).await.unwrap().is_empty())
+        && std::time::Instant::now() < deadline
+    {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert!(!downloaded.exists(), "the downloaded file is removed");
+    assert!(database.download_files(&track).await.unwrap().is_empty());
     assert!(
         database
             .cached_source(&ReadCancellation::new())
@@ -744,4 +783,102 @@ async fn server_reset_drops_its_local_state_and_keeps_the_configuration() {
     assert!(stored.ui.recent_search_results.is_empty());
     assert!(stored.ui.random_play.genre.is_none());
     assert!(stored.ui.downloads.rules.is_empty());
+}
+
+async fn wait<T>(receiver: async_channel::Receiver<Result<T, String>>) -> Result<T, String> {
+    tokio::time::timeout(Duration::from_secs(20), receiver.recv())
+        .await
+        .expect("the source operation finishes")
+        .expect("the source operation replies")
+}
+
+#[tokio::test]
+async fn editing_to_another_server_resets_and_a_same_server_edit_keeps_state() {
+    let (first, second) = (fake_server("listener").await, fake_server("listener").await);
+    let directory = tempfile::tempdir().unwrap();
+    let database = Arc::new(
+        Database::open(directory.path().join("library.sqlite"))
+            .await
+            .unwrap(),
+    );
+    let settings = SettingsFile::memory();
+    let runtime = tokio::runtime::Handle::current();
+    let owner = SourceOwner::open_dormant(
+        Artwork::new(directory.path().join("artwork"), runtime.clone()).unwrap(),
+        Arc::clone(&database),
+        Downloads::new(
+            artwork::Artwork::new(directory.path().join("downloads/artwork"), runtime.clone())
+                .unwrap(),
+            directory.path().join("downloads"),
+            database.as_ref().clone(),
+            runtime.clone(),
+            async_channel::unbounded().0,
+            Default::default(),
+        ),
+        settings.clone(),
+        runtime,
+        SourceOutputs {
+            events: async_channel::unbounded().0,
+        },
+    );
+    wait(owner.configure_source(server_setup(format!("http://127.0.0.1:{first}"), None)))
+        .await
+        .map(|_| ())
+        .unwrap();
+    let album = FavoriteTarget::Album(library::entity_uri("album", "a"));
+    let pending = || async {
+        !database
+            .due_remote_favorites(unix_seconds() + 60, 64, &ReadCancellation::new())
+            .await
+            .unwrap()
+            .is_empty()
+    };
+    let pinned = || !settings.load().ui.sidebar.pins.is_empty();
+    database
+        .queue_remote_favorite(&album, true, unix_seconds())
+        .await
+        .unwrap();
+    settings
+        .update(|stored| {
+            stored
+                .ui
+                .sidebar
+                .pins
+                .push(crate::settings::SidebarPin::Album {
+                    album_id: "a".into(),
+                });
+            Ok(())
+        })
+        .unwrap();
+
+    // The same server under another name and spelling of its address keeps its state.
+    wait(owner.update_source(server_setup(
+        format!("http://127.0.0.1:{first}/"),
+        Some("Renamed"),
+    )))
+    .await
+    .unwrap();
+    assert!(pending().await);
+    assert!(pinned());
+
+    wait(owner.update_source(server_setup(format!("http://127.0.0.1:{second}"), None)))
+        .await
+        .unwrap();
+    assert!(
+        !pending().await,
+        "the old server's undelivered favorites go"
+    );
+    assert!(!pinned(), "the old server's pins go");
+    let address = settings
+        .load()
+        .sources
+        .configured
+        .as_ref()
+        .and_then(|source| source.configuration.server_address());
+    assert_eq!(
+        address
+            .as_deref()
+            .map(|address| address.trim_end_matches('/')),
+        Some(format!("http://127.0.0.1:{second}").as_str())
+    );
 }
