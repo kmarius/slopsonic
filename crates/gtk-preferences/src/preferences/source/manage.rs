@@ -141,7 +141,7 @@ pub fn confirm_forget_source(
     let dialog = adw::AlertDialog::builder()
         .heading("Forget Source".to_string())
         .body(format!(
-            "This removes the server, cached library metadata, queue snapshot, and saved token for {}",
+            "This removes {} with its cached library, queue, downloads, pins, and favorites or ratings not yet sent to the server",
             server_name
         ))
         .build();
@@ -152,13 +152,18 @@ pub fn confirm_forget_source(
     dialog.set_close_response("cancel");
     dialog.set_response_appearance("forget", adw::ResponseAppearance::Destructive);
     let source = shell.products.source.clone();
+    let weak_shell = Rc::downgrade(shell);
     dialog.choose(
         Some(&shell.window),
         None::<&gio::Cancellable>,
         move |response| {
             if response.as_str() == "forget" {
+                let weak_shell = weak_shell.clone();
                 gtk::glib::spawn_future_local(async move {
                     let _ = source.forget_source().await;
+                    if let Some(shell) = weak_shell.upgrade() {
+                        shell.present_onboarding();
+                    }
                 });
                 after_forget();
             }

@@ -394,12 +394,16 @@ impl SourceOwner {
         connected: Box<sources::ConnectedSource>,
     ) -> Result<(), String> {
         let (configuration, source, credential) = (*connected).into_parts();
+        let was_selected = self.shared.selected().is_some();
         let result = async {
             let current = configured_source(&self.shared.settings.load().sources)?;
             if current.configuration != configured.configuration
                 || current.credential != configured.credential
             {
                 return Err(SourceError::Cancelled.to_string());
+            }
+            if !configured.configuration.same_server(&configuration) {
+                self.reset_server_state().await?;
             }
             let previous = configured.clone();
             let mut replacement = configured;
@@ -425,7 +429,7 @@ impl SourceOwner {
                 )
                 .await
                 .map_err(string_error)?;
-            let selected = self.shared.selected().is_some();
+            let selected = was_selected || self.shared.selected().is_some();
             let refresh = selected;
             if selected && !self.shared.operation.borrow().blocks_library() {
                 let intent = self.shared.begin_selection();

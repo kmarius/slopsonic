@@ -139,6 +139,8 @@ impl Shell {
                 let Some(shell) = weak.upgrade() else { break };
                 let next = changes.borrow_and_update().clone();
                 if shell.settings.current.borrow().sidebar == next {
+                    // Another settings write may have reloaded the copy before this change arrived.
+                    request_sidebar_pins(&shell);
                     continue;
                 }
                 shell.settings.current.borrow_mut().sidebar = next;

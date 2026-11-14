@@ -82,6 +82,24 @@ pub(crate) fn require_payload_version(actual: u32, expected: u32) -> SourceResul
     Ok(())
 }
 
+impl SourceConfiguration {
+    /// Whether both reach the same account on the same server; anything else is a server switch.
+    pub fn same_server(&self, other: &Self) -> bool {
+        use crate::subsonic::SubsonicSourceConfig;
+        match (
+            SubsonicSourceConfig::from_configuration(self),
+            SubsonicSourceConfig::from_configuration(other),
+        ) {
+            (Ok(left), Ok(right)) => {
+                crate::source::comparable_address(&left.base_url)
+                    == crate::source::comparable_address(&right.base_url)
+                    && left.username == right.username
+            }
+            _ => false,
+        }
+    }
+}
+
 pub(crate) fn encode_provider_payload(
     source_id: SourceId,
     kind: SubsonicFlavor,
@@ -110,6 +128,25 @@ mod tests {
             name: "Test Source".to_string(),
             provider_payload: payload.to_string(),
         }
+    }
+
+    #[test]
+    fn same_server_compares_address_and_canonical_username() {
+        let source = |url: &str, username: &str, trust: bool| {
+            migrated_source(
+                SubsonicFlavor::Navidrome,
+                serde_json::json!({
+                    "version": 1,
+                    "base_url": url,
+                    "username": username,
+                    "trust_invalid_cert": trust,
+                }),
+            )
+        };
+        let saved = source("https://music.example", "listener", false);
+        assert!(saved.same_server(&source("https://music.example/", "listener", true)));
+        assert!(!saved.same_server(&source("https://other.example", "listener", false)));
+        assert!(!saved.same_server(&source("https://music.example", "someone", false)));
     }
 
     #[test]

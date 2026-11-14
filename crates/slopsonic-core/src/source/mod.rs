@@ -462,7 +462,63 @@ impl SourceOwner {
         Ok(())
     }
 
-    async fn remove_source_resources(&self) {
+    /// Drops everything kept for the configured server: queue, favorite and rating outboxes,
+    /// downloads, cached catalog and artwork, and settings that point at its items.
+    pub(crate) async fn reset_server_state(&self) -> Result<(), String> {
+        let Some(source_id) = self.configuration().map(|configured| configured.source_id) else {
+            return Ok(());
+        };
+        // Retiring the old client first stops its refresh and observer from writing.
+        self.shared
+            .client
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .take();
+        self.release_selected().await;
+        // Each step runs even when an earlier one fails, so a partial reset leaves no stale state.
+        let mut failure = None;
+        let mut note = |result: Result<(), String>| {
+            if let Err(error) = result {
+                self.shared.warn_nonfatal(&error);
+                failure.get_or_insert(error);
+            }
+        };
+        note(self.shared.settings.update(|stored| {
+            let ui = &mut stored.ui;
+            ui.sidebar.pins.clear();
+            ui.sidebar.playlist_pin_imported_sources.clear();
+            ui.recent_search_results.clear();
+            ui.random_play.genre = None;
+            ui.downloads.rules = downloads::DownloadRules::default();
+            Ok(())
+        }));
+        let database = &self.shared.database;
+        let source_key = database
+            .source_identity_key(&source_id)
+            .await
+            .map_err(string_error);
+        if let Ok(Some(source_key)) = source_key {
+            if let Ok(playback) = self.shared.playback() {
+                note(playback.forget_source(source_key).await);
+            }
+            // Clearing downloads needs the server attached, even when it never connected.
+            note(
+                self.shared
+                    .downloads
+                    .attach(source_id.clone(), source_key, None)
+                    .await,
+            );
+        }
+        note(source_key.map(|_| ()));
+        self.shared.downloads.clear(false);
+        self.shared.downloads.detach();
+        note(
+            database
+                .remove_source(&source_id)
+                .await
+                .map(|_| ())
+                .map_err(string_error),
+        );
         self.shared
             .client
             .lock()
@@ -473,10 +529,13 @@ impl SourceOwner {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .take();
-        self.shared.downloads.clear(false);
-        if let Err(error) = self.shared.artwork.invalidate_server_images() {
-            self.shared.warn_nonfatal(&error.to_string());
-        }
+        note(
+            self.shared
+                .artwork
+                .invalidate_server_images()
+                .map_err(|error| error.to_string()),
+        );
+        failure.map_or(Ok(()), Err)
     }
 
     pub(crate) fn spawn_serialized<F, Work>(&self, work: F)
@@ -649,8 +708,7 @@ impl SourceOwner {
 
     pub fn update_source(&self, input: SourceSetup) -> Receiver<Result<(), String>> {
         let (sender, receiver) = async_channel::bounded(1);
-        let owner = self.clone();
-        self.shared.runtime.spawn(async move {
+        self.spawn_serialized(move |owner| async move {
             let result = owner.edit_configured_source(input).await;
             if let Err(error) = &result {
                 owner.shared.warn_nonfatal(&error);
@@ -714,16 +772,9 @@ impl SourceOwner {
 
 impl SourceOwner {
     pub async fn forget_source(&self) -> sources::SourceResult<()> {
-        let Some(source_id) = self
-            .shared
-            .settings
-            .load()
-            .sources
-            .configured
-            .map(|configured| configured.configuration.source_id)
-        else {
+        if self.configuration().is_none() {
             return Ok(());
-        };
+        }
         self.shared
             .client
             .lock()
@@ -738,31 +789,7 @@ impl SourceOwner {
         }
         let (sender, receiver) = async_channel::bounded(1);
         self.spawn_serialized(move |owner| async move {
-            owner.release_selected().await;
-            let playback = owner.shared.playback().ok();
-            let identity = owner
-                .shared
-                .database
-                .source_identity_key(&source_id)
-                .await
-                .ok()
-                .flatten();
-            if let Some(source_key) = identity {
-                if let Some(playback) = playback.as_ref() {
-                    if let Err(error) = playback.forget_source(source_key).await {
-                        owner.shared.warn_nonfatal(&error);
-                        let _ = sender.try_send(Err(error));
-                        return;
-                    }
-                }
-            }
-            let removed = owner
-                .shared
-                .database
-                .remove_source(&source_id)
-                .await
-                .map(|_| ())
-                .map_err(string_error);
+            let removed = owner.reset_server_state().await;
             if let Err(error) = &removed {
                 owner.shared.warn_nonfatal(error);
             }
@@ -774,7 +801,6 @@ impl SourceOwner {
                 let _ = sender.try_send(Err(error));
                 return;
             }
-            owner.remove_source_resources().await;
             owner
                 .shared
                 .send(SourceEvent::Configured(owner.shared.source_status(None)))

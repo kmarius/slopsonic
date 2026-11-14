@@ -674,3 +674,100 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
         assert!(owner.source_status().is_none(), "removal can be repeated");
     }
 }
+
+#[tokio::test]
+async fn server_reset_drops_its_local_state_and_keeps_the_configuration() {
+    let directory = tempfile::tempdir().unwrap();
+    let database = Arc::new(
+        Database::open(directory.path().join("library.sqlite"))
+            .await
+            .unwrap(),
+    );
+    let source_id = SourceId::new("server");
+    database
+        .reconcile_source(&source_id, "subsonic", "Server")
+        .await
+        .unwrap();
+    let album = FavoriteTarget::Album(library::source_entity_uri(&source_id, "album", "a"));
+    assert!(
+        database
+            .queue_remote_favorite(&album, true, unix_seconds())
+            .await
+            .unwrap()
+    );
+    let settings = SettingsFile::memory();
+    settings
+        .update(|stored| {
+            stored.sources.configured = Some(ConfiguredSource {
+                configuration: subsonic_configuration(source_id.clone(), "Server"),
+                credential: None,
+                music_folder_id: None,
+            });
+            let ui = &mut stored.ui;
+            ui.sidebar.pins.push(crate::settings::SidebarPin::Album {
+                source_id: source_id.clone(),
+                album_id: "a".into(),
+            });
+            ui.sidebar
+                .playlist_pin_imported_sources
+                .push(source_id.clone());
+            ui.recent_search_results
+                .push(crate::settings::app::RecentSearchResult {
+                    kind: crate::settings::app::RecentSearchKind::Album,
+                    media_uri: album.media_uri().to_owned(),
+                    title: "A".into(),
+                    subtitle: String::new(),
+                    artwork_binding: None,
+                });
+            ui.random_play.genre = Some(crate::settings::RandomPlayGenreSelection {
+                music_folder_id: None,
+                genre_id: "rock".into(),
+            });
+            ui.downloads.rules.entire_library = true;
+            Ok(())
+        })
+        .unwrap();
+    let runtime = tokio::runtime::Handle::current();
+    let owner = SourceOwner::open_dormant(
+        Artwork::new(directory.path().join("artwork"), runtime.clone()).unwrap(),
+        Arc::clone(&database),
+        Downloads::new(
+            artwork::Artwork::new(directory.path().join("downloads/artwork"), runtime.clone())
+                .unwrap(),
+            directory.path().join("downloads"),
+            database.as_ref().clone(),
+            runtime.clone(),
+            async_channel::unbounded().0,
+            Default::default(),
+        ),
+        settings.clone(),
+        runtime,
+        SourceOutputs {
+            events: async_channel::unbounded().0,
+        },
+    );
+
+    owner.reset_server_state().await.unwrap();
+
+    assert!(
+        database
+            .source_identity_key(&source_id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        database
+            .due_remote_favorites(unix_seconds() + 60, 64, &ReadCancellation::new())
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let stored = settings.load();
+    assert!(stored.sources.configured.is_some());
+    assert!(stored.ui.sidebar.pins.is_empty());
+    assert!(stored.ui.sidebar.playlist_pin_imported_sources.is_empty());
+    assert!(stored.ui.recent_search_results.is_empty());
+    assert!(stored.ui.random_play.genre.is_none());
+    assert!(stored.ui.downloads.rules.is_empty());
+}
