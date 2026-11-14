@@ -4,16 +4,9 @@ use crate::{Preferences, ui_resource::*};
 fn property(node: roxmltree::Node<'_, '_>, name: &str) -> String {
     node.children()
         .find(|child| child.has_tag_name("property") && child.attribute("name") == Some(name))
-        .and_then(|property| {
-            property.text().map(|text| {
-                if property.attribute("translatable") == Some("yes") {
-                    String::from(text)
-                } else {
-                    text.into()
-                }
-            })
-        })
+        .and_then(|property| property.text())
         .unwrap_or_default()
+        .to_string()
 }
 
 pub(super) fn items(shell: &Preferences) -> Vec<PreferencesSearchItem> {

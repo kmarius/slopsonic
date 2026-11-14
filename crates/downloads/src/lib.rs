@@ -29,7 +29,6 @@ mod storage;
 #[cfg(test)]
 mod tests;
 mod track_download;
-pub use storage::DownloadDirectory;
 
 /// Finds a source's current client, which its owner keeps and may replace at any time.
 pub type SourceResolver = dyn Fn(&SourceId) -> Option<Arc<Source>> + Send + Sync;
@@ -104,7 +103,7 @@ enum Command {
 struct AttachedSource {
     source_key: SourceKey,
     folder: Option<FolderKey>,
-    directory: Option<DownloadDirectory>,
+    directory: Option<PathBuf>,
 }
 
 #[derive(Clone)]
@@ -205,7 +204,7 @@ pub struct SourceDownloadSettings {
     #[serde(deserialize_with = "quality::deserialize")]
     pub quality: DownloadQuality,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub directory: Option<DownloadDirectory>,
+    pub directory: Option<PathBuf>,
 }
 
 impl SourceDownloadSettings {

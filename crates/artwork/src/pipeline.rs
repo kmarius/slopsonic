@@ -831,8 +831,7 @@ fn cache_preview(
         library::ArtworkImage::Native { tag, .. } => {
             tag.as_ref().is_some_and(|tag| !tag.is_empty())
         }
-        library::ArtworkImage::Local { revision, .. }
-        | library::ArtworkImage::Playlist { revision, .. } => {
+        library::ArtworkImage::Playlist { revision, .. } => {
             !revision.is_empty() && revision != "auto"
         }
     };

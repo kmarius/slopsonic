@@ -79,7 +79,6 @@ impl FetchContext {
                     })
                     .or_else(source_result)
             }
-            library::ArtworkImage::Local { .. } => Ok(FetchOutcome::Missing),
         }
     }
 }

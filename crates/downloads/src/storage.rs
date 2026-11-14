@@ -1,35 +1,9 @@
-use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-/// Native paths keep their released JSON representation.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(untagged)]
-pub enum DownloadDirectory {
-    Native(PathBuf),
-}
-
-impl DownloadDirectory {
-    pub fn native(&self) -> Option<&Path> {
-        match self {
-            Self::Native(path) => Some(path),
-        }
-    }
-}
-
-impl std::fmt::Display for DownloadDirectory {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Native(path) => path.display().fmt(formatter),
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
-pub(super) enum DownloadAudio {
-    Native {
-        root: Option<PathBuf>,
-        path: PathBuf,
-    },
+pub(super) struct DownloadAudio {
+    pub root: Option<PathBuf>,
+    pub path: PathBuf,
 }
 
 pub(super) struct DownloadFileMetadata {
@@ -38,43 +12,31 @@ pub(super) struct DownloadFileMetadata {
 }
 
 impl DownloadAudio {
-    pub fn native(&self) -> Option<&Path> {
-        match self {
-            Self::Native { path, .. } => Some(path),
-        }
-    }
-
     pub fn location(&self) -> Result<String, String> {
-        match self {
-            Self::Native { path, .. } => Ok(path.to_string_lossy().into_owned()),
-        }
+        Ok(self.path.to_string_lossy().into_owned())
     }
 
     pub fn access_uri(&self) -> Result<String, String> {
-        match self {
-            Self::Native { path, .. } => reqwest::Url::from_file_path(path)
-                .map(String::from)
-                .map_err(|()| "Download path is not absolute".into()),
-        }
+        reqwest::Url::from_file_path(&self.path)
+            .map(String::from)
+            .map_err(|()| "Download path is not absolute".into())
     }
 
     pub fn metadata(&self) -> Result<Option<DownloadFileMetadata>, String> {
-        match self {
-            Self::Native { path, .. } => match std::fs::metadata(path) {
-                Ok(metadata) if metadata.is_file() => Ok(Some(DownloadFileMetadata {
-                    size: Some(metadata.len()),
-                    mtime_ns: metadata
-                        .modified()
-                        .ok()
-                        .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
-                        .map_or(0, |value| {
-                            i64::try_from(value.as_nanos()).unwrap_or(i64::MAX)
-                        }),
-                })),
-                Ok(_) => Ok(None),
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-                Err(error) => Err(error.to_string()),
-            },
+        match std::fs::metadata(&self.path) {
+            Ok(metadata) if metadata.is_file() => Ok(Some(DownloadFileMetadata {
+                size: Some(metadata.len()),
+                mtime_ns: metadata
+                    .modified()
+                    .ok()
+                    .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map_or(0, |value| {
+                        i64::try_from(value.as_nanos()).unwrap_or(i64::MAX)
+                    }),
+            })),
+            Ok(_) => Ok(None),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error.to_string()),
         }
     }
 
@@ -86,38 +48,29 @@ impl DownloadAudio {
     }
 
     pub fn projection(&self, private_root: &Path) -> Result<(String, String), String> {
-        match self {
-            Self::Native { root, path } => {
-                let root = root.as_deref().unwrap_or(private_root);
-                let relative = path
-                    .strip_prefix(root)
-                    .map_err(|_| "The download is outside its managed storage")?;
-                Ok((
-                    root.to_string_lossy().into_owned(),
-                    relative.to_string_lossy().into_owned(),
-                ))
-            }
-        }
+        let root = self.root.as_deref().unwrap_or(private_root);
+        let relative = self
+            .path
+            .strip_prefix(root)
+            .map_err(|_| "The download is outside its managed storage")?;
+        Ok((
+            root.to_string_lossy().into_owned(),
+            relative.to_string_lossy().into_owned(),
+        ))
     }
 
     pub async fn publish(&self, partial: &Path) -> Result<Self, String> {
-        match self {
-            Self::Native { path, .. } => {
-                tokio::fs::rename(partial, path)
-                    .await
-                    .map_err(|error| format!("Could not save the downloaded track: {error}"))?;
-                Ok(self.clone())
-            }
-        }
+        tokio::fs::rename(partial, &self.path)
+            .await
+            .map_err(|error| format!("Could not save the downloaded track: {error}"))?;
+        Ok(self.clone())
     }
 
     pub async fn remove(&self) -> Result<bool, String> {
-        match self {
-            Self::Native { path, .. } => match tokio::fs::remove_file(path).await {
-                Ok(()) => Ok(true),
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-                Err(error) => Err(error.to_string()),
-            },
+        match tokio::fs::remove_file(&self.path).await {
+            Ok(()) => Ok(true),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error.to_string()),
         }
     }
 }

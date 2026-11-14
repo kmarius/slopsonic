@@ -1637,7 +1637,6 @@ impl SourceOwner {
 pub struct SourceCatalogSubscription {
     changes: tokio::sync::Mutex<tokio::sync::watch::Receiver<CatalogRevision>>,
 }
-impl SourceOwner {}
 impl SourceCatalogSubscription {
     pub async fn next(&self) -> sources::SourceResult<CatalogRevision> {
         let mut changes = self.changes.lock().await;

@@ -6,7 +6,7 @@ impl Actor {
         source_id: SourceId,
         source_key: SourceKey,
         folder: Option<FolderKey>,
-        directory: Option<DownloadDirectory>,
+        directory: Option<PathBuf>,
     ) -> Result<(), String> {
         let unchanged = self.attached.get(&source_id).is_some_and(|attached| {
             attached.directory == directory && attached.source_key == source_key
@@ -61,7 +61,7 @@ impl Actor {
         if let Err(error) = cleanup_staging(
             &self.root,
             Some(&source_id),
-            directory.as_ref(),
+            directory.as_deref(),
             &queued_tracks,
         )
         .await

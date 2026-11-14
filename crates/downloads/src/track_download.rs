@@ -14,8 +14,8 @@ use sources::{SourceError, SourceId, SourceResult};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::oneshot;
 
+use crate::DownloadOwner;
 use crate::storage::DownloadAudio;
-use crate::{DownloadDirectory, DownloadOwner};
 
 const PARSER_VERSION: i64 = 5;
 pub(super) const AUDIO_EXTENSION: &str = "audio";
@@ -378,7 +378,7 @@ pub(super) async fn discard_staging(paths: &DownloadPaths) -> SourceResult<()> {
 pub(super) async fn cleanup_staging(
     root: &Path,
     source_id: Option<&SourceId>,
-    directory: Option<&DownloadDirectory>,
+    directory: Option<&Path>,
     media: &HashSet<String>,
 ) -> SourceResult<()> {
     let expected = media
@@ -386,13 +386,11 @@ pub(super) async fn cleanup_staging(
         .map(|identity| staging_paths(root, source_id, identity, directory))
         .flat_map(|paths| [paths.audio_part.clone(), paths.checkpoint.clone()])
         .collect::<HashSet<_>>();
-    let custom = directory
-        .and_then(DownloadDirectory::native)
-        .map(|directory| {
-            directory
-                .join(CUSTOM_STAGING_DIRECTORY)
-                .join(hash_id(source_id.map_or("direct", SourceId::as_str)))
-        });
+    let custom = directory.map(|directory| {
+        directory
+            .join(CUSTOM_STAGING_DIRECTORY)
+            .join(hash_id(source_id.map_or("direct", SourceId::as_str)))
+    });
     for directory in [Some(source_directory(root, source_id)), custom.clone()]
         .into_iter()
         .flatten()
@@ -421,7 +419,7 @@ pub(super) async fn cleanup_staging(
     if let Some(source_staging) = custom {
         let _ = tokio::fs::remove_dir(source_staging).await;
     }
-    if let Some(directory) = directory.and_then(DownloadDirectory::native) {
+    if let Some(directory) = directory {
         let _ = tokio::fs::remove_dir(directory.join(CUSTOM_STAGING_DIRECTORY)).await;
     }
     Ok(())
@@ -531,7 +529,7 @@ fn download_request_error(error: reqwest::Error) -> SourceError {
 pub(super) async fn prepare_download_directories(paths: &DownloadPaths) -> SourceResult<()> {
     for directory in [
         Some(paths.directory.as_path()),
-        paths.audio.native().and_then(Path::parent),
+        paths.audio.path.parent(),
         paths.audio_part.parent(),
     ]
     .into_iter()
@@ -628,7 +626,7 @@ pub(super) fn completed_download_paths(
     } else {
         Some(PathBuf::from(&file.storage_root))
     };
-    paths.audio = DownloadAudio::Native { root, path };
+    paths.audio = DownloadAudio { root, path };
     Ok(paths)
 }
 
@@ -691,11 +689,8 @@ pub(super) async fn remove_download_files(paths: &DownloadPaths) -> Result<bool,
             Err(error) => return Err(format!("could not remove {}: {error}", path.display())),
         }
     }
-    if let DownloadAudio::Native {
-        root: Some(root),
-        path,
-    } = &paths.audio
-        && let Some(album) = path.parent()
+    if let Some(root) = &paths.audio.root
+        && let Some(album) = paths.audio.path.parent()
         && let Some(artist) = album.parent()
     {
         for directory in [album, artist] {
@@ -733,7 +728,7 @@ pub(super) fn download_paths(
     let audio_part = part_path(&audio);
     let checkpoint = checkpoint_path(&audio_part);
     DownloadPaths {
-        audio: DownloadAudio::Native {
+        audio: DownloadAudio {
             root: None,
             path: audio,
         },
@@ -747,10 +742,10 @@ pub(super) fn staging_paths(
     root: &Path,
     source_id: Option<&SourceId>,
     identity: &str,
-    directory: Option<&DownloadDirectory>,
+    directory: Option<&Path>,
 ) -> DownloadPaths {
     let mut paths = download_paths(root, source_id, identity);
-    let Some(directory) = directory.and_then(DownloadDirectory::native) else {
+    let Some(directory) = directory else {
         return paths;
     };
     let staging = directory
@@ -771,12 +766,11 @@ pub(super) fn new_download_paths(
     source_id: Option<&SourceId>,
     media_uri: &str,
     media: Option<&library::DownloadMetadata>,
-    directory: Option<&DownloadDirectory>,
+    directory: Option<&Path>,
     transcoded_extension: Option<&str>,
 ) -> DownloadPaths {
     let mut paths = staging_paths(root, source_id, media_uri, directory);
     let audio_root = directory
-        .and_then(DownloadDirectory::native)
         .map(Path::to_path_buf)
         .unwrap_or_else(|| source_directory(root, source_id));
     let artist = safe_path_component(media.map_or("", |media| &media.artist), "Unknown Artist");
@@ -795,7 +789,7 @@ pub(super) fn new_download_paths(
         short_id
     );
     let audio = audio_root.join(&artist).join(&album).join(&file_name);
-    paths.audio = DownloadAudio::Native {
+    paths.audio = DownloadAudio {
         root: Some(audio_root),
         path: audio,
     };

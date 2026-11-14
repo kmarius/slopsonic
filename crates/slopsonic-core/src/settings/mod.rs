@@ -465,7 +465,7 @@ impl SettingsOwner {
     pub fn set_download_location(
         &self,
         source_id: SourceId,
-        location: Option<downloads::DownloadDirectory>,
+        location: Option<std::path::PathBuf>,
     ) -> Result<(), SettingsError> {
         self.update_preferences(move |ui| {
             ui.set_download_location(source_id, location);
@@ -474,8 +474,6 @@ impl SettingsOwner {
         .map_err(Into::into)
     }
 }
-
-impl SettingsOwner {}
 
 impl SettingsOwner {
     pub fn set_download_quality(
@@ -490,8 +488,6 @@ impl SettingsOwner {
         .map_err(Into::into)
     }
 }
-
-impl SettingsOwner {}
 
 pub(crate) fn platform_secret_store(file: &SettingsFile) -> Arc<dyn SecretStore> {
     Arc::new(CachedSecretStore::new(Arc::new(

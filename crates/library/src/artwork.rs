@@ -26,12 +26,6 @@ pub enum ArtworkImage {
         item_id: String,
         tag: Option<String>,
     },
-    Local {
-        source_id: crate::SourceId,
-        path: String,
-        revision: String,
-        picture_index: Option<u32>,
-    },
     Playlist {
         source_id: Option<String>,
         object_id: String,
@@ -69,7 +63,7 @@ impl ArtworkCandidate {
             blur_hash,
         };
         let directory = match &candidate.image {
-            ArtworkImage::Native { source_id, .. } | ArtworkImage::Local { source_id, .. } => {
+            ArtworkImage::Native { source_id, .. } => {
                 format!("native/{:x}", Md5::digest(source_id.as_str()))
             }
             ArtworkImage::Playlist { .. } => "playlists".into(),
@@ -83,18 +77,6 @@ impl ArtworkCandidate {
             ArtworkImage::Native {
                 source_id, item_id, ..
             } => format!("native\0{source_id}\0{item_id}"),
-            ArtworkImage::Local {
-                source_id,
-                path,
-                picture_index: None,
-                ..
-            } => format!("local-file\0{source_id}\0{path}"),
-            ArtworkImage::Local {
-                source_id,
-                path,
-                picture_index: Some(index),
-                ..
-            } => format!("local-embedded\0{source_id}\0{path}\0{index}"),
             ArtworkImage::Playlist {
                 source_id,
                 object_id,
@@ -116,22 +98,6 @@ impl ArtworkCandidate {
                 "native\0{source_id}\0{item_id}\0{}",
                 tag.as_deref().unwrap_or_default()
             ),
-            ArtworkImage::Local {
-                source_id,
-                path,
-                picture_index,
-                revision,
-            } => {
-                let mut identity = match picture_index {
-                    Some(index) => format!("local-embedded\0{path}\0{index}\0{revision}"),
-                    None => format!("local-file\0{path}\0{revision}"),
-                };
-                if source_id.as_str() != "local:server:library" {
-                    identity.push('\0');
-                    identity.push_str(source_id.as_str());
-                }
-                identity
-            }
             ArtworkImage::Playlist { revision, .. } => {
                 format!("{}\0{revision}", self.asset_identity())
             }
@@ -140,10 +106,8 @@ impl ArtworkCandidate {
 
     pub fn source_id(&self) -> Option<&crate::SourceId> {
         match &self.image {
-            ArtworkImage::Native { source_id, .. } | ArtworkImage::Local { source_id, .. } => {
-                Some(source_id)
-            }
-            _ => None,
+            ArtworkImage::Native { source_id, .. } => Some(source_id),
+            ArtworkImage::Playlist { .. } => None,
         }
     }
     pub fn blur_hash(&self) -> Option<&str> {
@@ -213,20 +177,6 @@ pub fn normalize_artwork_binding(bytes: &[u8]) -> LibraryResult<Vec<u8>> {
                 source_id: crate::SourceId::new(text("source_id").unwrap_or_default()),
                 item_id: image["item_id"].as_str().unwrap_or_default().into(),
                 tag: image["tag"].as_str().map(str::to_owned),
-            },
-            image["blur_hash"].as_str().map(str::to_owned),
-        ));
-    } else if let Some(image) = value.get("File").or_else(|| value.get("Embedded")) {
-        candidates.push(ArtworkCandidate::new(
-            ArtworkImage::Local {
-                source_id: crate::SourceId::new(
-                    image["source_id"]
-                        .as_str()
-                        .unwrap_or("local:server:library"),
-                ),
-                path: image["path"].as_str().unwrap_or_default().into(),
-                revision: image["revision"].as_str().unwrap_or_default().into(),
-                picture_index: image["picture_index"].as_u64().map(|index| index as u32),
             },
             image["blur_hash"].as_str().map(str::to_owned),
         ));

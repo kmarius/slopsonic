@@ -62,8 +62,6 @@ mod tests {
         assert!(binding.stable_identity().contains("album"));
         for encoded in [
             encoded,
-            br#"{"File":{"path":"/cover.png","revision":"one"}}"#.to_vec(),
-            br#"{"Embedded":{"path":"/song.flac","picture_index":0,"revision":"one"}}"#.to_vec(),
             br#"{"kind":"playlist","smart":false,"source_id":null,"object_id":"playlist","revision":"one"}"#.to_vec(),
         ] {
             let normalized = library::normalize_artwork_binding(&encoded).unwrap();
@@ -74,30 +72,6 @@ mod tests {
             assert_eq!(after.stable_identity(), before.stable_identity());
             assert_eq!(after.asset_identity(), before.asset_identity());
             assert!(after.candidates.iter().all(|candidate| candidate.blur_hash().is_some()));
-        }
-    }
-
-    #[test]
-    fn released_local_bindings_keep_their_cache_identity() {
-        for (encoded, identity) in [
-            (
-                br#"{"File":{"path":"/music/cover.jpg","revision":"one"}}"#.as_slice(),
-                "local-file\0/music/cover.jpg\0one",
-            ),
-            (
-                br#"{"Embedded":{"path":"/music/track.flac","picture_index":2,"revision":"two"}}"#
-                    .as_slice(),
-                "local-embedded\0/music/track.flac\x002\0two",
-            ),
-        ] {
-            let binding =
-                ArtworkBinding::opaque(&library::normalize_artwork_binding(encoded).unwrap());
-            assert_eq!(binding.stable_identity(), identity);
-            let reference = binding.candidates.first().unwrap();
-            assert_eq!(
-                reference.source_id().unwrap().as_str(),
-                "local:server:library"
-            );
         }
     }
 }

@@ -185,12 +185,7 @@ fn source_downloads_group(
         &download_settings
             .directory
             .as_ref()
-            .map(|directory| {
-                directory
-                    .native()
-                    .map(|path| path.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| directory.to_string())
-            })
+            .map(|directory| directory.to_string_lossy().into_owned())
             .unwrap_or_else(|| String::from(DEFAULT_DOWNLOAD_DIRECTORY_SUBTITLE)),
     );
     reset_folder.set_visible(download_settings.directory.is_some());

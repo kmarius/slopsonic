@@ -117,7 +117,7 @@ impl Actor {
         let directory = source_id
             .as_ref()
             .and_then(|source_id| self.attached.get(source_id))
-            .and_then(|attached| attached.directory.as_ref());
+            .and_then(|attached| attached.directory.as_deref());
         if let Err(error) =
             cleanup_staging(&self.root, source_id.as_ref(), directory, &queued).await
         {
@@ -128,7 +128,7 @@ impl Actor {
     pub(super) async fn discard_previous_directory(
         &self,
         source_id: &SourceId,
-        directory: &Option<DownloadDirectory>,
+        directory: &Option<PathBuf>,
     ) {
         let Some(attached) = self.attached.get(source_id) else {
             return;
@@ -139,7 +139,7 @@ impl Actor {
         if let Err(error) = cleanup_staging(
             &self.root,
             Some(source_id),
-            attached.directory.as_ref(),
+            attached.directory.as_deref(),
             &HashSet::new(),
         )
         .await

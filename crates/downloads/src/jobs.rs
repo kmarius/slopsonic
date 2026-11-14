@@ -295,7 +295,7 @@ impl Actor {
             cleanup_staging(
                 &self.root,
                 Some(source_id),
-                staging_directory.as_ref(),
+                staging_directory.as_deref(),
                 &HashSet::new(),
             )
             .await

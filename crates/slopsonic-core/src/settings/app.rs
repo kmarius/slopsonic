@@ -290,9 +290,7 @@ impl Settings {
     }
 
     pub fn download_directory(&self, source_id: &SourceId) -> Option<PathBuf> {
-        self.download_settings(source_id)
-            .directory
-            .and_then(|directory| directory.native().map(PathBuf::from))
+        self.download_settings(source_id).directory
     }
 
     pub fn download_settings(&self, source_id: &SourceId) -> SourceDownloadSettings {
@@ -320,16 +318,13 @@ impl Settings {
         source_id: SourceId,
         directory: Option<PathBuf>,
     ) -> bool {
-        self.set_download_location(
-            source_id,
-            directory.map(downloads::DownloadDirectory::Native),
-        )
+        self.set_download_location(source_id, directory)
     }
 
     pub fn set_download_location(
         &mut self,
         source_id: SourceId,
-        directory: Option<downloads::DownloadDirectory>,
+        directory: Option<PathBuf>,
     ) -> bool {
         self.update_download_settings(source_id, |settings| settings.directory = directory)
     }
@@ -425,9 +420,7 @@ fn sanitize_downloads(downloads: &mut Vec<SourceDownloadSettings>) {
         if entry
             .directory
             .as_ref()
-            .is_some_and(|directory| match directory {
-                downloads::DownloadDirectory::Native(path) => path.as_os_str().is_empty(),
-            })
+            .is_some_and(|directory| directory.as_os_str().is_empty())
         {
             entry.directory = None;
         }

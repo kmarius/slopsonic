@@ -36,7 +36,7 @@ impl Actor {
                 .is_some_and(|job| job.replace_unknown);
             let custom_directory = attached
                 .as_ref()
-                .and_then(|attached| attached.directory.as_ref());
+                .and_then(|attached| attached.directory.as_deref());
             let owner = DownloadOwner::Subject(subject.clone());
             match self
                 .add_download_owner(

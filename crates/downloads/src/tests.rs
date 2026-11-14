@@ -393,7 +393,7 @@ async fn stale_completed_transfer_cannot_commit_after_its_job_was_removed() {
 
     actor.finish(active, Ok(Ok(())), &mut Vec::new()).await;
 
-    assert!(!paths.audio.native().unwrap().exists());
+    assert!(!paths.audio.path.exists());
     assert!(paths.audio_part.exists());
 }
 
