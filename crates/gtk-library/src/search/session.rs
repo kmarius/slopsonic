@@ -179,10 +179,10 @@ impl SearchSession {
             .selected
             .borrow()
             .as_ref()
-            .map(|s| (&s.source_id, s.music_folder_key, &s.music_folder_object_id))
+            .map(|s| (s.source_key, s.music_folder_key, &s.music_folder_object_id))
             != selected
                 .as_ref()
-                .map(|s| (&s.source_id, s.music_folder_key, &s.music_folder_object_id));
+                .map(|s| (s.source_key, s.music_folder_key, &s.music_folder_object_id));
         self.selected.replace(selected);
         if changed {
             self.schedule();

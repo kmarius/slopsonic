@@ -20,7 +20,6 @@ mod remote_json;
 mod subsonic;
 
 pub use config::{CredentialInput, CredentialPreset, SourceConfiguration, SourceSetup};
-pub use library::SourceId;
 pub use operations::{ArtworkChange, ImageBytes, SourceMetadataError, finish_metadata_save};
 pub use source::*;
 

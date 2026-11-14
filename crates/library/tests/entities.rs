@@ -167,7 +167,6 @@ async fn named_card_batches_preserve_requested_rows_and_whole_cover_order() {
     let covers = ["first-album", "second-album"].map(|item_id| {
         serde_json::to_vec(&[library::ArtworkCandidate::new(
             library::ArtworkImage::Native {
-                source_id: library::SourceId::new("source"),
                 item_id: item_id.into(),
                 tag: None,
             },
@@ -185,7 +184,7 @@ async fn named_card_batches_preserve_requested_rows_and_whole_cover_order() {
                     .unwrap();
             fixture
                 .database
-                .catalog("source", None)
+                .catalog(None)
                 .await
                 .unwrap()
                 .set_source_artwork(
@@ -382,7 +381,7 @@ async fn collection_play_retains_full_order_with_bounded_queue_projection() {
     let mut raw = connection(&fixture.path).await;
     for position in 0..130 {
         let id = format!("extra-{position:03}");
-        let uri = library::source_entity_uri(&library::SourceId::new("source"), "track", &id);
+        let uri = library::entity_uri("track", &id);
         let key: library::TrackKey = sqlx::query_scalar(
             "INSERT INTO tracks(source_key,object_id,album_key,media_uri,metadata,normalized_search,indexed) VALUES (?1,?2,?3,?5,jsonb(json_object('title',COALESCE(?2,''),'album',COALESCE('Album A',''),'artist',COALESCE('Artist A',''),'sort_text',COALESCE(?2,''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(1,0),'track_number',COALESCE(?4,0))),lower(COALESCE(json_extract(jsonb(json_object('title',COALESCE(?2,''),'album',COALESCE('Album A',''),'artist',COALESCE('Artist A',''),'sort_text',COALESCE(?2,''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(1,0),'track_number',COALESCE(?4,0))),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE(?2,''),'album',COALESCE('Album A',''),'artist',COALESCE('Artist A',''),'sort_text',COALESCE(?2,''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(1,0),'track_number',COALESCE(?4,0))),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE(?2,''),'album',COALESCE('Album A',''),'artist',COALESCE('Artist A',''),'sort_text',COALESCE(?2,''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(1,0),'track_number',COALESCE(?4,0))),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE(?2,''),'album',COALESCE('Album A',''),'artist',COALESCE('Artist A',''),'sort_text',COALESCE(?2,''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(1,0),'track_number',COALESCE(?4,0))),'$.comment'),'')),1) RETURNING track_key",
         ).bind(fixture.source).bind(&id).bind(fixture.albums[0]).bind(position + 10).bind(uri)
@@ -1418,7 +1417,7 @@ async fn metadata_refresh_publishes_changes_and_leaves_no_ops_unchanged() {
     let cancel = ReadCancellation::new();
     let track = fixture.tracks[0];
     for refresh in 0..2 {
-        let mut scan_catalog = fixture.database.catalog("source", None).await.unwrap();
+        let mut scan_catalog = fixture.database.catalog(None).await.unwrap();
         {
             let write = library::CatalogBatch {
                 tracks: vec![library::TrackObservation {
@@ -1528,9 +1527,7 @@ async fn metadata_refresh_publishes_changes_and_leaves_no_ops_unchanged() {
         });
         {
             let update = scan_catalog.into_changes();
-            (&fixture.database)
-                .publish_catalog_update("source", update)
-                .await;
+            (&fixture.database).publish_catalog_update(update).await;
         };
         let update = updates
             .try_recv()
@@ -1681,7 +1678,6 @@ async fn album_genres_supply_browsing_and_playback_without_changing_track_tags()
     .unwrap();
     let cover = serde_json::to_vec(&[library::ArtworkCandidate::new(
         library::ArtworkImage::Native {
-            source_id: library::SourceId::new("source"),
             item_id: "album-cover".into(),
             tag: None,
         },
@@ -1697,7 +1693,7 @@ async fn album_genres_supply_browsing_and_playback_without_changing_track_tags()
                 .unwrap();
         fixture
             .database
-            .catalog("source", None)
+            .catalog(None)
             .await
             .unwrap()
             .set_source_artwork(

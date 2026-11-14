@@ -20,7 +20,7 @@ use crate::remote_json as json;
 use client::*;
 use item::*;
 
-use crate::{NativeImageRef as ImageRef, SourceId};
+use crate::NativeImageRef as ImageRef;
 
 type PlaylistId = String;
 
@@ -131,11 +131,10 @@ impl AuthenticatedSubsonic {
 }
 
 pub(crate) async fn connect(
-    source_id: SourceId,
     authentication: SubsonicAuthentication,
     credentials: CredentialInput,
 ) -> SourceResult<ConnectedSource> {
-    SubsonicSource::authenticate(source_id, authentication, credentials)
+    SubsonicSource::authenticate(authentication, credentials)
         .await
         .map(AuthenticatedSubsonic::connected)
 }
@@ -177,8 +176,7 @@ pub(crate) async fn edit(
 
     if has_password {
         credentials.source_name = Some(name);
-        let authenticated =
-            SubsonicSource::authenticate(current.source_id, authentication, credentials).await?;
+        let authenticated = SubsonicSource::authenticate(authentication, credentials).await?;
         return Ok(SourceEditResult::Connected(Box::new(
             authenticated.connected(),
         )));
@@ -186,7 +184,6 @@ pub(crate) async fn edit(
 
     let reopen = address_changed || credentials.trust_invalid_cert != saved.trust_invalid_cert;
     let configuration = crate::config::encode_provider_payload(
-        current.source_id.clone(),
         flavor,
         name,
         SubsonicSourceConfig {
@@ -292,7 +289,6 @@ impl SubsonicSource {
 
     #[instrument(skip(credentials), fields(base_url = %credentials.server_url, username = %credentials.username, trust_invalid_cert = credentials.trust_invalid_cert))]
     async fn authenticate(
-        source_id: SourceId,
         authentication: SubsonicAuthentication,
         credentials: CredentialInput,
     ) -> SourceResult<AuthenticatedSubsonic> {
@@ -383,7 +379,6 @@ impl SubsonicSource {
         }
         let serialized_credential = credential.serialize();
         let configuration = crate::config::encode_provider_payload(
-            source_id,
             flavor,
             crate::source::configured_source_name(submitted_name, provider_name),
             SubsonicSourceConfig {

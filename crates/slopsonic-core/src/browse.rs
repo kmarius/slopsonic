@@ -964,7 +964,6 @@ mod list_plan_tests {
 
     fn selected() -> SelectedLibrary {
         SelectedLibrary {
-            source_id: sources::SourceId::new("server"),
             source_key: library::SourceKey::from_raw(1),
             music_folder_key: None,
             music_folder_object_id: None,

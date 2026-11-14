@@ -104,13 +104,8 @@ impl Actor {
             .iter()
             .flat_map(|job| job.remaining.iter().cloned())
             .collect::<HashSet<_>>();
-        if let Err(error) = cleanup_staging(
-            &self.root,
-            Some(&attached.source_id),
-            attached.directory.as_deref(),
-            &queued,
-        )
-        .await
+        if let Err(error) =
+            cleanup_staging(&self.root, attached.directory.as_deref(), &queued).await
         {
             warn!(%error, "could not reconcile download staging");
         }
@@ -123,13 +118,8 @@ impl Actor {
         if attached.directory == *directory {
             return;
         }
-        if let Err(error) = cleanup_staging(
-            &self.root,
-            Some(&attached.source_id),
-            attached.directory.as_deref(),
-            &HashSet::new(),
-        )
-        .await
+        if let Err(error) =
+            cleanup_staging(&self.root, attached.directory.as_deref(), &HashSet::new()).await
         {
             warn!(%error, "could not remove download staging from the previous folder");
         }

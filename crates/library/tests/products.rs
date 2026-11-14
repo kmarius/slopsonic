@@ -119,51 +119,34 @@ async fn artist_genre_and_sidebar_pins_keep_existing_membership_and_order() {
             assert_eq!(actual, order, "Genre {sort:?}, folder {folder:?}");
         }
     }
-    let external = library::source_entity_uri(
-        &library::SourceId::new("source"),
-        "track",
-        "outside-catalog",
-    );
+    let external = library::entity_uri("track", "outside-catalog");
     let (_, outside_id) =
         super::support::server_playlist(&db, "Outside", std::slice::from_ref(&external)).await;
-    let album_id = library::source_entity_parts(&fixture.album_uris[0])
-        .unwrap()
-        .2;
-    let artist_id = library::source_entity_parts(&fixture.artist_uris[0])
-        .unwrap()
-        .2;
+    let album_id = library::entity_parts(&fixture.album_uris[0]).unwrap().1;
+    let artist_id = library::entity_parts(&fixture.artist_uris[0]).unwrap().1;
     let genre = db
         .genres(&[fixture.genre], None, &cancel)
         .await
         .unwrap()
         .pop()
         .unwrap();
-    let source_id = library::SourceId::new("source");
     let pins = vec![
-        library::SidebarPin::Album {
-            source_id: source_id.clone(),
-            album_id,
-        },
+        library::SidebarPin::Album { album_id },
         library::SidebarPin::Artist {
-            source_id: source_id.clone(),
             artist_id: artist_id.clone(),
             album_artist: false,
         },
         library::SidebarPin::Artist {
-            source_id: source_id.clone(),
             artist_id,
             album_artist: true,
         },
         library::SidebarPin::Genre {
-            source_id: source_id.clone(),
             genre_id: genre.object_id.clone(),
         },
         library::SidebarPin::Playlist {
-            source_id: Some(source_id.clone()),
             playlist_id: outside_id,
         },
         library::SidebarPin::Album {
-            source_id,
             album_id: "missing".into(),
         },
     ];
@@ -820,11 +803,7 @@ async fn radio_resolves_playlist_ownership_and_filters_native_recommendations() 
     ] {
         assert_eq!(
             fixture.database.radio_source(&seed, &cancel).await.unwrap(),
-            Some((
-                fixture.source,
-                library::SourceId::new("source"),
-                object_id.map(String::from)
-            ))
+            Some((fixture.source, object_id.map(String::from)))
         );
         let ids = ["track-2", "track-1", "track-2", "missing", "track-3"].map(String::from);
         assert_eq!(
@@ -917,7 +896,7 @@ async fn playlist_rows_retain_exact_metadata_links_and_unavailable_entries() {
     let cancel = ReadCancellation::new();
     let uris = vec![
         fixture.track_uris[0].clone(),
-        library::source_entity_uri(&library::SourceId::new("source"), "track", "unavailable"),
+        library::entity_uri("track", "unavailable"),
         fixture.track_uris[0].clone(),
     ];
     let playlist = super::support::server_playlist(&database, "Links", &uris)
@@ -969,7 +948,7 @@ async fn playlist_rows_retain_exact_metadata_links_and_unavailable_entries() {
     assert_eq!(queued.len(), 3);
     for index in [0, 2] {
         assert_eq!(entries[index].track.media_uri, uris[index]);
-        assert_eq!(entries[index].track.source_id.as_deref(), Some("source"));
+        assert_eq!(entries[index].track.source_key, Some(fixture.source));
         assert_eq!(
             entries[index].track.links.album_media_uri.as_ref(),
             Some(&fixture.album_uris[0])
@@ -1047,7 +1026,6 @@ async fn uri_artwork_is_identical_across_owner_projections_and_current_scopes() 
         Some(
             serde_json::to_vec(&[library::ArtworkCandidate::new(
                 library::ArtworkImage::Native {
-                    source_id: library::SourceId::new("source"),
                     item_id: "cover".into(),
                     tag: Some(tag.into()),
                 },
@@ -1066,7 +1044,7 @@ async fn uri_artwork_is_identical_across_owner_projections_and_current_scopes() 
                     .unwrap();
             fixture
                 .database
-                .catalog("source", None)
+                .catalog(None)
                 .await
                 .unwrap()
                 .set_source_artwork(
@@ -1393,26 +1371,7 @@ async fn collection_rows_carry_their_own_stable_source_identity() {
         .unwrap()
         .pop()
         .unwrap();
-    assert_eq!(row.source_id, "other-source");
-    let detail = fixture
-        .database
-        .genres(&[genre], None, &cancel)
-        .await
-        .map(|rows| {
-            let mut rows = rows;
-            rows.pop()
-        })
-        .unwrap()
-        .unwrap();
-    assert_eq!(detail.source_id, row.source_id);
-    let original = fixture
-        .database
-        .genres(&[fixture.genre], None, &cancel)
-        .await
-        .unwrap()
-        .pop()
-        .unwrap();
-    assert_eq!(original.source_id, "source");
+    assert_eq!(row.source_key, other);
 
     let keys = [
         library::PlaylistKey::from_raw(55),
@@ -1424,24 +1383,14 @@ async fn collection_rows_carry_their_own_stable_source_identity() {
         rows.iter().map(|row| row.playlist_key).collect::<Vec<_>>(),
         keys
     );
-    assert_eq!(
-        rows.iter()
-            .map(|row| row.source_id.as_deref())
-            .collect::<Vec<_>>(),
-        [Some("other-source"), Some("absent-source"), Some("source")]
-    );
     assert_eq!(rows[0].source_key, Some(other));
     assert_eq!(rows[1].source_key, Some(library::SourceKey::from_raw(56)));
     assert_eq!(rows[2].source_key, Some(fixture.source));
     for row in &rows {
-        let source = row
-            .source_id
-            .as_ref()
-            .map(|id| library::SourceId::new(id.clone()));
         assert_eq!(
             fixture
                 .database
-                .playlist_key_by_identity(source.as_ref(), &row.object_id, &cancel)
+                .playlist_key_by_identity(&row.object_id, &cancel)
                 .await
                 .unwrap(),
             Some(row.playlist_key)
@@ -1450,19 +1399,7 @@ async fn collection_rows_carry_their_own_stable_source_identity() {
     assert_eq!(
         fixture
             .database
-            .playlist_key_by_identity(None, "offline-authored", &cancel)
-            .await
-            .unwrap(),
-        None
-    );
-    assert_eq!(
-        fixture
-            .database
-            .playlist_key_by_identity(
-                Some(&library::SourceId::new("missing-source")),
-                "global",
-                &cancel,
-            )
+            .playlist_key_by_identity("global", &cancel)
             .await
             .unwrap(),
         None
@@ -1541,7 +1478,6 @@ async fn genre_rows_prepare_one_cover_per_member_album() {
         .map(|index| {
             serde_json::to_vec(&[library::ArtworkCandidate::new(
                 library::ArtworkImage::Native {
-                    source_id: library::SourceId::new("source"),
                     item_id: format!("genre-album-{index}"),
                     tag: None,
                 },
@@ -1561,7 +1497,7 @@ async fn genre_rows_prepare_one_cover_per_member_album() {
                     .unwrap();
             fixture
                 .database
-                .catalog("source", None)
+                .catalog(None)
                 .await
                 .unwrap()
                 .set_source_artwork(
@@ -1701,14 +1637,13 @@ async fn track_artist_and_album_artist_roles_keep_exact_membership_and_own_artwo
     let fixture = fixture().await;
     let cancel = ReadCancellation::new();
     let mut raw = connection(&fixture.path).await;
-    let album_owner_uri =
-        library::source_entity_uri(&library::SourceId::new("source"), "artist", "album-owner");
+    let album_owner_uri = library::entity_uri("artist", "album-owner");
     let album_owner = sqlx::query_scalar::<_, library::ArtistKey>(
         "INSERT INTO artists(source_key,object_id,media_uri,native_artwork,metadata,normalized_name) VALUES (?1,'album-owner',?2,?3,jsonb(json_object('name','Album Owner','sort_text','album owner')),lower(COALESCE(json_extract(jsonb(json_object('name','Album Owner','sort_text','album owner')),'$.name'),'')))\n         RETURNING artist_key",
     )
     .bind(fixture.source)
     .bind(album_owner_uri)
-    .bind(br#"[{"key":"native/36cd38f49b9afa08222c0dc9ebfe35eb/f19f105616fb750567aaaa048c3e6b98","image":{"kind":"native","source_id":"source","item_id":"album-artist-art","tag":null},"blur_hash":null}]"#.as_slice())
+    .bind(br#"[{"key":"native/ebaa41d75cfe4ab0607c3fffc0be8cda","image":{"kind":"native","item_id":"album-artist-art","tag":null},"blur_hash":null}]"#.as_slice())
     .fetch_one(&mut raw)
     .await
     .expect("insert distinct Album Artist");
@@ -1730,7 +1665,7 @@ async fn track_artist_and_album_artist_roles_keep_exact_membership_and_own_artwo
                 .fetch_all(&mut raw)
                 .await
                 .unwrap();
-        fixture.database.catalog("source", None).await.unwrap().set_source_artwork("album", &objects.into_iter().map(|id|(id,Some((br#"[{"key":"native/36cd38f49b9afa08222c0dc9ebfe35eb/d453ddcc6a2bb4616a7509452b0c0edb","image":{"kind":"native","source_id":"source","item_id":"album-art","tag":null},"blur_hash":null}]"#.as_slice()).to_vec()))).collect::<Vec<_>>()).await.unwrap();
+        fixture.database.catalog(None).await.unwrap().set_source_artwork("album", &objects.into_iter().map(|id|(id,Some((br#"[{"key":"native/c6ac8f2b31eeee7f0f333306dedc4488","image":{"kind":"native","item_id":"album-art","tag":null},"blur_hash":null}]"#.as_slice()).to_vec()))).collect::<Vec<_>>()).await.unwrap();
     };
 
     let track_artist = fixture
@@ -1928,7 +1863,7 @@ async fn track_artist_and_album_artist_roles_keep_exact_membership_and_own_artwo
                 .unwrap();
         fixture
             .database
-            .catalog("source", None)
+            .catalog(None)
             .await
             .unwrap()
             .set_source_artwork(
@@ -1960,8 +1895,7 @@ async fn artist_orders_filter_roles_but_known_artists_remain_addressable() {
         ("role-both", "Dual Credit", 50),
         ("role-none", "No Credits", 20),
     ] {
-        let media_uri =
-            library::source_entity_uri(&library::SourceId::new("source"), "artist", object_id);
+        let media_uri = library::entity_uri("artist", object_id);
         role_artists.push(
             sqlx::query_scalar::<_, library::ArtistKey>(
                 "INSERT INTO artists(source_key,object_id,media_uri,metadata,normalized_name) VALUES (?1,?2,?3,jsonb(json_object('name',?4,'sort_text',lower(?4))),lower(COALESCE(json_extract(jsonb(json_object('name',?4,'sort_text',lower(?4))),'$.name'),''))) RETURNING artist_key",
@@ -1977,7 +1911,7 @@ async fn artist_orders_filter_roles_but_known_artists_remain_addressable() {
         );
         fixture
             .database
-            .catalog("source", None)
+            .catalog(None)
             .await
             .unwrap()
             .write_native_user_data(

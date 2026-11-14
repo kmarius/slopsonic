@@ -13,7 +13,7 @@ use playback::{SourceReportFact, StreamRequest};
 use serde::{Deserialize, Serialize};
 
 use crate::policy::raw_item_id;
-use crate::{ImageBytes, SourceConfiguration, SourceError, SourceId, SourceResult, SourceSetup};
+use crate::{ImageBytes, SourceConfiguration, SourceError, SourceResult, SourceSetup};
 
 pub(crate) const LIVE_CHANGE_LIMIT: usize = 128;
 
@@ -163,13 +163,9 @@ impl NativeImageRef {
     }
 }
 
-pub fn native_artwork_binding(
-    source_id: &str,
-    image: &NativeImageRef,
-) -> Result<Vec<u8>, serde_json::Error> {
+pub fn native_artwork_binding(image: &NativeImageRef) -> Result<Vec<u8>, serde_json::Error> {
     serde_json::to_vec(&[library::ArtworkCandidate::new(
         library::ArtworkImage::Native {
-            source_id: SourceId::new(source_id),
             item_id: image.item_id.clone(),
             tag: image.tag.clone(),
         },
@@ -362,7 +358,7 @@ impl ConnectedSource {
         credential: Option<String>,
     ) -> Self {
         Self {
-            source: Source::new(configuration.source_id.clone(), source),
+            source: Source::new(source),
             configuration,
             credential,
         }
@@ -376,7 +372,6 @@ pub enum SourceEditResult {
 }
 
 pub struct Source {
-    source_id: SourceId,
     retired: AtomicBool,
     pub subsonic: crate::subsonic::SubsonicSource,
 }
@@ -393,38 +388,34 @@ impl Source {
         if self.is_retired() {
             return Err(SourceError::Cancelled.into());
         }
-        let mut changes = database
-            .catalog(self.source_id.as_str(), None)
-            .await
-            .map_err(SourceError::from)?;
+        let mut changes = database.catalog(None).await.map_err(SourceError::from)?;
         let result = work(&mut changes).await;
         if !self.is_retired() {
             database
-                .publish_catalog_update(self.source_id.as_str(), changes.into_changes())
+                .publish_catalog_update(changes.into_changes())
                 .await;
         }
         result
     }
 
     fn track_object_id(&self, media_uri: &str) -> SourceResult<String> {
-        library::source_entity_parts(media_uri)
-            .filter(|(source_id, kind, _)| source_id == &self.source_id && kind == "track")
-            .map(|(_, _, object_id)| object_id)
+        library::entity_parts(media_uri)
+            .filter(|(kind, _)| kind == "track")
+            .map(|(_, object_id)| object_id)
             .ok_or(SourceError::InvalidRequest(
-                "media URI does not belong to this source",
+                "media URI is not a server track",
             ))
     }
 
-    pub(crate) fn new(source_id: SourceId, subsonic: crate::subsonic::SubsonicSource) -> Self {
+    pub(crate) fn new(subsonic: crate::subsonic::SubsonicSource) -> Self {
         Self {
-            source_id,
             retired: AtomicBool::new(false),
             subsonic,
         }
     }
 
-    pub async fn connect(source_id: SourceId, input: SourceSetup) -> SourceResult<ConnectedSource> {
-        crate::subsonic::connect(source_id, input.authentication, input.credentials).await
+    pub async fn connect(input: SourceSetup) -> SourceResult<ConnectedSource> {
+        crate::subsonic::connect(input.authentication, input.credentials).await
     }
 
     pub async fn edit(
@@ -446,7 +437,7 @@ impl Source {
         credential: Option<String>,
     ) -> SourceResult<Self> {
         let subsonic = crate::subsonic::open(&configuration, credential)?;
-        Ok(Self::new(configuration.source_id, subsonic))
+        Ok(Self::new(subsonic))
     }
 
     pub fn retire(&self) {
@@ -454,10 +445,6 @@ impl Source {
     }
     pub fn is_retired(&self) -> bool {
         self.retired.load(Ordering::Acquire)
-    }
-
-    pub fn source_id(&self) -> &SourceId {
-        &self.source_id
     }
 
     pub fn needs_periodic_refresh(&self) -> bool {
@@ -477,7 +464,6 @@ impl Source {
         if !refresh && !self.needs_periodic_refresh() {
             return Ok((false, None));
         }
-        let source_id = self.source_id.as_str();
         let freshness = self.freshness().await.ok().flatten();
         let cancelled_fn = || cancelled.load(Ordering::Acquire) || self.is_retired();
         if self.is_retired() || (&cancelled_fn)() {
@@ -487,7 +473,7 @@ impl Source {
             if !refresh {
                 let accepted = if let Some(marker) = &freshness {
                     database
-                        .accept_freshness(source_id, marker, &library::ReadCancellation::new())
+                        .accept_freshness(marker, &library::ReadCancellation::new())
                         .await?
                 } else {
                     false
@@ -559,10 +545,9 @@ impl Source {
         limit: usize,
     ) -> SourceResult<library::SearchResults> {
         self.catalog_operation(database, async |changes| {
-            let source_id = self.source_id.as_str();
             let source = &self.subsonic;
             changes.start_observation().await?;
-            let batch = source.live_search(source_id, query, limit).await?;
+            let batch = source.live_search(query, limit).await?;
             let tracks = batch
                 .tracks
                 .iter()
@@ -720,7 +705,6 @@ impl Source {
         changes: &mut library::Catalog<'_>,
     ) -> SourceResult<()> {
         let database = changes.database;
-        let source_id = self.source_id.as_str();
         let section = SourceHomeSection::NewlyAdded;
         match self.home_section(section).await {
             Ok(entries) => {
@@ -732,7 +716,7 @@ impl Source {
                         _ => continue,
                     };
                     if !database
-                        .source_contains_entity(source_id, kind, &entry.entity_object_id, true)
+                        .source_contains_entity(kind, &entry.entity_object_id, true)
                         .await?
                     {
                         missing.push(self.item_request_id(kind, &entry.entity_object_id));
@@ -760,14 +744,9 @@ impl Source {
         database: &Database,
         media_uri: &str,
     ) -> SourceResult<()> {
-        let Some((source_id, kind, object_id)) = library::source_entity_parts(media_uri) else {
+        let Some((kind, object_id)) = library::entity_parts(media_uri) else {
             return Err(SourceError::InvalidRequest("collection URI is unavailable"));
         };
-        if source_id != self.source_id {
-            return Err(SourceError::InvalidRequest(
-                "collection belongs to another source",
-            ));
-        }
         let collection = match kind.as_str() {
             "album" => SourceCollection::Album(object_id),
             "artist" => SourceCollection::Artist(object_id),

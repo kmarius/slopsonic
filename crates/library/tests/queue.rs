@@ -19,7 +19,7 @@ async fn queue_restores_uri_owned_duplicates_state_and_unavailable_media() {
         .track_references_for_uris(&fixture.track_uris[..2], &cancel)
         .await
         .expect("materialize catalog media");
-    media[0].artwork_binding = Some(br#"[{"key":"native/36cd38f49b9afa08222c0dc9ebfe35eb/72fc22518d84ba750d9fd4179a8fd2c4","image":{"kind":"native","source_id":"source","item_id":"shared-art","tag":null},"blur_hash":null}]"#.to_vec());
+    media[0].artwork_binding = Some(br#"[{"key":"native/d3ee5c18a8f1961e8937c3905db90793","image":{"kind":"native","item_id":"shared-art","tag":null},"blur_hash":null}]"#.to_vec());
     let mut raw = connection(&fixture.path).await;
     {
         let objects =
@@ -28,12 +28,12 @@ async fn queue_restores_uri_owned_duplicates_state_and_unavailable_media() {
                 .fetch_all(&mut raw)
                 .await
                 .unwrap();
-        fixture.database.catalog("source", None).await.unwrap().set_source_artwork("track", &objects.into_iter().map(|id|(id,Some((br#"[{"key":"native/36cd38f49b9afa08222c0dc9ebfe35eb/72fc22518d84ba750d9fd4179a8fd2c4","image":{"kind":"native","source_id":"source","item_id":"shared-art","tag":null},"blur_hash":null}]"#.as_slice()).to_vec()))).collect::<Vec<_>>()).await.unwrap();
+        fixture.database.catalog(None).await.unwrap().set_source_artwork("track", &objects.into_iter().map(|id|(id,Some((br#"[{"key":"native/d3ee5c18a8f1961e8937c3905db90793","image":{"kind":"native","item_id":"shared-art","tag":null},"blur_hash":null}]"#.as_slice()).to_vec()))).collect::<Vec<_>>()).await.unwrap();
     };
     let mut unavailable = media[1].clone();
     unavailable.media_uri = "https://example.invalid/offline.flac".to_string();
     unavailable.metadata.title = "Offline".to_string();
-    unavailable.artwork_binding = Some(br#"[{"key":"native/36cd38f49b9afa08222c0dc9ebfe35eb/071c303459c767b7d3d7208c71f5bbf6","image":{"kind":"native","source_id":"source","item_id":"saved-art","tag":null},"blur_hash":null}]"#.to_vec());
+    unavailable.artwork_binding = Some(br#"[{"key":"native/283305818e7646ad0e00c7bf736f4f02","image":{"kind":"native","item_id":"saved-art","tag":null},"blur_hash":null}]"#.to_vec());
 
     let occurrences = vec![
         queue_row(unavailable, 2),
@@ -78,7 +78,7 @@ async fn queue_restores_uri_owned_duplicates_state_and_unavailable_media() {
     assert_ne!(page[1].position, page[2].position);
     assert_eq!(
         page[1].track.artwork_binding.as_deref(),
-        Some(br#"[{"key":"native/36cd38f49b9afa08222c0dc9ebfe35eb/72fc22518d84ba750d9fd4179a8fd2c4","image":{"kind":"native","source_id":"source","item_id":"shared-art","tag":null},"blur_hash":null}]"#.as_slice())
+        Some(br#"[{"key":"native/d3ee5c18a8f1961e8937c3905db90793","image":{"kind":"native","item_id":"shared-art","tag":null},"blur_hash":null}]"#.as_slice())
     );
     assert_eq!(page[0].track.metadata.title, "Offline");
 }
@@ -395,11 +395,7 @@ async fn saved_membership_keeps_provenance_metadata_and_source_identity_across_f
     let mut state = fixture.database.restore_queue().await.unwrap();
     let mut entries = state.entries.to_vec();
     entries[6].track_key = fixture.tracks[0];
-    let missing_uri = library::source_entity_uri(
-        &library::SourceId::new("source"),
-        "track",
-        "missing-catalog-track",
-    );
+    let missing_uri = library::entity_uri("track", "missing-catalog-track");
     let missing = fixture
         .database
         .queue_entries(

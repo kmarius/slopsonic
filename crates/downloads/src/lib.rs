@@ -13,7 +13,7 @@ use async_channel::{Receiver, Sender};
 use library::{Database, FolderKey, SourceKey};
 use serde::{Deserialize, Serialize};
 use sources::{DownloadQuality, ResolvedDownload};
-use sources::{Source, SourceError, SourceId};
+use sources::{Source, SourceError};
 use tracing::warn;
 
 mod actor;
@@ -56,7 +56,6 @@ enum Command {
     },
     SourceResolver(Arc<SourceResolver>),
     Attach {
-        source_id: SourceId,
         source_key: SourceKey,
         folder: Option<FolderKey>,
         response: Sender<Result<(), String>>,
@@ -94,7 +93,6 @@ enum Command {
 
 #[derive(Clone)]
 struct AttachedSource {
-    source_id: SourceId,
     source_key: SourceKey,
     folder: Option<FolderKey>,
     directory: Option<PathBuf>,
@@ -434,14 +432,12 @@ impl Downloads {
 
     pub async fn attach(
         &self,
-        source_id: SourceId,
         source_key: SourceKey,
         folder: Option<FolderKey>,
     ) -> Result<(), String> {
         let (response, result) = async_channel::bounded(1);
         self.commands
             .send(Command::Attach {
-                source_id,
                 source_key,
                 folder,
                 response,

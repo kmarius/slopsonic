@@ -109,7 +109,6 @@ pub struct ArtistView {
 pub struct GenreView {
     pub genre_key: GenreKey,
     pub source_key: SourceKey,
-    pub source_id: String,
     pub object_id: String,
     #[sqlx(json)]
     pub metadata: crate::TagMetadata,
@@ -798,7 +797,7 @@ pub(crate) async fn load_genre_requested(
     folder: Option<FolderKey>,
 ) -> LibraryResult<Vec<GenreView>> {
     let columns = format!(
-        "genre.genre_key,genre.source_key,(SELECT object_id FROM sources WHERE source_key=genre.source_key) source_id,genre.object_id,json(genre.metadata) metadata,{} artwork_binding,CASE WHEN genre.native_artwork IS NULL THEN {} ELSE '[]' END gallery",
+        "genre.genre_key,genre.source_key,genre.object_id,json(genre.metadata) metadata,{} artwork_binding,CASE WHEN genre.native_artwork IS NULL THEN {} ELSE '[]' END gallery",
         crate::artwork::preview_sql("genre.native_artwork"),
         gallery_sql("genre", folder)
     );

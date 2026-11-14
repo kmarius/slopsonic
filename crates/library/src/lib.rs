@@ -63,8 +63,8 @@ pub use home::{
 };
 pub use keys::{
     AlbumKey, ArtistKey, DownloadAccessFileKey, FolderKey, GenreKey, ListenOutboxKey, MoodKey,
-    PlaylistEntryKey, PlaylistKey, SourceId, SourceKey, TrackKey, file_media_path,
-    source_entity_parts, source_entity_uri,
+    PlaylistEntryKey, PlaylistKey, SourceKey, TrackKey, entity_parts, entity_uri, file_media_path,
+    single_server_uri,
 };
 pub use playlists::{
     PlaylistAccess, PlaylistEditEntry, PlaylistEntryView, PlaylistEntryWrite, PlaylistGenreLink,
@@ -98,8 +98,6 @@ pub enum LibraryError {
     InvalidStore(String),
     #[error("Library request is invalid: {0}")]
     InvalidRequest(String),
-    #[error("Playlist only accepts Tracks from Source {0}")]
-    PlaylistSourceMismatch(SourceId),
     #[error("the fixed Library writer is unavailable")]
     WriterUnavailable,
     #[error("the Library read was cancelled")]

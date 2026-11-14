@@ -259,6 +259,9 @@ impl Settings {
             self.window_height = None;
         }
         sanitize_home_blocks(&mut self.application.home_blocks);
+        for result in &mut self.recent_search_results {
+            result.media_uri = library::single_server_uri(&result.media_uri);
+        }
         if self
             .downloads
             .directory

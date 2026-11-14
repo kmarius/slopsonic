@@ -16,7 +16,7 @@ pub fn navigation_source_link(
     let source = source?;
     // Navidrome's player links tracks to their album page.
     let uri = if source.kind == sources::SubsonicFlavor::Navidrome
-        && library::source_entity_parts(media_uri).is_some_and(|(_, kind, _)| kind == "track")
+        && library::entity_parts(media_uri).is_some_and(|(kind, _)| kind == "track")
     {
         album_uri?
     } else {
@@ -28,7 +28,7 @@ pub fn navigation_source_link(
 }
 
 pub fn source_link(source: &sources::SourceConfiguration, media_uri: &str) -> Option<DetailLink> {
-    let (_, kind, object_id) = library::source_entity_parts(media_uri)?;
+    let (kind, object_id) = library::entity_parts(media_uri)?;
     let title = match source.kind {
         sources::SubsonicFlavor::Navidrome => "Open on Navidrome",
         sources::SubsonicFlavor::Subsonic => "Open on server",

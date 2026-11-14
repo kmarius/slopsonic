@@ -7,7 +7,6 @@ mod selection;
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashSet;
 use std::future::Future;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
@@ -29,12 +28,12 @@ use library::{
 };
 use sources::{
     LiveFolderPage, SelectedFeed, Source, SourceConfiguration, SourceEntityKind, SourceError,
-    SourceId, SourceReadProgress, SourceReadStage, SourceSetup,
+    SourceReadProgress, SourceReadStage, SourceSetup,
 };
 use tracing::{info, warn};
 
 use crate::playback::PlaybackOwner;
-use crate::settings::{ConfiguredSource, SettingsFile, StoredSettings, fresh_source_id};
+use crate::settings::{ConfiguredSource, SettingsFile, StoredSettings};
 
 const SOURCE_CHECK_INTERVAL: Duration = Duration::from_secs(5 * 60);
 
@@ -83,9 +82,7 @@ impl CachedSource {
 }
 
 fn same_native_input(left: &SourceConfiguration, right: &SourceConfiguration) -> bool {
-    left.source_id == right.source_id
-        && left.kind == right.kind
-        && left.provider_payload == right.provider_payload
+    left.kind == right.kind && left.provider_payload == right.provider_payload
 }
 
 pub(crate) struct Shared {
@@ -136,17 +133,24 @@ impl Shared {
     }
 
     async fn load_source_counts(&self) -> Result<(), String> {
-        let counts = self
+        let counts = match self
             .database
-            .all_source_counts()
+            .source_identity_key()
             .await
-            .map_err(string_error)?;
-        let configured = self.settings.load().sources.configured;
+            .map_err(string_error)?
+        {
+            Some(source) if self.settings.load().sources.configured.is_some() => Some(
+                self.database
+                    .source_counts(source, &ReadCancellation::new())
+                    .await
+                    .map_err(string_error)?,
+            ),
+            _ => None,
+        };
         *self
             .catalog_counts
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = configured
-            .and_then(|configured| counts.get(&configured.configuration.source_id).copied());
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = counts;
         Ok(())
     }
 
@@ -394,7 +398,7 @@ impl SourceOwner {
             let shared = weak.upgrade();
             async move {
                 if let Some(shared) = shared {
-                    if let Some((_, key)) = source {
+                    if let Some(key) = source {
                         SourceOwner { shared }.catalog_updated(key, update).await;
                     } else if update.activity {
                         shared
@@ -465,9 +469,9 @@ impl SourceOwner {
     /// Drops everything kept for the configured server: queue, favorite and rating outboxes,
     /// downloads, cached catalog and artwork, and settings that point at its items.
     pub(crate) async fn reset_server_state(&self) -> Result<(), String> {
-        let Some(source_id) = self.configuration().map(|configured| configured.source_id) else {
+        if self.configuration().is_none() {
             return Ok(());
-        };
+        }
         // Retiring the old client first stops its refresh and observer from writing.
         self.shared
             .client
@@ -486,35 +490,27 @@ impl SourceOwner {
         note(self.shared.settings.update(|stored| {
             let ui = &mut stored.ui;
             ui.sidebar.pins.clear();
-            ui.sidebar.playlist_pin_imported_sources.clear();
+            ui.sidebar.playlist_pins_imported = false;
             ui.recent_search_results.clear();
             ui.random_play.genre = None;
             ui.downloads.rules = downloads::DownloadRules::default();
             Ok(())
         }));
         let database = &self.shared.database;
-        let source_key = database
-            .source_identity_key(&source_id)
-            .await
-            .map_err(string_error);
+        let source_key = database.source_identity_key().await.map_err(string_error);
         if let Ok(Some(source_key)) = source_key {
             if let Ok(playback) = self.shared.playback() {
                 note(playback.forget_source(source_key).await);
             }
             // Clearing downloads needs the server attached, even when it never connected.
-            note(
-                self.shared
-                    .downloads
-                    .attach(source_id.clone(), source_key, None)
-                    .await,
-            );
+            note(self.shared.downloads.attach(source_key, None).await);
         }
         note(source_key.map(|_| ()));
         self.shared.downloads.clear(false);
         self.shared.downloads.detach();
         note(
             database
-                .remove_source(&source_id)
+                .remove_source()
                 .await
                 .map(|_| ())
                 .map_err(string_error),
@@ -639,9 +635,7 @@ impl SourceOwner {
                 })
                 .await;
             let result = async {
-                let connected = Source::connect(fresh_source_id()?, input)
-                    .await
-                    .map_err(string_error)?;
+                let connected = Source::connect(input).await.map_err(string_error)?;
                 let (configuration, source, credential) = connected.into_parts();
                 if !owner.shared.selection_is_current(&cancelled) {
                     return Err(SourceError::Cancelled.to_string());
@@ -655,11 +649,7 @@ impl SourceOwner {
                 let source_state = owner
                     .shared
                     .database
-                    .reconcile_source(
-                        &configuration.source_id,
-                        configuration.kind.source_id(),
-                        &configuration.name,
-                    )
+                    .reconcile_source(configuration.kind.source_id(), &configuration.name)
                     .await
                     .map_err(string_error)?;
                 let source = Arc::new(source);
@@ -819,48 +809,32 @@ impl SourceOwner {
     pub fn download_media(&self, subject: downloads::DownloadSubject, media_uris: Vec<String>) {
         let owner = self.clone();
         self.shared.runtime.spawn(async move {
-            let mut source_ids = Vec::new();
+            let mut server = false;
             for media_uri in &media_uris {
-                let source = match library::source_entity_parts(media_uri) {
-                    Some((source, kind, _)) if kind == "track" => Some(source),
-                    _ => owner
-                        .shared
-                        .database
-                        .track_source_by_uri(media_uri, &ReadCancellation::new())
-                        .await
-                        .ok()
-                        .flatten(),
-                };
-                if let Some(source) = source {
-                    source_ids.push(source);
+                if owner.is_server_media(media_uri).await.unwrap_or(false) {
+                    server = true;
+                    break;
                 }
             }
-            source_ids.sort();
-            source_ids.dedup();
-            for source_id in source_ids {
-                let source_key = match owner
+            if server {
+                match owner
                     .shared
                     .database
-                    .cached_source(source_id.as_str(), &ReadCancellation::new())
+                    .cached_source(&ReadCancellation::new())
                     .await
                 {
-                    Ok(Some(publication)) => publication.source,
-                    Ok(None) => {
-                        owner.shared.warn_nonfatal(&source_access_unavailable());
-                        continue;
+                    Ok(Some(publication)) => {
+                        if let Err(error) = owner
+                            .shared
+                            .downloads
+                            .attach(publication.source, None)
+                            .await
+                        {
+                            owner.shared.warn_nonfatal(&error);
+                        }
                     }
-                    Err(error) => {
-                        owner.shared.warn_nonfatal(&string_error(error));
-                        continue;
-                    }
-                };
-                if let Err(error) = owner
-                    .shared
-                    .downloads
-                    .attach(source_id.clone(), source_key, None)
-                    .await
-                {
-                    owner.shared.warn_nonfatal(&error);
+                    Ok(None) => owner.shared.warn_nonfatal(&source_access_unavailable()),
+                    Err(error) => owner.shared.warn_nonfatal(&string_error(error)),
                 }
             }
             owner.shared.downloads.download(subject, media_uris);
@@ -947,29 +921,31 @@ impl SourceOwner {
 }
 
 impl SourceOwner {
-    async fn favorite_source(&self, target: &FavoriteTarget) -> Option<(SourceId, SourceKey)> {
-        let source_id = match library::source_entity_parts(target.media_uri()) {
-            Some((source_id, kind, _)) if kind == target.kind() => source_id,
-            _ => match target {
+    async fn favorite_source(&self, target: &FavoriteTarget) -> Option<SourceKey> {
+        let server = match library::entity_parts(target.media_uri()) {
+            Some((kind, _)) => kind == target.kind(),
+            None => match target {
                 FavoriteTarget::Track(media_uri) => self
                     .shared
                     .database
-                    .track_source_by_uri(media_uri, &ReadCancellation::new())
+                    .is_server_track(media_uri, &ReadCancellation::new())
                     .await
-                    .ok()
-                    .flatten()?,
-                FavoriteTarget::Album(_) | FavoriteTarget::Artist(_) => return None,
+                    .ok()?,
+                FavoriteTarget::Album(_) | FavoriteTarget::Artist(_) => false,
             },
         };
+        if !server {
+            return None;
+        }
         let source_key = self
             .shared
             .database
-            .cached_source(source_id.as_str(), &ReadCancellation::new())
+            .cached_source(&ReadCancellation::new())
             .await
             .ok()
             .flatten()?
             .source;
-        Some((source_id, source_key))
+        Some(source_key)
     }
 
     async fn apply_favorite(&self, target: FavoriteTarget, favorite: bool) -> Result<(), String> {
@@ -1031,30 +1007,22 @@ impl SourceOwner {
         receiver
     }
 
-    pub(crate) async fn media_source_id(
-        &self,
-        media_uri: &str,
-    ) -> Result<Option<SourceId>, String> {
-        match library::source_entity_parts(media_uri) {
-            Some((source_id, _, _)) => Ok(Some(source_id)),
-            None => self
-                .shared
-                .database
-                .track_source_by_uri(media_uri, &ReadCancellation::new())
-                .await
-                .map_err(string_error),
+    pub(crate) async fn is_server_media(&self, media_uri: &str) -> Result<bool, String> {
+        if library::entity_parts(media_uri).is_some() {
+            return Ok(true);
         }
+        self.shared
+            .database
+            .is_server_track(media_uri, &ReadCancellation::new())
+            .await
+            .map_err(string_error)
     }
 
     pub(crate) async fn media_client(&self, media_uri: &str) -> Result<Arc<Source>, String> {
-        let source_id = self
-            .media_source_id(media_uri)
-            .await?
-            .ok_or_else(source_access_unavailable)?;
-        self.client()
-            .ok()
-            .filter(|source| source.source_id() == &source_id)
-            .ok_or_else(source_access_unavailable)
+        if !self.is_server_media(media_uri).await? {
+            return Err(source_access_unavailable());
+        }
+        self.client().map_err(|_| source_access_unavailable())
     }
 
     pub(crate) fn client(&self) -> Result<Arc<Source>, String> {
@@ -1133,7 +1101,6 @@ impl SourceOwner {
 
     async fn deliver_favorite(
         &self,
-        source_id: SourceId,
         source_key: SourceKey,
         target: FavoriteTarget,
         favorite: bool,
@@ -1141,7 +1108,7 @@ impl SourceOwner {
         let Ok(source) = self.open_client().await else {
             return true;
         };
-        let Some((kind, object_id)) = favorite_object(&source_id, &target) else {
+        let Some((kind, object_id)) = favorite_object(&target) else {
             return false;
         };
         match source.set_favorite(kind, &object_id, favorite).await {
@@ -1221,13 +1188,13 @@ impl SourceOwner {
         };
         let full = pending.len() == 64;
         let mut completed = true;
-        let mut unavailable = HashSet::new();
+        let mut unavailable = false;
         for (media_uri, favorite) in pending {
-            let Some((source_id, target)) = pending_target(media_uri) else {
+            let Some(target) = pending_target(media_uri) else {
                 completed = false;
                 continue;
             };
-            if unavailable.contains(&source_id) {
+            if unavailable {
                 let _ = self
                     .shared
                     .database
@@ -1236,15 +1203,12 @@ impl SourceOwner {
                 completed = false;
                 continue;
             }
-            let Some((_, source_key)) = self.favorite_source(&target).await else {
+            let Some(source_key) = self.favorite_source(&target).await else {
                 completed = false;
                 continue;
             };
-            if self
-                .deliver_favorite(source_id.clone(), source_key, target, favorite)
-                .await
-            {
-                unavailable.insert(source_id);
+            if self.deliver_favorite(source_key, target, favorite).await {
+                unavailable = true;
                 completed = false;
             }
         }
@@ -1268,25 +1232,25 @@ impl SourceOwner {
         let full = pending.len() == 64;
         let mut completed = true;
         let mut rejected = false;
-        let mut unavailable = HashSet::new();
+        let mut unavailable = false;
         for (media_uri, rating) in pending {
-            let Some((source_id, target)) = pending_target(media_uri) else {
+            let Some(target) = pending_target(media_uri) else {
                 completed = false;
                 continue;
             };
             let retry = unix_seconds().saturating_add(30);
-            let source = if unavailable.contains(&source_id) {
+            let source = if unavailable {
                 None
             } else {
                 self.open_client().await.ok()
             };
             let Some(source) = source else {
                 let _ = database.defer_remote_rating(&target, rating, retry).await;
-                unavailable.insert(source_id);
+                unavailable = true;
                 completed = false;
                 continue;
             };
-            let Some((_, object_id)) = favorite_object(&source_id, &target) else {
+            let Some((_, object_id)) = favorite_object(&target) else {
                 completed = false;
                 continue;
             };
@@ -1302,7 +1266,7 @@ impl SourceOwner {
                 }
                 Err(error) if source_error_is_temporary(&error) => {
                     let _ = database.defer_remote_rating(&target, rating, retry).await;
-                    unavailable.insert(source_id);
+                    unavailable = true;
                     completed = false;
                 }
                 Err(error) => {
@@ -1324,23 +1288,20 @@ impl SourceOwner {
     }
 }
 
-fn pending_target(media_uri: String) -> Option<(SourceId, FavoriteTarget)> {
-    let (source_id, kind, _) = library::source_entity_parts(&media_uri)?;
+fn pending_target(media_uri: String) -> Option<FavoriteTarget> {
+    let (kind, _) = library::entity_parts(&media_uri)?;
     let target = match kind.as_str() {
         "track" => FavoriteTarget::Track(media_uri),
         "album" => FavoriteTarget::Album(media_uri),
         "artist" => FavoriteTarget::Artist(media_uri),
         _ => return None,
     };
-    Some((source_id, target))
+    Some(target)
 }
 
-fn favorite_object(
-    source: &SourceId,
-    target: &FavoriteTarget,
-) -> Option<(SourceEntityKind, String)> {
-    let (source_id, kind, object_id) = library::source_entity_parts(target.media_uri())?;
-    if &source_id != source || kind != target.kind() {
+fn favorite_object(target: &FavoriteTarget) -> Option<(SourceEntityKind, String)> {
+    let (kind, object_id) = library::entity_parts(target.media_uri())?;
+    if kind != target.kind() {
         return None;
     }
     let kind = match target {

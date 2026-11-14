@@ -950,7 +950,7 @@ mod tests {
 
     #[test]
     fn artist_and_album_artist_routes_keep_distinct_role_identity() {
-        let key = library::source_entity_uri(&library::SourceId::new("source"), "artist", "7");
+        let key = library::entity_uri("artist", "7");
         assert_eq!(
             artist_detail_route(key.clone(), false),
             Route::ArtistDetail(key.clone())

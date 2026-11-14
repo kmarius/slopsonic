@@ -330,7 +330,6 @@ mod tests {
         let row = library::TrackView {
             track_key: TrackKey::from_raw(1),
             source_key: None,
-            source_id: None,
             object_id: None,
             media_uri: "test:track".into(),
             artwork_binding: None,

@@ -64,8 +64,8 @@ impl Actor {
             changed = true;
         }
         if changed
-            && let Some(source_id) = self.source_id()
-            && let Err(error) = persist_queue(&self.root, Some(source_id), &self.jobs).await
+            && self.attached.is_some()
+            && let Err(error) = persist_queue(&self.root, &self.jobs).await
         {
             warn!(%error, "could not save download progress");
         }
@@ -135,22 +135,22 @@ impl Actor {
         if media_ids.is_some_and(HashSet::is_empty) {
             return;
         }
-        let Some(source_id) = self.source_id() else {
+        if self.attached.is_none() {
             return;
-        };
+        }
         let owner = DownloadOwner::Subject(subject.clone());
         let owner_key = serde_json::to_string(&owner).expect("download ownership can be stored");
         let mut after = (String::new(), String::new());
         loop {
             let records = match self
                 .database
-                .download_files_page(Some(source_id.as_str()), &after, Some(&owner_key), false)
+                .download_files_page(&after, Some(&owner_key), false)
                 .await
             {
                 Ok(records) if records.is_empty() => break,
                 Ok(records) => records,
                 Err(error) => {
-                    warn!(%error, %source_id, "could not read download ownership");
+                    warn!(%error, "could not read download ownership");
                     return;
                 }
             };
@@ -169,7 +169,7 @@ impl Actor {
                 }
                 owners.extend(self.queued_owners_for_track(&record.media_uri, None));
                 if let Err(error) = self.store_owners(&mut record, owners).await {
-                    warn!(%error, %source_id, media_uri=%record.media_uri, "could not update download ownership");
+                    warn!(%error, media_uri=%record.media_uri, "could not update download ownership");
                 }
             }
         }
@@ -232,24 +232,18 @@ impl Actor {
         let Some(attached) = self.attached.clone() else {
             return;
         };
-        let source_id = &attached.source_id;
         let staging_directory = attached.directory.clone();
         self.jobs.clear();
-        let directory = source_directory(&self.root, Some(source_id));
+        let directory = source_directory(&self.root);
         let result = async {
-            cleanup_staging(
-                &self.root,
-                Some(source_id),
-                staging_directory.as_deref(),
-                &HashSet::new(),
-            )
-            .await
-            .map_err(|error| error.to_string())?;
+            cleanup_staging(&self.root, staging_directory.as_deref(), &HashSet::new())
+                .await
+                .map_err(|error| error.to_string())?;
             let mut after = (String::new(), String::new());
             loop {
                 let records = self
                     .database
-                    .download_files_page(Some(source_id.as_str()), &after, None, false)
+                    .download_files_page(&after, None, false)
                     .await
                     .map_err(|error| error.to_string())?;
                 let Some(last) = records.last() else {
@@ -287,7 +281,7 @@ impl Actor {
                 }
             }
             Err(error) => {
-                warn!(%error, %source_id, "could not clear source downloads");
+                warn!(%error, "could not clear source downloads");
                 if notify {
                     let _ = self
                         .events
@@ -301,10 +295,10 @@ impl Actor {
     }
 
     pub(super) async fn persist_and_publish(&self) {
-        if let Some(source_id) = self.source_id()
-            && let Err(error) = persist_queue(&self.root, Some(source_id), &self.jobs).await
+        if self.attached.is_some()
+            && let Err(error) = persist_queue(&self.root, &self.jobs).await
         {
-            warn!(%error, %source_id, "could not save the download queue");
+            warn!(%error, "could not save the download queue");
         }
         self.publish().await;
     }
@@ -320,11 +314,7 @@ impl Actor {
         let changed = self.events.counts_dirty.swap(false, Ordering::AcqRel);
         let downloaded_tracks = match previous {
             Some(previous) if !changed => previous,
-            _ => self
-                .database
-                .downloaded_count(self.source_id().map(SourceId::as_str))
-                .await
-                .unwrap_or_default() as u64,
+            _ => self.database.downloaded_count().await.unwrap_or_default() as u64,
         };
         let _ = self
             .events

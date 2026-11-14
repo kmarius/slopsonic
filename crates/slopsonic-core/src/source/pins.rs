@@ -9,33 +9,27 @@ impl SourceOwner {
         &self,
         settings: SettingsHandle,
     ) -> Receiver<Result<bool, String>> {
-        let stored = settings.load();
-        let sources = self
-            .configuration()
-            .map(|configuration| configuration.source_id)
-            .filter(|id| !stored.sidebar.playlist_pin_imported_sources.contains(id))
-            .into_iter()
-            .collect::<Vec<_>>();
+        let pending =
+            self.configuration().is_some() && !settings.load().sidebar.playlist_pins_imported;
         self.reply(move |_, database| async move {
-            let mut imports = Vec::new();
-            let cancellation = ReadCancellation::new();
-            for source_id in sources {
-                let Some(source) = database
-                    .source_identity_key(&source_id)
-                    .await
-                    .map_err(|error| error.to_string())?
-                else {
-                    continue;
-                };
-                let ids = database
-                    .source_playlist_object_ids(source, &cancellation)
-                    .await
-                    .map_err(|error| error.to_string())?;
-                if !ids.is_empty() {
-                    imports.push((source_id, ids));
-                }
+            if !pending {
+                return Ok(false);
             }
-            settings.import_playlist_pins_once(imports)
+            let Some(source) = database
+                .source_identity_key()
+                .await
+                .map_err(|error| error.to_string())?
+            else {
+                return Ok(false);
+            };
+            let ids = database
+                .source_playlist_object_ids(source, &ReadCancellation::new())
+                .await
+                .map_err(|error| error.to_string())?;
+            if ids.is_empty() {
+                return Ok(false);
+            }
+            settings.import_playlist_pins_once(ids)
         })
     }
 }

@@ -812,8 +812,7 @@ pub fn present_album_context_menu(
     install_sidebar_pin_action(
         &surface,
         menus,
-        library::source_entity_parts(&album.media_uri).map(|(source_id, _, _)| SidebarPin::Album {
-            source_id,
+        library::entity_parts(&album.media_uri).map(|_| SidebarPin::Album {
             album_id: album.object_id.clone(),
         }),
     );
@@ -942,12 +941,9 @@ pub fn present_artist_context_menu(
     install_sidebar_pin_action(
         &surface,
         menus,
-        library::source_entity_parts(&artist.media_uri).map(|(source_id, _, _)| {
-            SidebarPin::Artist {
-                source_id,
-                artist_id: artist.object_id.clone(),
-                album_artist,
-            }
+        library::entity_parts(&artist.media_uri).map(|_| SidebarPin::Artist {
+            artist_id: artist.object_id.clone(),
+            album_artist,
         }),
     );
     let submenu =
@@ -1042,7 +1038,6 @@ pub fn present_genre_context_menu(
         &surface,
         menus,
         Some(SidebarPin::Genre {
-            source_id: sources::SourceId::new(genre.source_id.clone()),
             genre_id: genre.object_id.clone(),
         }),
     );
@@ -1120,7 +1115,6 @@ pub fn present_playlist_context_menu(
         &surface,
         menus,
         Some(SidebarPin::Playlist {
-            source_id: playlist.source_id.clone().map(sources::SourceId::new),
             playlist_id: playlist.object_id.clone(),
         }),
     );
@@ -1264,7 +1258,7 @@ fn install_download_actions(
     downloaded: bool,
 ) {
     let available = media_uri.is_none_or(|uri| {
-        library::source_entity_parts(uri).is_some() && (menus.source_download_available)()
+        library::entity_parts(uri).is_some() && (menus.source_download_available)()
     });
     if !downloaded && !available {
         return;

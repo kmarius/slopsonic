@@ -9,7 +9,7 @@ use reqwest::header::{
 };
 use serde::{Deserialize, Serialize};
 use sources::DownloadQuality;
-use sources::{SourceError, SourceId, SourceResult};
+use sources::{SourceError, SourceResult};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::oneshot;
 
@@ -128,23 +128,14 @@ impl TransferClients {
     }
 }
 
-fn representation_key(
-    source_id: Option<&SourceId>,
-    media_uri: &str,
-    quality: DownloadQuality,
-    redacted_uri: &str,
-) -> String {
+fn representation_key(media_uri: &str, quality: DownloadQuality, redacted_uri: &str) -> String {
     #[derive(Serialize)]
     struct StoredDownload<'a> {
         media_uri: &'a str,
         quality: DownloadQuality,
     }
-    let value = serde_json::to_vec(&(
-        source_id,
-        StoredDownload { media_uri, quality },
-        redacted_uri,
-    ))
-    .expect("a download representation can be encoded");
+    let value = serde_json::to_vec(&(StoredDownload { media_uri, quality }, redacted_uri))
+        .expect("a download representation can be encoded");
     hash_id_bytes(&value)
 }
 
@@ -376,21 +367,20 @@ pub(super) async fn discard_staging(paths: &DownloadPaths) -> SourceResult<()> {
 
 pub(super) async fn cleanup_staging(
     root: &Path,
-    source_id: Option<&SourceId>,
     directory: Option<&Path>,
     media: &HashSet<String>,
 ) -> SourceResult<()> {
     let expected = media
         .iter()
-        .map(|identity| staging_paths(root, source_id, identity, directory))
+        .map(|identity| staging_paths(root, identity, directory))
         .flat_map(|paths| [paths.audio_part.clone(), paths.checkpoint.clone()])
         .collect::<HashSet<_>>();
     let custom = directory.map(|directory| {
         directory
             .join(CUSTOM_STAGING_DIRECTORY)
-            .join(hash_id(source_id.map_or("direct", SourceId::as_str)))
+            .join(SERVER_DIRECTORY)
     });
-    for directory in [Some(source_directory(root, source_id)), custom.clone()]
+    for directory in [Some(source_directory(root)), custom.clone()]
         .into_iter()
         .flatten()
     {
@@ -544,7 +534,6 @@ pub(super) async fn prepare_download_directories(paths: &DownloadPaths) -> Sourc
 }
 
 pub(super) async fn run_transfer(
-    source_id: Option<&SourceId>,
     media_uri: &str,
     quality: DownloadQuality,
     stream: &ResolvedStream,
@@ -553,7 +542,7 @@ pub(super) async fn run_transfer(
     cancellation: &mut oneshot::Receiver<()>,
 ) -> SourceResult<()> {
     prepare_download_directories(paths).await?;
-    let representation = representation_key(source_id, media_uri, quality, stream.redacted_uri());
+    let representation = representation_key(media_uri, quality, stream.redacted_uri());
     if let Some(path) = library::file_media_path(stream.uri()) {
         tokio::select! {
             result = tokio::fs::copy(path, &paths.audio_part) => result.map(|_| ()).map_err(|error| SourceError::Other(error.to_string())),
@@ -616,8 +605,7 @@ pub(super) fn completed_download_paths(
     root: &Path,
     file: &library::DownloadFile,
 ) -> Result<DownloadPaths, String> {
-    let source = file.source_id.as_deref().map(SourceId::new);
-    let mut paths = download_paths(root, source.as_ref(), &file.media_uri);
+    let mut paths = download_paths(root, &file.media_uri);
     let path =
         library::file_media_path(&file.path).ok_or("The completed download has no local path")?;
     let root = if file.storage_root.is_empty() {
@@ -703,19 +691,15 @@ pub(super) async fn remove_file_if_present(path: &Path) -> Result<(), String> {
     }
 }
 
-pub(super) fn source_directory(root: &Path, source_id: Option<&SourceId>) -> PathBuf {
-    root.join(source_id.map_or_else(
-        || "direct".to_string(),
-        |source_id| hash_id(source_id.as_str()),
-    ))
+/// Downloads and staging of the server live here; older versions used one folder per server id.
+pub(super) const SERVER_DIRECTORY: &str = "server";
+
+pub(super) fn source_directory(root: &Path) -> PathBuf {
+    root.join(SERVER_DIRECTORY)
 }
 
-pub(super) fn download_paths(
-    root: &Path,
-    source_id: Option<&SourceId>,
-    identity: &str,
-) -> DownloadPaths {
-    let directory = source_directory(root, source_id);
+pub(super) fn download_paths(root: &Path, identity: &str) -> DownloadPaths {
+    let directory = source_directory(root);
     let stem = hash_id(identity);
     let audio = directory.join(format!("{stem}.{AUDIO_EXTENSION}"));
     let audio_part = part_path(&audio);
@@ -733,17 +717,16 @@ pub(super) fn download_paths(
 
 pub(super) fn staging_paths(
     root: &Path,
-    source_id: Option<&SourceId>,
     identity: &str,
     directory: Option<&Path>,
 ) -> DownloadPaths {
-    let mut paths = download_paths(root, source_id, identity);
+    let mut paths = download_paths(root, identity);
     let Some(directory) = directory else {
         return paths;
     };
     let staging = directory
         .join(CUSTOM_STAGING_DIRECTORY)
-        .join(hash_id(source_id.map_or("direct", SourceId::as_str)));
+        .join(SERVER_DIRECTORY);
     paths.audio_part = staging.join(format!(
         "{}.{}.{}",
         hash_id(identity),
@@ -756,16 +739,15 @@ pub(super) fn staging_paths(
 
 pub(super) fn new_download_paths(
     root: &Path,
-    source_id: Option<&SourceId>,
     media_uri: &str,
     media: Option<&library::DownloadMetadata>,
     directory: Option<&Path>,
     transcoded_extension: Option<&str>,
 ) -> DownloadPaths {
-    let mut paths = staging_paths(root, source_id, media_uri, directory);
+    let mut paths = staging_paths(root, media_uri, directory);
     let audio_root = directory
         .map(Path::to_path_buf)
-        .unwrap_or_else(|| source_directory(root, source_id));
+        .unwrap_or_else(|| source_directory(root));
     let artist = safe_path_component(media.map_or("", |media| &media.artist), "Unknown Artist");
     let album = safe_path_component(media.map_or("", |media| &media.album), "Unknown Album");
     let title = safe_path_component(media.map_or("", |media| &media.title), "Untitled");
@@ -888,7 +870,7 @@ mod tests {
                 channels: library::AudioChannels::Preserve,
             }),
         ] {
-            for kind in ["subsonic"] {
+            for _kind in ["subsonic"] {
                 for unchanged in [true, false] {
                     let server = MockServer::start().await;
                     let body = b"complete audio bytes";
@@ -914,9 +896,7 @@ mod tests {
                         .expect(1)
                         .mount(&server)
                         .await;
-                    let source = SourceId::new(format!("{kind}:download"));
-                    let media_uri =
-                        library::source_entity_uri(&source, "track", "persistent-file-id");
+                    let media_uri = library::entity_uri("track", "persistent-file-id");
                     let previous = ResolvedStream::with_redacted(
                         "http://127.0.0.1:1/previous-private-endpoint",
                         &media_uri,
@@ -925,24 +905,14 @@ mod tests {
                         format!("{}/new-private-endpoint", server.uri()),
                         &media_uri,
                     );
-                    let representation = representation_key(
-                        Some(&source),
-                        &media_uri,
-                        quality,
-                        previous.redacted_uri(),
-                    );
+                    let representation =
+                        representation_key(&media_uri, quality, previous.redacted_uri());
                     assert_eq!(
                         representation,
-                        representation_key(
-                            Some(&source),
-                            &media_uri,
-                            quality,
-                            current.redacted_uri()
-                        )
+                        representation_key(&media_uri, quality, current.redacted_uri())
                     );
                     let stored = format!(
-                        "[{},{},{}]",
-                        serde_json::to_string(&Some(&source)).unwrap(),
+                        "[{},{}]",
                         format_args!(
                             "{{\"media_uri\":{},\"quality\":{}}}",
                             serde_json::to_string(&media_uri).unwrap(),
@@ -952,7 +922,7 @@ mod tests {
                     );
                     assert_eq!(representation, hash_id_bytes(stored.as_bytes()));
                     let directory = tempfile::tempdir().unwrap();
-                    let paths = download_paths(directory.path(), Some(&source), &media_uri);
+                    let paths = download_paths(directory.path(), &media_uri);
                     std::fs::create_dir_all(&paths.directory).unwrap();
                     std::fs::write(
                         &paths.audio_part,

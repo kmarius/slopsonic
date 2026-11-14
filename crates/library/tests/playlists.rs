@@ -136,7 +136,6 @@ async fn playlist_automatic_covers_keep_distinct_saved_choices() {
     let [first, second] = ["first-album", "second-album"].map(|item_id| {
         serde_json::to_vec(&[library::ArtworkCandidate::new(
             library::ArtworkImage::Native {
-                source_id: library::SourceId::new("source"),
                 item_id: item_id.into(),
                 tag: None,
             },
@@ -146,7 +145,7 @@ async fn playlist_automatic_covers_keep_distinct_saved_choices() {
     });
     fixture
         .database
-        .catalog("source", None)
+        .catalog(None)
         .await
         .unwrap()
         .set_source_artwork(
@@ -219,7 +218,6 @@ async fn provider_playlist_payload_resolves_uri_only_at_the_protocol_boundary() 
         fixture
             .database
             .source_playlist_track_ids(
-                fixture.source,
                 Some(playlist),
                 &library::MemberSelection::Uris(
                     ((&[
@@ -239,51 +237,16 @@ async fn provider_playlist_payload_resolves_uri_only_at_the_protocol_boundary() 
 }
 
 #[tokio::test]
-async fn source_playlist_additions_reject_other_sources_and_missing_tracks() {
+async fn source_playlist_additions_reject_missing_tracks() {
     let fixture = fixture().await;
-    let mut raw = connection(&fixture.path).await;
-    let destination: library::SourceKey = sqlx::query_scalar(
-        "INSERT INTO sources(object_id,display_name,normalized_name,artwork_digest) VALUES ('destination','Destination','destination',zeroblob(32)) RETURNING source_key",
-    ).fetch_one(&mut raw).await.unwrap();
-    let own_uri = "test:destination-track".to_string();
-    sqlx::query("INSERT INTO tracks(source_key,object_id,media_uri,metadata,normalized_search,indexed) VALUES (?1,'destination-track',?2,jsonb(json_object('title',COALESCE('Destination Track',''),'artist',COALESCE('',''),'album',COALESCE('',''),'sort_text',COALESCE('destination track',''),'duration_millis',COALESCE(1000,0))),lower(COALESCE(json_extract(jsonb(json_object('title',COALESCE('Destination Track',''),'artist',COALESCE('',''),'album',COALESCE('',''),'sort_text',COALESCE('destination track',''),'duration_millis',COALESCE(1000,0))),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Destination Track',''),'artist',COALESCE('',''),'album',COALESCE('',''),'sort_text',COALESCE('destination track',''),'duration_millis',COALESCE(1000,0))),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Destination Track',''),'artist',COALESCE('',''),'album',COALESCE('',''),'sort_text',COALESCE('destination track',''),'duration_millis',COALESCE(1000,0))),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Destination Track',''),'artist',COALESCE('',''),'album',COALESCE('',''),'sort_text',COALESCE('destination track',''),'duration_millis',COALESCE(1000,0))),'$.comment'),'')),1)")
-        .bind(destination).bind(&own_uri).execute(&mut raw).await.unwrap();
-    drop(raw);
-    let database = &fixture.database;
-    assert_eq!(
-        database
-            .source_playlist_track_ids(
-                destination,
-                None,
-                &library::MemberSelection::Uris(std::slice::from_ref(&own_uri).to_vec().into()),
-                false
-            )
-            .await
-            .unwrap(),
-        ["destination-track"]
-    );
-    for selection in [
-        vec![fixture.track_uris[0].clone()],
-        vec![own_uri.clone(), fixture.track_uris[0].clone()],
-    ] {
-        let error = database
-            .source_playlist_track_ids(
-                destination,
-                None,
-                &library::MemberSelection::Uris(selection.into()),
-                true,
-            )
-            .await
-            .unwrap_err();
-        assert!(
-            matches!(error, library::LibraryError::PlaylistSourceMismatch(source)
-            if source.as_str() == "destination")
-        );
-    }
-    let missing = vec![own_uri, "test:missing-track".to_string()];
+    let missing = vec![
+        fixture.track_uris[0].clone(),
+        "test:missing-track".to_string(),
+    ];
     assert!(matches!(
-        database
-            .source_playlist_track_ids(destination, None, &library::MemberSelection::Uris(missing.into()), false)
+        fixture
+            .database
+            .source_playlist_track_ids(None, &library::MemberSelection::Uris(missing.into()), false)
             .await
             .unwrap_err(),
         library::LibraryError::InvalidRequest(message) if message == "Playlist Track is no longer current"

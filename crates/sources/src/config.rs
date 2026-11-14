@@ -2,7 +2,6 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::{SourceError, SourceResult, subsonic::SubsonicFlavor};
-use library::SourceId;
 
 /// Credential-free source configuration persisted by Slopsonic Settings.
 ///
@@ -10,7 +9,6 @@ use library::SourceId;
 /// this value or its separately stored credential reference.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SourceConfiguration {
-    pub source_id: SourceId,
     pub kind: SubsonicFlavor,
     pub name: String,
     pub provider_payload: String,
@@ -101,13 +99,11 @@ impl SourceConfiguration {
 }
 
 pub(crate) fn encode_provider_payload(
-    source_id: SourceId,
     kind: SubsonicFlavor,
     name: impl Into<String>,
     provider_payload: serde_json::Value,
 ) -> SourceConfiguration {
     SourceConfiguration {
-        source_id,
         kind,
         name: name.into(),
         provider_payload: provider_payload.to_string(),
@@ -116,14 +112,12 @@ pub(crate) fn encode_provider_payload(
 
 #[cfg(test)]
 mod tests {
-    use crate::SourceId;
 
     use super::*;
     use crate::subsonic::SubsonicSourceConfig;
 
     fn migrated_source(kind: SubsonicFlavor, payload: serde_json::Value) -> SourceConfiguration {
         SourceConfiguration {
-            source_id: SourceId::new(format!("{}:server:test", kind.source_id())),
             kind,
             name: "Test Source".to_string(),
             provider_payload: payload.to_string(),
@@ -173,7 +167,6 @@ mod tests {
         assert!(subsonic_payload.get("user_id").is_none());
         assert_eq!(
             decode_provider_payload::<serde_json::Value>(&encode_provider_payload(
-                subsonic_stored.source_id,
                 SubsonicFlavor::Subsonic,
                 "Test Source",
                 subsonic_payload.clone(),

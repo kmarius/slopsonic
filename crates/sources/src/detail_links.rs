@@ -57,7 +57,6 @@ mod tests {
         payload: serde_json::Value,
     ) -> SourceConfiguration {
         SourceConfiguration {
-            source_id: crate::SourceId::new("server"),
             kind,
             name: "My custom name".into(),
             provider_payload: payload.to_string(),

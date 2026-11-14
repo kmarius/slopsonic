@@ -42,7 +42,7 @@ async fn downloads_turn_stale_when_the_server_audio_changes() {
     };
     let database = &fixture.database;
     let apply = |audio_key| async move {
-        let mut catalog = database.catalog("source", None).await.unwrap();
+        let mut catalog = database.catalog(None).await.unwrap();
         catalog
             .apply_catalog(
                 &library::CatalogBatch {
@@ -54,14 +54,14 @@ async fn downloads_turn_stale_when_the_server_audio_changes() {
             .await
             .unwrap();
         database
-            .publish_catalog_update("source", catalog.into_changes())
+            .publish_catalog_update(catalog.into_changes())
             .await;
     };
     apply([1; 32]).await;
     let stale = || async {
         fixture
             .database
-            .download_files_page(Some("source"), &(String::new(), String::new()), None, true)
+            .download_files_page(&(String::new(), String::new()), None, true)
             .await
             .unwrap()
             .into_iter()
@@ -81,7 +81,6 @@ async fn downloads_turn_stale_when_the_server_audio_changes() {
                 .unwrap(),
             path: "file:///generic/track.flac".into(),
             managed: true,
-            source_id: Some("source".into()),
             ..Default::default()
         })
         .await
@@ -105,7 +104,6 @@ async fn source_artwork_pages_distinct_bindings() {
     let binding = |id: &str| {
         serde_json::to_vec(&[library::ArtworkCandidate::new(
             library::ArtworkImage::Native {
-                source_id: library::SourceId::new("source"),
                 item_id: id.into(),
                 tag: None,
             },
@@ -156,7 +154,7 @@ async fn source_artwork_pages_distinct_bindings() {
         .bind(fixture.source).execute(&mut raw).await.unwrap();
     fixture
         .database
-        .catalog("source", None)
+        .catalog(None)
         .await
         .unwrap()
         .set_source_artwork(
@@ -276,7 +274,7 @@ async fn source_removal_preserves_pending_scrobbles() {
         .await
         .expect("queue scrobble");
 
-    let mut scan_catalog = fixture.database.catalog("source", None).await.unwrap();
+    let mut scan_catalog = fixture.database.catalog(None).await.unwrap();
     {
         let write = library::CatalogBatch {
             tracks: vec![library::TrackObservation {
@@ -301,9 +299,7 @@ async fn source_removal_preserves_pending_scrobbles() {
     };
     {
         let update = scan_catalog.into_changes();
-        (&fixture.database)
-            .publish_catalog_update("source", update)
-            .await;
+        (&fixture.database).publish_catalog_update(update).await;
     };
     let queue_media = fixture
         .database
@@ -327,7 +323,7 @@ async fn source_removal_preserves_pending_scrobbles() {
     assert!(
         fixture
             .database
-            .remove_source(&library::SourceId::new("source"))
+            .remove_source()
             .await
             .expect("remove source")
     );

@@ -135,7 +135,6 @@ CREATE TABLE IF NOT EXISTS download_files (
     revision TEXT NOT NULL,
     path TEXT NOT NULL,
     managed INTEGER NOT NULL,
-    source_id TEXT,
     owners TEXT NOT NULL DEFAULT '[]',
     storage_root TEXT NOT NULL DEFAULT '',
     relative_path TEXT NOT NULL DEFAULT '',
@@ -460,7 +459,6 @@ CREATE VIEW IF NOT EXISTS download_access_files AS
           FROM download_locators locator
           LEFT JOIN download_access_metadata metadata USING(access_uri);
 
-CREATE INDEX IF NOT EXISTS download_source_idx ON download_files(source_id,media_uri,encoding);
 
 CREATE TABLE IF NOT EXISTS native_playlist_pending (
     playlist_key INTEGER NOT NULL REFERENCES playlists ON DELETE CASCADE,
@@ -471,6 +469,53 @@ CREATE TABLE IF NOT EXISTS native_playlist_pending (
 "#;
 
 const BASE_VERSION: i64 = 64;
+
+/// The encoded server segment of a former `slopsonic:source/<kind>/<server>/<object>` URI column.
+macro_rules! server_segment {
+    ($column:literal) => {
+        concat!(
+            "substr(substr(substr(",
+            $column,
+            ",18),instr(substr(",
+            $column,
+            ",18),'/')+1),1,",
+            "instr(substr(substr(",
+            $column,
+            ",18),instr(substr(",
+            $column,
+            ",18),'/')+1),'/')-1)"
+        )
+    };
+}
+
+/// Rewrites a former `slopsonic:source/<kind>/<server>/<object>` URI column to `slopsonic:<kind>/<object>`.
+macro_rules! single_server_uri {
+    ($column:literal) => {
+        concat!(
+            "CASE WHEN ",
+            $column,
+            " LIKE 'slopsonic:source/%' THEN 'slopsonic:'",
+            "||substr(substr(",
+            $column,
+            ",18),1,instr(substr(",
+            $column,
+            ",18),'/')-1)||'/'",
+            "||substr(substr(substr(",
+            $column,
+            ",18),instr(substr(",
+            $column,
+            ",18),'/')+1),",
+            "instr(substr(substr(",
+            $column,
+            ",18),instr(substr(",
+            $column,
+            ",18),'/')+1),'/')+1)",
+            " ELSE ",
+            $column,
+            " END"
+        )
+    };
+}
 
 const MIGRATIONS: &[&str] = &[
     // 65: drop storage for playlist folders, local-file albums and non-download locators.
@@ -563,6 +608,78 @@ const MIGRATIONS: &[&str] = &[
      ALTER TABLE tracks RENAME COLUMN source_loudness_analysis_key TO audio_key;
      ALTER TABLE albums DROP COLUMN loudness_analysis_key;
      ALTER TABLE albums DROP COLUMN source_loudness_analysis_key;",
+    // 72: one server. Media URIs lose the server id and the catalog cache is rebuilt by the
+    // next sync; the queue keeps its tracks, and the kept server's outboxes, user state and
+    // downloads keep their rows. Rows of any older server are dropped instead of re-pointed.
+    concat!(
+        "DROP VIEW download_access_files;
+     CREATE TEMP TABLE kept_server(segment TEXT PRIMARY KEY);
+     INSERT OR IGNORE INTO kept_server SELECT ",
+        server_segment!("media_uri"),
+        " FROM (SELECT media_uri FROM tracks WHERE source_key=(SELECT max(source_key) FROM sources)
+         UNION ALL SELECT media_uri FROM albums WHERE source_key=(SELECT max(source_key) FROM sources)
+         UNION ALL SELECT media_uri FROM artists WHERE source_key=(SELECT max(source_key) FROM sources))
+         WHERE media_uri LIKE 'slopsonic:source/%';
+     DELETE FROM user_media_state WHERE media_uri LIKE 'slopsonic:source/%' AND EXISTS(SELECT 1 FROM kept_server) AND ",
+        server_segment!("media_uri"),
+        " NOT IN (SELECT segment FROM kept_server);
+     DELETE FROM favorite_outbox WHERE media_uri LIKE 'slopsonic:source/%' AND EXISTS(SELECT 1 FROM kept_server) AND ",
+        server_segment!("media_uri"),
+        " NOT IN (SELECT segment FROM kept_server);
+     DELETE FROM rating_outbox WHERE media_uri LIKE 'slopsonic:source/%' AND EXISTS(SELECT 1 FROM kept_server) AND ",
+        server_segment!("media_uri"),
+        " NOT IN (SELECT segment FROM kept_server);
+     DELETE FROM download_files WHERE source_id IS NOT NULL
+         AND source_id IS NOT (SELECT object_id FROM sources WHERE source_key=(SELECT max(source_key) FROM sources));
+     DROP TABLE kept_server;
+     DELETE FROM collection_album_index;
+     DELETE FROM collection_totals;
+     DELETE FROM folder_children;
+     DELETE FROM playlist_genres;
+     DELETE FROM home_entries;
+     DELETE FROM playlists;
+     DELETE FROM album_artists;
+     DELETE FROM album_genres;
+     DELETE FROM album_release_types;
+     DELETE FROM track_artists;
+     DELETE FROM track_album_artists;
+     DELETE FROM track_genres;
+     DELETE FROM track_moods;
+     DELETE FROM track_folders;
+     UPDATE tracks SET album_key=NULL,artwork_artist_key=NULL;
+     DELETE FROM albums;
+     DELETE FROM artists;
+     DELETE FROM genres;
+     DELETE FROM moods;
+     DELETE FROM folders;
+     DELETE FROM tracks WHERE track_key NOT IN (SELECT track_key FROM queue_entries);
+     DELETE FROM sources WHERE source_key<>(SELECT max(source_key) FROM sources);
+     UPDATE sources SET object_id='server',freshness=NULL,catalog_complete=0,album_count=0,
+         track_count=0,observation_stamp=observation_stamp+1;
+     DELETE FROM native_media_state;
+     DELETE FROM artwork_previews;
+     UPDATE tracks SET indexed=0,observed_stamp=0,native_artwork=NULL,artwork_kind=0;
+     UPDATE OR IGNORE tracks SET media_uri=",
+        single_server_uri!("media_uri"),
+        " WHERE source_key IS NOT NULL;
+     UPDATE OR REPLACE user_media_state SET media_uri=",
+        single_server_uri!("media_uri"),
+        ";
+     UPDATE OR REPLACE favorite_outbox SET media_uri=",
+        single_server_uri!("media_uri"),
+        ";
+     UPDATE OR REPLACE rating_outbox SET media_uri=",
+        single_server_uri!("media_uri"),
+        ";
+     UPDATE OR REPLACE download_files SET media_uri=",
+        single_server_uri!("media_uri"),
+        ";
+     UPDATE OR REPLACE download_locators SET media_uri=",
+        single_server_uri!("media_uri"),
+        ";
+     DROP INDEX download_source_idx;
+     ALTER TABLE download_files DROP COLUMN source_id;"
+    ),
 ];
 
 pub(crate) const SCHEMA_VERSION: i64 = BASE_VERSION + MIGRATIONS.len() as i64;
@@ -608,8 +725,7 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
     sqlx::raw_sql(STORE_SCHEMA)
         .execute(&mut *transaction)
         .await?;
-    sqlx::raw_sql("UPDATE download_files AS download SET source_id=source.object_id FROM tracks track JOIN sources source USING(source_key) WHERE download.source_id IS NULL AND download.media_uri=track.media_uri;
-        UPDATE download_locators AS locator SET source_key=track.source_key FROM tracks track WHERE locator.source_key IS NULL AND locator.origin='download' AND locator.media_uri=track.media_uri AND track.source_key IS NOT NULL;")
+    sqlx::raw_sql("UPDATE download_locators AS locator SET source_key=track.source_key FROM tracks track WHERE locator.source_key IS NULL AND locator.origin='download' AND locator.media_uri=track.media_uri AND track.source_key IS NOT NULL;")
         .execute(&mut *transaction).await?;
     if version == 0 {
         crate::catalog::index::initialize(&mut transaction).await?;

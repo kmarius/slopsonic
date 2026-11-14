@@ -4,65 +4,39 @@ use std::fmt;
 
 use percent_encoding::{NON_ALPHANUMERIC, percent_decode_str, utf8_percent_encode};
 
-#[derive(
-    Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize,
-)]
-#[serde(transparent)]
-pub struct SourceId(String);
-
-impl SourceId {
-    pub fn new(value: impl Into<String>) -> Self {
-        let value = value.into();
-        assert!(!value.is_empty(), "SourceId cannot be empty");
-        Self(value)
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
+/// The media URI of a server item: `slopsonic:<kind>/<percent-encoded object id>`.
+pub fn entity_uri(entity_kind: &str, object_id: &str) -> String {
+    format!("{}{}", entity_prefix(entity_kind), encode(object_id))
 }
 
-impl fmt::Display for SourceId {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.0)
-    }
-}
-
-pub fn source_entity_uri(source: &SourceId, entity_kind: &str, object_id: &str) -> String {
+pub(crate) fn entity_prefix(entity_kind: &str) -> String {
     debug_assert!(matches!(
         entity_kind,
         "track" | "album" | "artist" | "genre" | "mood" | "folder"
     ));
-    format!(
-        "{}{}",
-        source_entity_prefix(source, entity_kind),
-        encode(object_id)
-    )
+    format!("slopsonic:{entity_kind}/")
 }
 
-pub(crate) fn source_entity_prefix(source: &SourceId, entity_kind: &str) -> String {
-    debug_assert!(matches!(
-        entity_kind,
-        "track" | "album" | "artist" | "genre" | "mood" | "folder"
-    ));
-    format!(
-        "slopsonic:source/{entity_kind}/{}/",
-        encode(source.as_str())
-    )
+/// The kind and object id of a track, album or artist URI.
+pub fn entity_parts(uri: &str) -> Option<(String, String)> {
+    let (kind, encoded) = uri.strip_prefix("slopsonic:")?.split_once('/')?;
+    if !matches!(kind, "track" | "album" | "artist") || encoded.contains('/') {
+        return None;
+    }
+    let object = decode(encoded).filter(|object| !object.is_empty())?;
+    Some((kind.to_string(), object))
 }
 
-pub fn source_entity_parts(uri: &str) -> Option<(SourceId, String, String)> {
-    let mut parts = uri.strip_prefix("slopsonic:source/")?.split('/');
-    let kind = parts.next()?;
-    if !matches!(kind, "track" | "album" | "artist") {
-        return None;
+/// Rewrites a former `slopsonic:source/<kind>/<server>/<object>` URI; others pass through.
+pub fn single_server_uri(uri: &str) -> String {
+    let parts = uri
+        .strip_prefix("slopsonic:source/")
+        .and_then(|rest| rest.split_once('/'))
+        .and_then(|(kind, rest)| Some((kind, rest.split_once('/')?.1)));
+    match parts {
+        Some((kind, object)) => format!("slopsonic:{kind}/{object}"),
+        None => uri.to_owned(),
     }
-    let source = decode(parts.next()?)?;
-    let object = decode(parts.next()?)?;
-    if source.is_empty() || object.is_empty() || parts.next().is_some() {
-        return None;
-    }
-    Some((SourceId::new(source), kind.to_string(), object))
 }
 
 pub fn file_media_path(uri: &str) -> Option<std::path::PathBuf> {
@@ -138,14 +112,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn source_identity_round_trips_percent_encoded_components() {
-        let source = SourceId::new("same-kind/account:a/b%20");
-        let uri = source_entity_uri(&source, "track", "opaque:/track%id");
+    fn entity_uri_round_trips_percent_encoded_object_ids() {
+        let uri = entity_uri("track", "opaque:/track%id");
+        assert!(uri.starts_with("slopsonic:track/"));
         assert!(uri.contains("%2F"));
         assert_eq!(
-            source_entity_parts(&uri),
-            Some((source, "track".to_string(), "opaque:/track%id".to_string()))
+            entity_parts(&uri),
+            Some(("track".to_string(), "opaque:/track%id".to_string()))
         );
+        assert_eq!(entity_parts("slopsonic:track/a/b"), None);
+        assert_eq!(entity_parts("slopsonic:genre/rock"), None);
+        assert_eq!(entity_parts("slopsonic:track/"), None);
+    }
+
+    #[test]
+    fn former_server_uris_drop_the_server_segment() {
+        assert_eq!(
+            single_server_uri("slopsonic:source/album/slopsonic%2Dsource%2Dabc/a%2F1"),
+            "slopsonic:album/a%2F1"
+        );
+        assert_eq!(single_server_uri("slopsonic:track/t"), "slopsonic:track/t");
+        assert_eq!(single_server_uri("file:///a.flac"), "file:///a.flac");
     }
 
     #[test]

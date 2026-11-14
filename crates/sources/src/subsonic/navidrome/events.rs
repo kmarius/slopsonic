@@ -157,10 +157,7 @@ mod tests {
     #[tokio::test]
     async fn live_updates_refresh_newly_added_and_retain_it_on_failure() {
         let server = MockServer::start().await;
-        let source = crate::Source::new(
-            crate::SourceId::new("source"),
-            navidrome_source_with_token(&server, "token"),
-        );
+        let source = crate::Source::new(navidrome_source_with_token(&server, "token"));
         let directory = tempfile::tempdir().unwrap();
         let database = library::Database::open(directory.path().join("library.sqlite"))
             .await
@@ -170,10 +167,7 @@ mod tests {
             let _ = sender.send(update);
             std::future::ready(())
         });
-        database
-            .reconcile_source(&library::SourceId::new("source"), "source", "Source")
-            .await
-            .unwrap();
+        database.reconcile_source("source", "Source").await.unwrap();
 
         let cancellation = library::ReadCancellation::new();
         for (id, status, empty, identical, expected) in [
@@ -225,11 +219,7 @@ mod tests {
             }
             let home = database
                 .home_page(
-                    database
-                        .source_identity_key(&crate::SourceId::new("source"))
-                        .await
-                        .unwrap()
-                        .unwrap(),
+                    database.source_identity_key().await.unwrap().unwrap(),
                     None,
                     0,
                     0,
@@ -284,12 +274,8 @@ mod tests {
             std::future::ready(())
         });
         let marker = library::Freshness::new(b"catalog".to_vec()).unwrap();
-        database
-            .reconcile_source(&library::SourceId::new("source"), "source", "Source")
-            .await
-            .unwrap();
-        let catalog_source_id = ("source").to_string();
-        let mut catalog = database.catalog(&catalog_source_id, None).await.unwrap();
+        database.reconcile_source("source", "Source").await.unwrap();
+        let mut catalog = database.catalog(None).await.unwrap();
         let stamp = Some(catalog.start_observation().await.unwrap());
         (async {
             let mut batch = library::CatalogBatch::default();
@@ -336,9 +322,7 @@ mod tests {
                 }
                 Ok::<_, library::LibraryError>(catalog.changes().clone())
             }?;
-            database
-                .publish_catalog_update(&catalog_source_id, update)
-                .await;
+            database.publish_catalog_update(update).await;
             Ok::<_, library::LibraryError>(())
         })
         .await
@@ -357,7 +341,8 @@ mod tests {
             .mount(&server)
             .await;
         let configuration = crate::SourceConfiguration {
-            source_id: crate::SourceId::new("source"), kind:crate::SubsonicFlavor::Navidrome, name:"Source".into(),
+            kind: crate::SubsonicFlavor::Navidrome,
+            name: "Source".into(),
             provider_payload: serde_json::json!({"version":SOURCE_CONFIG_VERSION,"base_url":server.uri(),
                 "username":"listener","trust_invalid_cert":false,"navidrome_library_version":NAVIDROME_LIBRARY_VERSION,
                 "authentication":"password"}).to_string(),
@@ -379,7 +364,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(upserts, ["song:second", "song:track"]);
-        let source = crate::Source::new(configuration.source_id, provider);
+        let source = crate::Source::new(provider);
         source
             .apply_items(&database, upserts, vec![])
             .await
@@ -387,11 +372,7 @@ mod tests {
         let update = updates.try_recv().expect("catalog update");
         assert!(update.metadata);
         let cancellation = library::ReadCancellation::new();
-        let uri = library::source_entity_uri(
-            &crate::SourceId::new("source"),
-            "track",
-            "navidrome:track:track",
-        );
+        let uri = library::entity_uri("track", "navidrome:track:track");
         let row = database
             .track(&(&uri), &cancellation)
             .await
@@ -402,7 +383,7 @@ mod tests {
         assert_eq!(row.metadata.title, "Track");
         assert!(
             database
-                .accept_freshness("source", &marker, &cancellation)
+                .accept_freshness(&marker, &cancellation)
                 .await
                 .unwrap()
         );

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use library::{Database, ReadCancellation, SourceId};
+use library::{Database, ReadCancellation};
 use sqlx::Connection;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteConnection};
 
@@ -212,12 +212,12 @@ async fn deleting_or_corrupting_catalog_preserves_exact_durable_records() {
         );
         raw.close().await.unwrap();
         // Ordinary rescan rejoins effective favorites/ratings by the unchanged media URI.
-        let (_, _, object) = library::source_entity_parts(uri).unwrap();
+        let (_, object) = library::entity_parts(uri).unwrap();
         database
-            .reconcile_source(&SourceId::new("source"), "subsonic", "Source")
+            .reconcile_source("subsonic", "Source")
             .await
             .unwrap();
-        let mut catalog = database.catalog("source", None).await.unwrap();
+        let mut catalog = database.catalog(None).await.unwrap();
         let observed = catalog.start_observation().await.unwrap();
         catalog
             .apply_catalog(
@@ -321,4 +321,114 @@ async fn missing_scrobble_column_returns_error_without_replacing_user_data() {
     let before = durable_rows(&fixture.path).await;
     assert!(Database::open(&fixture.path).await.is_err());
     assert_eq!(durable_rows(&fixture.path).await, before);
+}
+
+#[tokio::test]
+async fn single_server_migration_rewrites_local_state_and_clears_the_catalog() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("library.sqlite");
+    Database::open(&path).await.unwrap().close().await.unwrap();
+    let mut raw = super::support::connection(&path).await;
+    let old = |kind: &str, object: &str| {
+        format!("slopsonic:source/{kind}/slopsonic%2Dsource%2Dabc/{object}")
+    };
+    let former = |kind: &str, object: &str| {
+        format!("slopsonic:source/{kind}/slopsonic%2Dsource%2Dold/{object}")
+    };
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+        "ALTER TABLE download_files ADD COLUMN source_id TEXT;
+         CREATE INDEX download_source_idx ON download_files(source_id,media_uri,encoding);
+         INSERT INTO sources(source_key,object_id) VALUES(6,'slopsonic-source-old'),(7,'slopsonic-source-abc');
+         INSERT INTO albums(album_key,source_key,object_id,media_uri,indexed) VALUES(1,7,'a','{album}',1);
+         INSERT INTO tracks(track_key,source_key,object_id,media_uri,album_key,indexed)
+             VALUES(1,7,'t1','{queued}',1,1),(2,7,'t2','{other}',1,1),(3,6,'t3','{stale_track}',NULL,1);
+         INSERT INTO queue_entries(entry_id,track_key) VALUES(1,1),(2,3);
+         INSERT INTO queue_positions(order_kind,position,entry_id) VALUES(0,0,1),(0,1,2);
+         INSERT INTO favorite_outbox(media_uri,favorite,next_attempt_at)
+             VALUES('{favorite}',1,0),('{stale_favorite}',1,0);
+         INSERT INTO rating_outbox(media_uri,rating,next_attempt_at) VALUES('{queued}',4,0);
+         INSERT INTO user_media_state(media_uri,favorite) VALUES('{favorite}',1),('{stale_favorite}',1);
+         INSERT INTO download_files(media_uri,encoding,revision,path,managed,source_id)
+             VALUES('{queued}','original','','file:///music/t1.flac',1,'slopsonic-source-abc'),
+                   ('{stale_track}','original','','file:///music/t3.flac',1,'slopsonic-source-old');
+         INSERT INTO download_locators(source_key,media_uri,origin,path,root,relative_path,access_uri)
+             VALUES(7,'{queued}','download','/music/t1.flac','/music','t1.flac','file:///music/t1.flac');
+         PRAGMA user_version=71;",
+        album = old("album", "a"),
+        queued = old("track", "t1"),
+        other = old("track", "t2"),
+        favorite = old("album", "a%2F1"),
+        stale_track = former("track", "t3"),
+        stale_favorite = former("album", "b"),
+    )))
+    .execute(&mut raw)
+    .await
+    .unwrap();
+    raw.close().await.unwrap();
+
+    Database::open(&path).await.unwrap().close().await.unwrap();
+
+    let mut raw = super::support::connection(&path).await;
+    let tracks: Vec<(i64, String, bool)> =
+        sqlx::query_as("SELECT track_key,media_uri,indexed FROM tracks ORDER BY track_key")
+            .fetch_all(&mut raw)
+            .await
+            .unwrap();
+    // A queued track of an older server keeps its old URI, so it is never sent to this one.
+    assert_eq!(
+        tracks,
+        [
+            (1, "slopsonic:track/t1".to_string(), false),
+            (3, former("track", "t3"), false)
+        ]
+    );
+    assert_eq!(
+        uris(&mut raw, "SELECT media_uri FROM favorite_outbox").await,
+        ["slopsonic:album/a%2F1"]
+    );
+    assert_eq!(
+        uris(&mut raw, "SELECT media_uri FROM user_media_state").await,
+        ["slopsonic:album/a%2F1"]
+    );
+    assert_eq!(
+        uris(&mut raw, "SELECT media_uri FROM rating_outbox").await,
+        ["slopsonic:track/t1"]
+    );
+    assert_eq!(
+        uris(&mut raw, "SELECT media_uri FROM download_locators").await,
+        ["slopsonic:track/t1"]
+    );
+    let count = |table: &str| format!("SELECT count(*) FROM {table}");
+    for (table, expected) in [("albums", 0), ("queue_entries", 2), ("sources", 1)] {
+        let rows: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(count(table)))
+            .fetch_one(&mut raw)
+            .await
+            .unwrap();
+        assert_eq!(rows, expected, "{table}");
+    }
+    let server: String = sqlx::query_scalar("SELECT object_id FROM sources")
+        .fetch_one(&mut raw)
+        .await
+        .unwrap();
+    assert_eq!(server, "server");
+    assert_eq!(
+        library::entity_parts("slopsonic:album/a%2F1"),
+        Some(("album".into(), "a/1".into()))
+    );
+    assert_eq!(
+        uris(&mut raw, "SELECT media_uri FROM download_files").await,
+        ["slopsonic:track/t1"]
+    );
+    let source_column: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM pragma_table_info('download_files') WHERE name='source_id'",
+    )
+    .fetch_one(&mut raw)
+    .await
+    .unwrap();
+    assert_eq!(source_column, 0);
+    raw.close().await.unwrap();
+}
+
+async fn uris(raw: &mut SqliteConnection, sql: &'static str) -> Vec<String> {
+    sqlx::query_scalar(sql).fetch_all(raw).await.unwrap()
 }

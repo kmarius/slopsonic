@@ -753,7 +753,6 @@ mod tests {
                         library::TrackView {
                             track_key: e.track_key,
                             source_key: None,
-                            source_id: None,
                             object_id: None,
                             media_uri: reference.media_uri,
                             metadata: reference.metadata,
@@ -800,7 +799,6 @@ mod tests {
                         library::TrackView {
                             track_key: entry.track_key,
                             source_key: None,
-                            source_id: None,
                             object_id: None,
                             media_uri: format!("https://example.test/{}", entry.track_key.raw()),
                             metadata: library::TrackMetadata {

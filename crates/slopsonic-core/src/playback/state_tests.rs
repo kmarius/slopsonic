@@ -1336,14 +1336,11 @@ async fn pause_and_stop_during_queue_preparation_apply_to_the_requested_track() 
 async fn repeat_wraps_when_source_exhaustion_is_discovered_after_a_full_page() {
     let (_directory, db, mut sequence, owner, commands, playback, inbox) =
         seeded(vec![batch_item(0, Provenance::Manual)]).await;
-    let source_id = library::SourceId::new("source");
     let uris = (0..100)
-        .map(|i| library::source_entity_uri(&source_id, "track", &i.to_string()))
+        .map(|i| library::entity_uri("track", &i.to_string()))
         .collect::<Vec<_>>();
-    db.reconcile_source(&source_id, "subsonic", "Source")
-        .await
-        .unwrap();
-    let mut catalog = db.catalog("source", None).await.unwrap();
+    db.reconcile_source("subsonic", "Source").await.unwrap();
+    let mut catalog = db.catalog(None).await.unwrap();
     catalog
         .apply_catalog(
             &library::CatalogBatch {
@@ -1370,7 +1367,7 @@ async fn repeat_wraps_when_source_exhaustion_is_discovered_after_a_full_page() {
         .await
         .unwrap();
     drop(catalog);
-    let source = db.source_identity_key(&source_id).await.unwrap().unwrap();
+    let source = db.source_identity_key().await.unwrap().unwrap();
     let key = db
         .playlist_key_by_object(source, "playlist", &library::ReadCancellation::new())
         .await

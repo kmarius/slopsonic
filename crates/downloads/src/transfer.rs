@@ -17,7 +17,6 @@ impl Actor {
         loop {
             let (job_id, subject, quality, media_uri) = self.next_candidate(active)?;
             let attached = self.attached.clone()?;
-            let source_id = attached.source_id.clone();
             let Some(source) = self.source().await else {
                 if let Some(job) = self.find_job_mut(&job_id) {
                     job.state = DownloadQueueState::WaitingForConnection;
@@ -63,7 +62,6 @@ impl Actor {
                 .flatten();
             let paths = new_download_paths(
                 &self.root,
-                Some(&source_id),
                 &media_uri,
                 metadata.as_ref(),
                 custom_directory,
@@ -89,7 +87,6 @@ impl Actor {
                     }
                     ResolvedDownload::Ready { stream, codec } => {
                         let needs_encoding = match run_transfer(
-                            Some(&source_id),
                             &uri,
                             quality,
                             &stream,
@@ -284,7 +281,6 @@ impl Actor {
             .map_err(DownloadFailure::NeedsAttention)?
             .unwrap_or_default();
         owners.insert(DownloadOwner::Subject(subject.clone()));
-        file.source_id = self.source_id().map(ToString::to_string);
         file.path = finished
             .paths
             .audio

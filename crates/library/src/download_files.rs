@@ -8,7 +8,6 @@ pub struct DownloadFile {
     pub revision: String,
     pub path: String,
     pub managed: bool,
-    pub source_id: Option<String>,
     pub owners: String,
     pub storage_root: String,
     pub relative_path: String,
@@ -36,14 +35,10 @@ mod tests {
         let database = Database::open(root.path().join("library.sqlite"))
             .await
             .unwrap();
-        let source = crate::SourceId::new("source");
-        let uri = crate::source_entity_uri(&source, "track", "track");
+        let uri = crate::entity_uri("track", "track");
+        database.reconcile_source("server", "Source").await.unwrap();
         database
-            .reconcile_source(&source, "server", "Source")
-            .await
-            .unwrap();
-        database
-            .catalog("source", None)
+            .catalog(None)
             .await
             .unwrap()
             .apply_catalog(
@@ -185,10 +180,13 @@ impl Database {
                 } else {
                     next.storage_root.clone()
                 };
+                let source = sqlx::query_scalar("SELECT source_key FROM sources")
+                    .fetch_optional(&mut *transaction)
+                    .await?;
                 crate::download_access::write_download_locator(
                     &mut transaction,
                     &crate::download_access::DownloadLocatorWrite {
-                        source_id: next.source_id.clone(),
+                        source,
                         media_uri: next.media_uri.clone(),
                         origin: "download".into(),
                         path: path
@@ -260,14 +258,13 @@ impl Database {
 
     pub async fn download_files_page(
         &self,
-        source: Option<&str>,
         after: &(String, String),
         owner: Option<&str>,
         stale: bool,
     ) -> LibraryResult<Vec<DownloadFile>> {
         let mut reader = self.acquire_reader().await?;
-        Ok(sqlx::query_as("SELECT * FROM download_files WHERE source_id IS ?1 AND (media_uri,encoding)>(?2,?3) AND (?4 IS NULL OR EXISTS(SELECT 1 FROM json_each(owners) WHERE value=json_extract(?4,'$'))) AND (NOT ?5 OR (revision<>'' AND revision<>(SELECT hex(audio_key) FROM tracks WHERE tracks.media_uri=download_files.media_uri))) ORDER BY media_uri,encoding LIMIT 128")
-            .bind(source).bind(&after.0).bind(&after.1).bind(owner).bind(stale).fetch_all(&mut *reader).await?)
+        Ok(sqlx::query_as("SELECT * FROM download_files WHERE (media_uri,encoding)>(?1,?2) AND (?3 IS NULL OR EXISTS(SELECT 1 FROM json_each(owners) WHERE value=json_extract(?3,'$'))) AND (NOT ?4 OR (revision<>'' AND revision<>(SELECT hex(audio_key) FROM tracks WHERE tracks.media_uri=download_files.media_uri))) ORDER BY media_uri,encoding LIMIT 128")
+            .bind(&after.0).bind(&after.1).bind(owner).bind(stale).fetch_all(&mut *reader).await?)
     }
 }
 
@@ -275,8 +272,8 @@ async fn save_download_on(
     connection: &mut sqlx::SqliteConnection,
     file: &DownloadFile,
 ) -> LibraryResult<()> {
-    sqlx::query("INSERT INTO download_files(media_uri,encoding,revision,path,managed,source_id,owners,storage_root,relative_path,completed_size,retired_documents) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11) ON CONFLICT(media_uri,encoding) DO UPDATE SET revision=excluded.revision,path=excluded.path,managed=excluded.managed,source_id=coalesce(excluded.source_id,download_files.source_id),owners=excluded.owners,storage_root=excluded.storage_root,relative_path=excluded.relative_path,completed_size=excluded.completed_size,retired_documents=excluded.retired_documents")
-        .bind(&file.media_uri).bind(&file.encoding).bind(&file.revision).bind(&file.path).bind(file.managed).bind(&file.source_id)
+    sqlx::query("INSERT INTO download_files(media_uri,encoding,revision,path,managed,owners,storage_root,relative_path,completed_size,retired_documents) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10) ON CONFLICT(media_uri,encoding) DO UPDATE SET revision=excluded.revision,path=excluded.path,managed=excluded.managed,owners=excluded.owners,storage_root=excluded.storage_root,relative_path=excluded.relative_path,completed_size=excluded.completed_size,retired_documents=excluded.retired_documents")
+        .bind(&file.media_uri).bind(&file.encoding).bind(&file.revision).bind(&file.path).bind(file.managed)
         .bind(if file.owners.is_empty() { "[]" } else { &file.owners }).bind(&file.storage_root).bind(&file.relative_path).bind(file.completed_size)
         .bind(if file.retired_documents.is_empty() { "[]" } else { &file.retired_documents }).execute(connection).await?;
     Ok(())

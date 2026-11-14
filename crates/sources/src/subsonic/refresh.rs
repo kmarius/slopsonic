@@ -101,9 +101,7 @@ impl SubsonicSource {
         playlist_id: &str,
         cancelled: &(dyn Fn() -> bool + Send + Sync),
     ) -> SourceResult<()> {
-        let source_id = catalog.source_id;
-
-        let snapshot = self.read_playlist(source_id, playlist_id).await?;
+        let snapshot = self.read_playlist(playlist_id).await?;
         let mut batch = library::CatalogBatch::default();
         batch.playlists.push(snapshot.playlist.header.clone());
         check_cancelled(cancelled)?;
@@ -177,7 +175,6 @@ impl SubsonicSource {
         progress: &(dyn Fn(SourceReadProgress) + Send + Sync),
         cancelled: &(dyn Fn() -> bool + Send + Sync),
     ) -> SourceResult<bool> {
-        let source_id = catalog.source_id;
         let stamp = catalog.observed;
 
         check_cancelled(cancelled)?;
@@ -254,16 +251,12 @@ impl SubsonicSource {
                         if entity == "album" {
                             batch.albums = page
                                 .iter()
-                                .filter_map(|value| {
-                                    album_from_json(self, source_id, value).transpose()
-                                })
+                                .filter_map(|value| album_from_json(self, value).transpose())
                                 .collect::<library::LibraryResult<_>>()?;
                         } else {
                             batch.artists = page
                                 .iter()
-                                .filter_map(|value| {
-                                    artist_from_json(self, source_id, value).transpose()
-                                })
+                                .filter_map(|value| artist_from_json(self, value).transpose())
                                 .collect::<library::LibraryResult<_>>()?;
                         }
                         check_cancelled(cancelled)?;
@@ -330,7 +323,6 @@ impl SubsonicSource {
         progress: &(dyn Fn(SourceReadProgress) + Send + Sync),
         cancelled: &(dyn Fn() -> bool + Send + Sync),
     ) -> SourceResult<()> {
-        let source_id = catalog.source_id;
         let stamp = catalog.observed;
 
         let scopes = if music_folders.is_empty() {
@@ -368,7 +360,7 @@ impl SubsonicSource {
                 })?;
                 let mut tracks = Vec::with_capacity(page.len());
                 for song in page {
-                    let Some(track) = track_from_json(self, source_id, song)? else {
+                    let Some(track) = track_from_json(self, song)? else {
                         continue;
                     };
                     tracks.push(track);
@@ -455,14 +447,13 @@ impl SubsonicSource {
         cancelled: &(dyn Fn() -> bool + Send + Sync),
     ) -> SourceResult<()> {
         let database = catalog.database;
-        let source_id = catalog.source_id;
 
         let body: Value = self.get_json("getPlaylists", &[]).await?;
         let playlists = json::items(&body["playlists"]["playlist"]);
         let total = playlists.len();
         for (position, playlist) in playlists.iter().enumerate() {
             check_cancelled(cancelled)?;
-            let Some(playlist) = playlist_from_json(self, source_id, playlist)? else {
+            let Some(playlist) = playlist_from_json(self, playlist)? else {
                 continue;
             };
             let mut batch = library::CatalogBatch {
@@ -480,12 +471,7 @@ impl SubsonicSource {
                 && playlist.valid_until.is_some_and(|deadline| deadline > now)
             {
                 database
-                    .source_playlist_is_fresh(
-                        source_id,
-                        &playlist.header.object_id,
-                        Some(revision),
-                        now,
-                    )
+                    .source_playlist_is_fresh(&playlist.header.object_id, Some(revision), now)
                     .await?
             } else {
                 false
@@ -634,22 +620,18 @@ mod tests {
             super::SubsonicCredential::LegacyPassword("password".into()).serialize(),
         )
         .unwrap();
-        let source_owner = crate::Source::new(library::SourceId::new("source"), source);
+        let source_owner = crate::Source::new(source);
         let source = &source_owner.subsonic;
         let directory = tempfile::tempdir().unwrap();
         let database = library::Database::open(directory.path().join("library.sqlite"))
             .await
             .unwrap();
-        database
-            .reconcile_source(&library::SourceId::new("source"), "source", "Source")
-            .await
-            .unwrap();
+        database.reconcile_source("source", "Source").await.unwrap();
 
         let cancellation = library::ReadCancellation::new();
         for (next, expected_reads) in [(0, 1), (1, 1), (2, 2), (3, 3), (6, 4), (4, 5), (5, 5)] {
             state.store(next, Ordering::Relaxed);
-            let catalog_source_id = ("source").to_string();
-            let mut catalog = database.catalog(&catalog_source_id, None).await.unwrap();
+            let mut catalog = database.catalog(None).await.unwrap();
             let result = {
                 let result = source
                     .acquire_user_collections(&mut catalog, &|_| {}, &|| false)
@@ -658,7 +640,7 @@ mod tests {
             };
             {
                 database
-                    .publish_catalog_update(&catalog_source_id, catalog.changes().clone())
+                    .publish_catalog_update(catalog.changes().clone())
                     .await;
                 result
             }
@@ -666,14 +648,7 @@ mod tests {
             assert_eq!(reads.load(Ordering::Relaxed), expected_reads);
             let rows = library::ListRead {
                 kind: library::ListKind::Playlists,
-                source: (Some(
-                    database
-                        .source_identity_key(&crate::SourceId::new("source"))
-                        .await
-                        .unwrap()
-                        .unwrap(),
-                ))
-                .into(),
+                source: (Some(database.source_identity_key().await.unwrap().unwrap())).into(),
                 sort: library::CatalogSort::Position,
                 folder: None,
                 filter: ("").to_string(),
@@ -771,7 +746,7 @@ mod tests {
             super::SubsonicCredential::LegacyPassword("password".into()).serialize(),
         )
         .unwrap();
-        let source_owner = crate::Source::new(library::SourceId::new("source"), source);
+        let source_owner = crate::Source::new(source);
         let source = &source_owner.subsonic;
         let directory = tempfile::tempdir().unwrap();
         let database = library::Database::open(directory.path().join("library.sqlite"))
@@ -783,18 +758,13 @@ mod tests {
             std::future::ready(())
         });
         let marker = library::Freshness::new(b"unchanged catalog".to_vec()).unwrap();
-        database
-            .reconcile_source(&library::SourceId::new("source"), "source", "Source")
-            .await
-            .unwrap();
-        let catalog_source_id = ("source").to_string();
-        let mut catalog = database.catalog(&catalog_source_id, None).await.unwrap();
+        database.reconcile_source("source", "Source").await.unwrap();
+        let mut catalog = database.catalog(None).await.unwrap();
         let stamp = Some(catalog.start_observation().await.unwrap());
         (async {
             let mut batch = library::CatalogBatch::default();
             let result = batch.albums.extend_from_slice(&[(super::album_from_json(
                 &source,
-                "source",
                 &serde_json::json!({"id":"album","name":"Album","userRating":4}),
             )
             .unwrap()
@@ -809,7 +779,6 @@ mod tests {
             let mut batch = library::CatalogBatch::default();
             let result = batch.artists.extend_from_slice(&[(super::artist_from_json(
                 &source,
-                "source",
                 &serde_json::json!({"id":"artist","name":"Artist"}),
             )
             .unwrap()
@@ -820,7 +789,7 @@ mod tests {
         })
         .await
         .unwrap();
-        (async { let mut batch = library::CatalogBatch::default(); let result = batch.tracks.extend_from_slice(&[(super::track_from_json(&source, "source", &serde_json::json!({"id":"track","title":"Track","albumId":"album","comment":"Keep","duration":42,"userRating":4})).unwrap().unwrap()).clone()]); catalog.apply_catalog(&batch, true).await?; Ok::<_,library::LibraryError>(result) }).await.unwrap();
+        (async { let mut batch = library::CatalogBatch::default(); let result = batch.tracks.extend_from_slice(&[(super::track_from_json(&source, &serde_json::json!({"id":"track","title":"Track","albumId":"album","comment":"Keep","duration":42,"userRating":4})).unwrap().unwrap()).clone()]); catalog.apply_catalog(&batch, true).await?; Ok::<_,library::LibraryError>(result) }).await.unwrap();
         {
             let result = source.acquire_favorites(&mut catalog, &|| false).await;
             result
@@ -855,9 +824,7 @@ mod tests {
                 }
                 Ok::<_, library::LibraryError>(catalog.changes().clone())
             }?;
-            database
-                .publish_catalog_update(&catalog_source_id, update)
-                .await;
+            database.publish_catalog_update(update).await;
             Ok::<_, library::LibraryError>(())
         })
         .await
@@ -866,8 +833,7 @@ mod tests {
         assert!(publication.metadata);
         for (next, expected) in [(2, true), (1, false), (0, true)] {
             state.store(next, Ordering::Relaxed);
-            let catalog_source_id = ("source").to_string();
-            let mut catalog = database.catalog(&catalog_source_id, None).await.unwrap();
+            let mut catalog = database.catalog(None).await.unwrap();
             let result = {
                 let result = source
                     .acquire_user_collections(&mut catalog, &|_| {}, &|| false)
@@ -876,17 +842,13 @@ mod tests {
             };
             {
                 database
-                    .publish_catalog_update(&catalog_source_id, catalog.changes().clone())
+                    .publish_catalog_update(catalog.changes().clone())
                     .await;
                 result
             }
             .unwrap();
             for (kind, id) in [("track", "track"), ("album", "album"), ("artist", "artist")] {
-                let uri = library::source_entity_uri(
-                    &crate::SourceId::new("source"),
-                    kind,
-                    &format!("subsonic:{kind}:{id}"),
-                );
+                let uri = library::entity_uri(kind, &format!("subsonic:{kind}:{id}"));
                 let target = match kind {
                     "track" => library::FavoriteTarget::Track(uri),
                     "album" => library::FavoriteTarget::Album(uri),
@@ -895,11 +857,7 @@ mod tests {
                 assert_eq!(database.favorite(&target).await.unwrap(), expected);
             }
             let cancellation = library::ReadCancellation::new();
-            let uri = library::source_entity_uri(
-                &crate::SourceId::new("source"),
-                "track",
-                "subsonic:track:track",
-            );
+            let uri = library::entity_uri("track", "subsonic:track:track");
             let row = database
                 .track(&(&uri), &cancellation)
                 .await
@@ -908,21 +866,14 @@ mod tests {
             assert_eq!(row.metadata.comment.as_deref(), Some("Keep"));
             assert!(
                 database
-                    .accept_freshness("source", &marker, &cancellation)
+                    .accept_freshness(&marker, &cancellation)
                     .await
                     .unwrap()
             );
             assert_eq!(
                 library::ListRead {
                     kind: library::ListKind::Playlists,
-                    source: (Some(
-                        database
-                            .source_identity_key(&library::SourceId::new(&catalog_source_id))
-                            .await
-                            .unwrap()
-                            .unwrap()
-                    ))
-                    .into(),
+                    source: (Some(database.source_identity_key().await.unwrap().unwrap())).into(),
                     sort: library::CatalogSort::Title,
                     folder: None,
                     filter: ("").to_string(),
@@ -943,8 +894,7 @@ mod tests {
             let _ = sender.send(update);
             std::future::ready(())
         });
-        let catalog_source_id = ("source").to_string();
-        let mut catalog = database.catalog(&catalog_source_id, None).await.unwrap();
+        let mut catalog = database.catalog(None).await.unwrap();
         let result = {
             let result = source
                 .acquire_user_collections(&mut catalog, &|_| {}, &|| false)
@@ -953,7 +903,7 @@ mod tests {
         };
         {
             database
-                .publish_catalog_update(&catalog_source_id, catalog.changes().clone())
+                .publish_catalog_update(catalog.changes().clone())
                 .await;
             result
         }
@@ -1025,7 +975,7 @@ mod tests {
                 super::SubsonicCredential::LegacyPassword("api-password".into()).serialize(),
             )
             .unwrap();
-            let source_owner = crate::Source::new(library::SourceId::new("source"), source);
+            let source_owner = crate::Source::new(source);
             let source = &source_owner.subsonic;
             let directory = tempfile::tempdir().unwrap();
             let database = library::Database::open(directory.path().join("library.sqlite"))
@@ -1039,19 +989,14 @@ mod tests {
             let marker = library::Freshness::new(b"server-observation".to_vec()).unwrap();
             if folders_available {
                 database
-                    .reconcile_source(
-                        &library::SourceId::new("source"),
-                        "nextcloud music",
-                        "Nextcloud Music",
-                    )
+                    .reconcile_source("nextcloud music", "Nextcloud Music")
                     .await
                     .unwrap();
-                let catalog_source_id = ("source").to_string();
-                let mut catalog = database.catalog(&catalog_source_id, None).await.unwrap();
+                let mut catalog = database.catalog(None).await.unwrap();
                 catalog.start_observation().await.unwrap();
                 let batch=library::CatalogBatch {
-                    albums:vec![super::album_from_json(source,"source",&serde_json::json!({"id":"album","name":"Album","artist":"Artist"})).unwrap().unwrap()],
-                    tracks:vec![super::track_from_json(source,"source",&serde_json::json!({"id":"removed","title":"Vanished","albumId":"album"})).unwrap().unwrap()],
+                    albums:vec![super::album_from_json(source,&serde_json::json!({"id":"album","name":"Album","artist":"Artist"})).unwrap().unwrap()],
+                    tracks:vec![super::track_from_json(source,&serde_json::json!({"id":"removed","title":"Vanished","albumId":"album"})).unwrap().unwrap()],
                     genres:vec![library::GenreObservation {object_id:"cached-genre".into(),metadata:library::TagMetadata {name:"Cached".into(),sort_text:Some("cached".into())},..Default::default()}],
                     playlists:vec![library::PlaylistObservation {object_id:"cached-playlist".into(),name:"Cached".into(),sort_text:"cached".into(),..Default::default()}],..Default::default()
                 };
@@ -1083,21 +1028,16 @@ mod tests {
                     .await
                     .unwrap();
                 database
-                    .publish_catalog_update(&catalog_source_id, catalog.into_changes())
+                    .publish_catalog_update(catalog.into_changes())
                     .await;
                 updates.try_recv().expect("initial catalog update");
             }
             let progress = std::sync::Mutex::new(Vec::new());
             database
-                .reconcile_source(
-                    &library::SourceId::new("source"),
-                    "nextcloud music",
-                    "Nextcloud Music",
-                )
+                .reconcile_source("nextcloud music", "Nextcloud Music")
                 .await
                 .unwrap();
-            let catalog_source_id = ("source").to_string();
-            let mut catalog = database.catalog(&catalog_source_id, None).await.unwrap();
+            let mut catalog = database.catalog(None).await.unwrap();
             let stamp = Some(catalog.start_observation().await.unwrap());
             let complete = {
                 let result = source
@@ -1125,9 +1065,7 @@ mod tests {
                     }
                     Ok::<_, library::LibraryError>(catalog.changes().clone())
                 }?;
-                database
-                    .publish_catalog_update(&catalog_source_id, update)
-                    .await;
+                database.publish_catalog_update(update).await;
                 Ok::<_, library::LibraryError>(())
             })
             .await
@@ -1137,11 +1075,7 @@ mod tests {
             let cancellation = library::ReadCancellation::new();
             let home = database
                 .home_page(
-                    database
-                        .source_identity_key(&library::SourceId::new(&catalog_source_id))
-                        .await
-                        .unwrap()
-                        .unwrap(),
+                    database.source_identity_key().await.unwrap().unwrap(),
                     None,
                     0,
                     0,
@@ -1163,11 +1097,7 @@ mod tests {
                 Some(if folders_available { 4 } else { 2 })
             );
             for (id, title) in [("track", "Track"), ("2", "Next page")] {
-                let uri = library::source_entity_uri(
-                    &crate::SourceId::new("source"),
-                    "track",
-                    &format!("subsonic:track:{id}"),
-                );
+                let uri = library::entity_uri("track", &format!("subsonic:track:{id}"));
                 let track = database
                     .track(&(&uri), &cancellation)
                     .await
@@ -1177,28 +1107,18 @@ mod tests {
             }
             assert_eq!(
                 database
-                    .accept_freshness("source", &marker, &cancellation)
+                    .accept_freshness(&marker, &cancellation)
                     .await
                     .unwrap(),
                 folders_available
             );
             if folders_available {
-                let removed = library::source_entity_uri(
-                    &crate::SourceId::new("source"),
-                    "track",
-                    "subsonic:track:removed",
-                );
+                let removed = library::entity_uri("track", "subsonic:track:removed");
                 assert!(
                     !database
                         .selected_track_uris(
                             &library::MemberRead::new(library::Collection::Source(
-                                database
-                                    .source_identity_key(&library::SourceId::new(
-                                        &catalog_source_id
-                                    ))
-                                    .await
-                                    .unwrap()
-                                    .unwrap()
+                                database.source_identity_key().await.unwrap().unwrap()
                             ))
                             .selection(),
                             None,
@@ -1212,15 +1132,7 @@ mod tests {
                     database
                         .catalog_keys(
                             library::CatalogKind::Genre,
-                            Some(
-                                database
-                                    .source_identity_key(&library::SourceId::new(
-                                        &catalog_source_id
-                                    ))
-                                    .await
-                                    .unwrap()
-                                    .unwrap()
-                            ),
+                            Some(database.source_identity_key().await.unwrap().unwrap()),
                             &[("cached-genre").to_owned()],
                             &cancellation
                         )
@@ -1231,11 +1143,7 @@ mod tests {
                 );
                 let playlist = database
                     .playlist_key_by_object(
-                        database
-                            .source_identity_key(&library::SourceId::new(&catalog_source_id))
-                            .await
-                            .unwrap()
-                            .unwrap(),
+                        database.source_identity_key().await.unwrap().unwrap(),
                         "cached-playlist",
                         &cancellation,
                     )
@@ -1259,15 +1167,7 @@ mod tests {
                     let folder = database
                         .catalog_keys(
                             library::CatalogKind::Folder,
-                            Some(
-                                database
-                                    .source_identity_key(&library::SourceId::new(
-                                        &catalog_source_id,
-                                    ))
-                                    .await
-                                    .unwrap()
-                                    .unwrap(),
-                            ),
+                            Some(database.source_identity_key().await.unwrap().unwrap()),
                             &[(&source.id("music-folder", id)).to_string()],
                             &cancellation,
                         )
@@ -1278,13 +1178,7 @@ mod tests {
                     assert_eq!(
                         database
                             .home_page(
-                                database
-                                    .source_identity_key(&library::SourceId::new(
-                                        &catalog_source_id
-                                    ))
-                                    .await
-                                    .unwrap()
-                                    .unwrap(),
+                                database.source_identity_key().await.unwrap().unwrap(),
                                 Some(folder),
                                 0,
                                 0,

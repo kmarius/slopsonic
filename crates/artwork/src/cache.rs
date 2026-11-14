@@ -11,7 +11,7 @@ use sources::ImageSize;
 use crate::selection::Candidate;
 
 static TEMP_FILE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
-const CACHE_LAYOUT: &str = "v1";
+const CACHE_LAYOUT: &str = "v2";
 const MAX_DISCRETIONARY_CACHE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_DISCRETIONARY_CACHE_FILES: usize = 50_000;
 const PRUNE_TARGET_PERCENT: u64 = 90;
@@ -90,6 +90,8 @@ impl Iterator for ArtworkCacheEntries {
 }
 
 pub(crate) fn current_layout(root: &Path) -> io::Result<PathBuf> {
+    // v1 keyed server images by server id; it is only disposable cache.
+    remove_dir_if_present(&root.join("v1"))?;
     let current = root.join(CACHE_LAYOUT);
     fs::create_dir_all(&current)?;
     Ok(current)
@@ -543,9 +545,7 @@ fn lock<T>(mutex: &Mutex<T>) -> io::Result<MutexGuard<'_, T>> {
 pub(crate) fn valid_cache_key(key: &str) -> bool {
     let parts = key.split('/').collect::<Vec<_>>();
     let (state, identity, name) = match parts.as_slice() {
-        [state, "native", source, identity, name] if is_digest(source) => {
-            (*state, *identity, *name)
-        }
+        [state, "native", identity, name] => (*state, *identity, *name),
         [state, "playlists", identity, name] => (*state, *identity, *name),
         _ => return false,
     };
@@ -618,12 +618,10 @@ fn atomic_write(path: &Path, mut bytes: impl Read) -> io::Result<()> {
 mod tests {
     use super::*;
     use library::ArtworkImage;
-    use sources::SourceId;
 
     fn native() -> Candidate {
         Candidate::new(
             ArtworkImage::Native {
-                source_id: SourceId::new("source"),
                 item_id: "album".into(),
                 tag: Some("tag".into()),
             },
@@ -666,8 +664,7 @@ mod tests {
         let cache = FilesystemCache::new(directory.path().to_path_buf()).expect("open cache");
         let other = Candidate::new(
             ArtworkImage::Native {
-                source_id: SourceId::new("other"),
-                item_id: "album".into(),
+                item_id: "other-album".into(),
                 tag: Some("tag".into()),
             },
             None,

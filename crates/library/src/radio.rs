@@ -54,11 +54,10 @@ impl Database {
         &self,
         seed: &RadioSeed,
         cancellation: &ReadCancellation,
-    ) -> LibraryResult<Option<(SourceKey, crate::SourceId, Option<String>)>> {
+    ) -> LibraryResult<Option<(SourceKey, Option<String>)>> {
         let mut connection = self.acquire_general(cancellation).await?;
-        let mut query = QueryBuilder::<Sqlite>::new(
-            "SELECT sources.source_key,sources.object_id,seed.object_id FROM (",
-        );
+        let mut query =
+            QueryBuilder::<Sqlite>::new("SELECT sources.source_key,seed.object_id FROM (");
         match seed {
             RadioSeed::Track(uri) => {
                 query
@@ -86,11 +85,11 @@ impl Database {
         }
         query.push(") seed JOIN sources ON sources.source_key=seed.source_key");
         let result = query
-            .build_query_as::<(SourceKey, String, Option<String>)>()
+            .build_query_as::<(SourceKey, Option<String>)>()
             .persistent(false)
             .fetch_optional(&mut *connection)
             .await?;
-        Ok(result.map(|(key, id, object_id)| (key, crate::SourceId::new(id), object_id)))
+        Ok(result)
     }
 
     /// Resolve provider recommendations in order, using the same queue and seed exclusions.

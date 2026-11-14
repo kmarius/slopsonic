@@ -41,10 +41,6 @@ use serde::{Deserialize, Serialize};
 use sources::SourceConfiguration;
 use tracing::warn;
 
-pub(crate) fn fresh_source_id() -> Result<sources::SourceId, String> {
-    random_identity("slopsonic-source-").map(sources::SourceId::new)
-}
-
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) struct ConfiguredSource {
     #[serde(flatten)]
@@ -59,12 +55,6 @@ pub(crate) struct ConfiguredSource {
 pub(crate) struct SourceSettings {
     #[serde(default)]
     pub(crate) configured: Option<ConfiguredSource>,
-}
-
-impl SourceSettings {
-    pub(crate) fn connections(&self) -> impl Iterator<Item = &ConfiguredSource> {
-        self.configured.iter()
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -493,18 +483,6 @@ pub(crate) fn load_scrobbling_settings(file: &SettingsFile) -> ScrobblingSetting
     read_scrobbling(&file.load())
 }
 
-fn random_identity(prefix: &str) -> Result<String, String> {
-    use std::fmt::Write as _;
-
-    let mut bytes = [0_u8; 16];
-    getrandom::fill(&mut bytes).map_err(|error| error.to_string())?;
-    let mut value = String::with_capacity(prefix.len() + bytes.len() * 2);
-    value.push_str(prefix);
-    for byte in bytes {
-        write!(&mut value, "{byte:02x}").map_err(|error| error.to_string())?;
-    }
-    Ok(value)
-}
 fn read_settings_file(path: &Path) -> Result<Option<toml::Value>, String> {
     match fs::read_to_string(path) {
         Ok(raw) if raw.trim().is_empty() => Ok(None),
@@ -566,6 +544,28 @@ fn drop_removed_entries(raw: &mut toml::Value) {
         "item",
     );
     strip(raw.get_mut("library_lists"), "key");
+    // Former per-server pins and import markers drop the server id.
+    if let Some(sidebar) = raw.get_mut("sidebar").and_then(toml::Value::as_table_mut) {
+        if let Some(imported) = sidebar.remove("playlist_pin_imported_sources") {
+            let imported = imported.as_array().is_some_and(|list| !list.is_empty());
+            sidebar
+                .entry("playlist_pins_imported")
+                .or_insert(toml::Value::Boolean(imported));
+        }
+        for pin in sidebar
+            .get_mut("pins")
+            .and_then(toml::Value::as_array_mut)
+            .into_iter()
+            .flatten()
+            .filter_map(toml::Value::as_table_mut)
+        {
+            for (_, fields) in pin.iter_mut() {
+                if let Some(fields) = fields.as_table_mut() {
+                    fields.remove("source_id");
+                }
+            }
+        }
+    }
     // The former per-server download list keeps only the configured server's entry.
     let configured = raw
         .get("sources")
@@ -707,20 +707,47 @@ mod tests {
     use super::*;
 
     #[test]
+    fn former_pins_drop_their_server_and_keep_their_order() {
+        let mut saved = toml::Value::try_from(StoredSettings::default()).unwrap();
+        saved.as_table_mut().unwrap().insert(
+            "sidebar".into(),
+            toml::Value::Table(toml::toml! {
+                playlist_pin_imported_sources = ["first"]
+                [[pins]]
+                Genre = { source_id = "first", genre_id = "rock" }
+                [[pins]]
+                Playlist = { playlist_id = "mix" }
+                [[pins]]
+                Genre = { source_id = "second", genre_id = "rock" }
+            }),
+        );
+        let (mut stored, unsupported) = decode_settings(&saved).unwrap();
+        stored.migrate_defaults();
+        assert!(unsupported.is_empty());
+        assert!(stored.ui.sidebar.playlist_pins_imported);
+        assert_eq!(
+            stored.ui.sidebar.pins,
+            [
+                SidebarPin::Genre {
+                    genre_id: "rock".into()
+                },
+                SidebarPin::Playlist {
+                    playlist_id: "mix".into()
+                },
+            ]
+        );
+    }
+
+    #[test]
     fn former_download_list_keeps_the_configured_server_entry() {
         let mut saved = toml::Value::try_from(StoredSettings::default()).unwrap();
         let source = |id: &str| {
-            toml::Value::try_from(ConfiguredSource {
-                configuration: SourceConfiguration {
-                    source_id: sources::SourceId::new(id),
-                    kind: sources::SubsonicFlavor::Navidrome,
-                    name: "Server".into(),
-                    provider_payload: "{}".into(),
-                },
-                credential: None,
-                music_folder_id: None,
+            toml::Value::Table(toml::toml! {
+                source_id = id
+                kind = "navidrome"
+                name = "Server"
+                provider_payload = "{}"
             })
-            .unwrap()
         };
         saved["sources"]
             .as_table_mut()

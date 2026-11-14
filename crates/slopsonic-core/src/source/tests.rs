@@ -1,6 +1,5 @@
-fn subsonic_configuration(source_id: SourceId, name: impl Into<String>) -> SourceConfiguration {
+fn subsonic_configuration(name: impl Into<String>) -> SourceConfiguration {
     SourceConfiguration {
-        source_id,
         kind: sources::SubsonicFlavor::Subsonic,
         name: name.into(),
         provider_payload: serde_json::json!({
@@ -91,13 +90,9 @@ async fn acquisition_progress_belongs_to_its_source() {
             .await
             .unwrap(),
     );
-    let source_id = SourceId::new("test");
-    database
-        .reconcile_source(&source_id, "subsonic", "Test")
-        .await
-        .unwrap();
+    database.reconcile_source("subsonic", "Test").await.unwrap();
     let cached = database
-        .cached_source(source_id.as_str(), &ReadCancellation::new())
+        .cached_source(&ReadCancellation::new())
         .await
         .unwrap()
         .unwrap();
@@ -122,7 +117,7 @@ async fn acquisition_progress_belongs_to_its_source() {
 
     let music = directory.path().join("music");
     std::fs::create_dir(&music).unwrap();
-    let configuration = subsonic_configuration(source_id.clone(), "Test");
+    let configuration = subsonic_configuration("Test");
     let configured = ConfiguredSource {
         configuration: configuration.clone(),
         credential: None,
@@ -208,7 +203,6 @@ async fn acquisition_progress_belongs_to_its_source() {
     ));
 
     let selected_library = SelectedLibrary {
-        source_id: source_id.clone(),
         source_key: cached.source,
         music_folder_key: None,
         music_folder_object_id: None,
@@ -331,18 +325,13 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
                 .await
                 .unwrap(),
         );
-        let source_id = SourceId::new("held-credential-source");
         database
-            .reconcile_source(&source_id, "subsonic", "Music")
+            .reconcile_source("subsonic", "Music")
             .await
             .unwrap();
-        let source_key = database
-            .source_identity_key(&source_id)
-            .await
-            .unwrap()
-            .unwrap();
+        let source_key = database.source_identity_key().await.unwrap().unwrap();
         let update = {
-            let mut catalog = database.catalog(source_id.as_str(), None).await.unwrap();
+            let mut catalog = database.catalog(None).await.unwrap();
             catalog
                 .apply_catalog(
                     &library::CatalogBatch {
@@ -376,14 +365,11 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
                 .unwrap();
             catalog.into_changes()
         };
-        database
-            .publish_catalog_update(source_id.as_str(), update)
-            .await;
+        database.publish_catalog_update(update).await;
         let settings = SettingsFile::memory();
         settings.update(|stored| {
         stored.sources.configured = Some(ConfiguredSource {
             configuration: SourceConfiguration {
-                source_id: source_id.clone(),
                 kind: sources::SubsonicFlavor::Subsonic,
                 name: "Music".into(),
                 provider_payload: serde_json::json!({ "version": 1, "base_url": "http://127.0.0.1:9", "username": "listener", "trust_invalid_cert": false }).to_string(),
@@ -435,7 +421,6 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
         })
         .await
         .expect("cached selection must not wait for the server");
-        assert_eq!(published.source_id, source_id);
         assert_eq!(published.source_key, source_key);
         assert_eq!(published.music_folders[0].name, "New Folder");
         let connection = owner
@@ -446,8 +431,7 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
             .as_ref()
             .unwrap()
             .clone();
-        let favorite =
-            FavoriteTarget::Album(library::source_entity_uri(&source_id, "album", "album"));
+        let favorite = FavoriteTarget::Album(library::entity_uri("album", "album"));
         for value in [true, false] {
             assert_eq!(
                 tokio::time::timeout(
@@ -471,7 +455,7 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
             })
             .unwrap();
         let update = {
-            let mut catalog = database.catalog(source_id.as_str(), None).await.unwrap();
+            let mut catalog = database.catalog(None).await.unwrap();
             catalog
                 .apply_catalog(
                     &library::CatalogBatch {
@@ -511,9 +495,7 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
                 .unwrap();
             catalog.into_changes()
         };
-        database
-            .publish_catalog_update(source_id.as_str(), update)
-            .await;
+        database.publish_catalog_update(update).await;
         tokio::time::timeout(Duration::from_secs(2), async {
             loop {
                 if let SourceEvent::CatalogPublished(CatalogPublication {
@@ -542,14 +524,13 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
         })
         .await
         .expect("live access is attempted");
-        assert_eq!(owner.selected_library().unwrap().source_id, source_id);
         assert_eq!(
             owner.selected_library().unwrap().music_folders[0].object_id,
             "new-folder"
         );
         assert_eq!(
             database
-                .cached_source(source_id.as_str(), &ReadCancellation::new())
+                .cached_source(&ReadCancellation::new())
                 .await
                 .unwrap()
                 .unwrap()
@@ -594,23 +575,20 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
         );
         let settings_path = directory.path().join("settings.toml");
         let settings = SettingsFile::open(settings_path.clone()).unwrap();
-        let first = SourceId::new("first");
-        for id in [&first] {
-            settings
-                .update(|stored| {
-                    stored.sources.configured = Some(ConfiguredSource {
-                        configuration: subsonic_configuration(id.clone(), id.as_str()),
-                        credential: None,
-                        music_folder_id: None,
-                    });
-                    Ok(())
-                })
-                .unwrap();
-            database
-                .reconcile_source(&id, "subsonic", id.as_str())
-                .await
-                .unwrap();
-        }
+        settings
+            .update(|stored| {
+                stored.sources.configured = Some(ConfiguredSource {
+                    configuration: subsonic_configuration("first"),
+                    credential: None,
+                    music_folder_id: None,
+                });
+                Ok(())
+            })
+            .unwrap();
+        database
+            .reconcile_source("subsonic", "first")
+            .await
+            .unwrap();
         let runtime = tokio::runtime::Handle::current();
         let (events, receiver) = async_channel::unbounded();
         let receiver = keep_receiver.then_some(receiver);
@@ -640,7 +618,6 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
             .await
             .expect("selection completes without consuming events")
             .unwrap();
-        assert_eq!(owner.selected_library().unwrap().source_id, first);
         drop(lane);
         tokio::time::timeout(Duration::from_secs(5), owner.forget_source())
             .await
@@ -648,25 +625,20 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
             .unwrap();
         assert!(owner.source_status().is_none());
         assert!(owner.shared.selected().is_none());
-        assert!(
-            database
-                .source_identity_key(&first)
-                .await
-                .unwrap()
-                .is_none()
-        );
+        assert!(database.source_identity_key().await.unwrap().is_none());
         if let Some(receiver) = receiver {
             let mut assignments = Vec::new();
             while let Ok(event) = receiver.try_recv() {
                 match event {
                     SourceEvent::Selected { selected, .. } => {
-                        assignments.push(Some(selected.source_id))
+                        assignments.push(Some(selected.source_key))
                     }
                     SourceEvent::ReleaseSelected => assignments.push(None),
                     _ => {}
                 }
             }
-            assert_eq!(assignments, vec![Some(first.clone()), None]);
+            assert_eq!(assignments.len(), 2);
+            assert!(assignments[0].is_some() && assignments[1].is_none());
         }
         owner.shared.client.lock().unwrap().take();
         owner.shared.cancel_selection();
@@ -683,12 +655,11 @@ async fn server_reset_drops_its_local_state_and_keeps_the_configuration() {
             .await
             .unwrap(),
     );
-    let source_id = SourceId::new("server");
     database
-        .reconcile_source(&source_id, "subsonic", "Server")
+        .reconcile_source("subsonic", "Server")
         .await
         .unwrap();
-    let album = FavoriteTarget::Album(library::source_entity_uri(&source_id, "album", "a"));
+    let album = FavoriteTarget::Album(library::entity_uri("album", "a"));
     assert!(
         database
             .queue_remote_favorite(&album, true, unix_seconds())
@@ -699,18 +670,15 @@ async fn server_reset_drops_its_local_state_and_keeps_the_configuration() {
     settings
         .update(|stored| {
             stored.sources.configured = Some(ConfiguredSource {
-                configuration: subsonic_configuration(source_id.clone(), "Server"),
+                configuration: subsonic_configuration("Server"),
                 credential: None,
                 music_folder_id: None,
             });
             let ui = &mut stored.ui;
             ui.sidebar.pins.push(crate::settings::SidebarPin::Album {
-                source_id: source_id.clone(),
                 album_id: "a".into(),
             });
-            ui.sidebar
-                .playlist_pin_imported_sources
-                .push(source_id.clone());
+            ui.sidebar.playlist_pins_imported = true;
             ui.recent_search_results
                 .push(crate::settings::app::RecentSearchResult {
                     kind: crate::settings::app::RecentSearchKind::Album,
@@ -749,13 +717,7 @@ async fn server_reset_drops_its_local_state_and_keeps_the_configuration() {
 
     owner.reset_server_state().await.unwrap();
 
-    assert!(
-        database
-            .source_identity_key(&source_id)
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(database.source_identity_key().await.unwrap().is_none());
     assert!(
         database
             .due_remote_favorites(unix_seconds() + 60, 64, &ReadCancellation::new())
@@ -766,7 +728,7 @@ async fn server_reset_drops_its_local_state_and_keeps_the_configuration() {
     let stored = settings.load();
     assert!(stored.sources.configured.is_some());
     assert!(stored.ui.sidebar.pins.is_empty());
-    assert!(stored.ui.sidebar.playlist_pin_imported_sources.is_empty());
+    assert!(!stored.ui.sidebar.playlist_pins_imported);
     assert!(stored.ui.recent_search_results.is_empty());
     assert!(stored.ui.random_play.genre.is_none());
     assert!(stored.ui.downloads.rules.is_empty());

@@ -489,7 +489,6 @@ mod tests {
                 metadata_writable: true,
                 playlist_key: PlaylistKey::from_raw(1),
                 source_key: Some(library::SourceKey::from_raw(1)),
-                source_id: Some("source".into()),
                 object_id: "playlist".to_string(),
                 name: "Playlist".to_string(),
                 artwork_binding: Some(vec![1]),

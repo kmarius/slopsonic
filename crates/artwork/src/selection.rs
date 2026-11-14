@@ -33,8 +33,9 @@ impl ArtworkBinding {
         }
     }
 
-    pub(crate) fn source_id(&self) -> Option<&sources::SourceId> {
-        self.candidates.iter().find_map(Candidate::source_id)
+    /// Whether any candidate is a server image.
+    pub(crate) fn is_native(&self) -> bool {
+        self.candidates.iter().any(Candidate::is_native)
     }
 
     pub(crate) fn asset_identity(&self) -> &str {
@@ -52,10 +53,10 @@ mod tests {
 
     #[test]
     fn opaque_binding_decodes_exactly_one_selected_source_request() {
-        let encoded = sources::native_artwork_binding(
-            "source",
-            &sources::NativeImageRef::new("album", Some("tag".to_string())),
-        )
+        let encoded = sources::native_artwork_binding(&sources::NativeImageRef::new(
+            "album",
+            Some("tag".to_string()),
+        ))
         .expect("encode binding");
         let binding = ArtworkBinding::opaque(&encoded);
         assert!(!binding.candidates.is_empty());

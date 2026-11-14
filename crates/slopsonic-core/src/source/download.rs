@@ -2,7 +2,6 @@ use async_channel::Receiver;
 
 use super::SourceOwner;
 use crate::runtime::source::{SourceOperation, SourceProgress, SourceProgressStage};
-use sources::SourceConfiguration;
 use std::sync::{Arc, atomic::Ordering};
 
 impl SourceOwner {
@@ -38,7 +37,7 @@ impl SourceOwner {
     async fn download_assets(&self) {
         if self.asset_download_enabled() {
             if let Some(configured) = self.shared.settings.load().sources.configured {
-                if let Err(error) = self.download_source_assets(&configured.configuration).await {
+                if let Err(error) = self.download_source_assets().await {
                     tracing::warn!(source = %configured.configuration.name, %error, "could not download source assets");
                 }
             }
@@ -46,14 +45,10 @@ impl SourceOwner {
         self.publish_asset_operation(SourceOperation::Idle);
     }
 
-    async fn download_source_assets(
-        &self,
-        configuration: &SourceConfiguration,
-    ) -> Result<(), String> {
-        let source_id = &configuration.source_id;
+    async fn download_source_assets(&self) -> Result<(), String> {
         let database = &self.shared.database;
         let Some(source_key) = database
-            .source_identity_key(source_id)
+            .source_identity_key()
             .await
             .map_err(super::string_error)?
         else {

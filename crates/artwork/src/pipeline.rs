@@ -247,7 +247,7 @@ impl Pipeline {
         let Some(candidate) = binding.candidates.first() else {
             return Ok(false);
         };
-        if candidate.source_id().is_none() {
+        if !candidate.is_native() {
             return Ok(false);
         }
         self.invalidate_native_images(Some(candidate))?;
@@ -277,7 +277,7 @@ impl Pipeline {
         let keys = state
             .jobs
             .iter()
-            .filter(|(_, record)| record.request.binding.source_id().is_some())
+            .filter(|(_, record)| record.request.binding.is_native())
             .map(|(key, _)| key.clone())
             .collect::<Vec<_>>();
         let completions = keys
@@ -431,7 +431,7 @@ fn job_key(request: &ArtworkRequest, source_epoch: u64) -> ArtworkKey {
 }
 
 fn source_epoch(state: &State, binding: &ArtworkBinding) -> u64 {
-    if binding.source_id().is_some() {
+    if binding.is_native() {
         state.source_epoch
     } else {
         0
@@ -887,7 +887,7 @@ fn finish(shared: &Shared, work: Work, resolution: Resolution) {
     {
         state.decoded_index.insert(
             image.key().clone(),
-            work.request.binding.source_id().is_some(),
+            work.request.binding.is_native(),
             Arc::clone(image),
         );
     }
@@ -938,8 +938,7 @@ mod tests {
         let cache = FilesystemCache::new(directory.path().to_path_buf()).unwrap();
         let request = ArtworkRequest {
             binding: ArtworkBinding::opaque(
-                &sources::native_artwork_binding("source", &NativeImageRef::new("album", None))
-                    .unwrap(),
+                &sources::native_artwork_binding(&NativeImageRef::new("album", None)).unwrap(),
             ),
             fetch_size: ImageSize::Original,
             render_size: 144,
@@ -1066,10 +1065,10 @@ mod tests {
         let mut state = State::default();
         let request = ArtworkRequest {
             binding: ArtworkBinding::opaque(
-                &sources::native_artwork_binding(
-                    "source",
-                    &NativeImageRef::new("album", Some("tag".to_string())),
-                )
+                &sources::native_artwork_binding(&NativeImageRef::new(
+                    "album",
+                    Some("tag".to_string()),
+                ))
                 .unwrap(),
             ),
             fetch_size: ImageSize::Thumbnail(256),

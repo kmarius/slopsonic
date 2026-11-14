@@ -355,7 +355,6 @@ impl Artwork {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sources::SourceId;
     use std::sync::atomic::AtomicUsize;
 
     #[test]
@@ -366,20 +365,19 @@ mod tests {
         let key = |encoded: Vec<u8>| {
             artwork.key(&ArtworkRequest::new(ArtworkBinding::opaque(&encoded), 64))
         };
-        let native = |source: &str, image: &str, revision: &str| {
-            sources::native_artwork_binding(
-                source,
-                &sources::NativeImageRef::new(image, Some(revision.into())),
-            )
+        let native = |image: &str, revision: &str| {
+            sources::native_artwork_binding(&sources::NativeImageRef::new(
+                image,
+                Some(revision.into()),
+            ))
             .unwrap()
         };
-        let first = key(native("source", "cover", "one"));
-        let revised = key(native("source", "cover", "two"));
+        let first = key(native("cover", "one"));
+        let revised = key(native("cover", "two"));
         assert_ne!(first, revised);
         assert!(first.same_asset(&revised));
-        assert!(!first.same_asset(&key(native("source", "other-cover", "one"))));
-        assert!(!first.same_asset(&key(native("other-source", "cover", "one"))));
-        let binding = ArtworkBinding::opaque(&native("source", "cover", "one"));
+        assert!(!first.same_asset(&key(native("other-cover", "one"))));
+        let binding = ArtworkBinding::opaque(&native("cover", "one"));
         let larger = artwork.key(&ArtworkRequest::new(binding.clone(), 256));
         let original = artwork.key(&ArtworkRequest::original(binding, 64));
         assert!(first.same_image(&larger));
@@ -387,7 +385,7 @@ mod tests {
         assert!(first.same_asset(&original));
 
         artwork.invalidate_server_images().unwrap();
-        assert!(!first.same_asset(&key(native("source", "cover", "one"))));
+        assert!(!first.same_asset(&key(native("cover", "one"))));
     }
 
     #[test]
@@ -397,8 +395,7 @@ mod tests {
         let artwork =
             Artwork::new(directory.path().join("covers"), runtime.handle().clone()).unwrap();
         let encoded =
-            sources::native_artwork_binding("source", &sources::NativeImageRef::new("cover", None))
-                .unwrap();
+            sources::native_artwork_binding(&sources::NativeImageRef::new("cover", None)).unwrap();
         let request = ArtworkRequest::new(ArtworkBinding::opaque(&encoded), 64);
         let identity_without_resolver = artwork.key(&request);
         let resolutions = Arc::new(AtomicUsize::new(0));
@@ -416,7 +413,7 @@ mod tests {
         assert_eq!(resolutions.load(Ordering::Relaxed), 0);
         let mut native = sources::NativeImageRef::new("cover", None);
         native.blur_hash = Some("LEHV6nWB2yk8pyo0adR*.7kCMdnj".into());
-        let prepared = sources::native_artwork_binding("source", &native).unwrap();
+        let prepared = sources::native_artwork_binding(&native).unwrap();
         let binding = ArtworkBinding::opaque(&prepared);
         assert_eq!(
             artwork.key(&ArtworkRequest::new(binding.clone(), 64)),
@@ -430,18 +427,17 @@ mod tests {
             &artwork.preview(ArtworkBinding::opaque(&encoded)).unwrap()
         ));
         native.blur_hash = Some(blurhash::encode(4, 3, 1, 1, &[0, 0, 255, 255]).unwrap());
-        let changed =
-            ArtworkBinding::opaque(&sources::native_artwork_binding("source", &native).unwrap());
+        let changed = ArtworkBinding::opaque(&sources::native_artwork_binding(&native).unwrap());
         let changed_preview = artwork.preview(changed).unwrap();
         assert!(!Arc::ptr_eq(&preview, &changed_preview));
         assert!(Arc::ptr_eq(
             &changed_preview,
             &artwork.preview(ArtworkBinding::opaque(&encoded)).unwrap()
         ));
-        let new_revision = sources::native_artwork_binding(
-            "source",
-            &sources::NativeImageRef::new("cover", Some("new".into())),
-        )
+        let new_revision = sources::native_artwork_binding(&sources::NativeImageRef::new(
+            "cover",
+            Some("new".into()),
+        ))
         .unwrap();
         assert!(
             artwork
@@ -461,13 +457,13 @@ mod tests {
             .await
             .unwrap();
         artwork.install_database(Arc::new(database.clone()));
-        let encoded = sources::native_artwork_binding(
-            "source",
-            &sources::NativeImageRef::new("cover", Some("revision".into())),
-        )
+        let encoded = sources::native_artwork_binding(&sources::NativeImageRef::new(
+            "cover",
+            Some("revision".into()),
+        ))
         .unwrap();
         let binding = ArtworkBinding::opaque(&encoded);
-        let cache = cache::FilesystemCache::new(root.join("v1")).unwrap();
+        let cache = cache::FilesystemCache::new(root.join("v2")).unwrap();
         let mut png = std::io::Cursor::new(Vec::new());
         image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
             32,
@@ -526,12 +522,9 @@ mod tests {
             "display size does not trigger another source request"
         );
 
+        database.reconcile_source("server", "Source").await.unwrap();
         database
-            .reconcile_source(&library::SourceId::new("source"), "server", "Source")
-            .await
-            .unwrap();
-        database
-            .catalog("source", None)
+            .catalog(None)
             .await
             .unwrap()
             .apply_catalog(
@@ -547,7 +540,7 @@ mod tests {
             )
             .await
             .unwrap();
-        let uri = library::source_entity_uri(&SourceId::new("source"), "track", "track");
+        let uri = library::entity_uri("track", "track");
         let before = database
             .artwork_bindings(
                 std::slice::from_ref(&uri),
@@ -569,7 +562,7 @@ mod tests {
             std::future::ready(())
         });
         let update = {
-            let mut catalog = database.catalog("source", None).await.unwrap();
+            let mut catalog = database.catalog(None).await.unwrap();
             catalog
                 .apply_catalog(
                     &library::CatalogBatch {
@@ -590,7 +583,7 @@ mod tests {
             !update.changed(),
             "unchanged artwork must not invalidate catalog rows: {update:?}"
         );
-        database.publish_catalog_update("source", update).await;
+        database.publish_catalog_update(update).await;
         assert!(received.try_recv().is_err());
         assert_eq!(
             database
@@ -608,25 +601,15 @@ mod tests {
             .write_ready(candidate, ImageSize::Original, png.get_ref())
             .unwrap();
         let ordinary = ArtworkBinding::opaque(
-            &sources::native_artwork_binding(
-                "source",
-                &sources::NativeImageRef::new("ordinary", None),
-            )
-            .unwrap(),
+            &sources::native_artwork_binding(&sources::NativeImageRef::new("ordinary", None))
+                .unwrap(),
         );
         let discarded = cache
             .write_ready(&ordinary.candidates[0], ImageSize::Original, png.get_ref())
             .unwrap();
         cache.mark_missing(candidate).unwrap();
         artwork
-            .clear_cache(
-                &database,
-                &[library::source_entity_uri(
-                    &SourceId::new("source"),
-                    "track",
-                    "track",
-                )],
-            )
+            .clear_cache(&database, &[library::entity_uri("track", "track")])
             .await
             .unwrap();
         assert!(original.is_file());
@@ -639,11 +622,7 @@ mod tests {
         reopened.install_database(Arc::new(database.clone()));
         let restored = database
             .artwork_bindings(
-                &[library::source_entity_uri(
-                    &SourceId::new("source"),
-                    "track",
-                    "track",
-                )],
+                &[library::entity_uri("track", "track")],
                 &library::ReadCancellation::new(),
             )
             .await
@@ -678,7 +657,7 @@ mod tests {
         });
         let mut native = sources::NativeImageRef::new("cover", None);
         native.blur_hash = Some("LEHV6nWB2yk8pyo0adR*.7kCMdnj".into());
-        let encoded = sources::native_artwork_binding("source", &native).unwrap();
+        let encoded = sources::native_artwork_binding(&native).unwrap();
         assert!(artwork.preview(ArtworkBinding::opaque(&encoded)).is_some());
         assert_eq!(resolutions.load(Ordering::Relaxed), 0);
         assert!(!directory.path().join("covers/v1/previews.sqlite3").exists());
@@ -703,8 +682,7 @@ mod tests {
             None
         });
         let encoded =
-            sources::native_artwork_binding("source", &sources::NativeImageRef::new("cover", None))
-                .unwrap();
+            sources::native_artwork_binding(&sources::NativeImageRef::new("cover", None)).unwrap();
         let request = ArtworkRequest::new(ArtworkBinding::opaque(&encoded), 64).cache_only();
 
         let ArtworkLoad::Pending(pending) = artwork.load(request.clone()) else {

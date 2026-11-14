@@ -14,11 +14,10 @@ impl SourceOwner {
             return Ok(());
         }
         let configured = configured_source(&self.shared.settings.load().sources)?;
-        let source_id = configured.configuration.source_id.clone();
         let publication = match self
             .shared
             .database
-            .cached_source(source_id.as_str(), &ReadCancellation::new())
+            .cached_source(&ReadCancellation::new())
             .await
             .map_err(string_error)?
         {
@@ -27,7 +26,6 @@ impl SourceOwner {
                 .shared
                 .database
                 .reconcile_source(
-                    &source_id,
                     configured.configuration.kind.source_id(),
                     &configured.configuration.name,
                 )
@@ -73,11 +71,7 @@ impl SourceOwner {
             if let Err(error) = owner
                 .shared
                 .downloads
-                .attach(
-                    source_id.clone(),
-                    selected.source_key,
-                    selected.music_folder_key,
-                )
+                .attach(selected.source_key, selected.music_folder_key)
                 .await
             {
                 owner.shared.warn_nonfatal(&error);
@@ -150,7 +144,6 @@ impl SourceOwner {
             .selected_folders(&configured, source_state.source)
             .await?;
         let selected = SelectedLibrary {
-            source_id: configured.configuration.source_id.clone(),
             source_key: source_state.source,
             music_folder_key,
             music_folder_object_id: configured.music_folder_id.clone(),
@@ -181,11 +174,7 @@ impl SourceOwner {
                 if let Err(error) = owner
                     .shared
                     .downloads
-                    .attach(
-                        selected.source_id.clone(),
-                        selected.source_key,
-                        selected.music_folder_key,
-                    )
+                    .attach(selected.source_key, selected.music_folder_key)
                     .await
                 {
                     owner.shared.warn_nonfatal(&error);
@@ -413,7 +402,7 @@ impl SourceOwner {
             {
                 self.shared
                     .database
-                    .invalidate_source_observation(&replacement.configuration.source_id)
+                    .invalidate_source_observation()
                     .await
                     .map_err(string_error)?;
             }
@@ -423,7 +412,6 @@ impl SourceOwner {
                 .shared
                 .database
                 .reconcile_source(
-                    &replacement.configuration.source_id,
                     replacement.configuration.kind.source_id(),
                     &replacement.configuration.name,
                 )
@@ -501,7 +489,6 @@ impl SourceOwner {
 
     pub(super) async fn edit_configured_source(&self, input: SourceSetup) -> Result<(), String> {
         let configured = configured_source(&self.shared.settings.load().sources)?;
-        let source_id = configured.configuration.source_id.clone();
         let credential = configured.credential.clone();
         let edit = Source::edit(configured.configuration.clone(), credential, input)
             .await
@@ -518,7 +505,7 @@ impl SourceOwner {
                 if !same_native_input(&configured.configuration, &configuration) {
                     self.shared
                         .database
-                        .invalidate_source_observation(&source_id)
+                        .invalidate_source_observation()
                         .await
                         .map_err(string_error)?;
                     self.shared
@@ -535,11 +522,7 @@ impl SourceOwner {
                 })?;
                 self.shared
                     .database
-                    .reconcile_source(
-                        &source_id,
-                        configuration.kind.source_id(),
-                        &configuration.name,
-                    )
+                    .reconcile_source(configuration.kind.source_id(), &configuration.name)
                     .await
                     .map_err(string_error)?;
                 Ok(())
@@ -631,11 +614,11 @@ impl SourceOwner {
             .await;
     }
 
-    pub(crate) async fn artwork_invalidated(&self, source_id: &SourceId, change: CatalogChange) {
+    pub(crate) async fn artwork_invalidated(&self, change: CatalogChange) {
         let source = match self
             .shared
             .database
-            .cached_source(source_id.as_str(), &ReadCancellation::new())
+            .cached_source(&ReadCancellation::new())
             .await
         {
             Ok(Some(source)) => source.source,

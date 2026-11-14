@@ -238,10 +238,10 @@ mod tests {
             let runtime = tokio::runtime::Runtime::new().unwrap();
             let artwork = artwork::Artwork::new(root.path(), runtime.handle().clone()).unwrap();
             std::array::from_fn(|index| {
-                let binding = sources::native_artwork_binding(
-                    "texture-test",
-                    &sources::NativeImageRef::new(index.to_string(), None),
-                )
+                let binding = sources::native_artwork_binding(&sources::NativeImageRef::new(
+                    index.to_string(),
+                    None,
+                ))
                 .unwrap();
                 artwork.key(
                     &artwork::ArtworkRequest::new(artwork::ArtworkBinding::opaque(&binding), 32)

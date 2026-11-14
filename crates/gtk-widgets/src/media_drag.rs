@@ -653,8 +653,8 @@ async fn prepare_live_collection(
         .await
         .map_err(|error| error.to_string())??;
     let cancellation = library::ReadCancellation::new();
-    let scope = match library::source_entity_parts(media_uri)
-        .map(|(_, kind, _)| kind)
+    let scope = match library::entity_parts(media_uri)
+        .map(|(kind, _)| kind)
         .as_deref()
     {
         Some("album") => database

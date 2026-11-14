@@ -75,9 +75,9 @@ pub(crate) async fn radio_candidates(
         .await
         .map_err(|error| error.to_string())?;
     let mut candidates = Vec::new();
-    let seed_source_key = seed_source.as_ref().map(|(key, _, _)| *key);
+    let seed_source_key = seed_source.as_ref().map(|(key, _)| *key);
     let mut fallback_sources = Vec::new();
-    if let Some((source_key, _, object_id)) = seed_source {
+    if let Some((source_key, object_id)) = seed_source {
         let seed_owner = owner.clone();
         let source = tokio::task::spawn_blocking(move || seed_owner?.client().ok())
             .await
@@ -128,9 +128,8 @@ fn source_seed(
 ) -> Option<SourceRadioSeed> {
     match seed {
         RadioSeed::Track(media_uri) => {
-            library::source_entity_parts(media_uri).and_then(|(source_id, kind, object_id)| {
-                (kind == "track" && source.is_some_and(|source| source.source_id() == &source_id))
-                    .then_some(SourceRadioSeed::Track(object_id))
+            library::entity_parts(media_uri).and_then(|(kind, object_id)| {
+                (kind == "track" && source.is_some()).then_some(SourceRadioSeed::Track(object_id))
             })
         }
         RadioSeed::Album(_) => object_id.map(SourceRadioSeed::Album),

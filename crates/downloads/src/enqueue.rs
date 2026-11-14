@@ -3,15 +3,11 @@ use super::*;
 impl Actor {
     pub(super) async fn attach(
         &mut self,
-        source_id: SourceId,
         source_key: SourceKey,
         folder: Option<FolderKey>,
         directory: Option<PathBuf>,
     ) -> Result<(), String> {
-        let same_source = self
-            .attached
-            .as_ref()
-            .is_some_and(|attached| attached.source_id == source_id);
+        let same_source = self.attached.is_some();
         let unchanged = same_source
             && self.attached.as_ref().is_some_and(|attached| {
                 attached.directory == directory && attached.source_key == source_key
@@ -20,7 +16,6 @@ impl Actor {
             self.discard_previous_directory(&directory).await;
         }
         self.attached = Some(AttachedSource {
-            source_id: source_id.clone(),
             source_key,
             folder,
             directory: directory.clone(),
@@ -35,10 +30,10 @@ impl Actor {
         let mut jobs = if same_source {
             std::mem::take(&mut self.jobs)
         } else {
-            match load_queue(&self.root, &source_id).await {
+            match load_queue(&self.root).await {
                 Ok(jobs) => jobs,
                 Err(error) => {
-                    warn!(%error, %source_id, "could not load the download queue");
+                    warn!(%error, "could not load the download queue");
                     // The next attach retries the load instead of overwriting the saved queue.
                     self.attached = None;
                     self.jobs.clear();
@@ -60,13 +55,7 @@ impl Actor {
             .iter()
             .flat_map(|job| job.remaining.iter().cloned())
             .collect::<HashSet<_>>();
-        if let Err(error) = cleanup_staging(
-            &self.root,
-            Some(&source_id),
-            directory.as_deref(),
-            &queued_tracks,
-        )
-        .await
+        if let Err(error) = cleanup_staging(&self.root, directory.as_deref(), &queued_tracks).await
         {
             attachment_error.get_or_insert_with(|| error.to_string());
         }
@@ -124,7 +113,6 @@ impl Actor {
             return Ok(false);
         };
         file.media_uri = media_uri.into();
-        file.source_id = self.source_id().map(ToString::to_string);
         let mut owners = download_owners(&file)?;
         if !owners.insert(owner.clone())
             && previous.as_ref().is_some_and(|previous| {

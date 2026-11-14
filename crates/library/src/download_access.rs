@@ -18,7 +18,7 @@ pub struct DownloadMetadata {
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, FromRow)]
 pub(crate) struct DownloadLocatorWrite {
-    pub source_id: Option<String>,
+    pub source: Option<SourceKey>,
     pub media_uri: String,
     pub origin: String,
     pub path: String,
@@ -42,26 +42,14 @@ pub struct DownloadAccessWrite {
 }
 
 impl Database {
-    pub async fn downloaded_count(&self, source_id: Option<&str>) -> LibraryResult<usize> {
+    pub async fn downloaded_count(&self) -> LibraryResult<usize> {
         let mut connection = self.acquire_general(&ReadCancellation::new()).await?;
-        let count = if let Some(source_id) = source_id {
-            sqlx::query_scalar::<_, i64>(
-                "SELECT count(*) FROM main.download_locators
-                 WHERE source_key=(SELECT source_key FROM main.sources WHERE object_id=?1)
-                   AND origin='download'",
-            )
-            .bind(source_id)
-            .fetch_one(&mut *connection)
-            .await
-        } else {
-            sqlx::query_scalar::<_, i64>(
-                "SELECT count(*) FROM main.download_locators
-                 WHERE source_key IS NULL AND origin='download'",
-            )
-            .fetch_one(&mut *connection)
-            .await
-        };
-        Ok(usize::try_from(count?).unwrap_or_default())
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM main.download_locators WHERE origin='download'",
+        )
+        .fetch_one(&mut *connection)
+        .await?;
+        Ok(usize::try_from(count).unwrap_or_default())
     }
 
     pub async fn download_metadata(
@@ -133,10 +121,7 @@ pub(crate) async fn write_download_locator(
         },
     )
     .await?;
-    let source = match &locator.source_id {
-        Some(id) => Some(crate::db::write_source_identity(connection, id).await?),
-        None => None,
-    };
+    let source = locator.source;
     Ok(sqlx::query_scalar("INSERT INTO main.download_locators(source_key,media_uri,origin,path,root,relative_path,access_uri) VALUES(?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(media_uri,origin) DO UPDATE SET source_key=excluded.source_key,path=excluded.path,root=excluded.root,relative_path=excluded.relative_path,access_uri=excluded.access_uri RETURNING download_access_file_key")
         .bind(source).bind(&locator.media_uri).bind(&locator.origin).bind(&locator.path).bind(&locator.root).bind(&locator.relative_path).bind(&locator.access_uri).fetch_one(connection).await?)
 }
@@ -149,14 +134,6 @@ pub(crate) async fn write_download_access_on(
     for access in records {
         validate_local_access(access)?;
     }
-    let source_id = if let Some(source) = source {
-        sqlx::query_scalar::<_, String>("SELECT object_id FROM main.sources WHERE source_key=?1")
-            .bind(source)
-            .fetch_optional(&mut *connection)
-            .await?
-    } else {
-        None
-    };
     for access in records {
         sqlx::query("DELETE FROM main.download_access_metadata WHERE access_uri IN (SELECT access_uri FROM main.download_locators WHERE media_uri=?1 AND origin=?2 AND path<>?3) AND NOT EXISTS(SELECT 1 FROM download_locators other WHERE other.access_uri=download_access_metadata.access_uri AND (other.media_uri<>?1 OR other.origin<>?2 OR other.path=?3))").bind(&access.media_uri).bind("download").bind(&access.path).execute(&mut *connection).await?;
         sqlx::query(
@@ -170,7 +147,7 @@ pub(crate) async fn write_download_access_on(
         write_download_locator(
             &mut *connection,
             &DownloadLocatorWrite {
-                source_id: source_id.clone(),
+                source,
                 media_uri: access.media_uri.clone(),
                 origin: "download".to_owned(),
                 path: access.path.clone(),

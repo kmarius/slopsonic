@@ -1058,8 +1058,7 @@ mod playback_refresh_tests {
     }
 
     fn current_media(title: &str, _source: library::SourceKey) -> CurrentMedia {
-        let media_uri =
-            library::source_entity_uri(&library::SourceId::new("source"), "track", title);
+        let media_uri = library::entity_uri("track", title);
         CurrentMedia {
             stream: Some(playback::CurrentStream {
                 local: true,
@@ -1077,11 +1076,7 @@ mod playback_refresh_tests {
                 provenance: Provenance::Manual,
                 track: {
                     let reference = TrackReference {
-                        media_uri: library::source_entity_uri(
-                            &library::SourceId::new("source"),
-                            "track",
-                            title,
-                        ),
+                        media_uri: library::entity_uri("track", title),
                         artwork_binding: None,
                         metadata: library::TrackMetadata {
                             audio_properties: library::AudioProperties {
@@ -1110,7 +1105,6 @@ mod playback_refresh_tests {
                     library::TrackView {
                         track_key: library::TrackKey::from_raw(1),
                         source_key: None,
-                        source_id: None,
                         object_id: None,
                         media_uri: reference.media_uri,
                         metadata: reference.metadata,

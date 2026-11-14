@@ -7,7 +7,6 @@ use super::{DiagnosticsHandle, ProductHandles, ProductReceivers};
 
 #[derive(Clone)]
 pub struct SelectedLibrary {
-    pub source_id: sources::SourceId,
     pub source_key: SourceKey,
     pub music_folder_key: Option<FolderKey>,
     pub music_folder_object_id: Option<String>,

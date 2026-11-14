@@ -10,13 +10,12 @@ pub(super) struct QueueFile<T = Vec<DownloadJob>> {
     pub(super) jobs: T,
 }
 
-pub(super) async fn persist_queue(
-    root: &Path,
-    source_id: Option<&SourceId>,
-    jobs: &[DownloadJob],
-) -> Result<(), String> {
-    let directory = source_directory(root, source_id);
-    tokio::fs::create_dir_all(&directory)
+pub(super) async fn persist_queue(root: &Path, jobs: &[DownloadJob]) -> Result<(), String> {
+    write_queue(&source_directory(root), jobs).await
+}
+
+async fn write_queue(directory: &Path, jobs: &[DownloadJob]) -> Result<(), String> {
+    tokio::fs::create_dir_all(directory)
         .await
         .map_err(|error| format!("could not create the download queue directory: {error}"))?;
     let path = directory.join(QUEUE_FILE);
@@ -40,10 +39,8 @@ pub(super) async fn persist_queue(
 }
 
 pub(super) fn read_queue_file(
-    root: &Path,
-    source_id: Option<&SourceId>,
+    directory: &Path,
 ) -> Result<Option<(Vec<u8>, bool, PathBuf, PathBuf)>, String> {
-    let directory = source_directory(root, source_id);
     let path = directory.join(QUEUE_FILE);
     let part = directory.join(QUEUE_PART_FILE);
     match std::fs::read(&path) {
@@ -57,12 +54,9 @@ pub(super) fn read_queue_file(
     }
 }
 
-pub(super) async fn load_queue(
-    root: &Path,
-    source_id: &SourceId,
-) -> Result<Vec<DownloadJob>, String> {
-    let Some((bytes, recovered, path, part)) = read_queue_file(root, Some(source_id))? else {
-        return Ok(Vec::new());
+fn decode_queue(directory: &Path) -> Result<Option<Vec<DownloadJob>>, String> {
+    let Some((bytes, recovered, path, part)) = read_queue_file(directory)? else {
+        return Ok(None);
     };
     let queue = serde_json::from_slice::<QueueFile>(&bytes)
         .map_err(|error| format!("could not decode {}: {error}", path.display()))?;
@@ -72,84 +66,81 @@ pub(super) async fn load_queue(
     if recovered && let Err(error) = std::fs::rename(&part, &path) {
         warn!(%error, path = %part.display(), "could not finish recovering the download queue");
     }
-    Ok(queue.jobs)
+    Ok(Some(queue.jobs))
 }
 
-/// Moves jobs of the former direct queue into the server's queue; media without a server is dropped.
-pub(super) async fn merge_direct_queue(root: &Path, database: &Database) -> Result<(), String> {
-    let Some((bytes, recovered, path, part)) = read_queue_file(root, None)? else {
-        return Ok(());
+pub(super) async fn load_queue(root: &Path) -> Result<Vec<DownloadJob>, String> {
+    Ok(decode_queue(&source_directory(root))?.unwrap_or_default())
+}
+
+/// Moves the queues of former per-server and direct folders into the server queue, rewriting
+/// their media URIs; media that belongs to no server is dropped.
+pub(super) async fn merge_legacy_queues(root: &Path, database: &Database) -> Result<(), String> {
+    let mut saved = load_queue(root).await?;
+    let mut entries = match tokio::fs::read_dir(root).await {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.to_string()),
     };
-    let queue: QueueFile = serde_json::from_slice(&bytes)
-        .map_err(|error| format!("could not decode {}: {error}", path.display()))?;
-    if queue.version != QUEUE_VERSION {
-        return Err("the saved direct download queue has an unsupported version".to_string());
-    }
-    if recovered && let Err(error) = std::fs::rename(&part, &path) {
-        warn!(%error, path=%part.display(), "could not finish recovering the direct download queue");
-    }
-    let mut grouped = HashMap::<Option<SourceId>, Vec<DownloadJob>>::new();
-    for mut job in queue.jobs {
-        let completed = std::mem::take(&mut job.completed);
-        let remaining = std::mem::take(&mut job.remaining);
-        let mut split = HashMap::<Option<SourceId>, DownloadJob>::new();
-        for (completed, uri) in completed
-            .into_iter()
-            .map(|uri| (true, uri))
-            .chain(remaining.into_iter().map(|uri| (false, uri)))
-        {
-            let source = media_source_id(database, &uri).await;
-            let part = split.entry(source).or_insert_with(|| job.clone());
-            if completed {
-                part.completed.push(uri);
-            } else {
-                part.remaining.push_back(uri);
-            }
+    let mut merged = Vec::new();
+    while let Some(entry) = entries
+        .next_entry()
+        .await
+        .map_err(|error| error.to_string())?
+    {
+        let directory = entry.path();
+        if entry.file_name() == SERVER_DIRECTORY || !directory.is_dir() {
+            continue;
         }
-        for (source, job) in split {
-            if !job.remaining.is_empty() {
-                grouped.entry(source).or_default().push(job);
+        let jobs = match decode_queue(&directory) {
+            Ok(Some(jobs)) => jobs,
+            Ok(None) => continue,
+            Err(error) => {
+                warn!(%error, path = %directory.display(), "skipped a former download queue");
+                continue;
             }
-        }
-    }
-    grouped.remove(&None);
-    for (source, jobs) in grouped {
-        let source = source.unwrap();
-        let mut saved = load_queue(root, &source).await?;
-        for job in jobs {
-            if let Some(existing) = saved.iter_mut().find(|existing| existing.id == job.id) {
-                let mut completed = existing.completed.iter().cloned().collect::<HashSet<_>>();
-                let mut remaining = existing.remaining.iter().cloned().collect::<HashSet<_>>();
-                existing.completed.extend(
-                    job.completed
-                        .into_iter()
-                        .filter(|uri| completed.insert(uri.clone())),
-                );
-                existing.remaining.extend(
-                    job.remaining
-                        .into_iter()
-                        .filter(|uri| !completed.contains(uri) && remaining.insert(uri.clone())),
-                );
-                existing.remaining.retain(|uri| !completed.contains(uri));
-            } else {
+        };
+        for mut job in jobs {
+            let mut known = HashSet::new();
+            let completed = std::mem::take(&mut job.completed);
+            let remaining = std::mem::take(&mut job.remaining);
+            for (done, uri) in completed
+                .into_iter()
+                .map(|uri| (true, uri))
+                .chain(remaining.into_iter().map(|uri| (false, uri)))
+            {
+                let uri = library::single_server_uri(&uri);
+                if !known.insert(uri.clone()) || !is_server_media(database, &uri).await {
+                    continue;
+                }
+                if done {
+                    job.completed.push(uri);
+                } else {
+                    job.remaining.push_back(uri);
+                }
+            }
+            if !job.remaining.is_empty() && saved.iter().all(|existing| existing.id != job.id) {
                 saved.push(job);
             }
         }
-        persist_queue(root, Some(&source), &saved).await?;
+        merged.push(directory);
     }
-    persist_queue(root, None, &[]).await?;
-    cleanup_staging(root, None, None, &HashSet::new())
-        .await
-        .map_err(|error| error.to_string())
+    if merged.is_empty() {
+        return Ok(());
+    }
+    // The merged queue is saved before the former files go, so a failure loses nothing.
+    persist_queue(root, &saved).await?;
+    for directory in merged {
+        write_queue(&directory, &[]).await?;
+        let _ = tokio::fs::remove_dir(&directory).await;
+    }
+    Ok(())
 }
 
-pub(super) async fn media_source_id(database: &Database, media_uri: &str) -> Option<SourceId> {
-    if let Some((source, _, _)) = library::source_entity_parts(media_uri) {
-        return Some(source);
-    }
-    database
-        .track_source_by_uri(media_uri, &library::ReadCancellation::new())
-        .await
-        .ok()
-        .flatten()
+pub(super) async fn is_server_media(database: &Database, media_uri: &str) -> bool {
+    library::entity_parts(media_uri).is_some()
+        || database
+            .is_server_track(media_uri, &library::ReadCancellation::new())
+            .await
+            .unwrap_or(false)
 }

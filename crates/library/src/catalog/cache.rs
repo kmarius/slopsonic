@@ -17,7 +17,6 @@ pub(crate) fn table(kind: &str) -> (&'static str, &'static str) {
 pub(super) async fn write_headers<T: serde::Serialize + Default + Sync>(
     connection: &mut SqliteConnection,
     source: i64,
-    source_id: &str,
     kind: &str,
     rows: &[(&str, &T, String, Option<Vec<u8>>)],
     admit: bool,
@@ -51,11 +50,7 @@ pub(super) async fn write_headers<T: serde::Serialize + Default + Sync>(
         query.push_values(
             page.iter().enumerate(),
             |mut row, (index, (id, metadata, normalized, _))| {
-                row.push_bind(*id).push_bind(crate::source_entity_uri(
-                    &SourceId::new(source_id),
-                    kind,
-                    id,
-                ));
+                row.push_bind(*id).push_bind(crate::entity_uri(kind, id));
                 if let Some(patches) = &patches {
                     row.push_bind(sqlx::types::Json(&patches[index]));
                 } else {
@@ -203,7 +198,6 @@ pub(crate) async fn stamp(
 pub(super) fn index_credits<'a>(
     connection: &'a mut SqliteConnection,
     source: i64,
-    source_id: &'a str,
     credits: impl Iterator<Item = &'a crate::ArtistCredit>,
 ) -> impl std::future::Future<Output = LibraryResult<()>> + Send + 'a {
     let mut names = std::collections::BTreeMap::<&str, ArtistMetadata>::new();
@@ -228,11 +222,7 @@ pub(super) fn index_credits<'a>(
             );
             query.push_values(page, |mut row, (id, metadata)| {
                 row.push_bind(*id)
-                    .push_bind(crate::source_entity_uri(
-                        &SourceId::new(source_id),
-                        "artist",
-                        id,
-                    ))
+                    .push_bind(crate::entity_uri("artist", id))
                     .push_bind(sqlx::types::Json(metadata))
                     .push_bind(metadata.name.to_lowercase());
             });
@@ -250,7 +240,6 @@ pub(super) fn index_credits<'a>(
 pub(super) fn index_tags<'a>(
     connection: &'a mut SqliteConnection,
     source: i64,
-    source_id: &'a str,
     kind: &'a str,
     tags: impl Iterator<Item = &'a crate::TagReference>,
 ) -> impl std::future::Future<Output = LibraryResult<()>> + Send + 'a {
@@ -263,11 +252,7 @@ pub(super) fn index_tags<'a>(
             );
             query.push_values(page, |mut row, tag| {
                 row.push_bind(&tag.object_id)
-                    .push_bind(crate::source_entity_uri(
-                        &SourceId::new(source_id),
-                        kind,
-                        &tag.object_id,
-                    ))
+                    .push_bind(crate::entity_uri(kind, &tag.object_id))
                     .push_bind(sqlx::types::Json(TagMetadata {
                         name: tag.name.clone(),
                         sort_text: tag.sort_text.clone(),
@@ -286,13 +271,11 @@ pub(super) fn index_tags<'a>(
 async fn track_indexes(
     connection: &mut SqliteConnection,
     source: i64,
-    source_id: &str,
     rows: &[&TrackObservation],
 ) -> LibraryResult<()> {
     index_credits(
         connection,
         source,
-        source_id,
         rows.iter().flat_map(|row| {
             row.metadata
                 .artists
@@ -304,7 +287,6 @@ async fn track_indexes(
     index_tags(
         connection,
         source,
-        source_id,
         "genre",
         rows.iter().flat_map(|row| &row.metadata.genres),
     )
@@ -312,7 +294,6 @@ async fn track_indexes(
     index_tags(
         connection,
         source,
-        source_id,
         "mood",
         rows.iter().flat_map(|row| &row.metadata.moods),
     )
@@ -414,7 +395,6 @@ pub(crate) fn track_search(metadata: &crate::TrackMetadata) -> String {
 pub(super) async fn tracks(
     connection: &mut SqliteConnection,
     source: i64,
-    source_id: &str,
     rows: &[TrackObservation],
     observed: Option<i64>,
     admit: bool,
@@ -447,8 +427,8 @@ pub(super) async fn tracks(
         let uris = page
             .iter()
             .map(|row| match row.media_uri.as_deref() {
-                Some(uri) if crate::source_entity_parts(uri).is_some() => uri.to_owned(),
-                _ => crate::source_entity_uri(&SourceId::new(source_id), "track", &row.object_id),
+                Some(uri) if crate::entity_parts(uri).is_some() => uri.to_owned(),
+                _ => crate::entity_uri("track", &row.object_id),
             })
             .collect::<Vec<_>>();
         let with_albums = page
@@ -461,11 +441,7 @@ pub(super) async fn tracks(
             albums.push_values(with_albums, |mut row, id| {
                 row.push_bind(source)
                     .push_bind(id)
-                    .push_bind(crate::source_entity_uri(
-                        &SourceId::new(source_id),
-                        "album",
-                        id,
-                    ));
+                    .push_bind(crate::entity_uri("album", id));
             });
             albums.push(" ON CONFLICT(source_key,object_id) DO NOTHING");
             albums.build().execute(&mut *connection).await?;
@@ -587,7 +563,6 @@ pub(super) async fn tracks(
         track_indexes(
             connection,
             source,
-            source_id,
             &page
                 .iter()
                 .filter(|row| accepted.contains(&row.object_id))
@@ -633,24 +608,23 @@ pub(crate) async fn remember_track(
     reference: &crate::TrackReference,
 ) -> LibraryResult<crate::TrackKey> {
     let mut uri = reference.media_uri.clone();
-    let (source, object) = if let Some((source, _, object)) =
-        crate::source_entity_parts(&uri).filter(|(_, kind, _)| kind == "track")
-    {
-        let source = crate::db::write_source_identity(connection, source.as_str()).await?;
-        if let Some(known) = sqlx::query_scalar::<_, String>(
-            "SELECT media_uri FROM tracks WHERE source_key=?1 AND object_id=?2",
-        )
-        .bind(source)
-        .bind(&object)
-        .fetch_optional(&mut *connection)
-        .await?
-        {
-            uri = known;
-        }
-        (Some(source), Some(object))
-    } else {
-        (None, None)
-    };
+    let (source, object) =
+        if let Some((_, object)) = crate::entity_parts(&uri).filter(|(kind, _)| kind == "track") {
+            let source = crate::db::write_source_identity(connection).await?;
+            if let Some(known) = sqlx::query_scalar::<_, String>(
+                "SELECT media_uri FROM tracks WHERE source_key=?1 AND object_id=?2",
+            )
+            .bind(source)
+            .bind(&object)
+            .fetch_optional(&mut *connection)
+            .await?
+            {
+                uri = known;
+            }
+            (Some(source), Some(object))
+        } else {
+            (None, None)
+        };
     if reference.metadata == crate::TrackMetadata::default() && reference.artwork_binding.is_none()
     {
         if let Some(key) = sqlx::query_scalar("SELECT track_key FROM tracks WHERE media_uri=?1")
@@ -679,15 +653,9 @@ pub(crate) async fn remember_track(
     .execute(&mut *connection)
     .await?;
     if let Some((source, object)) = source.zip(object) {
-        let source_id: String =
-            sqlx::query_scalar("SELECT object_id FROM sources WHERE source_key=?1")
-                .bind(source)
-                .fetch_one(&mut *connection)
-                .await?;
         track_indexes(
             connection,
             source,
-            &source_id,
             &[&TrackObservation {
                 object_id: object,
                 metadata: metadata.0,
@@ -714,7 +682,6 @@ pub(super) async fn observation_stamp(
 pub(crate) async fn apply_on(
     connection: &mut SqliteConnection,
     source: i64,
-    source_id: &str,
     batch: &CatalogBatch,
     observed: Option<i64>,
     admit: bool,
@@ -738,7 +705,6 @@ pub(crate) async fn apply_on(
             let change = write_headers(
                 connection,
                 source,
-                source_id,
                 $kind,
                 &inputs,
                 admit,
@@ -799,7 +765,6 @@ pub(crate) async fn apply_on(
     let (track_update, previous_albums) = tracks(
         connection,
         source,
-        source_id,
         &batch.tracks,
         observed,
         admit,
@@ -830,7 +795,6 @@ pub(crate) async fn apply_on(
     update.metadata |= super::collections::headers(
         connection,
         source,
-        source_id,
         &batch.albums.iter().collect::<Vec<_>>(),
         &batch.folders,
         observed,
@@ -874,15 +838,7 @@ impl super::Catalog<'_> {
             .ok_or(LibraryError::WriterUnavailable)?
             .begin()
             .await?;
-        let update = apply_on(
-            &mut tx,
-            self.source.raw(),
-            self.source_id,
-            batch,
-            self.observed,
-            admit,
-        )
-        .await?;
+        let update = apply_on(&mut tx, self.source.raw(), batch, self.observed, admit).await?;
         tx.commit().await?;
         self.changes.merge(update);
         Ok(())

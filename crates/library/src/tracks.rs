@@ -230,7 +230,6 @@ pub struct TrackLinks {
 pub struct TrackView {
     pub track_key: TrackKey,
     pub source_key: Option<SourceKey>,
-    pub source_id: Option<String>,
     pub object_id: Option<String>,
     pub media_uri: String,
     #[sqlx(json)]
@@ -279,23 +278,22 @@ impl From<TrackView> for crate::TrackReference {
 }
 
 impl Database {
-    pub async fn track_source_by_uri(
+    /// Whether the track is cataloged from the server.
+    pub async fn is_server_track(
         &self,
         media_uri: &str,
         cancellation: &ReadCancellation,
-    ) -> LibraryResult<Option<crate::SourceId>> {
+    ) -> LibraryResult<bool> {
         let mut connection = tokio::select! {
             result = self.acquire_reader() => result?,
             () = cancellation.cancelled() => return Err(LibraryError::ReadCancelled)
         };
-        let source = sqlx::query_scalar::<_, String>(
-            "SELECT source.object_id FROM tracks track JOIN sources source USING(source_key)
-             WHERE track.media_uri=?1",
+        Ok(sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM tracks WHERE media_uri=?1 AND source_key IS NOT NULL)",
         )
         .bind(media_uri)
-        .fetch_optional(&mut *connection)
-        .await?;
-        Ok(source.map(crate::SourceId::new))
+        .fetch_one(&mut *connection)
+        .await?)
     }
 }
 
@@ -353,8 +351,8 @@ pub(crate) async fn load_track_requested(
 pub(crate) fn track_requested_sql(requested: &crate::query::RequestedKeys) -> String {
     format!(
         "WITH requested AS ({})
-        SELECT requested.ordinal __ordinal,track.track_key,track.source_key,source.object_id source_id,track.object_id,track.media_uri,
-        json_patch(track.metadata,json_object('title',coalesce(nullif(track.title,''),track.media_uri),'date_added',date(COALESCE(unixepoch(track.date_added),track.first_seen_at),'unixepoch'),'album_display_artist',COALESCE(album.display_artist,json_extract(track.metadata,'$.album_display_artist')),'musicbrainz_album_id',COALESCE(album.musicbrainz_release_id,json_extract(track.metadata,'$.musicbrainz_album_id')),'musicbrainz_release_group_id',COALESCE(album.musicbrainz_release_group_id,json_extract(track.metadata,'$.musicbrainz_release_group_id')),'primary_artist_musicbrainz_id',COALESCE((SELECT artist.musicbrainz_artist_id FROM track_artists credit JOIN artists artist USING(artist_key) WHERE credit.track_key=track.track_key ORDER BY credit.position LIMIT 1),json_extract(track.metadata,'$.primary_artist_musicbrainz_id')))) metadata,COALESCE(source.display_name,'') source_name,
+        SELECT requested.ordinal __ordinal,track.track_key,track.source_key,track.object_id,track.media_uri,
+        json_patch(track.metadata,json_object('title',coalesce(nullif(track.title,''),track.media_uri),'date_added',date(COALESCE(unixepoch(track.date_added),track.first_seen_at),'unixepoch'),'album_display_artist',COALESCE(album.display_artist,json_extract(track.metadata,'$.album_display_artist')),'musicbrainz_album_id',COALESCE(album.musicbrainz_release_id,json_extract(track.metadata,'$.musicbrainz_album_id')),'musicbrainz_release_group_id',COALESCE(album.musicbrainz_release_group_id,json_extract(track.metadata,'$.musicbrainz_release_group_id')),'primary_artist_musicbrainz_id',COALESCE((SELECT artist.musicbrainz_artist_id FROM track_artists credit JOIN artists artist USING(artist_key) WHERE credit.track_key=track.track_key ORDER BY credit.position LIMIT 1),json_extract(track.metadata,'$.primary_artist_musicbrainz_id')))) metadata,COALESCE((SELECT display_name FROM sources WHERE source_key=track.source_key),'') source_name,
         track.source_path,
         CASE WHEN album.indexed OR track.indexed OR album.track_count>0 THEN track.album_key END album_key,
         CASE WHEN album.indexed OR track.indexed OR album.track_count>0 THEN album.media_uri END album_media_uri,
@@ -366,7 +364,7 @@ pub(crate) fn track_requested_sql(requested: &crate::query::RequestedKeys) -> St
             FROM track_genres relation JOIN genres genre USING(genre_key) WHERE relation.track_key=track.track_key) genres,
         {} artwork_binding
         FROM requested CROSS JOIN tracks track ON track.track_key=requested.value
-        LEFT JOIN sources source ON source.source_key=track.source_key LEFT JOIN albums album ON album.album_key=track.album_key
+        LEFT JOIN albums album ON album.album_key=track.album_key
         LEFT JOIN user_media_state state ON state.media_uri=track.media_uri
         LEFT JOIN native_media_state native ON native.media_uri=track.media_uri
         ORDER BY requested.ordinal",
@@ -395,7 +393,7 @@ mod tests {
         .fetch_one(&mut connection)
         .await
         .expect("insert source");
-        let artist = sqlx::query_scalar::<_, ArtistKey>("INSERT INTO artists(source_key,object_id,media_uri,metadata) VALUES (?1,'artist','slopsonic:source/artist/%73%6F%75%72%63%65/%61%72%74%69%73%74',jsonb(json_object('name','Artist','sort_text','artist'))) RETURNING artist_key")
+        let artist = sqlx::query_scalar::<_, ArtistKey>("INSERT INTO artists(source_key,object_id,media_uri,metadata) VALUES (?1,'artist','slopsonic:artist/%61%72%74%69%73%74',jsonb(json_object('name','Artist','sort_text','artist'))) RETURNING artist_key")
             .bind(source).fetch_one(&mut connection).await.expect("insert Artist");
         let genre = sqlx::query_scalar::<_, GenreKey>("INSERT INTO genres(source_key,object_id,media_uri,metadata) VALUES (?1,'genre','genre:one',jsonb(json_object('name','Genre','sort_text','genre'))) RETURNING genre_key")
             .bind(source).fetch_one(&mut connection).await.expect("insert Genre");

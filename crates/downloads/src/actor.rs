@@ -21,8 +21,8 @@ pub(super) async fn run(
     receiver: Receiver<Command>,
     rule_results: Receiver<PreparedRules>,
 ) {
-    if let Err(error) = merge_direct_queue(&actor.root, &actor.database).await {
-        warn!(%error, "could not merge the direct download queue");
+    if let Err(error) = merge_legacy_queues(&actor.root, &actor.database).await {
+        warn!(%error, "could not merge the former download queues");
     }
     actor.publish().await;
     let mut retry = tokio::time::interval(RETRY_INTERVAL);
@@ -97,10 +97,6 @@ pub(super) async fn wait_for_finished(
 }
 
 impl Actor {
-    pub(super) fn source_id(&self) -> Option<&SourceId> {
-        self.attached.as_ref().map(|attached| &attached.source_id)
-    }
-
     pub(super) async fn apply(&mut self, command: Command, active: &mut Vec<ActiveDownload>) {
         match command {
             Command::ClearArtworkCache(response) => {
@@ -124,18 +120,17 @@ impl Actor {
             }
             Command::SourceResolver(resolve) => self.sources = resolve,
             Command::Attach {
-                source_id,
                 source_key,
                 folder,
                 response,
             } => {
                 let directory = self.settings.directory.clone();
                 if self.attached.as_ref().is_some_and(|attached| {
-                    attached.directory != directory || attached.source_id != source_id
+                    attached.directory != directory || attached.source_key != source_key
                 }) {
                     self.discard_matching(active, false, |_| true).await;
                 }
-                let result = self.attach(source_id, source_key, folder, directory).await;
+                let result = self.attach(source_key, folder, directory).await;
                 let ready = result.is_ok();
                 self.pending_rules = None;
                 let _ = response.send(result).await;
@@ -150,8 +145,8 @@ impl Actor {
                 let mut accepted = Vec::new();
                 let mut skipped = false;
                 for media_uri in media_uris {
-                    let source = media_source_id(&self.database, &media_uri).await;
-                    if self.source_id().is_some() && source.as_ref() == self.source_id() {
+                    if self.attached.is_some() && is_server_media(&self.database, &media_uri).await
+                    {
                         accepted.push(media_uri);
                     } else {
                         skipped = true;

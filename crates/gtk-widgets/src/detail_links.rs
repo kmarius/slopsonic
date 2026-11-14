@@ -264,7 +264,7 @@ mod tests {
     }
 
     fn uri(kind: &str, id: i64) -> String {
-        library::source_entity_uri(&library::SourceId::new("source"), kind, &id.to_string())
+        library::entity_uri(kind, &id.to_string())
     }
 
     fn credit(id: i64, name: &str) -> TrackArtistLink {
@@ -287,13 +287,8 @@ mod tests {
         TrackView {
             track_key: TrackKey::from_raw(1),
             source_key: Some(SourceKey::from_raw(1)),
-            source_id: Some("source".to_string()),
             object_id: Some("track".to_string()),
-            media_uri: library::source_entity_uri(
-                &library::SourceId::new("source"),
-                "track",
-                "track",
-            ),
+            media_uri: library::entity_uri("track", "track"),
             artwork_binding: None,
             metadata: library::TrackMetadata {
                 audio_properties: Default::default(),
@@ -346,11 +341,7 @@ mod tests {
             album_key: AlbumKey::from_raw(1),
             source_key: SourceKey::from_raw(1),
             object_id: "album".to_string(),
-            media_uri: library::source_entity_uri(
-                &library::SourceId::new("source"),
-                "album",
-                "album",
-            ),
+            media_uri: library::entity_uri("album", "album"),
             release_lookup_identity: None,
             artwork_binding: None,
             metadata: library::AlbumMetadata {

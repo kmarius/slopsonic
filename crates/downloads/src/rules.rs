@@ -38,16 +38,12 @@ impl Actor {
 
     /// Downloads again every file of the source, or only those whose audio changed on the server.
     pub(super) async fn requeue_downloads(&mut self, quality: DownloadQuality, stale: bool) {
-        let Some(source_id) = self.source_id().cloned() else {
+        if self.attached.is_none() {
             return;
-        };
+        }
         let mut after = (String::new(), String::new());
         loop {
-            let records = match self
-                .database
-                .download_files_page(Some(source_id.as_str()), &after, None, stale)
-                .await
-            {
+            let records = match self.database.download_files_page(&after, None, stale).await {
                 Ok(records) if records.is_empty() => break,
                 Ok(records) => records,
                 Err(error) => {
@@ -152,10 +148,10 @@ impl Actor {
         media_uris: Vec<String>,
         active: &mut Vec<ActiveDownload>,
     ) {
-        let Some(source_id) = self.source_id().cloned() else {
+        if self.attached.is_none() {
             warn!("ignored download reconciliation without an attached server");
             return;
-        };
+        }
 
         let mut seen = HashSet::new();
         let media_uris = media_uris
@@ -184,13 +180,13 @@ impl Actor {
         loop {
             let records = match self
                 .database
-                .download_files_page(Some(source_id.as_str()), &after, Some(&owner_key), false)
+                .download_files_page(&after, Some(&owner_key), false)
                 .await
             {
                 Ok(records) if records.is_empty() => break,
                 Ok(records) => records,
                 Err(error) => {
-                    warn!(%error, %source_id, "could not read rule downloads");
+                    warn!(%error, "could not read rule downloads");
                     return;
                 }
             };
@@ -206,7 +202,7 @@ impl Actor {
                 owners.remove(&owner);
                 owners.extend(self.queued_owners_for_track(&record.media_uri, Some(&subject)));
                 if let Err(error) = self.store_owners(&mut record, owners).await {
-                    warn!(%error, %source_id, media_uri=%record.media_uri, "could not update rule ownership");
+                    warn!(%error, media_uri=%record.media_uri, "could not update rule ownership");
                 }
             }
         }
@@ -225,7 +221,7 @@ impl Actor {
                 Ok(true) => completed.push(media_uri.clone()),
                 Ok(false) => remaining.push(media_uri.clone()),
                 Err(error) => {
-                    warn!(%error, %source_id, %media_uri, "could not update download ownership");
+                    warn!(%error, %media_uri, "could not update download ownership");
                     remaining.push(media_uri.clone());
                 }
             }

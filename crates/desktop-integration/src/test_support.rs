@@ -13,7 +13,7 @@ pub(crate) fn test_view(
     state: TransportStatus,
     position_millis: u64,
 ) -> PlaybackView {
-    let media_uri = library::source_entity_uri(&library::SourceId::new("source"), "track", "track");
+    let media_uri = library::entity_uri("track", "track");
     let current = CurrentMedia {
         stream: None,
         id: CurrentMediaId {
@@ -26,11 +26,7 @@ pub(crate) fn test_view(
             provenance: Provenance::Manual,
             track: {
                 let reference = TrackReference {
-                    media_uri: library::source_entity_uri(
-                        &library::SourceId::new("source"),
-                        "track",
-                        "track",
-                    ),
+                    media_uri: library::entity_uri("track", "track"),
                     artwork_binding: None,
                     metadata: library::TrackMetadata {
                         audio_properties: Default::default(),
@@ -55,7 +51,6 @@ pub(crate) fn test_view(
                 library::TrackView {
                     track_key: library::TrackKey::from_raw(1),
                     source_key: None,
-                    source_id: None,
                     object_id: None,
                     media_uri: reference.media_uri,
                     metadata: reference.metadata,

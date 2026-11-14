@@ -11,7 +11,6 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, FromRow)]
 pub struct PlaylistAccess {
     pub source_key: Option<SourceKey>,
-    pub source_id: Option<String>,
     pub object_id: String,
     pub writable: bool,
     pub metadata_writable: bool,
@@ -23,7 +22,6 @@ pub(crate) const PLAYLIST_ROW_LIMIT: usize = 128;
 pub struct PlaylistRow {
     pub playlist_key: PlaylistKey,
     pub source_key: Option<SourceKey>,
-    pub source_id: Option<String>,
     pub object_id: String,
     pub name: String,
     pub writable: bool,
@@ -73,10 +71,14 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Option<PlaylistAccess>> {
         let mut connection = self.acquire_general(cancellation).await?;
-        Ok(sqlx::query_as("SELECT playlist.source_key,source.object_id source_id,playlist.object_id,
+        Ok(sqlx::query_as(
+            "SELECT playlist.source_key,playlist.object_id,
             playlist.writable,playlist.metadata_writable
-            FROM playlists playlist LEFT JOIN sources source USING(source_key) WHERE playlist_key=?1")
-            .bind(playlist).fetch_optional(&mut *connection).await?)
+            FROM playlists playlist WHERE playlist_key=?1",
+        )
+        .bind(playlist)
+        .fetch_optional(&mut *connection)
+        .await?)
     }
 
     pub async fn playlist_key_by_object(
@@ -97,17 +99,14 @@ impl Database {
 
     pub async fn playlist_key_by_identity(
         &self,
-        source_id: Option<&crate::SourceId>,
         object_id: &str,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Option<PlaylistKey>> {
         let mut connection = self.acquire_general(cancellation).await?;
         Ok(sqlx::query_scalar(
             "SELECT playlist_key FROM playlists
-             WHERE source_key IS (SELECT source_key FROM sources WHERE object_id=?1)
-               AND (?1 IS NULL OR source_key IS NOT NULL) AND object_id=?2 AND name IS NOT NULL",
+             WHERE source_key IS NOT NULL AND object_id=?1 AND name IS NOT NULL",
         )
-        .bind(source_id.map(crate::SourceId::as_str))
         .bind(object_id)
         .fetch_optional(&mut *connection)
         .await?)
@@ -208,14 +207,13 @@ impl Database {
 
     pub async fn source_playlist_track_ids(
         &self,
-        source: SourceKey,
         playlist: Option<PlaylistKey>,
         songs: &MemberSelection,
         skip_existing: bool,
     ) -> LibraryResult<Vec<String>> {
         let mut connection = self.acquire_reader().await?;
         let mut transaction = connection.begin().await?;
-        let tracks = playlist_tracks_on(&mut transaction, source, songs)
+        let tracks = playlist_tracks_on(&mut transaction, songs)
             .await?
             .ok_or_else(|| {
                 LibraryError::InvalidRequest("Playlist Track is no longer current".into())
@@ -232,7 +230,6 @@ impl Database {
 
 async fn playlist_tracks_on(
     connection: &mut SqliteConnection,
-    source: SourceKey,
     selection: &MemberSelection,
 ) -> LibraryResult<Option<Vec<TrackKey>>> {
     let mut pending = vec![selection];
@@ -259,12 +256,6 @@ async fn playlist_tracks_on(
                     .map(|(track, _)| track),
             ),
         }
-    }
-    if sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM json_each(?1) requested JOIN tracks ON tracks.track_key=requested.value WHERE tracks.source_key IS NOT ?2)")
-            .bind(serde_json::to_string(&tracks)?).bind(source).fetch_one(&mut *connection).await?
-    {
-        let id: String = sqlx::query_scalar("SELECT object_id FROM sources WHERE source_key=?1").bind(source).fetch_one(&mut *connection).await?;
-        return Err(LibraryError::PlaylistSourceMismatch(crate::SourceId::new(id)));
     }
     Ok(Some(tracks))
 }
@@ -348,7 +339,7 @@ impl Database {
     ) -> LibraryResult<Vec<PlaylistRow>> {
         let sql = format!(
             "WITH requested AS ({})
-         SELECT playlist.playlist_key,playlist.source_key,source.object_id source_id,
+         SELECT playlist.playlist_key,playlist.source_key,
                 playlist.object_id,
                 playlist.name,playlist.writable,playlist.metadata_writable,{} artwork_binding,
                 COALESCE(totals.track_count,0) track_count,COALESCE(totals.duration_millis,0) duration_millis,COALESCE(totals.downloaded_count,0) downloaded_count,
@@ -358,7 +349,7 @@ impl Database {
                     ORDER BY relation.track_count DESC,genre.sort_text,genre.genre_key LIMIT 2
                 )) genres
          FROM requested JOIN playlists playlist ON playlist.playlist_key=requested.value
-         {} LEFT JOIN sources source USING(source_key)
+         {}
          WHERE playlist.name IS NOT NULL ORDER BY requested.ordinal",
             requested.sql,
             crate::artwork::preview_sql("playlist.artwork_binding"),
@@ -373,8 +364,8 @@ impl Database {
         for row in &mut rows {
             row.artwork_binding = Some(crate::artwork::playlist_artwork(
                 row.artwork_binding.take(),
-                (row.source_id.clone(), row.object_id.clone()),
-                (None, None),
+                row.object_id.clone(),
+                None,
             )?);
         }
         Ok(rows)

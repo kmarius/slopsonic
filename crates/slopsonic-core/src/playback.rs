@@ -46,7 +46,7 @@ pub struct PlaybackOwner {
     pending_queue: Mutex<Option<QueueUpdate>>,
     equalizer: Mutex<equalizer::EqualizerState>,
     store_sender: async_channel::Sender<PlaybackStoreWork>,
-    report_sender: async_channel::Sender<(sources::SourceId, playback::SourceReportFact)>,
+    report_sender: async_channel::Sender<playback::SourceReportFact>,
     monotonic_origin: Instant,
     start_backend: Box<
         dyn Fn(
@@ -148,7 +148,7 @@ impl PlaybackOwner {
         });
         let weak = Arc::downgrade(&owner);
         owner.runtime.spawn(async move {
-            while let Ok((_, report)) = report_receiver.recv().await {
+            while let Ok(report) = report_receiver.recv().await {
                 let Some(owner) = weak.upgrade() else { break };
                 let source = owner.source_owner();
                 if let Ok(Some(source)) =
@@ -309,10 +309,8 @@ impl PlaybackOwner {
     }
 
     fn report_source(&self, report: playback::SourceReportFact) {
-        if let Some((source_id, kind, _)) = library::source_entity_parts(&report.media_uri)
-            && kind == "track"
-        {
-            let _ = self.report_sender.try_send((source_id, report));
+        if library::entity_parts(&report.media_uri).is_some_and(|(kind, _)| kind == "track") {
+            let _ = self.report_sender.try_send(report);
         }
     }
 
@@ -375,7 +373,7 @@ impl PlaybackOwner {
         self.runtime.spawn(async move {
             let loudness =
                 cached_loudness(&database, &occurrence.track.media_uri, normalization).await;
-            let result = prepare_stream(&database, request, move |_| async move {
+            let result = prepare_stream(&database, request, move || async move {
                 tokio::task::spawn_blocking(move || {
                     source_owner
                         .ok_or_else(crate::source::source_access_unavailable)?
@@ -739,7 +737,7 @@ impl PlaybackOwner {
 pub(crate) async fn prepare_stream<F>(
     database: &Database,
     request: StreamRequest,
-    source: impl FnOnce(sources::SourceId) -> F + Send,
+    source: impl FnOnce() -> F + Send,
 ) -> Result<audio_processing::ResolvedStream, playback::BackendFailure>
 where
     F: std::future::Future<Output = Result<Arc<sources::Source>, String>> + Send,
@@ -769,12 +767,12 @@ where
     if let Some(uri) = access {
         return Ok(audio_processing::ResolvedStream::new(uri).with_content_type(content_type));
     }
-    let (source_id, kind, _) = library::source_entity_parts(&request.media_uri)
+    let (kind, _) = library::entity_parts(&request.media_uri)
         .ok_or_else(crate::source::source_access_unavailable)?;
     if kind != "track" {
         return Err(crate::source::source_access_unavailable().into());
     }
-    let source = source(source_id).await?;
+    let source = source().await?;
     source.stream(request).await.map_err(|error| match error {
         sources::SourceError::NotFound => {
             let kind = playback::FailureKind::UnavailableMedia;
@@ -889,11 +887,7 @@ mod tests {
 
     fn test_media(source_format: &str) -> playback::TrackReference {
         playback::TrackReference {
-            media_uri: library::source_entity_uri(
-                &library::SourceId::new("source"),
-                "track",
-                "track",
-            ),
+            media_uri: library::entity_uri("track", "track"),
             artwork_binding: None,
             metadata: library::TrackMetadata {
                 audio_properties: Default::default(),
@@ -927,7 +921,6 @@ mod tests {
                 library::TrackView {
                     track_key: library::TrackKey::from_raw(1),
                     source_key: None,
-                    source_id: None,
                     object_id: None,
                     media_uri: reference.media_uri,
                     metadata: reference.metadata,
@@ -1007,7 +1000,7 @@ mod tests {
                 occurrence.track.media_uri.clone(),
                 playback::StreamQuality::Original,
             ),
-            |_| async { panic!("a completed download must resolve without contacting its source") },
+            || async { panic!("a completed download must resolve without contacting its source") },
         )
         .await
         .unwrap();

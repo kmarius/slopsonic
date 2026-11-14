@@ -75,7 +75,7 @@ pub async fn media_details(
             || LibraryError::InvalidRequest("Item is no longer available".to_string());
         let mut origin = section("Source");
         let mut ids = section("MusicBrainz");
-        let (mut details, source_id, object_id, state) = match &item {
+        let (mut details, server, object_id, state) = match &item {
             MediaDetailsItem::Track(uri) => {
                 let track = db.track(uri, &cancel).await?.ok_or_else(unavailable)?;
                 let mut details = MediaDetails {
@@ -245,7 +245,12 @@ pub async fn media_details(
                     "artist",
                     track.metadata.primary_artist_musicbrainz_id.clone(),
                 );
-                (details, track.source_id, track.object_id, track.state)
+                (
+                    details,
+                    track.source_key.is_some(),
+                    track.object_id,
+                    track.state,
+                )
             }
             MediaDetailsItem::Album(uri) => {
                 let album = db
@@ -309,7 +314,7 @@ pub async fn media_details(
                 };
                 (
                     details,
-                    library::source_entity_parts(uri).map(|(id, _, _)| id.to_string()),
+                    library::entity_parts(uri).is_some(),
                     Some(album.object_id),
                     album.state,
                 )
@@ -342,16 +347,14 @@ pub async fn media_details(
                 };
                 (
                     details,
-                    library::source_entity_parts(uri).map(|(id, _, _)| id.to_string()),
+                    library::entity_parts(uri).is_some(),
                     Some(artist.object_id),
                     artist.state,
                 )
             }
         };
         let settings = source.shared.settings.load();
-        if let Some(configured) = settings.sources.connections().find(|configured| {
-            Some(configured.configuration.source_id.as_str()) == source_id.as_deref()
-        }) {
+        if let Some(configured) = settings.sources.configured.as_ref().filter(|_| server) {
             if origin.fields.is_empty() {
                 add(
                     &mut origin,

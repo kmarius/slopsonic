@@ -42,16 +42,15 @@ pub async fn create_playlist(
     run(owner, move |owner| async move {
         let database = &owner.shared.database;
         let source = owner.client()?;
-        let source_id = source.source_id().clone();
         let key = database
-            .cached_source(source_id.as_str(), &ReadCancellation::new())
+            .cached_source(&ReadCancellation::new())
             .await
             .map_err(string_error)?
             .ok_or("Source access is unavailable")?
             .source;
         let (playlist, object_id) = {
             let tracks = database
-                .source_playlist_track_ids(key, None, &songs, false)
+                .source_playlist_track_ids(None, &songs, false)
                 .await
                 .map_err(string_error)?;
             let first = &tracks[..tracks.len().min(256)];
@@ -82,13 +81,10 @@ pub async fn create_playlist(
         let settings = owner.shared.settings.clone();
         let settings_error = tokio::task::spawn_blocking(move || {
             settings.update(|stored| {
-                stored.ui.sidebar.set_pinned(
-                    crate::settings::SidebarPin::Playlist {
-                        source_id: Some(source_id),
-                        playlist_id,
-                    },
-                    true,
-                );
+                stored
+                    .ui
+                    .sidebar
+                    .set_pinned(crate::settings::SidebarPin::Playlist { playlist_id }, true);
                 if let Some(current) = current {
                     stored.ui.application.new_playlist_current = current;
                 }
@@ -145,8 +141,7 @@ pub fn playlist_artwork_editing(
             .ok_or("Playlist no longer exists")?;
         let writable = row.metadata_writable
             && row
-                .source_id
-                .as_ref()
+                .source_key
                 .map(|_| owner.client())
                 .transpose()?
                 .is_some_and(|source| source.supports_playlist_artwork());
@@ -307,10 +302,7 @@ pub(crate) async fn update_playlist_on(
         {
             Ok(Ok(true)) => {
                 owner
-                    .artwork_invalidated(
-                        source.source_id(),
-                        CatalogChange::Playlists(Some(playlist)),
-                    )
+                    .artwork_invalidated(CatalogChange::Playlists(Some(playlist)))
                     .await;
             }
             Ok(Ok(false)) => {}
@@ -354,17 +346,12 @@ pub async fn add_playlist_tracks(
     let (sender, receiver) = async_channel::bounded(1);
     owner.spawn_serialized(move |owner| async move {
         let result = match playlist_source(&owner, playlist, Some(true)).await {
-            Ok((source, source_key, id)) => {
+            Ok((source, _, id)) => {
                 async {
                     let tracks = owner
                         .shared
                         .database
-                        .source_playlist_track_ids(
-                            source_key,
-                            Some(playlist),
-                            &songs,
-                            skip_duplicates,
-                        )
+                        .source_playlist_track_ids(Some(playlist), &songs, skip_duplicates)
                         .await?;
                     append_native_tracks(&source, &id, &tracks).await?;
                     if !tracks.is_empty() {
@@ -516,7 +503,6 @@ async fn playlist_source(
         return Err("The server does not allow this playlist change".into());
     }
     let key = access.source_key.ok_or("Playlist owner is unavailable")?;
-    access.source_id.ok_or("Playlist owner is unavailable")?;
     Ok((owner.client()?, key, access.object_id))
 }
 

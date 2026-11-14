@@ -12,7 +12,6 @@ const ARTWORK_PAGE_LIMIT: usize = 128;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PlaylistArtworkManifest {
-    pub source_id: Option<String>,
     pub folder_id: Option<String>,
     pub chosen: Vec<String>,
     pub pending: bool,
@@ -22,12 +21,10 @@ pub struct PlaylistArtworkManifest {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ArtworkImage {
     Native {
-        source_id: crate::SourceId,
         item_id: String,
         tag: Option<String>,
     },
     Playlist {
-        source_id: Option<String>,
         object_id: String,
         revision: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -63,10 +60,8 @@ impl ArtworkCandidate {
             blur_hash,
         };
         let directory = match &candidate.image {
-            ArtworkImage::Native { source_id, .. } => {
-                format!("native/{:x}", Md5::digest(source_id.as_str()))
-            }
-            ArtworkImage::Playlist { .. } => "playlists".into(),
+            ArtworkImage::Native { .. } => "native",
+            ArtworkImage::Playlist { .. } => "playlists",
         };
         candidate.key = format!("{directory}/{:x}", Md5::digest(candidate.stable_identity()));
         candidate
@@ -74,41 +69,25 @@ impl ArtworkCandidate {
 
     pub fn asset_identity(&self) -> String {
         match &self.image {
-            ArtworkImage::Native {
-                source_id, item_id, ..
-            } => format!("native\0{source_id}\0{item_id}"),
-            ArtworkImage::Playlist {
-                source_id,
-                object_id,
-                ..
-            } => format!(
-                "playlist\0{}\0{object_id}",
-                source_id.as_deref().unwrap_or_default()
-            ),
+            ArtworkImage::Native { item_id, .. } => format!("native\0{item_id}"),
+            ArtworkImage::Playlist { object_id, .. } => format!("playlist\0{object_id}"),
         }
     }
 
     pub fn stable_identity(&self) -> String {
         match &self.image {
-            ArtworkImage::Native {
-                source_id,
-                item_id,
-                tag,
-            } => format!(
-                "native\0{source_id}\0{item_id}\0{}",
-                tag.as_deref().unwrap_or_default()
-            ),
+            ArtworkImage::Native { item_id, tag } => {
+                format!("native\0{item_id}\0{}", tag.as_deref().unwrap_or_default())
+            }
             ArtworkImage::Playlist { revision, .. } => {
                 format!("{}\0{revision}", self.asset_identity())
             }
         }
     }
 
-    pub fn source_id(&self) -> Option<&crate::SourceId> {
-        match &self.image {
-            ArtworkImage::Native { source_id, .. } => Some(source_id),
-            ArtworkImage::Playlist { .. } => None,
-        }
+    /// Whether the image comes from the server rather than being generated locally.
+    pub fn is_native(&self) -> bool {
+        matches!(self.image, ArtworkImage::Native { .. })
     }
     pub fn blur_hash(&self) -> Option<&str> {
         self.blur_hash.as_deref()
@@ -163,7 +142,6 @@ pub fn normalize_artwork_binding(bytes: &[u8]) -> LibraryResult<Vec<u8>> {
     } else if value["kind"] == "playlist" {
         candidates.push(ArtworkCandidate::new(
             ArtworkImage::Playlist {
-                source_id: text("source_id"),
                 object_id: text("object_id").unwrap_or_default(),
                 revision: text("revision").unwrap_or_default(),
                 automatic: None,
@@ -174,7 +152,6 @@ pub fn normalize_artwork_binding(bytes: &[u8]) -> LibraryResult<Vec<u8>> {
     } else if let Some(image) = value.get("image") {
         candidates.push(ArtworkCandidate::new(
             ArtworkImage::Native {
-                source_id: crate::SourceId::new(text("source_id").unwrap_or_default()),
                 item_id: image["item_id"].as_str().unwrap_or_default().into(),
                 tag: image["tag"].as_str().map(str::to_owned),
             },
@@ -277,8 +254,8 @@ pub(crate) async fn refresh_mosaics(
 
 pub(crate) fn playlist_artwork(
     binding: Option<Vec<u8>>,
-    owner: (Option<String>, String),
-    context: (Option<String>, Option<String>),
+    object_id: String,
+    folder_id: Option<String>,
 ) -> LibraryResult<Vec<u8>> {
     let mut candidates: Vec<ArtworkCandidate> = binding
         .as_deref()
@@ -289,14 +266,11 @@ pub(crate) fn playlist_artwork(
         .iter()
         .any(ArtworkCandidate::is_automatic_playlist)
     {
-        let (source_id, folder_id) = context;
         candidates.push(ArtworkCandidate::new(
             ArtworkImage::Playlist {
-                source_id: owner.0,
-                object_id: owner.1,
+                object_id,
                 revision: "auto".into(),
                 automatic: Some(PlaylistArtworkManifest {
-                    source_id,
                     folder_id,
                     chosen: Vec::new(),
                     pending: true,
@@ -572,28 +546,19 @@ impl Database {
         &self,
         candidate: ArtworkCandidate,
     ) -> LibraryResult<Option<ArtworkCandidate>> {
-        let ArtworkImage::Playlist {
-            source_id,
-            object_id,
-            ..
-        } = &candidate.image
-        else {
+        let ArtworkImage::Playlist { object_id, .. } = &candidate.image else {
             return Ok(None);
         };
-        let source_id = source_id.clone();
         let object_id = object_id.clone();
         let table = "playlists";
-        let from = "playlists owner LEFT JOIN sources source USING(source_key)";
-        let scope = "source.object_id IS ?2";
         let automatic = "json_extract(value,'$.image.automatic') IS NOT NULL";
         let select = format!(
-            "SELECT owner.rowid,(SELECT value FROM json_each(owner.artwork_binding) WHERE {automatic} LIMIT 1) FROM {from} WHERE owner.object_id=?1 AND {scope}"
+            "SELECT owner.rowid,(SELECT value FROM json_each(owner.artwork_binding) WHERE {automatic} LIMIT 1) FROM playlists owner WHERE owner.object_id=?1"
         );
         let mut connection = self.acquire_reader().await?;
         let Some((key, previous)) =
             sqlx::query_as::<_, (i64, Option<String>)>(sqlx::AssertSqlSafe(select))
                 .bind(&object_id)
-                .bind(&source_id)
                 .fetch_optional(&mut *connection)
                 .await?
         else {

@@ -847,12 +847,9 @@ mod tests {
         let database = Database::open(directory.path().join("library.sqlite3"))
             .await
             .expect("open Database");
+        database.reconcile_source("server", "Source").await.unwrap();
         database
-            .reconcile_source(&library::SourceId::new("source"), "server", "Source")
-            .await
-            .unwrap();
-        database
-            .catalog("source", None)
+            .catalog(None)
             .await
             .unwrap()
             .apply_catalog(
@@ -880,11 +877,7 @@ mod tests {
             )
             .await
             .unwrap();
-        let source = database
-            .source_identity_key(&library::SourceId::new("source"))
-            .await
-            .unwrap()
-            .unwrap();
+        let source = database.source_identity_key().await.unwrap().unwrap();
         let cancellation = ReadCancellation::new();
         let track_uri = database
             .selected_track_uris(

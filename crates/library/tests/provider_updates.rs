@@ -52,16 +52,10 @@ async fn fixture() -> (tempfile::TempDir, Database) {
         .unwrap();
 
     let mut scan_catalog = async {
-        if (&database)
-            .source_identity_key(&library::SourceId::new("source"))
-            .await?
-            .is_none()
-        {
-            (&database)
-                .reconcile_source(&library::SourceId::new("source"), "subsonic", "Source")
-                .await?;
+        if (&database).source_identity_key().await?.is_none() {
+            (&database).reconcile_source("subsonic", "Source").await?;
         }
-        database.catalog("source", None).await
+        database.catalog(None).await
     }
     .await
     .unwrap();
@@ -151,7 +145,7 @@ async fn fixture() -> (tempfile::TempDir, Database) {
 
             scan_catalog.into_changes()
         };
-        (&database).publish_catalog_update("source", update).await;
+        (&database).publish_catalog_update(update).await;
     };
     (directory, database)
 }
@@ -160,8 +154,8 @@ async fn fixture() -> (tempfile::TempDir, Database) {
 async fn favorite_and_play_count_changes_do_not_report_new_tracks() {
     let (directory, database) = fixture().await;
     let mut raw = super::support::connection(&directory.path().join("library.sqlite3")).await;
-    sqlx::query("INSERT INTO tracks(source_key,object_id,media_uri,indexed,metadata,normalized_search) SELECT source_key,'unknown',?1,0,jsonb(json_object()),lower(COALESCE(json_extract(jsonb(json_object()),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object()),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object()),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object()),'$.comment'),'')) FROM sources WHERE object_id='source'")
-        .bind(library::source_entity_uri(&library::SourceId::new("source"), "track", "unknown"))
+    sqlx::query("INSERT INTO tracks(source_key,object_id,media_uri,indexed,metadata,normalized_search) SELECT source_key,'unknown',?1,0,jsonb(json_object()),lower(COALESCE(json_extract(jsonb(json_object()),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object()),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object()),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object()),'$.comment'),'')) FROM sources")
+        .bind(library::entity_uri("track", "unknown"))
         .execute(&mut raw).await.unwrap();
     for (favorite, plays, metadata, activity) in [
         (true, 1, true, true),
@@ -169,7 +163,7 @@ async fn favorite_and_play_count_changes_do_not_report_new_tracks() {
         (true, 2, false, true),
         (false, 2, true, false),
     ] {
-        let mut scan_catalog = database.catalog("source", None).await.unwrap();
+        let mut scan_catalog = database.catalog(None).await.unwrap();
         {
             for (kind, id, state) in &[
                 (
@@ -240,7 +234,7 @@ async fn favorite_and_play_count_changes_do_not_report_new_tracks() {
         });
         {
             let update = scan_catalog.into_changes();
-            (&database).publish_catalog_update("source", update).await;
+            (&database).publish_catalog_update(update).await;
         };
         let publication = updates
             .try_recv()
@@ -259,7 +253,7 @@ async fn point_metadata_preserves_folders_and_complete_memberships_can_clear_the
     let (directory, database) = fixture().await;
     let mut raw = super::support::connection(&directory.path().join("library.sqlite3")).await;
     for replace in [false, true] {
-        let mut scan_catalog = database.catalog("source", None).await.unwrap();
+        let mut scan_catalog = database.catalog(None).await.unwrap();
         track(&mut scan_catalog, None, None).await;
         if replace {
             {
@@ -283,7 +277,7 @@ async fn point_metadata_preserves_folders_and_complete_memberships_can_clear_the
         });
         {
             let update = scan_catalog.into_changes();
-            (&database).publish_catalog_update("source", update).await;
+            (&database).publish_catalog_update(update).await;
         };
         let outcome = updates
             .try_recv()
@@ -308,13 +302,13 @@ async fn favorite_snapshots_replace_only_source_favorites_and_keep_catalog_fresh
     let (directory, database) = fixture().await;
     let path = directory.path().join("library.sqlite3");
     let mut raw = super::support::connection(&path).await;
-    let uri = library::source_entity_uri(&library::SourceId::new("source"), "track", "track");
+    let uri = library::entity_uri("track", "track");
     database
         .queue_remote_favorite(&library::FavoriteTarget::Track(uri.clone()), true, 0)
         .await
         .unwrap();
     for (favorite, changed) in [(false, true), (false, false), (true, true)] {
-        let mut scan_catalog = database.catalog("source", None).await.unwrap();
+        let mut scan_catalog = database.catalog(None).await.unwrap();
         let ids = |id: &str| {
             if favorite {
                 vec![id.to_string()]
@@ -347,7 +341,7 @@ async fn favorite_snapshots_replace_only_source_favorites_and_keep_catalog_fresh
         });
         {
             let update = scan_catalog.into_changes();
-            (&database).publish_catalog_update("source", update).await;
+            (&database).publish_catalog_update(update).await;
         };
         let outcome = updates
             .try_recv()
@@ -366,7 +360,6 @@ async fn favorite_snapshots_replace_only_source_favorites_and_keep_catalog_fresh
         assert!(
             (&database)
                 .accept_freshness(
-                    "source",
                     &Freshness::new(b"catalog".to_vec()).unwrap(),
                     &ReadCancellation::new()
                 )
@@ -395,7 +388,7 @@ async fn home_sections_refresh_and_clear_without_replacing_their_entities() {
         (true, Some("Popular"), true),
         (false, None, true),
     ] {
-        let mut scan_catalog = database.catalog("source", None).await.unwrap();
+        let mut scan_catalog = database.catalog(None).await.unwrap();
         let entries = if populated {
             vec![library::HomeEntryInput {
                 position: 0,
@@ -433,7 +426,7 @@ async fn home_sections_refresh_and_clear_without_replacing_their_entities() {
         });
         {
             let update = scan_catalog.into_changes();
-            (&database).publish_catalog_update("source", update).await;
+            (&database).publish_catalog_update(update).await;
         };
         let update = updates
             .try_recv()
@@ -461,7 +454,6 @@ async fn home_sections_refresh_and_clear_without_replacing_their_entities() {
         assert!(
             (&database)
                 .accept_freshness(
-                    "source",
                     &Freshness::new(b"catalog".to_vec()).unwrap(),
                     &ReadCancellation::new()
                 )
@@ -475,7 +467,7 @@ async fn home_sections_refresh_and_clear_without_replacing_their_entities() {
 async fn incomplete_catalog_keeps_home_sections_when_their_refresh_fails() {
     let (directory, database) = fixture().await;
 
-    let mut scan_catalog = database.catalog("source", None).await.unwrap();
+    let mut scan_catalog = database.catalog(None).await.unwrap();
     scan_catalog
         .replace_source_home_section(
             "most-played",
@@ -492,20 +484,14 @@ async fn incomplete_catalog_keeps_home_sections_when_their_refresh_fails() {
         .unwrap();
     {
         let update = scan_catalog.into_changes();
-        (&database).publish_catalog_update("source", update).await;
+        (&database).publish_catalog_update(update).await;
     };
 
     let mut scan_catalog = async {
-        if (&database)
-            .source_identity_key(&library::SourceId::new("source"))
-            .await?
-            .is_none()
-        {
-            (&database)
-                .reconcile_source(&library::SourceId::new("source"), "subsonic", "Source")
-                .await?;
+        if (&database).source_identity_key().await?.is_none() {
+            (&database).reconcile_source("subsonic", "Source").await?;
         }
-        database.catalog("source", None).await
+        database.catalog(None).await
     }
     .await
     .unwrap();
@@ -549,7 +535,7 @@ async fn incomplete_catalog_keeps_home_sections_when_their_refresh_fails() {
 
     {
         let update = scan_catalog.into_changes();
-        (&database).publish_catalog_update("source", update).await;
+        (&database).publish_catalog_update(update).await;
     };
     let mut raw = super::support::connection(&directory.path().join("library.sqlite3")).await;
     assert_eq!(
@@ -577,7 +563,7 @@ async fn growing_and_reordering_a_playlist_preserves_occurrence_keys() {
         &["b", "a"][..],
         &[][..],
     ] {
-        let mut scan_catalog = database.catalog("source", None).await.unwrap();
+        let mut scan_catalog = database.catalog(None).await.unwrap();
         {
             let write = library::CatalogBatch {
                 playlists: vec![library::PlaylistObservation {
@@ -609,7 +595,7 @@ async fn growing_and_reordering_a_playlist_preserves_occurrence_keys() {
         });
         {
             let update = scan_catalog.into_changes();
-            (&database).publish_catalog_update("source", update).await;
+            (&database).publish_catalog_update(update).await;
         };
         let update = updates.try_recv().unwrap();
         assert!(update.playlists && !update.metadata && !update.home);
@@ -637,7 +623,7 @@ async fn unchanged_point_reads_do_not_rewrite_tracks_or_albums() {
         CREATE TRIGGER no_album_rewrite BEFORE UPDATE OF metadata,native_artwork ON albums BEGIN SELECT RAISE(FAIL,'unchanged album rewritten'); END;")
         .execute(&mut raw).await.unwrap();
 
-    let mut scan_catalog = database.catalog("source", None).await.unwrap();
+    let mut scan_catalog = database.catalog(None).await.unwrap();
     track(&mut scan_catalog, None, None).await;
     let (updates_tx, mut updates) = tokio::sync::mpsc::unbounded_channel();
     database.observe_catalog(move |_, update| {
@@ -646,7 +632,7 @@ async fn unchanged_point_reads_do_not_rewrite_tracks_or_albums() {
     });
     {
         let update = scan_catalog.into_changes();
-        (&database).publish_catalog_update("source", update).await;
+        (&database).publish_catalog_update(update).await;
     };
     let update = updates
         .try_recv()
@@ -662,7 +648,7 @@ async fn unchanged_point_reads_do_not_rewrite_tracks_or_albums() {
 async fn first_activity_observation_publishes_without_invalidating_catalog_freshness() {
     let (_directory, database) = fixture().await;
     for changed in [true, false] {
-        let mut scan_catalog = database.catalog("source", None).await.unwrap();
+        let mut scan_catalog = database.catalog(None).await.unwrap();
         track(&mut scan_catalog, None, Some(5)).await;
         let (updates_tx, mut updates) = tokio::sync::mpsc::unbounded_channel();
         database.observe_catalog(move |_, update| {
@@ -671,7 +657,7 @@ async fn first_activity_observation_publishes_without_invalidating_catalog_fresh
         });
         {
             let update = scan_catalog.into_changes();
-            (&database).publish_catalog_update("source", update).await;
+            (&database).publish_catalog_update(update).await;
         };
         let update = updates
             .try_recv()
@@ -683,7 +669,7 @@ async fn first_activity_observation_publishes_without_invalidating_catalog_fresh
         assert!(!update.metadata);
         assert_eq!(update.activity, changed);
         let cancellation = ReadCancellation::new();
-        let uri = library::source_entity_uri(&library::SourceId::new("source"), "track", "track");
+        let uri = library::entity_uri("track", "track");
         assert_eq!(
             database
                 .tracks_by_uris(&([(&uri).to_string()]), &cancellation)
@@ -700,11 +686,7 @@ async fn first_activity_observation_publishes_without_invalidating_catalog_fresh
         );
         assert!(
             (&database)
-                .accept_freshness(
-                    "source",
-                    &Freshness::new(b"catalog".to_vec()).unwrap(),
-                    &cancellation
-                )
+                .accept_freshness(&Freshness::new(b"catalog".to_vec()).unwrap(), &cancellation)
                 .await
                 .unwrap()
         );
@@ -716,11 +698,11 @@ async fn absent_favorites_preserve_known_state_and_explicit_false_clears_it() {
     let (directory, database) = fixture().await;
     let mut raw = super::support::connection(&directory.path().join("library.sqlite3")).await;
     for (favorite, expected) in [(None, true), (Some(false), false), (None, false)] {
-        let mut scan_catalog = database.catalog("source", None).await.unwrap();
+        let mut scan_catalog = database.catalog(None).await.unwrap();
         track(&mut scan_catalog, favorite, None).await;
         {
             let update = scan_catalog.into_changes();
-            (&database).publish_catalog_update("source", update).await;
+            (&database).publish_catalog_update(update).await;
         };
         assert_eq!(
             sqlx::query_scalar::<_, bool>("SELECT COALESCE((SELECT favorite FROM native_media_state WHERE media_uri=tracks.media_uri),0) FROM tracks")

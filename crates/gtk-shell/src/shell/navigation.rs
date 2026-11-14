@@ -528,16 +528,14 @@ impl SidebarPinItem {
     fn route(&self) -> Route {
         let key = self.0.key;
         match &self.0.pin {
-            SidebarPin::Album {
-                source_id,
-                album_id,
-            } => Route::AlbumDetail(library::source_entity_uri(source_id, "album", album_id)),
+            SidebarPin::Album { album_id } => {
+                Route::AlbumDetail(library::entity_uri("album", album_id))
+            }
             SidebarPin::Artist {
-                source_id,
                 artist_id,
                 album_artist,
             } => gtk_library::artist_detail_route(
-                library::source_entity_uri(source_id, "artist", artist_id),
+                library::entity_uri("artist", artist_id),
                 *album_artist,
             ),
             SidebarPin::Genre { .. } => Route::GenreDetail(library::GenreKey::from_raw(key)),
@@ -590,15 +588,8 @@ impl SidebarPinItem {
         let task = shell.products.runtime.spawn(async move {
             let cancel = library::ReadCancellation::new();
             Ok::<_, library::LibraryError>(match pin {
-                SidebarPin::Album {
-                    source_id,
-                    album_id,
-                } => database
-                    .album(
-                        &library::source_entity_uri(&source_id, "album", &album_id),
-                        false,
-                        &cancel,
-                    )
+                SidebarPin::Album { album_id } => database
+                    .album(&library::entity_uri("album", &album_id), false, &cancel)
                     .await?
                     .map(|row| {
                         Box::new(move |target: &gtk::Widget, shell: &Rc<Shell>| {
@@ -613,12 +604,11 @@ impl SidebarPinItem {
                         }) as PinMenu
                     }),
                 SidebarPin::Artist {
-                    source_id,
                     artist_id,
                     album_artist,
                 } => database
                     .artist(
-                        &library::source_entity_uri(&source_id, "artist", &artist_id),
+                        &library::entity_uri("artist", &artist_id),
                         album_artist,
                         false,
                         &cancel,
@@ -636,15 +626,8 @@ impl SidebarPinItem {
                             )
                         }) as PinMenu
                     }),
-                SidebarPin::Genre {
-                    source_id,
-                    genre_id,
-                } => database
-                    .genre(
-                        &library::source_entity_uri(&source_id, "genre", &genre_id),
-                        None,
-                        &cancel,
-                    )
+                SidebarPin::Genre { genre_id } => database
+                    .genre(&library::entity_uri("genre", &genre_id), None, &cancel)
                     .await?
                     .map(|row| {
                         Box::new(move |target: &gtk::Widget, shell: &Rc<Shell>| {
@@ -1383,55 +1366,33 @@ fn drag_edge_scroll_step(y: f64, height: f64) -> f64 {
 }
 
 fn sidebar_pin_drag_variant(pin: &SidebarPin) -> glib::Variant {
-    let (kind, source_id, object_id, album_artist) = match pin {
-        SidebarPin::Album {
-            source_id,
-            album_id,
-        } => (0_u8, Some(source_id), album_id, false),
+    let (kind, object_id, album_artist) = match pin {
+        SidebarPin::Album { album_id } => (0_u8, album_id, false),
         SidebarPin::Artist {
-            source_id,
             artist_id,
             album_artist,
-        } => (1, Some(source_id), artist_id, *album_artist),
-        SidebarPin::Genre {
-            source_id,
-            genre_id,
-        } => (2, Some(source_id), genre_id, false),
-        SidebarPin::Playlist {
-            source_id,
-            playlist_id,
-        } => (3, source_id.as_ref(), playlist_id, false),
+        } => (1, artist_id, *album_artist),
+        SidebarPin::Genre { genre_id } => (2, genre_id, false),
+        SidebarPin::Playlist { playlist_id } => (3, playlist_id, false),
     };
-    (
-        kind,
-        source_id.map(ToString::to_string),
-        object_id.clone(),
-        album_artist,
-    )
-        .to_variant()
+    (kind, object_id.clone(), album_artist).to_variant()
 }
 
 fn sidebar_pin_from_drag_value(value: &glib::Value) -> Option<SidebarPin> {
     let variant = value.get::<glib::Variant>().ok()?;
-    let (kind, source_id, object_id, album_artist) =
-        variant.get::<(u8, Option<String>, String, bool)>()?;
-    let source_id = source_id.map(sources::SourceId::new);
+    let (kind, object_id, album_artist) = variant.get::<(u8, String, bool)>()?;
     match kind {
         0 => Some(SidebarPin::Album {
-            source_id: source_id?,
             album_id: object_id,
         }),
         1 => Some(SidebarPin::Artist {
-            source_id: source_id?,
             artist_id: object_id,
             album_artist,
         }),
         2 => Some(SidebarPin::Genre {
-            source_id: source_id?,
             genre_id: object_id,
         }),
         3 => Some(SidebarPin::Playlist {
-            source_id,
             playlist_id: object_id,
         }),
         _ => None,

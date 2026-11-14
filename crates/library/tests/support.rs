@@ -74,11 +74,11 @@ pub async fn fixture() -> Fixture {
     let path = directory.path().join("library.sqlite3");
     let database = Database::open(&path).await.expect("open Library");
     let source = database
-        .reconcile_source(&library::SourceId::new("source"), "subsonic", "Source")
+        .reconcile_source("subsonic", "Source")
         .await
         .unwrap()
         .source;
-    let mut catalog = database.catalog("source", None).await.unwrap();
+    let mut catalog = database.catalog(None).await.unwrap();
     let observed = catalog.start_observation().await.unwrap();
     let mut batch = library::CatalogBatch::default();
     for (id, title, artist, sort, date) in [
@@ -257,9 +257,7 @@ pub async fn fixture() -> Fixture {
         .await
         .unwrap();
     let publication = catalog.into_changes();
-    database
-        .publish_catalog_update("source", publication.clone())
-        .await;
+    database.publish_catalog_update(publication.clone()).await;
     assert!(publication.metadata);
     let mut connection = connection(&path).await;
     let tracks =
@@ -366,7 +364,7 @@ pub async fn server_playlist(
     uris: &[String],
 ) -> (library::PlaylistKey, String) {
     let object_id = format!("playlist-{}", name.to_lowercase().replace(' ', "-"));
-    let mut catalog = database.catalog("source", None).await.unwrap();
+    let mut catalog = database.catalog(None).await.unwrap();
     catalog
         .apply_catalog(
             &library::CatalogBatch {
@@ -387,20 +385,16 @@ pub async fn server_playlist(
         .enumerate()
         .map(|(position, uri)| library::PlaylistEntryObservation {
             object_id: format!("entry-{position}"),
-            track_id: library::source_entity_parts(uri)
+            track_id: library::entity_parts(uri)
                 .expect("server playlist entries are source tracks")
-                .2,
+                .1,
         })
         .collect::<Vec<_>>();
     catalog
         .write_source_playlist_page(&object_id, 0, &entries, true)
         .await
         .unwrap();
-    let source = database
-        .source_identity_key(&library::SourceId::new("source"))
-        .await
-        .unwrap()
-        .unwrap();
+    let source = database.source_identity_key().await.unwrap().unwrap();
     let key = database
         .playlist_key_by_object(source, &object_id, &library::ReadCancellation::new())
         .await

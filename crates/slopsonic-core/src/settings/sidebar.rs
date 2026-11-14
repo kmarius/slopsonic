@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
-use sources::SourceId;
 
 fn default_true() -> bool {
     true
@@ -62,7 +61,7 @@ pub struct SidebarSettings {
     #[serde(default)]
     pub pins: Vec<SidebarPin>,
     #[serde(default)]
-    pub playlist_pin_imported_sources: Vec<SourceId>,
+    pub playlist_pins_imported: bool,
     #[serde(default = "default_true")]
     pub server_visible: bool,
 }
@@ -72,7 +71,7 @@ impl Default for SidebarSettings {
             route_items: default_sidebar_route_items(),
             pins_visible: true,
             pins: Vec::new(),
-            playlist_pin_imported_sources: Vec::new(),
+            playlist_pins_imported: false,
             server_visible: true,
         }
     }
@@ -183,9 +182,6 @@ impl SidebarSettings {
         self.route_items = sanitized;
         let mut seen = HashSet::new();
         self.pins.retain(|pin| seen.insert(pin.clone()));
-        let mut seen = HashSet::new();
-        self.playlist_pin_imported_sources
-            .retain(|source| seen.insert(source.clone()));
     }
 
     pub fn is_pinned(&self, pin: &SidebarPin) -> bool {
@@ -232,22 +228,15 @@ impl SidebarSettings {
     }
     pub fn import_playlist_pins_once(
         &mut self,
-        source_id: SourceId,
         playlist_ids: impl IntoIterator<Item = String>,
     ) -> bool {
-        if self.playlist_pin_imported_sources.contains(&source_id) {
+        if self.playlist_pins_imported {
             return false;
         }
         for playlist_id in playlist_ids {
-            self.set_pinned(
-                SidebarPin::Playlist {
-                    source_id: Some(source_id.clone()),
-                    playlist_id,
-                },
-                true,
-            );
+            self.set_pinned(SidebarPin::Playlist { playlist_id }, true);
         }
-        self.playlist_pin_imported_sources.push(source_id);
+        self.playlist_pins_imported = true;
         true
     }
 }
@@ -316,64 +305,20 @@ mod tests {
 
     fn pin(id: &str) -> SidebarPin {
         SidebarPin::Playlist {
-            source_id: Some(SourceId::new("test:source")),
             playlist_id: id.to_string(),
         }
     }
 
     #[test]
-    fn saved_pins_keep_cross_source_identity_and_global_order() {
-        let first = SidebarPin::Genre {
-            source_id: SourceId::new("first"),
-            genre_id: "rock".into(),
-        };
-        let second = SidebarPin::Genre {
-            source_id: SourceId::new("second"),
-            genre_id: "rock".into(),
-        };
-        let global = SidebarPin::Playlist {
-            source_id: None,
-            playlist_id: "mix".into(),
-        };
-        let mut saved = toml::Table::new();
-        saved.insert(
-            "pins".into(),
-            toml::Value::try_from([&first, &second, &global, &first]).unwrap(),
-        );
-        saved.insert(
-            "playlist_pin_imported_sources".into(),
-            toml::Value::try_from(["first", "second"]).unwrap(),
-        );
-        let mut settings: SidebarSettings = toml::Value::Table(saved).try_into().unwrap();
-        settings.sanitize();
-        assert_eq!(
-            settings.pins,
-            [first.clone(), second.clone(), global.clone()]
-        );
-        assert!(settings.reorder_pin(&second, &global, true));
-        assert_eq!(settings.pins, [first, global, second]);
-        let encoded = toml::Value::try_from(&settings).unwrap();
-        assert_eq!(
-            encoded["playlist_pin_imported_sources"],
-            toml::Value::try_from(["first", "second"]).unwrap()
-        );
-        assert_eq!(encoded.try_into::<SidebarSettings>().unwrap(), settings);
-    }
-
-    #[test]
-    fn playlist_import_appends_globally_once_and_preserves_unpinning() {
-        let first = SourceId::new("first");
-        let second = SourceId::new("second");
+    fn playlist_import_happens_once_and_preserves_unpinning() {
         let mut settings = SidebarSettings::default();
-        assert!(settings.import_playlist_pins_once(first.clone(), ["mix".into()]));
-        assert!(settings.import_playlist_pins_once(second.clone(), ["mix".into()]));
+        assert!(settings.import_playlist_pins_once(["mix".into(), "other".into()]));
         let removed = settings.pins[0].clone();
         let retained = settings.pins[1].clone();
         settings.set_pinned(removed, false);
         let mut restored: SidebarSettings =
             toml::from_str(&toml::to_string(&settings).unwrap()).unwrap();
-        assert!(!restored.import_playlist_pins_once(first, ["mix".into()]));
-        assert!(!restored.import_playlist_pins_once(second, ["mix".into()]));
+        assert!(!restored.import_playlist_pins_once(["mix".into()]));
         assert_eq!(restored.pins, [retained]);
     }
 

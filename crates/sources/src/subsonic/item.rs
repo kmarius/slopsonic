@@ -112,7 +112,6 @@ fn clean_optional(value: Option<String>) -> Option<String> {
 
 pub(super) fn album_from_json(
     source: &SubsonicSource,
-    source_id: &str,
     album: &Value,
 ) -> library::LibraryResult<Option<library::AlbumObservation>> {
     let Some(raw_id) = json::id(&album["id"]) else {
@@ -170,7 +169,7 @@ pub(super) fn album_from_json(
         object_id: source.id("album", &raw_id),
         artwork_binding: image_ref(source, json::id(&album["coverArt"]))
             .as_ref()
-            .map(|image| crate::native_artwork_binding(source_id, image))
+            .map(|image| crate::native_artwork_binding(image))
             .transpose()?,
         ..Default::default()
     }))
@@ -178,7 +177,6 @@ pub(super) fn album_from_json(
 
 pub(super) fn track_from_json(
     source: &SubsonicSource,
-    source_id: &str,
     song: &Value,
 ) -> library::LibraryResult<Option<library::TrackObservation>> {
     let Some(raw_id) = json::id(&song["id"]) else {
@@ -271,7 +269,7 @@ pub(super) fn track_from_json(
         audio_key,
         artwork_binding: image_ref(source, json::id(&song["coverArt"]))
             .as_ref()
-            .map(|image| crate::native_artwork_binding(source_id, image))
+            .map(|image| crate::native_artwork_binding(image))
             .transpose()?,
         source_path: path,
         ..Default::default()
@@ -314,7 +312,6 @@ pub(super) fn source_format_from_song(
 }
 pub(super) fn artist_from_json(
     source: &SubsonicSource,
-    source_id: &str,
     artist: &Value,
 ) -> library::LibraryResult<Option<library::ArtistObservation>> {
     let Some(raw_id) = json::id(&artist["id"]) else {
@@ -344,7 +341,7 @@ pub(super) fn artist_from_json(
         object_id: source.id("artist", &raw_id),
         artwork_binding: image_ref(source, json::id(&artist["coverArt"]))
             .as_ref()
-            .map(|image| crate::native_artwork_binding(source_id, image))
+            .map(|image| crate::native_artwork_binding(image))
             .transpose()?,
     }))
 }
@@ -389,7 +386,6 @@ pub(super) fn display_artist(item: &Value) -> String {
 
 pub(super) fn playlist_from_json(
     source: &SubsonicSource,
-    source_id: &str,
     playlist: &Value,
 ) -> library::LibraryResult<Option<Playlist>> {
     let Some(raw_id) = json::id(&playlist["id"]) else {
@@ -409,7 +405,7 @@ pub(super) fn playlist_from_json(
             name,
             artwork_binding: image_ref(source, json::id(&playlist["coverArt"]))
                 .as_ref()
-                .map(|image| crate::native_artwork_binding(source_id, image))
+                .map(|image| crate::native_artwork_binding(image))
                 .transpose()?,
             writable: Some(writable),
             metadata_writable: Some(metadata_writable),

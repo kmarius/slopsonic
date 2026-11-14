@@ -309,7 +309,7 @@ mod tests {
         assert_eq!(missing.text, "Unavailable album");
     }
     fn uri(kind: &str, id: i64) -> String {
-        library::source_entity_uri(&library::SourceId::new("source"), kind, &id.to_string())
+        library::entity_uri(kind, &id.to_string())
     }
 
     fn credit(id: i64, name: &str) -> TrackArtistLink {

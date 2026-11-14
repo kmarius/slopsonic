@@ -61,10 +61,7 @@ impl ReadCancellation {
     }
 }
 
-type CatalogObserver = dyn Fn(
-        Option<(crate::SourceId, crate::SourceKey)>,
-        crate::CatalogUpdate,
-    ) -> Pin<Box<dyn Future<Output = ()> + Send>>
+type CatalogObserver = dyn Fn(Option<crate::SourceKey>, crate::CatalogUpdate) -> Pin<Box<dyn Future<Output = ()> + Send>>
     + Send
     + Sync;
 
@@ -129,10 +126,7 @@ impl Database {
 
     pub fn observe_catalog<F, Work>(&self, observer: F)
     where
-        F: Fn(Option<(crate::SourceId, crate::SourceKey)>, crate::CatalogUpdate) -> Work
-            + Send
-            + Sync
-            + 'static,
+        F: Fn(Option<crate::SourceKey>, crate::CatalogUpdate) -> Work + Send + Sync + 'static,
         Work: Future<Output = ()> + Send + 'static,
     {
         *self.inner.catalog_observer.lock().unwrap() = Some(Arc::new(move |source, update| {
@@ -142,7 +136,7 @@ impl Database {
 
     pub(crate) async fn catalog_updated(
         &self,
-        source: Option<(crate::SourceId, crate::SourceKey)>,
+        source: Option<crate::SourceKey>,
         update: crate::CatalogUpdate,
     ) {
         let changed = update.metadata || update.artwork || update.playlists;
@@ -159,8 +153,8 @@ impl Database {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
         let mut transaction = connection.begin().await?;
-        let changed:Vec<(crate::SourceKey,String)>=sqlx::query_as("UPDATE sources SET distinct_track_covers=?1 WHERE distinct_track_covers<>?1 RETURNING source_key,object_id").bind(enabled).fetch_all(&mut *transaction).await?;
-        for (source, _) in &changed {
+        let changed:Vec<crate::SourceKey>=sqlx::query_scalar("UPDATE sources SET distinct_track_covers=?1 WHERE distinct_track_covers<>?1 RETURNING source_key").bind(enabled).fetch_all(&mut *transaction).await?;
+        for source in &changed {
             let mut after = 0;
             loop {
                 let keys: Vec<i64> = sqlx::query_scalar("SELECT track_key FROM tracks WHERE source_key=?1 AND track_key>?2 ORDER BY track_key LIMIT 128")
@@ -179,10 +173,10 @@ impl Database {
             .distinct_track_covers
             .store(enabled, Ordering::Release);
         drop(writer);
-        for (_source, id) in changed {
+        if !changed.is_empty() {
             let mut update = crate::CatalogUpdate::default();
             update.artwork = true;
-            self.publish_catalog_update(&id, update).await;
+            self.publish_catalog_update(update).await;
         }
         Ok(())
     }
@@ -238,70 +232,35 @@ impl Database {
         })
     }
 
-    pub async fn source_identity_key(
-        &self,
-        source_id: &crate::SourceId,
-    ) -> LibraryResult<Option<crate::SourceKey>> {
+    pub async fn source_identity_key(&self) -> LibraryResult<Option<crate::SourceKey>> {
         let mut connection = self.acquire_reader().await?;
-        Ok(
-            sqlx::query_scalar("SELECT source_key FROM sources WHERE object_id=?1")
-                .bind(source_id.as_str())
-                .fetch_optional(&mut *connection)
-                .await?,
-        )
+        Ok(sqlx::query_scalar("SELECT source_key FROM sources")
+            .fetch_optional(&mut *connection)
+            .await?)
     }
 
-    pub async fn remove_source(&self, source_id: &crate::SourceId) -> LibraryResult<bool> {
+    /// Forgets the server: its user state and undelivered edits go; referenced metadata stays hidden.
+    pub async fn remove_source(&self) -> LibraryResult<bool> {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
         let mut transaction = connection.begin().await?;
-        let source =
-            sqlx::query_scalar::<_, i64>("SELECT source_key FROM sources WHERE object_id=?1")
-                .bind(source_id.as_str())
-                .fetch_optional(&mut *transaction)
-                .await?;
-        sqlx::query("UPDATE sources SET observation_stamp=observation_stamp+1,freshness=NULL WHERE object_id=?1").bind(source_id.as_str()).execute(&mut *transaction).await?;
-        for kind in ["track", "album", "artist", "genre", "mood", "folder"] {
-            let prefix = crate::keys::source_entity_prefix(source_id, kind);
-            loop {
-                let keys:Vec<String>=sqlx::query_scalar("DELETE FROM user_media_state WHERE media_uri IN (SELECT media_uri FROM user_media_state WHERE substr(media_uri,1,length(?1))=?1 OR media_uri IN(SELECT media_uri FROM tracks WHERE source_key=?2) LIMIT 128) RETURNING media_uri")
-                    .bind(&prefix).bind(source).fetch_all(&mut *transaction).await?;
-                if keys.is_empty() {
-                    break;
-                }
-            }
-            for query in [
-                "DELETE FROM native_media_state WHERE substr(media_uri,1,length(?1))=?1 OR media_uri IN (SELECT media_uri FROM tracks WHERE source_key=?2)",
-                "DELETE FROM favorite_outbox WHERE substr(media_uri,1,length(?1))=?1 OR media_uri IN (SELECT media_uri FROM tracks WHERE source_key=?2)",
-                "DELETE FROM rating_outbox WHERE substr(media_uri,1,length(?1))=?1 OR media_uri IN (SELECT media_uri FROM tracks WHERE source_key=?2)",
-            ] {
-                sqlx::query(query)
-                    .bind(&prefix)
-                    .bind(source)
-                    .execute(&mut *transaction)
-                    .await?;
-            }
-        }
-        sqlx::query("DELETE FROM download_access_metadata WHERE access_uri IN (SELECT access_uri FROM main.download_locators locator JOIN sources identity USING(source_key) WHERE identity.object_id=?1) AND NOT EXISTS(SELECT 1 FROM download_locators other WHERE other.access_uri=download_access_metadata.access_uri AND other.source_key IS NOT ?2)").bind(source_id.as_str()).bind(source).execute(&mut *transaction).await?;
-        // Referenced metadata survives source removal.
-        sqlx::query("UPDATE tracks SET indexed=0,artwork_kind=CASE WHEN native_artwork IS NULL THEN 0 ELSE 1 END,artwork_artist_key=NULL WHERE source_key=?1")
-            .bind(source)
-            .execute(&mut *transaction)
-            .await?;
-        sqlx::query("UPDATE albums SET indexed=0 WHERE source_key=?1")
-            .bind(source)
-            .execute(&mut *transaction)
-            .await?;
-        sqlx::query("UPDATE artists SET indexed=0 WHERE source_key=?1")
-            .bind(source)
-            .execute(&mut *transaction)
-            .await?;
-        let removed = sqlx::query("DELETE FROM sources WHERE source_key=?1")
-            .bind(source)
+        sqlx::raw_sql(
+            "DELETE FROM user_media_state;
+             DELETE FROM native_media_state;
+             DELETE FROM favorite_outbox;
+             DELETE FROM rating_outbox;
+             DELETE FROM download_access_metadata WHERE access_uri IN (SELECT access_uri FROM download_locators);
+             UPDATE tracks SET indexed=0,artwork_kind=CASE WHEN native_artwork IS NULL THEN 0 ELSE 1 END,artwork_artist_key=NULL;
+             UPDATE albums SET indexed=0;
+             UPDATE artists SET indexed=0;",
+        )
+        .execute(&mut *transaction)
+        .await?;
+        let removed = sqlx::query("DELETE FROM sources")
             .execute(&mut *transaction)
             .await?
             .rows_affected()
-            == 1;
+            > 0;
         transaction.commit().await?;
         Ok(removed)
     }
@@ -696,22 +655,17 @@ mod tests {
     }
 }
 
-pub(crate) async fn write_source_identity(
-    connection: &mut SqliteConnection,
-    source_id: &str,
-) -> LibraryResult<i64> {
-    if source_id.is_empty() {
-        return Err(LibraryError::InvalidRequest(
-            "source identity cannot be empty".into(),
-        ));
-    }
+/// The one server row's fixed identity; the column stays until the per-server keys go.
+pub(crate) const SERVER_OBJECT_ID: &str = "server";
+
+pub(crate) async fn write_source_identity(connection: &mut SqliteConnection) -> LibraryResult<i64> {
     sqlx::query("INSERT INTO sources(object_id) VALUES(?1) ON CONFLICT(object_id) DO NOTHING")
-        .bind(source_id)
+        .bind(SERVER_OBJECT_ID)
         .execute(&mut *connection)
         .await?;
     Ok(
         sqlx::query_scalar("SELECT source_key FROM sources WHERE object_id=?1")
-            .bind(source_id)
+            .bind(SERVER_OBJECT_ID)
             .fetch_one(connection)
             .await?,
     )

@@ -4,7 +4,6 @@ use crate::{HomeEntryInput, NativeUserState, PlaylistEntryObservation};
 pub(super) async fn headers(
     connection: &mut SqliteConnection,
     source: i64,
-    source_id: &str,
     albums: &[&AlbumObservation],
     folders: &[FolderObservation],
     observed: Option<i64>,
@@ -13,7 +12,6 @@ pub(super) async fn headers(
     super::cache::index_credits(
         connection,
         source,
-        source_id,
         albums
             .iter()
             .flat_map(|album| &album.metadata.album_artists),
@@ -22,7 +20,6 @@ pub(super) async fn headers(
     super::cache::index_tags(
         connection,
         source,
-        source_id,
         "genre",
         albums.iter().flat_map(|album| &album.metadata.genres),
     )
@@ -145,7 +142,6 @@ pub(crate) async fn write_home_on(
 impl Database {
     pub async fn source_contains_entity(
         &self,
-        source_id: &str,
         kind: &str,
         id: &str,
         indexed: bool,
@@ -156,38 +152,33 @@ impl Database {
         } else {
             super::cache::table(kind)
         };
-        Ok(sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT EXISTS(SELECT 1 FROM {table} JOIN sources USING(source_key) WHERE sources.object_id=?1 AND {table}.object_id=?2 AND(?3=0 OR {table}.indexed=1))"))).bind(source_id).bind(id).bind(indexed).fetch_one(&mut *connection).await?)
+        Ok(sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE {table}.source_key IS NOT NULL AND {table}.object_id=?1 AND(?2=0 OR {table}.indexed=1))"))).bind(id).bind(indexed).fetch_one(&mut *connection).await?)
     }
 
-    pub async fn unresolved_source_artist_ids(
-        &self,
-        source_id: &str,
-    ) -> LibraryResult<Vec<String>> {
+    pub async fn unresolved_source_artist_ids(&self) -> LibraryResult<Vec<String>> {
         let mut connection = self.acquire_reader().await?;
-        Ok(sqlx::query_scalar("SELECT artist.object_id FROM artists artist JOIN sources USING(source_key) WHERE sources.object_id=?1 AND artist.native_metadata=0 ORDER BY artist.object_id LIMIT 100").bind(source_id).fetch_all(&mut *connection).await?)
+        Ok(sqlx::query_scalar("SELECT artist.object_id FROM artists artist WHERE artist.native_metadata=0 ORDER BY artist.object_id LIMIT 100").fetch_all(&mut *connection).await?)
     }
 
     pub async fn omitted_album_track_page(
         &self,
-        source_id: &str,
         id: &str,
         observed: i64,
         after: Option<&str>,
         limit: usize,
     ) -> LibraryResult<Vec<String>> {
         let mut connection = self.acquire_reader().await?;
-        Ok(sqlx::query_scalar("SELECT track.object_id FROM tracks track JOIN albums album USING(album_key) JOIN sources ON sources.source_key=track.source_key WHERE sources.object_id=?1 AND album.object_id=?2 AND track.indexed=1 AND track.observed_stamp<?3 AND track.object_id>coalesce(?4,'') ORDER BY track.object_id LIMIT ?5").bind(source_id).bind(id).bind(observed).bind(after).bind(limit.min(128) as i64).fetch_all(&mut *connection).await?)
+        Ok(sqlx::query_scalar("SELECT track.object_id FROM tracks track JOIN albums album USING(album_key) WHERE track.source_key IS NOT NULL AND album.object_id=?1 AND track.indexed=1 AND track.observed_stamp<?2 AND track.object_id>coalesce(?3,'') ORDER BY track.object_id LIMIT ?4").bind(id).bind(observed).bind(after).bind(limit.min(128) as i64).fetch_all(&mut *connection).await?)
     }
 
     pub async fn source_playlist_is_fresh(
         &self,
-        source_id: &str,
         id: &str,
         revision: Option<&str>,
         now: i64,
     ) -> LibraryResult<bool> {
         let mut connection = self.acquire_reader().await?;
-        Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM playlists JOIN sources USING(source_key) WHERE sources.object_id=?1 AND playlists.object_id=?2 AND provider_revision IS ?3 AND(?3 IS NOT NULL OR playlists.valid_until>=?4))").bind(source_id).bind(id).bind(revision).bind(now).fetch_one(&mut *connection).await?)
+        Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM playlists WHERE playlists.source_key IS NOT NULL AND playlists.object_id=?1 AND provider_revision IS ?2 AND(?2 IS NOT NULL OR playlists.valid_until>=?3))").bind(id).bind(revision).bind(now).fetch_one(&mut *connection).await?)
     }
 }
 
@@ -237,7 +228,6 @@ impl super::Catalog<'_> {
         entries: &[PlaylistEntryObservation],
         complete: bool,
     ) -> LibraryResult<()> {
-        let source_id = self.source_id;
         let mut writer = self.database.writer().await?;
         let mut tx = writer
             .as_mut()
@@ -269,11 +259,7 @@ impl super::Catalog<'_> {
                             &entry.object_id,
                             &entry.track_id,
                             offset + page_index * 128 + position,
-                            crate::source_entity_uri(
-                                &SourceId::new(source_id),
-                                "track",
-                                &entry.track_id,
-                            ),
+                            crate::entity_uri("track", &entry.track_id),
                         )
                     })
                     .collect::<Vec<_>>(),
