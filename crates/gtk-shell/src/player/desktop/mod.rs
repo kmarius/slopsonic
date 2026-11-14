@@ -131,4 +131,45 @@ pub(crate) fn install_desktop_lifecycle(shell: &Rc<Shell>) {
         close_shell.request_quit("window close");
         glib::Propagation::Stop
     });
+    install_signal_quit(shell);
+}
+
+/// Quits through the normal shutdown, which saves the queue and settings, on SIGINT, SIGTERM or SIGHUP;
+/// a second signal exits at once.
+fn install_signal_quit(shell: &Rc<Shell>) {
+    use tokio::signal::unix::{SignalKind, signal};
+    let (signalled, received) = tokio::sync::oneshot::channel();
+    tokio::spawn(async move {
+        let (Ok(mut interrupt), Ok(mut terminate), Ok(mut hangup)) = (
+            signal(SignalKind::interrupt()),
+            signal(SignalKind::terminate()),
+            signal(SignalKind::hangup()),
+        ) else {
+            warn!("could not listen for termination signals");
+            return;
+        };
+        let reason = tokio::select! {
+            _ = interrupt.recv() => "SIGINT",
+            _ = terminate.recv() => "SIGTERM",
+            _ = hangup.recv() => "SIGHUP",
+        };
+        let _ = signalled.send(reason);
+        // tokio never restores the default handlers, so a second signal must exit by itself.
+        tokio::select! {
+            _ = interrupt.recv() => {}
+            _ = terminate.recv() => {}
+            _ = hangup.recv() => {}
+        }
+        warn!("second termination signal, exiting without finishing shutdown");
+        #[expect(clippy::exit, reason = "the user asked twice to stop a hung shutdown")]
+        std::process::exit(1);
+    });
+    let shell = Rc::downgrade(shell);
+    glib::spawn_future_local(async move {
+        if let Ok(reason) = received.await
+            && let Some(shell) = shell.upgrade()
+        {
+            shell.request_quit(reason);
+        }
+    });
 }

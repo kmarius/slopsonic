@@ -28,7 +28,7 @@ library.workspace = true
 playback.workspace = true
 sources.workspace = true
 tracing.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["macros", "signal", "sync"] }
 
 [dev-dependencies]
 serde_json.workspace = true
