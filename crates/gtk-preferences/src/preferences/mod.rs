@@ -777,14 +777,15 @@ fn general_page(shell: &Rc<Preferences>) -> gtk::Widget {
             })
             .is_some()
         {
-            if let Some(selected) = distinct_track_covers_shell
+            if distinct_track_covers_shell
                 .products
                 .source
                 .selected_library()
+                .is_some()
             {
                 let source = distinct_track_covers_shell.products.source.clone();
                 gtk::glib::spawn_future_local(async move {
-                    let _ = source.refresh_source(selected.source_id, false).await;
+                    let _ = source.refresh_source(false).await;
                 });
             }
         }

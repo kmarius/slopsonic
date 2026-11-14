@@ -148,11 +148,11 @@ impl PlaybackOwner {
         });
         let weak = Arc::downgrade(&owner);
         owner.runtime.spawn(async move {
-            while let Ok((source_id, report)) = report_receiver.recv().await {
+            while let Ok((_, report)) = report_receiver.recv().await {
                 let Some(owner) = weak.upgrade() else { break };
                 let source = owner.source_owner();
                 if let Ok(Some(source)) =
-                    tokio::task::spawn_blocking(move || source?.client(&source_id).ok()).await
+                    tokio::task::spawn_blocking(move || source?.client().ok()).await
                     && let Err(error) = source.report_playback(&report).await
                 {
                     debug!(%error, "could not report playback to source");
@@ -375,11 +375,11 @@ impl PlaybackOwner {
         self.runtime.spawn(async move {
             let loudness =
                 cached_loudness(&database, &occurrence.track.media_uri, normalization).await;
-            let result = prepare_stream(&database, request, move |source_id| async move {
+            let result = prepare_stream(&database, request, move |_| async move {
                 tokio::task::spawn_blocking(move || {
                     source_owner
                         .ok_or_else(crate::source::source_access_unavailable)?
-                        .client(&source_id)
+                        .client()
                 })
                 .await
                 .map_err(string_error)?

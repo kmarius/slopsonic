@@ -5,11 +5,10 @@
 
 use std::sync::Arc;
 
-use sources::{CredentialPreset, SourceId};
+use sources::CredentialPreset;
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
 pub struct SourceSummary {
-    pub id: SourceId,
     pub kind: sources::SubsonicFlavor,
     pub name: String,
 }
@@ -59,26 +58,11 @@ pub struct SourceProgress {
 #[serde(tag = "state", rename_all = "snake_case")]
 pub enum SourceOperation {
     Idle,
-    Adding {
-        progress: SourceProgress,
-    },
-    Switching {
-        target: SourceId,
-        progress: SourceProgress,
-    },
-    Refreshing {
-        source_id: SourceId,
-        progress: SourceProgress,
-    },
-    Downloading {
-        source_id: SourceId,
-        progress: SourceProgress,
-    },
-    Failed {
-        source_id: Option<SourceId>,
-        message: String,
-        add_form: bool,
-    },
+    Adding { progress: SourceProgress },
+    Switching { progress: SourceProgress },
+    Refreshing { progress: SourceProgress },
+    Downloading { progress: SourceProgress },
+    Failed { message: String, add_form: bool },
 }
 
 impl SourceOperation {
@@ -162,14 +146,12 @@ mod tests {
         );
         assert!(
             SourceOperation::Switching {
-                target: SourceId::new("target"),
                 progress: progress(),
             }
             .blocks_library()
         );
         assert!(
             !SourceOperation::Refreshing {
-                source_id: SourceId::new("selected"),
                 progress: progress(),
             }
             .blocks_library()

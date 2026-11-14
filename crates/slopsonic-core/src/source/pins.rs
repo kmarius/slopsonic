@@ -11,16 +11,10 @@ impl SourceOwner {
     ) -> Receiver<Result<bool, String>> {
         let stored = settings.load();
         let sources = self
-            .source_status()
+            .configuration()
+            .map(|configuration| configuration.source_id)
+            .filter(|id| !stored.sidebar.playlist_pin_imported_sources.contains(id))
             .into_iter()
-            .map(|status| status.source)
-            .filter(|source| {
-                !stored
-                    .sidebar
-                    .playlist_pin_imported_sources
-                    .contains(&source.id)
-            })
-            .map(|source| source.id.clone())
             .collect::<Vec<_>>();
         self.reply(move |_, database| async move {
             let mut imports = Vec::new();

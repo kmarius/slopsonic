@@ -57,7 +57,7 @@ async fn adding_the_first_server_connects() {
             database.as_ref().clone(),
             runtime.clone(),
             async_channel::unbounded().0,
-            Vec::new(),
+            Default::default(),
         ),
         SettingsFile::memory(),
         runtime,
@@ -113,7 +113,7 @@ async fn acquisition_progress_belongs_to_its_source() {
             database.as_ref().clone(),
             runtime.clone(),
             async_channel::unbounded().0,
-            Vec::new(),
+            Default::default(),
         ),
         SettingsFile::memory(),
         runtime,
@@ -140,45 +140,24 @@ async fn acquisition_progress_belongs_to_its_source() {
         &configured,
         Arc::new(Source::open(configuration, Some("salt:token".into())).unwrap()),
     );
-    let other_id = SourceId::new("other");
-    database
-        .reconcile_source(&other_id, "subsonic", "Other")
-        .await
-        .unwrap();
-    let mut other = configured.clone();
-    other.configuration = subsonic_configuration(other_id.clone(), "Other");
-    owner.cache_connected(
-        &other,
-        Arc::new(Source::open(other.configuration.clone(), Some("salt:token".into())).unwrap()),
-    );
-    let first = owner.shared.begin_refresh(&source_id, false, true).unwrap();
-    let second = owner.shared.begin_refresh(&other_id, false, true).unwrap();
-    owner.shared.present_refresh(&source_id);
+    let first = owner.shared.begin_refresh(false, true).unwrap();
+    assert!(owner.shared.begin_refresh(false, true).is_none());
+    owner.shared.present_refresh();
     owner.shared.begin_selection();
-    assert!(owner.shared.refresh_is_current(&source_id, &first));
-    assert!(owner.shared.refresh_is_current(&other_id, &second));
+    assert!(owner.shared.refresh_is_current(&first));
     owner.shared.refresh_progress(
-        &other_id,
-        &second,
+        &first,
         SourceReadProgress {
             stage: SourceReadStage::Tracks,
             completed: 128,
             total: None,
         },
     );
-    assert!(
-        matches!(&*owner.shared.operation.borrow(), SourceOperation::Refreshing {source_id: current,..} if current==&source_id)
-    );
-    owner
-        .finish_source_refresh(&other_id, &second, Ok(()))
-        .await;
-    assert!(
-        matches!(&*owner.shared.operation.borrow(), SourceOperation::Refreshing {source_id: current,..} if current==&source_id)
-    );
-    assert!(owner.shared.refresh_is_current(&source_id, &first));
-    owner
-        .finish_source_refresh(&source_id, &first, Ok(()))
-        .await;
+    assert!(matches!(
+        &*owner.shared.operation.borrow(),
+        SourceOperation::Refreshing { progress } if progress.completed == 128
+    ));
+    owner.finish_source_refresh(&first, Ok(())).await;
     for error in [
         SourceError::Network("connection refused".into()),
         SourceError::Cancelled,
@@ -187,13 +166,9 @@ async fn acquisition_progress_belongs_to_its_source() {
     ] {
         while receiver.try_recv().is_ok() {}
         owner.publish_operation(SourceOperation::Idle).await;
-        let token = owner
-            .shared
-            .begin_refresh(&source_id, false, false)
-            .unwrap();
-        owner.shared.present_refresh(&source_id);
+        let token = owner.shared.begin_refresh(false, false).unwrap();
+        owner.shared.present_refresh();
         owner.shared.refresh_progress(
-            &source_id,
             &token,
             SourceReadProgress {
                 stage: SourceReadStage::Tracks,
@@ -205,9 +180,7 @@ async fn acquisition_progress_belongs_to_its_source() {
             *owner.shared.operation.borrow(),
             SourceOperation::Idle
         ));
-        owner
-            .finish_source_refresh(&source_id, &token, Err(error))
-            .await;
+        owner.finish_source_refresh(&token, Err(error)).await;
         assert!(matches!(
             *owner.shared.operation.borrow(),
             SourceOperation::Idle
@@ -220,21 +193,14 @@ async fn acquisition_progress_belongs_to_its_source() {
         }
     }
     owner
-        .finish_refresh(
-            &source_id,
-            Err(SourceError::Network("connection refused".into())),
-        )
+        .finish_refresh(Err(SourceError::Network("connection refused".into())))
         .await;
     assert!(matches!(&*owner.shared.operation.borrow(),
         SourceOperation::Failed { message, .. } if message == "Server is unreachable"));
-    let token = owner.shared.begin_refresh(&source_id, false, true).unwrap();
-    owner.shared.present_refresh(&source_id);
+    let token = owner.shared.begin_refresh(false, true).unwrap();
+    owner.shared.present_refresh();
     owner
-        .finish_source_refresh(
-            &source_id,
-            &token,
-            Err(SourceError::Auth("Login expired".into())),
-        )
+        .finish_source_refresh(&token, Err(SourceError::Auth("Login expired".into())))
         .await;
     assert!(matches!(
         *owner.shared.operation.borrow(),
@@ -248,9 +214,15 @@ async fn acquisition_progress_belongs_to_its_source() {
         music_folder_object_id: None,
         music_folders: Arc::from([]),
     };
-    let client = owner.client(&source_id).unwrap();
+    let client = owner.client().unwrap();
     assert!(owner.start_observer(selected_library.clone(), client.clone(), false));
-    let observer = owner.shared.clients.lock().unwrap()[&source_id]
+    let observer = owner
+        .shared
+        .client
+        .lock()
+        .unwrap()
+        .as_ref()
+        .unwrap()
         .observer
         .as_ref()
         .unwrap()
@@ -436,7 +408,7 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
                 database.as_ref().clone(),
                 runtime.clone(),
                 async_channel::unbounded().0,
-                Vec::new(),
+                Default::default(),
             ),
             settings,
             runtime,
@@ -447,13 +419,11 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
             owner.shared.source_status(None).unwrap().cache.album_count,
             1
         );
-        let completion = owner.select_source(source_id.clone());
-        let selected = tokio::time::timeout(Duration::from_secs(2), completion)
+        let completion = owner.select_source();
+        tokio::time::timeout(Duration::from_secs(2), completion)
             .await
             .expect("selection result must not wait for the server")
             .unwrap();
-        assert_eq!(selected, source_id);
-        drop(selected);
         let published = tokio::time::timeout(Duration::from_secs(2), async {
             loop {
                 if let SourceEvent::Selected {
@@ -569,7 +539,7 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
             "new-folder"
         );
         tokio::time::timeout(Duration::from_secs(2), async {
-            while owner.cached_client(&source_id).is_none() || !connection.is_finished() {
+            while owner.cached_client().is_none() || !connection.is_finished() {
                 tokio::task::yield_now().await;
             }
         })
@@ -657,7 +627,7 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
                 database.as_ref().clone(),
                 runtime.clone(),
                 async_channel::unbounded().0,
-                Vec::new(),
+                Default::default(),
             ),
             settings.clone(),
             runtime,
@@ -665,27 +635,17 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
         );
         assert!(owner.source_status().is_some());
         assert!(owner.selected_library().is_none());
-        let missing = owner.select_source(SourceId::new("missing"));
-        let error = tokio::time::timeout(Duration::from_secs(5), missing)
-            .await
-            .unwrap()
-            .err()
-            .expect("unknown source returns an error to its caller");
-        assert!(!error.to_string().is_empty());
-        assert!(owner.selected_library().is_none());
-
         // A pending playlist edit must not hold up source selection.
         let lane = owner.shared.lane.lock().await;
-        let mut selection = Box::pin(owner.select_source(first.clone()));
+        let mut selection = Box::pin(owner.select_source());
         assert!(futures_util::poll!(selection.as_mut()).is_pending());
-        let selected = tokio::time::timeout(Duration::from_secs(5), selection)
+        tokio::time::timeout(Duration::from_secs(5), selection)
             .await
             .expect("selection completes without consuming events")
             .unwrap();
-        assert_eq!(selected, first);
         assert_eq!(owner.selected_library().unwrap().source_id, first);
         drop(lane);
-        tokio::time::timeout(Duration::from_secs(5), owner.forget_source(first.clone()))
+        tokio::time::timeout(Duration::from_secs(5), owner.forget_source())
             .await
             .expect("removal completes without consuming events")
             .unwrap();
@@ -711,9 +671,9 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
             }
             assert_eq!(assignments, vec![Some(first.clone()), None]);
         }
-        owner.shared.clients.lock().unwrap().clear();
+        owner.shared.client.lock().unwrap().take();
         owner.shared.cancel_selection();
-        owner.forget_source(first.clone()).await.unwrap();
+        owner.forget_source().await.unwrap();
         assert!(owner.source_status().is_none(), "removal can be repeated");
     }
 }

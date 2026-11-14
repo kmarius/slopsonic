@@ -7,14 +7,14 @@ impl SourceOwner {
 
     pub(super) async fn select_now(
         &self,
-        source_id: SourceId,
         cancelled: Arc<AtomicBool>,
         refresh: bool,
     ) -> Result<(), String> {
         if cancelled.load(Ordering::Acquire) {
             return Ok(());
         }
-        let configured = configured_source(&self.shared.settings.load().sources, &source_id)?;
+        let configured = configured_source(&self.shared.settings.load().sources)?;
+        let source_id = configured.configuration.source_id.clone();
         let publication = match self
             .shared
             .database
@@ -47,10 +47,10 @@ impl SourceOwner {
         }
         if self
             .shared
-            .clients
+            .client
             .lock()
             .unwrap_or_else(|p| p.into_inner())
-            .get(&source_id)
+            .as_ref()
             .is_some_and(|cached| cached.observer.is_some())
         {
             return Ok(());
@@ -60,7 +60,7 @@ impl SourceOwner {
         };
         let owner = self.clone();
         let task = self.shared.runtime.spawn(async move {
-            let source = owner.open_client(source_id.clone()).await;
+            let source = owner.open_client().await;
             if !owner.shared.selection_is_current(&cancelled) {
                 return;
             }
@@ -94,13 +94,13 @@ impl SourceOwner {
             };
             let activated =
                 owner.start_observer(selected.clone(), source.clone(), refresh && !cached_start);
-            owner.shared.present_refresh(&source_id);
+            owner.shared.present_refresh();
             if refresh && activated && !cached_start {
                 let refresh_owner = owner.clone();
                 let refresh_source = source.clone();
                 owner.shared.runtime.spawn(async move {
                     let _ = refresh_owner
-                        .refresh_now(&source_id, &refresh_source, false, true)
+                        .refresh_now(&refresh_source, false, true)
                         .await;
                 });
             }
@@ -173,7 +173,7 @@ impl SourceOwner {
             })
             .await;
         self.publish_operation(SourceOperation::Idle).await;
-        self.shared.present_refresh(&selected.source_id);
+        self.shared.present_refresh();
         if let Some(source) = source {
             self.start_observer(selected.clone(), source.clone(), true);
             let owner = self.clone();
@@ -228,12 +228,8 @@ impl SourceOwner {
         source: Arc<Source>,
         initial_scan_pending: bool,
     ) -> bool {
-        let mut clients = self
-            .shared
-            .clients
-            .lock()
-            .unwrap_or_else(|p| p.into_inner());
-        let Some(cached) = clients.get_mut(&selected.source_id) else {
+        let mut client = self.shared.client.lock().unwrap_or_else(|p| p.into_inner());
+        let Some(cached) = client.as_mut() else {
             return false;
         };
         if cached.observer.is_some() {
@@ -243,7 +239,6 @@ impl SourceOwner {
         let shared = Arc::downgrade(&self.shared);
         let task = self.shared.runtime.spawn(Self::consume_selected_feed(
             shared,
-            selected.source_id,
             selected.source_key,
             source,
             observer.clone(),
@@ -254,7 +249,6 @@ impl SourceOwner {
 
     pub(super) async fn consume_selected_feed(
         shared: Weak<Shared>,
-        source_id: SourceId,
         source_key: SourceKey,
         source: Arc<Source>,
         observer: Arc<SelectedFeed>,
@@ -275,11 +269,11 @@ impl SourceOwner {
                 return;
             };
             let owner = Self { shared };
-            if owner.shared.is_refreshing(&source_id) {
+            if owner.shared.is_refreshing() {
                 continue;
             }
             if !event {
-                owner.check_remote_freshness(&source_id, &source).await;
+                owner.check_remote_freshness(&source).await;
                 continue;
             }
             match observer
@@ -296,14 +290,13 @@ impl SourceOwner {
                 }
             }
             let _ = owner
-                .refresh_now(&source_id, &source, true, !source.needs_periodic_refresh())
+                .refresh_now(&source, true, !source.needs_periodic_refresh())
                 .await;
         }
     }
 
     pub(super) async fn refresh_now(
         &self,
-        source_id: &SourceId,
         source: &Arc<Source>,
         automatic: bool,
         force: bool,
@@ -311,13 +304,13 @@ impl SourceOwner {
         if source.is_retired() {
             return Err(SourceError::Cancelled.to_string());
         }
-        let Some(token) = self.shared.begin_refresh(source_id, !automatic, !automatic) else {
+        let Some(token) = self.shared.begin_refresh(!automatic, !automatic) else {
             return Ok(());
         };
         if !automatic {
-            self.shared.present_refresh(source_id);
+            self.shared.present_refresh();
         }
-        let progress = |value| self.shared.refresh_progress(source_id, &token, value);
+        let progress = |value| self.shared.refresh_progress(&token, value);
         let outcome = source
             .acquire_catalog(&self.shared.database, &progress, token.clone(), force)
             .await;
@@ -326,29 +319,24 @@ impl SourceOwner {
             .as_ref()
             .map(|_| ())
             .map_err(source_refresh_error_text);
-        self.finish_source_refresh(source_id, &token, outcome).await;
+        self.finish_source_refresh(&token, outcome).await;
         result
     }
 
     pub(crate) async fn finish_source_refresh(
         &self,
-        source_id: &SourceId,
         token: &Arc<AtomicBool>,
         result: sources::SourceResult<()>,
     ) {
-        if !self.shared.refresh_is_current(source_id, token) {
+        if !self.shared.refresh_is_current(token) {
             return;
         }
         if result.is_ok() {
             self.shared.maintenance.notify_one();
         }
         {
-            let mut clients = self
-                .shared
-                .clients
-                .lock()
-                .unwrap_or_else(|p| p.into_inner());
-            if let Some(cached) = clients.get_mut(source_id)
+            let mut client = self.shared.client.lock().unwrap_or_else(|p| p.into_inner());
+            if let Some(cached) = client.as_mut()
                 && cached
                     .refresh
                     .as_ref()
@@ -359,10 +347,10 @@ impl SourceOwner {
         }
         let observer = self
             .shared
-            .clients
+            .client
             .lock()
             .unwrap_or_else(|p| p.into_inner())
-            .get(source_id)
+            .as_ref()
             .and_then(|cached| {
                 cached
                     .observer
@@ -372,10 +360,12 @@ impl SourceOwner {
         if let Some(observer) = observer {
             observer.wake_pending();
         }
-        let presented = matches!(&*self.shared.operation.borrow(),
-            SourceOperation::Refreshing { source_id: current, .. } if current == source_id);
+        let presented = matches!(
+            &*self.shared.operation.borrow(),
+            SourceOperation::Refreshing { .. }
+        );
         if presented {
-            self.finish_refresh(source_id, result).await;
+            self.finish_refresh(result).await;
         } else if let Err(error) = result
             && !source_error_is_cancelled(&error)
         {
@@ -383,16 +373,11 @@ impl SourceOwner {
         }
     }
 
-    pub(crate) async fn finish_refresh(
-        &self,
-        source_id: &SourceId,
-        result: sources::SourceResult<()>,
-    ) {
+    pub(crate) async fn finish_refresh(&self, result: sources::SourceResult<()>) {
         let operation = match result {
             Ok(_) => SourceOperation::Idle,
             Err(error) if source_error_is_cancelled(&error) => SourceOperation::Idle,
             Err(error) => SourceOperation::Failed {
-                source_id: Some(source_id.clone()),
                 message: {
                     warn!(%error, "source refresh failed");
                     source_refresh_error_text(&error)
@@ -410,10 +395,7 @@ impl SourceOwner {
     ) -> Result<(), String> {
         let (configuration, source, credential) = (*connected).into_parts();
         let result = async {
-            let current = configured_source(
-                &self.shared.settings.load().sources,
-                &configured.configuration.source_id,
-            )?;
+            let current = configured_source(&self.shared.settings.load().sources)?;
             if current.configuration != configured.configuration
                 || current.credential != configured.credential
             {
@@ -443,10 +425,7 @@ impl SourceOwner {
                 )
                 .await
                 .map_err(string_error)?;
-            let selected = self
-                .shared
-                .selected()
-                .is_some_and(|selected| selected.source_id == replacement.configuration.source_id);
+            let selected = self.shared.selected().is_some();
             let refresh = selected;
             if selected && !self.shared.operation.borrow().blocks_library() {
                 let intent = self.shared.begin_selection();
@@ -454,11 +433,10 @@ impl SourceOwner {
                     .await?;
             }
             if refresh {
-                let id = source.source_id().clone();
                 let owner = self.clone();
                 self.shared.runtime.spawn(async move {
-                    if owner.configuration(&id).is_some() {
-                        let _ = owner.refresh_now(&id, &source, false, true).await;
+                    if owner.configuration().is_some() {
+                        let _ = owner.refresh_now(&source, false, true).await;
                     }
                 });
             } else {
@@ -478,26 +456,19 @@ impl SourceOwner {
         configured: &ConfiguredSource,
         source: Arc<Source>,
     ) -> Arc<Source> {
-        let mut clients = self
-            .shared
-            .clients
-            .lock()
-            .unwrap_or_else(|p| p.into_inner());
-        if let Some(cached) = clients.get(&configured.configuration.source_id)
+        let mut client = self.shared.client.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some(cached) = client.as_ref()
             && cached.matches(configured)
         {
             return cached.source.clone();
         }
-        clients.insert(
-            configured.configuration.source_id.clone(),
-            CachedSource {
-                configuration: configured.configuration.clone(),
-                credential: configured.credential.clone(),
-                source: source.clone(),
-                refresh: None,
-                observer: None,
-            },
-        );
+        *client = Some(CachedSource {
+            configuration: configured.configuration.clone(),
+            credential: configured.credential.clone(),
+            source: source.clone(),
+            refresh: None,
+            observer: None,
+        });
         source
     }
 
@@ -514,22 +485,19 @@ impl SourceOwner {
             stored.sources.configured = Some(configured.clone());
             Ok(())
         })?;
-        self.shared
-            .clients
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .retain(|id, cached| {
-                id != &configured.configuration.source_id || cached.matches(&configured)
-            });
+        let mut client = self.shared.client.lock().unwrap_or_else(|p| p.into_inner());
+        if client
+            .as_ref()
+            .is_some_and(|cached| !cached.matches(&configured))
+        {
+            *client = None;
+        }
         Ok(configured)
     }
 
-    pub(super) async fn edit_configured_source(
-        &self,
-        source_id: SourceId,
-        input: SourceSetup,
-    ) -> Result<(), String> {
-        let configured = configured_source(&self.shared.settings.load().sources, &source_id)?;
+    pub(super) async fn edit_configured_source(&self, input: SourceSetup) -> Result<(), String> {
+        let configured = configured_source(&self.shared.settings.load().sources)?;
+        let source_id = configured.configuration.source_id.clone();
         let credential = configured.credential.clone();
         let edit = Source::edit(configured.configuration.clone(), credential, input)
             .await
@@ -537,7 +505,7 @@ impl SourceOwner {
         match edit {
             sources::SourceEditResult::Unchanged => return Ok(()),
             sources::SourceEditResult::ConfigurationOnly(configuration) => {
-                let current = configured_source(&self.shared.settings.load().sources, &source_id)?;
+                let current = configured_source(&self.shared.settings.load().sources)?;
                 if current.configuration != configured.configuration
                     || current.credential != configured.credential
                 {
@@ -550,18 +518,13 @@ impl SourceOwner {
                         .await
                         .map_err(string_error)?;
                     self.shared
-                        .clients
+                        .client
                         .lock()
                         .unwrap_or_else(|p| p.into_inner())
-                        .remove(&source_id);
+                        .take();
                 }
                 self.shared.settings.update(|stored| {
-                    if let Some(item) = stored
-                        .sources
-                        .configured
-                        .iter_mut()
-                        .find(|item| item.configuration.source_id == source_id)
-                    {
+                    if let Some(item) = stored.sources.configured.as_mut() {
                         item.configuration = configuration.clone();
                     }
                     Ok(())
@@ -596,7 +559,6 @@ impl SourceOwner {
         source: library::SourceKey,
         update: CatalogUpdate,
     ) {
-        let source_id = &source_id;
         if !update.track_rekeys.is_empty()
             && let Ok(playback) = self.shared.playback()
         {
@@ -621,8 +583,7 @@ impl SourceOwner {
             if update.metadata
                 && let Some(selected) = self.shared.selected()
                 && selected.source_key == source
-                && let Ok(configured) =
-                    configured_source(&self.shared.settings.load().sources, source_id)
+                && let Ok(configured) = configured_source(&self.shared.settings.load().sources)
             {
                 match self.selected_folders(&configured, source).await {
                     Ok((folders, folder_key)) => {
@@ -647,10 +608,10 @@ impl SourceOwner {
             self.request_asset_downloads();
         }
         if update.metadata || update.playlists {
-            self.shared.downloads.library_changed(source_id.clone());
+            self.shared.downloads.library_changed(source_id);
         }
         if update.metadata {
-            if let Err(error) = self.shared.refresh_source_counts(source_id, source).await {
+            if let Err(error) = self.shared.refresh_source_counts(source).await {
                 self.shared.warn_nonfatal(&error);
             }
             let _ = self
@@ -694,9 +655,9 @@ impl SourceOwner {
             .await;
     }
 
-    pub(super) async fn check_remote_freshness(&self, source_id: &SourceId, source: &Arc<Source>) {
+    pub(super) async fn check_remote_freshness(&self, source: &Arc<Source>) {
         if source.needs_periodic_refresh() {
-            let _ = self.refresh_now(source_id, source, true, false).await;
+            let _ = self.refresh_now(source, true, false).await;
         }
     }
 

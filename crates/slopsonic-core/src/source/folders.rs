@@ -58,7 +58,7 @@ pub async fn resolve_folder(
 ) -> LibraryResult<FolderProjection> {
     let live = async {
         let source = owner
-            .cached_client(&selected.source_id)
+            .cached_client()
             .ok_or(sources::SourceError::NotFound)?;
         source
             .browse_folder(

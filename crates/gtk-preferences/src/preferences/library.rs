@@ -50,63 +50,61 @@ fn library_sources_page(
 
     let configured = shell.source.configured.borrow().clone();
 
-    if configured.is_none() {
-        servers_group.add(&empty_remote_row);
-    } else {
-        for status in configured.iter() {
-            let server = &status.source;
-            let summary = Some(&status.cache);
-            let credentials = shell
-                .products
-                .source
-                .editable(server.id.clone())
-                .ok()
-                .flatten()
-                .map(|saved| saved.credentials);
-            let row = adw::ActionRow::builder()
-                .title(configured_source_display_name(server))
-                .subtitle(source_summary_subtitle(
-                    server,
-                    summary,
-                    credentials
-                        .as_ref()
-                        .map(|credentials| credentials.server_url.as_str()),
-                    credentials
-                        .as_ref()
-                        .map(|credentials| credentials.username.as_str()),
-                ))
-                .subtitle_lines(4)
-                .build();
-            row.add_suffix(&gtk::Image::from_icon_name("slopsonic-go-next-symbolic"));
-            row.set_activatable(true);
-            let settings_shell = Rc::clone(shell);
-            let navigation = navigation.downgrade();
-            let navigation_controls = navigation_controls.clone();
-            let dialog = dialog.downgrade();
-            let server = server.clone();
-            row.connect_activated(move |_| {
-                let Some(dialog) = dialog.upgrade() else {
-                    return;
-                };
-                let Some(navigation) = navigation.upgrade() else {
-                    return;
-                };
-                let navigation_controls_for_close = navigation_controls.clone();
-                let on_close: Rc<dyn Fn()> = Rc::new(move || {
-                    navigation_controls_for_close.set_nested_page_visible(false);
-                });
-                let page = crate::preferences::source::manage::manage_server_navigation_page(
-                    &settings_shell,
-                    server.clone(),
-                    &navigation,
-                    &dialog,
-                    on_close,
-                );
-                navigation.push(&page);
-                navigation_controls.set_nested_page_visible(true);
+    if let Some(status) = configured.as_ref() {
+        let server = &status.source;
+        let summary = Some(&status.cache);
+        let credentials = shell
+            .products
+            .source
+            .editable()
+            .ok()
+            .flatten()
+            .map(|saved| saved.credentials);
+        let row = adw::ActionRow::builder()
+            .title(configured_source_display_name(server))
+            .subtitle(source_summary_subtitle(
+                server,
+                summary,
+                credentials
+                    .as_ref()
+                    .map(|credentials| credentials.server_url.as_str()),
+                credentials
+                    .as_ref()
+                    .map(|credentials| credentials.username.as_str()),
+            ))
+            .subtitle_lines(4)
+            .build();
+        row.add_suffix(&gtk::Image::from_icon_name("slopsonic-go-next-symbolic"));
+        row.set_activatable(true);
+        let settings_shell = Rc::clone(shell);
+        let navigation = navigation.downgrade();
+        let navigation_controls = navigation_controls.clone();
+        let dialog = dialog.downgrade();
+        let server = server.clone();
+        row.connect_activated(move |_| {
+            let Some(dialog) = dialog.upgrade() else {
+                return;
+            };
+            let Some(navigation) = navigation.upgrade() else {
+                return;
+            };
+            let navigation_controls_for_close = navigation_controls.clone();
+            let on_close: Rc<dyn Fn()> = Rc::new(move || {
+                navigation_controls_for_close.set_nested_page_visible(false);
             });
-            servers_group.add(&row);
-        }
+            let page = crate::preferences::source::manage::manage_server_navigation_page(
+                &settings_shell,
+                server.clone(),
+                &navigation,
+                &dialog,
+                on_close,
+            );
+            navigation.push(&page);
+            navigation_controls.set_nested_page_visible(true);
+        });
+        servers_group.add(&row);
+    } else {
+        servers_group.add(&empty_remote_row);
     }
 
     let add_shell = Rc::clone(shell);
@@ -141,25 +139,23 @@ pub(super) fn downloads_page(
         downloads_group: adw::PreferencesGroup,
         empty_remote_row: adw::ActionRow,
     });
-    let Some(source) = shell
-        .source
-        .configured
-        .borrow()
-        .as_ref()
-        .map(|status| status.source.clone())
-    else {
+    let Some(configuration) = shell.products.source.configuration() else {
         downloads_group.add(&empty_remote_row);
         downloads_page.add(&downloads_group);
         return downloads_page;
     };
-    downloads_page.add(&source_downloads_group(shell, dialog, &source));
+    downloads_page.add(&source_downloads_group(
+        shell,
+        dialog,
+        &configuration.source_id,
+    ));
     downloads_page
 }
 
 fn source_downloads_group(
     shell: &Rc<Preferences>,
     dialog: &adw::Dialog,
-    server: &SourceSummary,
+    source_id: &sources::SourceId,
 ) -> adw::PreferencesGroup {
     let resource = crate::ui_resource::LIBRARY_PREFERENCES_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
@@ -176,11 +172,7 @@ fn source_downloads_group(
         download_queue_header: adw::PreferencesRow,
         pause_downloads: gtk::Button,
     });
-    let download_settings = shell
-        .settings
-        .current
-        .borrow()
-        .download_settings(&server.id);
+    let download_settings = shell.settings.current.borrow().download_settings(source_id);
     download_folder_row.set_subtitle(
         &download_settings
             .directory
@@ -190,19 +182,19 @@ fn source_downloads_group(
     );
     reset_folder.set_visible(download_settings.directory.is_some());
     let weak = Rc::downgrade(shell);
-    let source_id = server.id.clone();
+    let open_source_id = source_id.clone();
     open_folder.connect_clicked(move |_| {
         let Some(shell) = weak.upgrade() else { return };
         let directory = shell
             .settings
             .current
             .borrow()
-            .download_directory(&source_id)
+            .download_directory(&open_source_id)
             .unwrap_or_else(|| shell.products.downloads.default_directory().to_path_buf());
         super::open_folder(&shell, gio::File::for_path(directory));
     });
     let choose_shell = Rc::clone(shell);
-    let choose_source_id = server.id.clone();
+    let choose_source_id = source_id.clone();
     let choose_row = download_folder_row.downgrade();
     let choose_reset = reset_folder.downgrade();
     choose_folder.connect_clicked(move |_| {
@@ -245,7 +237,7 @@ fn source_downloads_group(
         });
     });
     let reset_shell = Rc::clone(shell);
-    let reset_source_id = server.id.clone();
+    let reset_source_id = source_id.clone();
     let reset_row = download_folder_row.downgrade();
     let reset_button = reset_folder.downgrade();
     reset_folder.connect_clicked(move |_| {
@@ -268,7 +260,7 @@ fn source_downloads_group(
     downloads_group.add(&download_folder_row);
 
     let quality_shell = Rc::clone(shell);
-    let quality_source_id = server.id.clone();
+    let quality_source_id = source_id.clone();
     for row in crate::download_quality::rows(download_settings.quality, move |quality, _| {
         quality_shell
             .settings
@@ -297,24 +289,24 @@ fn source_downloads_group(
         &downloads_group,
         shell,
         dialog,
-        &server.id,
+        source_id,
         download_settings.rules,
     );
 
     download_action_buttons.prepend(&add_rule);
     let remove_shell = Rc::clone(shell);
-    let source_id = server.id.clone();
+    let remove_source_id = source_id.clone();
     let preferences_dialog = dialog.downgrade();
     remove_all.connect_clicked(move |_| {
         let Some(preferences_dialog) = preferences_dialog.upgrade() else {
             return;
         };
-        confirm_remove_all_downloads(&remove_shell, &preferences_dialog, source_id.clone());
+        confirm_remove_all_downloads(&remove_shell, &preferences_dialog, remove_source_id.clone());
     });
     downloads_group.add(&download_actions_row);
 
     downloads_group.add(&download_queue_header);
-    add_download_queue(&downloads_group, shell, &server.id, &pause_downloads);
+    add_download_queue(&downloads_group, shell, source_id, &pause_downloads);
     downloads_group
 }
 

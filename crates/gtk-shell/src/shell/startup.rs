@@ -63,9 +63,7 @@ mod tests {
 
     #[test]
     fn launch_is_preparing_while_an_explicit_change_is_switching() {
-        let saved = sources::SourceId::new("saved");
         let operation = SourceOperation::Switching {
-            target: saved.clone(),
             progress: SourceProgress {
                 stage: SourceProgressStage::Connecting,
                 completed: 0,

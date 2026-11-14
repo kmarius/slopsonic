@@ -7,7 +7,6 @@ impl Shell {
         self: &Rc<Self>,
         name: String,
         selection: library::MemberSelection,
-        source_id: library::SourceId,
         public: bool,
     ) {
         let source = self.products.source.clone();
@@ -15,7 +14,6 @@ impl Shell {
         gtk::glib::spawn_future_local(async move {
             let result = slopsonic_core::playlists::create_playlist(
                 &source,
-                source_id,
                 name,
                 selection.into(),
                 Some(public),
@@ -58,15 +56,12 @@ impl Shell {
         let selected = configured.as_ref().map(|status| status.source.clone());
         drop(configured);
         let shell = Rc::downgrade(self);
-        let dialog = gtk_widgets::playlists::new_playlist_dialog(
-            &name,
-            selected,
-            move |name, source_id, public| {
+        let dialog =
+            gtk_widgets::playlists::new_playlist_dialog(&name, selected, move |name, public| {
                 if let Some(shell) = shell.upgrade() {
-                    shell.create_playlist_and_pin(name, selection.clone(), source_id, public);
+                    shell.create_playlist_and_pin(name, selection.clone(), public);
                 }
-            },
-        );
+            });
         self.present_selected_dialog(&dialog);
     }
 }

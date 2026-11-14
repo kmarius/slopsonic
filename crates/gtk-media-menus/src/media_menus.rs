@@ -89,7 +89,7 @@ pub struct MediaMenus {
     pub projected_item_favorite: Rc<dyn Fn(&FavoriteTarget, bool) -> bool>,
     pub set_favorite: Rc<dyn Fn(FavoriteTarget, bool)>,
     pub set_sidebar_pin: Rc<dyn Fn(SidebarPin, bool)>,
-    pub source_download_available: Rc<dyn Fn(&sources::SourceId) -> bool>,
+    pub source_download_available: Rc<dyn Fn() -> bool>,
     pub edit_playlist_dialog: Rc<dyn Fn(library::PlaylistKey, String)>,
     pub operation_feedback: Rc<dyn Fn(&OperationFeedback, Option<Box<dyn FnOnce()>>)>,
     pub show_error: Rc<dyn Fn(String)>,
@@ -265,7 +265,6 @@ fn install_track_navigation(
         &submenu,
         action_group,
         &track.media_uri,
-        track.source_id.as_deref(),
         album_media_uri,
     );
     if submenu.n_items() > 0 {
@@ -296,22 +295,15 @@ fn install_track_navigation(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn install_source_navigation(
     surface: &ContextMenuSurface,
     menus: &Rc<MediaMenus>,
     submenu: &gtk::gio::Menu,
     group: &str,
     media_uri: &str,
-    source_id: Option<&str>,
     album_uri: Option<&str>,
 ) {
-    let source_id = source_id
-        .map(sources::SourceId::new)
-        .or_else(|| library::source_entity_parts(media_uri).map(|(id, _, _)| id));
-    let configuration = source_id
-        .as_ref()
-        .and_then(|id| menus.source.configuration(id));
+    let configuration = menus.source.configuration();
     let Some(link) = slopsonic_core::detail_links::navigation_source_link(
         configuration.as_ref(),
         media_uri,
@@ -832,15 +824,7 @@ pub fn present_album_context_menu(
         .map(|artist| artist.name.clone())
         .collect::<Vec<_>>();
     let submenu = go_to_context_submenu("album", &artist_names, true);
-    install_source_navigation(
-        &surface,
-        menus,
-        &submenu,
-        "album",
-        &album.media_uri,
-        None,
-        None,
-    );
+    install_source_navigation(&surface, menus, &submenu, "album", &album.media_uri, None);
     if submenu.n_items() > 0 {
         surface.append_configurable_submenu(ContextMenuItem::GoTo, "Go to", &submenu, GO_TO_ICON);
     }
@@ -968,15 +952,7 @@ pub fn present_artist_context_menu(
     );
     let submenu =
         go_to_context_submenu("artist", std::slice::from_ref(&artist.metadata.name), false);
-    install_source_navigation(
-        &surface,
-        menus,
-        &submenu,
-        "artist",
-        &artist.media_uri,
-        None,
-        None,
-    );
+    install_source_navigation(&surface, menus, &submenu, "artist", &artist.media_uri, None);
     surface.append_configurable_submenu(ContextMenuItem::GoTo, "Go to", &submenu, GO_TO_ICON);
     let playback = if album_artist {
         gtk_widgets::selection::artist_play_request(&artist, true)
@@ -1288,8 +1264,7 @@ fn install_download_actions(
     downloaded: bool,
 ) {
     let available = media_uri.is_none_or(|uri| {
-        library::source_entity_parts(uri)
-            .is_some_and(|(source_id, _, _)| (menus.source_download_available)(&source_id))
+        library::source_entity_parts(uri).is_some() && (menus.source_download_available)()
     });
     if !downloaded && !available {
         return;

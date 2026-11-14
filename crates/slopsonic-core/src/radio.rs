@@ -77,9 +77,9 @@ pub(crate) async fn radio_candidates(
     let mut candidates = Vec::new();
     let seed_source_key = seed_source.as_ref().map(|(key, _, _)| *key);
     let mut fallback_sources = Vec::new();
-    if let Some((source_key, source_id, object_id)) = seed_source {
+    if let Some((source_key, _, object_id)) = seed_source {
         let seed_owner = owner.clone();
-        let source = tokio::task::spawn_blocking(move || seed_owner?.client(&source_id).ok())
+        let source = tokio::task::spawn_blocking(move || seed_owner?.client().ok())
             .await
             .map_err(|error| error.to_string())?;
         let native_seed = source_seed(source.as_deref(), &seed, object_id);

@@ -12,7 +12,6 @@ use std::time::Instant;
 use adw::prelude::*;
 use gtk::glib;
 use library::SourceKey;
-use sources::SourceId;
 use tracing::{debug, warn};
 
 use super::Shell;
@@ -241,19 +240,17 @@ impl Shell {
             {
                 return;
             }
-            let source_id = source_scoped
-                .then(|| selected.as_ref().map(|selected| selected.source_id.clone()))
-                .flatten();
+            let scoped = source_scoped && selected.is_some();
             let opened = match result {
                 Ok(Ok(opened)) => opened,
                 Ok(Err(error)) => {
                     warn!(%error, ?route, "failed to open collection");
-                    shell.show_route_load_error(route, source_id, render_started);
+                    shell.show_route_load_error(route, scoped, render_started);
                     return;
                 }
                 Err(error) => {
                     warn!(%error, ?route, "collection task failed");
-                    shell.show_route_load_error(route, source_id, render_started);
+                    shell.show_route_load_error(route, scoped, render_started);
                     return;
                 }
             };
@@ -273,7 +270,7 @@ impl Shell {
                 (opened, _, Some(fill)) => fill(opened),
                 (opened, _, _) => shell.replace_mounted_route(
                     route.clone(),
-                    source_id,
+                    scoped,
                     render_started,
                     move |catalog| catalog.opened_collection_view(route, opened, selected, false),
                 ),
@@ -458,7 +455,7 @@ impl Shell {
         let selected = self.selected_library().as_deref().cloned();
         if source_scoped && route.requires_selected_source() && selected.is_none() {
             self.cancel_root_order_read();
-            self.replace_mounted_route(route, None, render_started, |_| {
+            self.replace_mounted_route(route, false, render_started, |_| {
                 MountedRoute::static_widget(gtk_library::route_layout::route_empty_view(
                     "Nothing here yet",
                 ))
@@ -468,8 +465,7 @@ impl Shell {
         let selected = if source_scoped { selected } else { None };
         if route == Route::Search {
             self.cancel_root_order_read();
-            let source_id = selected.as_ref().map(|selected| selected.source_id.clone());
-            self.replace_mounted_route(route, source_id, render_started, |catalog| {
+            self.replace_mounted_route(route, selected.is_some(), render_started, |catalog| {
                 catalog.search_route()
             });
             return;
@@ -521,10 +517,12 @@ impl Shell {
         selected: Option<slopsonic_core::runtime::SelectedLibrary>,
         render_started: RouteTiming,
     ) {
-        let source_id = selected.as_ref().map(|selected| selected.source_id.clone());
         let render_route = route.clone();
-        self.replace_mounted_route(route, source_id, render_started, move |catalog| {
-            match (opened, render_route) {
+        self.replace_mounted_route(
+            route,
+            selected.is_some(),
+            render_started,
+            move |catalog| match (opened, render_route) {
                 (Some(opened), route) => {
                     catalog.opened_collection_view(route, opened, selected, true)
                 }
@@ -532,8 +530,8 @@ impl Shell {
                     catalog.folders_route(path, selected.as_ref().expect("folder source"), None)
                 }
                 (None, _) => unreachable!("only Folders mount without a pending page"),
-            }
-        });
+            },
+        );
         if let Some(entry) = self.route_viewport.mounted_route.borrow_mut().as_mut() {
             entry.pending = true;
             entry.surface.defer_restore();
@@ -636,7 +634,7 @@ impl Shell {
     fn replace_mounted_route(
         self: &Rc<Self>,
         route: Route,
-        source_id: Option<SourceId>,
+        scoped: bool,
         render_started: RouteTiming,
         build: impl FnOnce(Rc<gtk_library::CatalogUi>) -> MountedRoute,
     ) {
@@ -644,7 +642,7 @@ impl Shell {
         let previous = self.begin_mounted_route_replacement();
         let release_ms = teardown_started.map(elapsed_ms);
         let model_started = render_started.as_ref().map(|_| Instant::now());
-        let catalog = self.build_catalog(&route, source_id.as_ref());
+        let catalog = self.build_catalog(&route, scoped);
         catalog.refresh_current_route_now_playing_selections(route_current_track(
             self.player_ui.selected_playback().as_deref(),
         ));
@@ -671,7 +669,7 @@ impl Shell {
             removal_started.map(|started| elapsed_ms(started) + release_ms.unwrap_or(0));
         let mount_started = render_started.as_ref().map(|_| Instant::now());
         let scroll_adjustment = primary_route_scroll_adjustment(&widget);
-        let position_key = source_id.map(|_| RoutePositionKey::new(route.clone()));
+        let position_key = scoped.then(|| RoutePositionKey::new(route.clone()));
         let restore_position = position_key.as_ref().and_then(|key| {
             self.route_viewport
                 .position_memory
@@ -723,7 +721,7 @@ impl Shell {
     fn show_route_load_error(
         self: &Rc<Self>,
         route: Route,
-        source_id: Option<SourceId>,
+        scoped: bool,
         render_started: RouteTiming,
     ) {
         let resource = crate::ui_resource::ROUTE_ERROR_RESOURCE;
@@ -754,7 +752,7 @@ impl Shell {
         });
         let clicked = Rc::clone(&reload);
         refresh.connect_clicked(move |_| clicked());
-        self.replace_mounted_route(route, source_id, render_started, move |_| {
+        self.replace_mounted_route(route, scoped, render_started, move |_| {
             MountedRoute::static_widget(root.upcast()).with_catalog_refresh(reload)
         });
         if let Some(entry) = self.route_viewport.mounted_route.borrow_mut().as_mut() {

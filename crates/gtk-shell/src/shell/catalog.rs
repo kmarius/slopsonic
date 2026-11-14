@@ -6,10 +6,10 @@ impl Shell {
     pub(super) fn build_catalog(
         self: &Rc<Self>,
         route: &Route,
-        source_id: Option<&sources::SourceId>,
+        scoped: bool,
     ) -> Rc<gtk_library::CatalogUi> {
         let selected = self.selected_library().as_deref().cloned();
-        let selected_source_id = selected.as_ref().map(|selected| selected.source_id.clone());
+        let has_selected = selected.is_some();
         let source = self.products.source.clone();
         Rc::new(gtk_library::CatalogUi {
             library: self.products.library.clone(),
@@ -36,16 +36,10 @@ impl Shell {
             is_current: {
                 let weak = Rc::downgrade(self);
                 let route = route.clone();
-                let source_id = source_id.cloned();
                 Rc::new(move || {
                     weak.upgrade().is_some_and(|shell| {
                         shell.navigation.routes.borrow().current() == &route
-                            && source_id.as_ref().is_none_or(|id| {
-                                shell
-                                    .selected_library()
-                                    .as_deref()
-                                    .is_some_and(|selected| &selected.source_id == id)
-                            })
+                            && (!scoped || shell.selected_library().is_some())
                     })
                 })
             },
@@ -59,8 +53,8 @@ impl Shell {
 
             refresh_home_section: {
                 Rc::new(move |kind| {
-                    if let Some(source_id) = &selected_source_id {
-                        source.refresh_home(source_id.clone(), kind);
+                    if has_selected {
+                        source.refresh_home(kind);
                     }
                 })
             },

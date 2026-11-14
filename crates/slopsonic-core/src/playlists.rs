@@ -1,10 +1,10 @@
 //! Playlist routing and publication.
-use crate::runtime::{CatalogChange, SourceEvent};
+use crate::runtime::CatalogChange;
 use crate::source::{SourceOwner, string_error};
 use async_channel::Receiver;
 use futures_util::{StreamExt, TryStreamExt};
 use library::{Database, PlaylistEntryKey, PlaylistKey, ReadCancellation, SourceKey};
-use sources::{Source, SourceError, SourceId};
+use sources::{Source, SourceError};
 use std::{future::Future, sync::Arc};
 fn run<T, Work>(
     owner: &SourceOwner,
@@ -34,7 +34,6 @@ pub struct PlaylistCreation {
 
 pub async fn create_playlist(
     owner: &SourceOwner,
-    source_id: SourceId,
     name: String,
     songs: Arc<library::MemberSelection>,
     public: Option<bool>,
@@ -42,13 +41,14 @@ pub async fn create_playlist(
 ) -> sources::SourceResult<Option<PlaylistCreation>> {
     run(owner, move |owner| async move {
         let database = &owner.shared.database;
+        let source = owner.client()?;
+        let source_id = source.source_id().clone();
         let key = database
             .cached_source(source_id.as_str(), &ReadCancellation::new())
             .await
             .map_err(string_error)?
             .ok_or("Source access is unavailable")?
             .source;
-        let source = owner.client(&source_id)?;
         let (playlist, object_id) = {
             let tracks = database
                 .source_playlist_track_ids(key, None, &songs, false)
@@ -147,7 +147,7 @@ pub fn playlist_artwork_editing(
             && row
                 .source_id
                 .as_ref()
-                .map(|id| owner.client(&SourceId::new(id)))
+                .map(|_| owner.client())
                 .transpose()?
                 .is_some_and(|source| source.supports_playlist_artwork());
         let binding = row
@@ -379,17 +379,7 @@ pub async fn add_playlist_tracks(
         let reply = match result {
             Ok(accepted) => Ok(accepted),
             Err(error) => {
-                if let sources::SourceError::Library(
-                    library::LibraryError::PlaylistSourceMismatch(source_id),
-                ) = &error
-                {
-                    owner
-                        .shared
-                        .send(SourceEvent::PlaylistSourceMismatch(source_id.clone()))
-                        .await;
-                } else {
-                    owner.shared.warn_nonfatal(&error.to_string());
-                }
+                owner.shared.warn_nonfatal(&error.to_string());
                 Err(error.to_string())
             }
         };
@@ -526,8 +516,8 @@ async fn playlist_source(
         return Err("The server does not allow this playlist change".into());
     }
     let key = access.source_key.ok_or("Playlist owner is unavailable")?;
-    let id = access.source_id.ok_or("Playlist owner is unavailable")?;
-    Ok((owner.client(&SourceId::new(id))?, key, access.object_id))
+    access.source_id.ok_or("Playlist owner is unavailable")?;
+    Ok((owner.client()?, key, access.object_id))
 }
 
 async fn append_native_tracks(

@@ -708,10 +708,8 @@ impl SearchPopup {
     fn catalog(&self) -> Option<Rc<gtk_library::CatalogUi>> {
         let shell = self.shell.upgrade()?;
         let route = shell.navigation.routes.borrow().current().clone();
-        let source = shell
-            .selected_library()
-            .map(|selected| selected.source_id.clone());
-        Some(shell.build_catalog(&route, source.as_ref()))
+        let scoped = shell.selected_library().is_some();
+        Some(shell.build_catalog(&route, scoped))
     }
 
     fn activate(&self, action: Option<SearchAction>) {

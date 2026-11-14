@@ -5,8 +5,6 @@ use adw::prelude::*;
 use gtk::{gio, glib};
 use slopsonic_core::runtime::source::SourceSummary;
 
-use sources::SourceId;
-
 use super::login::source_settings_group;
 use crate::Preferences;
 use gtk_widgets::layout::large_popup_content_width;
@@ -53,7 +51,7 @@ fn manage_server_content(
         content: gtk::Box,
     });
     clamp.set_maximum_size(large_popup_content_width(MANAGE_SERVER_CLAMP_WIDTH));
-    match shell.products.source.editable(server.id.clone()) {
+    match shell.products.source.editable() {
         Ok(Some(saved)) => {
             let settings = match source_settings_group(shell, &saved) {
                 Ok(settings) => settings,
@@ -102,27 +100,23 @@ fn server_actions_group(
     });
 
     let source = shell.products.source.clone();
-    let source_id = server.id.clone();
     let preferences_dialog_for_resync = preferences_dialog.downgrade();
     resync.connect_clicked(move |_| {
         let source = source.clone();
-        let source_id = source_id.clone();
         gtk::glib::spawn_future_local(async move {
-            let _ = source.refresh_source(source_id, false).await;
+            let _ = source.refresh_source(false).await;
         });
         if let Some(dialog) = preferences_dialog_for_resync.upgrade() {
             dialog.close();
         }
     });
     let forget_shell = Rc::clone(shell);
-    let source_id = server.id.clone();
     let server_name = server_display_name(server);
     let exit = exit.clone();
     let preferences_dialog = preferences_dialog.downgrade();
     forget.connect_clicked(move |_| {
         confirm_forget_source(
             &forget_shell,
-            source_id.clone(),
             &server_name,
             Rc::new({
                 let exit = exit.clone();
@@ -141,7 +135,6 @@ fn server_actions_group(
 
 pub fn confirm_forget_source(
     shell: &Rc<Preferences>,
-    source_id: SourceId,
     server_name: &str,
     after_forget: Rc<dyn Fn()>,
 ) {
@@ -165,7 +158,7 @@ pub fn confirm_forget_source(
         move |response| {
             if response.as_str() == "forget" {
                 gtk::glib::spawn_future_local(async move {
-                    let _ = source.forget_source(source_id).await;
+                    let _ = source.forget_source().await;
                 });
                 after_forget();
             }

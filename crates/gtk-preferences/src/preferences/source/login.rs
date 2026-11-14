@@ -313,7 +313,6 @@ fn subsonic_settings_group(
     saved: &EditableSource,
     kind: SubsonicFlavor,
 ) -> Result<gtk::Widget, String> {
-    let source_id = saved.source.id.clone();
     let authentication = Some(
         saved
             .credentials
@@ -345,7 +344,6 @@ fn subsonic_settings_group(
             .as_ref()
             .map(|authentication| authentication.get());
         let source = source.clone();
-        let source_id = source_id.clone();
         let credentials = CredentialInput {
             source_name: Some(name.text().trim().to_string()),
             server_url: url.text().trim().to_string(),
@@ -357,7 +355,7 @@ fn subsonic_settings_group(
             complete_source_save(&shell, button, async move {
                 source
                     .save_subsonic(
-                        Some(source_id),
+                        true,
                         authentication.unwrap_or(SubsonicAuthentication::Password),
                         credentials,
                     )
@@ -417,7 +415,7 @@ impl SetupFlow {
                 let source = source.clone();
                 let authentication = authentication.get();
                 gtk::glib::spawn_future_local(async move {
-                    let _ = source.save_subsonic(None, authentication, input).await;
+                    let _ = source.save_subsonic(false, authentication, input).await;
                 });
             },
         );

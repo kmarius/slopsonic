@@ -122,15 +122,9 @@ pub(super) fn build(
         },
         source_download_available: {
             let weak = weak.clone();
-            Rc::new(move |source_id| {
-                weak.upgrade().is_some_and(|shell| {
-                    shell
-                        .source
-                        .configured
-                        .borrow()
-                        .iter()
-                        .any(|status| &status.source.id == source_id)
-                })
+            Rc::new(move || {
+                weak.upgrade()
+                    .is_some_and(|shell| shell.source.configured.borrow().is_some())
             })
         },
     })

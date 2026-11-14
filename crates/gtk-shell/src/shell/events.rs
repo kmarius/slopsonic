@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use gtk::glib;
 use gtk::prelude::WidgetExt;
-use slopsonic_core::text::fill;
 use tracing::warn;
 
 use crate::shell::playlist_picker::refresh_context_playlist_picker;
@@ -79,21 +78,6 @@ fn apply_source_event(shell: &Rc<Shell>, event: SourceEvent) {
         SourceEvent::Operation(operation) => apply_source_operation(shell, operation),
         SourceEvent::CatalogPublished(publication) => apply_catalog_publication(shell, publication),
         SourceEvent::Notice(notice) => apply_source_notice(shell, notice),
-        SourceEvent::PlaylistSourceMismatch(source_id) => {
-            let source_name = shell
-                .source
-                .configured
-                .borrow()
-                .iter()
-                .map(|status| &status.source)
-                .find(|source| source.id == source_id)
-                .map(gtk_widgets::source_labels::configured_source_display_name)
-                .unwrap_or_else(|| source_id.as_str().to_string());
-            shell.control_feedback.show_feedback_toast(fill(
-                "This playlist only accepts {source} tracks",
-                &[("source", &source_name)],
-            ));
-        }
         SourceEvent::ReleaseSelected => release_selected_source(shell),
     }
 }
@@ -361,16 +345,12 @@ fn apply_source_refresh_feedback(
 ) {
     let refreshing = matches!(previous, SourceOperation::Refreshing { .. });
     match operation {
-        SourceOperation::Refreshing {
-            source_id,
-            progress,
-        } => {
+        SourceOperation::Refreshing { progress } => {
             let continues = matches!(
                 previous,
                 SourceOperation::Refreshing {
-                    source_id: previous_source_id,
                     progress: previous_progress,
-                } if previous_source_id == source_id && previous_progress.stage == progress.stage
+                } if previous_progress.stage == progress.stage
             );
             let generation = shell
                 .source
@@ -648,7 +628,6 @@ mod tests {
     use playback::{
         ControlsView, PlaybackView, QueueSummaryView, RepeatMode, TransportStatus, TransportView,
     };
-    use sources::SourceId;
 
     use super::{
         bottom_player_can_update_position_only, media_controls_static_state_changed,
@@ -692,7 +671,6 @@ mod tests {
         assert!(source_operation_started_blocking(
             &SourceOperation::Idle,
             &SourceOperation::Switching {
-                target: SourceId::new("target"),
                 progress: SourceProgress {
                     stage: SourceProgressStage::Connecting,
                     completed: 0,

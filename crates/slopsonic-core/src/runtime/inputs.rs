@@ -23,7 +23,6 @@ pub enum SourceEvent {
     Operation(SourceOperation),
     CatalogPublished(CatalogPublication),
     Notice(SourceNotice),
-    PlaylistSourceMismatch(sources::SourceId),
     ReleaseSelected,
 }
 

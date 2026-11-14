@@ -676,8 +676,7 @@ pub fn fit_detail_text(label: &gtk::Label, text: &str) {
 
 pub fn album_external_links(shell: &Rc<CatalogUi>, album: &AlbumView) -> Option<gtk::Widget> {
     let settings = shell.settings.current.borrow();
-    let source = library::source_entity_parts(&album.media_uri)
-        .and_then(|(source_id, _, _)| shell.source.configuration(&source_id));
+    let source = shell.source.configuration();
     detail_external_links(
         shell,
         slopsonic_core::detail_links::album_external_links(
@@ -690,8 +689,7 @@ pub fn album_external_links(shell: &Rc<CatalogUi>, album: &AlbumView) -> Option<
 
 pub fn artist_external_links(shell: &Rc<CatalogUi>, artist: &ArtistView) -> Option<gtk::Widget> {
     let settings = shell.settings.current.borrow();
-    let source = library::source_entity_parts(&artist.media_uri)
-        .and_then(|(source_id, _, _)| shell.source.configuration(&source_id));
+    let source = shell.source.configuration();
     detail_external_links(
         shell,
         slopsonic_core::detail_links::artist_external_links(

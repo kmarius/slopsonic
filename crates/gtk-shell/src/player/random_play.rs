@@ -63,10 +63,7 @@ fn present_random_play_dialog_loaded(
         PlayedFilter::Played,
     ];
     let saved = shell.settings.current.borrow().random_play.clone();
-    let selected_genre = saved.selected_genre_id(
-        &selected.source_id,
-        selected.music_folder_object_id.as_deref(),
-    );
+    let selected_genre = saved.selected_genre_id(selected.music_folder_object_id.as_deref());
 
     let resource = crate::ui_resource::RANDOM_PLAY_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
@@ -220,18 +217,14 @@ fn connect_action(
     let genres = genres.to_vec();
     let selected = selected.clone();
     button.connect_clicked(move |_| {
-        let Some(settings) = settings_from_controls(
-            &controls,
-            &genres,
-            selected.source_id.clone(),
-            selected.music_folder_object_id.clone(),
-        ) else {
+        let Some(settings) =
+            settings_from_controls(&controls, &genres, selected.music_folder_object_id.clone())
+        else {
             return;
         };
         let request = request_from_settings(
             &settings,
             &genres,
-            &selected.source_id,
             selected.music_folder_object_id.as_deref(),
             placement,
         );
@@ -254,7 +247,6 @@ fn connect_action(
 fn settings_from_controls(
     controls: &RandomPlayControls,
     genres: &[GenreChoice],
-    source_id: sources::SourceId,
     music_folder_id: Option<String>,
 ) -> Option<RandomPlaySettings> {
     let genre_id = selected_genre(genres, controls.genre.selected());
@@ -276,7 +268,6 @@ fn settings_from_controls(
             .is_active()
             .then(|| controls.max_year.value_as_int().clamp(1850, 2050) as u16),
         genre: genre_id.map(|genre_id| RandomPlayGenreSelection {
-            source_id,
             music_folder_id,
             genre_id,
         }),
@@ -287,12 +278,11 @@ fn settings_from_controls(
 fn request_from_settings(
     settings: &RandomPlaySettings,
     genres: &[GenreChoice],
-    source_id: &sources::SourceId,
     music_folder_id: Option<&str>,
     placement: QueuePlacement,
 ) -> RandomPlayRequest {
     let genre = settings
-        .selected_genre_id(source_id, music_folder_id)
+        .selected_genre_id(music_folder_id)
         .and_then(|selected| genres.iter().find(|genre| genre.object_id == selected));
     slopsonic_core::radio::random_play_request(
         settings,
@@ -309,10 +299,7 @@ pub(crate) fn play_saved_random(shell: &Rc<Shell>, placement: QueuePlacement) {
     let database = Arc::clone(&shell.products.library);
     let source = selected.source_key;
     let genre_object_id = settings
-        .selected_genre_id(
-            &selected.source_id,
-            selected.music_folder_object_id.as_deref(),
-        )
+        .selected_genre_id(selected.music_folder_object_id.as_deref())
         .map(str::to_owned);
     let runtime = shell.products.runtime.clone();
     let queue = shell.products.playback.clone();
@@ -415,7 +402,6 @@ fn random_variation() -> i64 {
 mod tests {
     use library::PlayedFilter;
     use slopsonic_core::playback::QueuePlacement;
-    use sources::SourceId;
 
     use super::{RandomPlaySettings, request_from_settings};
 
@@ -428,14 +414,13 @@ mod tests {
             genre: None,
             played_filter: PlayedFilter::Unplayed,
         };
-        let source_id = SourceId::new("source");
 
         for placement in [
             QueuePlacement::Now,
             QueuePlacement::Next,
             QueuePlacement::Last,
         ] {
-            let request = request_from_settings(&settings, &[], &source_id, None, placement);
+            let request = request_from_settings(&settings, &[], None, placement);
             assert_eq!(request.placement, placement);
             assert_eq!(request.requested, 24);
             assert_eq!(request.criteria.min_year, Some(1995));

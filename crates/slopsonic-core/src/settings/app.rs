@@ -47,7 +47,6 @@ const MAX_RANDOM_PLAY_YEAR: u16 = 2050;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RandomPlayGenreSelection {
-    pub source_id: SourceId,
     #[serde(default)]
     pub music_folder_id: Option<String>,
     pub genre_id: String,
@@ -76,14 +75,9 @@ impl Default for RandomPlaySettings {
 }
 
 impl RandomPlaySettings {
-    pub fn selected_genre_id(
-        &self,
-        source_id: &SourceId,
-        music_folder_id: Option<&str>,
-    ) -> Option<&str> {
+    pub fn selected_genre_id(&self, music_folder_id: Option<&str>) -> Option<&str> {
         self.genre.as_ref().and_then(|genre| {
-            (&genre.source_id == source_id && genre.music_folder_id.as_deref() == music_folder_id)
-                .then_some(genre.genre_id.as_str())
+            (genre.music_folder_id.as_deref() == music_folder_id).then_some(genre.genre_id.as_str())
         })
     }
 

@@ -64,7 +64,6 @@ impl SourceOwner {
         let mut report = |completed| {
             if completed == 0 || reported_at.elapsed() >= std::time::Duration::from_millis(100) {
                 self.publish_asset_operation(SourceOperation::Downloading {
-                    source_id: source_id.clone(),
                     progress: SourceProgress {
                         stage: SourceProgressStage::Artwork,
                         completed,

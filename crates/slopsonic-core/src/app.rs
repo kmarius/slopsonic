@@ -143,10 +143,10 @@ where
         }
     }
     let artwork_source = Arc::downgrade(&source);
-    artwork.install_source_resolver(move |source_id| {
+    artwork.install_source_resolver(move |_| {
         artwork_source
             .upgrade()
-            .and_then(|owner| owner.client(source_id).ok())
+            .and_then(|owner| owner.client().ok())
     });
     let playback = PlaybackOwner::new(
         library.clone(),

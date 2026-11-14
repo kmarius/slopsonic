@@ -49,7 +49,7 @@ pub fn add_media_to_playlist(
 pub fn new_playlist_dialog(
     name: &str,
     selected: Option<SourceSummary>,
-    create: impl Fn(String, library::SourceId, bool) + 'static,
+    create: impl Fn(String, bool) + 'static,
 ) -> adw::Dialog {
     let resource = crate::ui_resource::PLAYLIST_NAME_DIALOG_RESOURCE;
     let builder = crate::ui_resource::builder(resource);
@@ -74,13 +74,13 @@ pub fn new_playlist_dialog(
         if name.is_empty() {
             return;
         }
-        let Some(source) = &selected else {
+        if selected.is_none() {
             return;
-        };
+        }
         if let Some(dialog) = dialog.upgrade() {
             dialog.close();
         }
-        create(name, source.id.clone(), new_public.is_active());
+        create(name, new_public.is_active());
     });
     new_dialog
 }

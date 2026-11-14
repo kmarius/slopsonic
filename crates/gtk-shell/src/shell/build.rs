@@ -360,7 +360,7 @@ pub async fn build(
                         return (gtk::Box::default().upcast(), Rc::new(|| {}));
                     };
                     let route = shell.navigation.routes.borrow().current().clone();
-                    let catalog = shell.build_catalog(&route, None);
+                    let catalog = shell.build_catalog(&route, false);
                     catalog.related_tracks_view(rows)
                 })
             },
