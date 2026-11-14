@@ -332,6 +332,7 @@ fn subsonic_settings_group(
     save.set_visible(true);
 
     let source = shell.products.source.clone();
+    let saved = saved.credentials.clone();
     let name = host.name.clone();
     let url = host.url.clone();
     let username = host.username.clone();
@@ -340,10 +341,14 @@ fn subsonic_settings_group(
     let authentication = host.authentication.clone();
     let weak_shell = Rc::downgrade(shell);
     save.connect_clicked(move |button| {
+        let Some(shell) = weak_shell.upgrade() else {
+            return;
+        };
         let authentication = authentication
             .as_ref()
-            .map(|authentication| authentication.get());
-        let source = source.clone();
+            .map_or(SubsonicAuthentication::Password, |authentication| {
+                authentication.get()
+            });
         let credentials = CredentialInput {
             source_name: Some(name.text().trim().to_string()),
             server_url: url.text().trim().to_string(),
@@ -351,21 +356,52 @@ fn subsonic_settings_group(
             secret: password.text().to_string(),
             trust_invalid_cert: !cert_verify.is_active(),
         };
-        if let Some(shell) = weak_shell.upgrade() {
-            complete_source_save(&shell, button, async move {
-                source
-                    .save_subsonic(
-                        true,
-                        authentication.unwrap_or(SubsonicAuthentication::Password),
-                        credentials,
-                    )
-                    .await
-                    .map_err(|error| error.to_string())
-            });
+        let switches = saved.switches_server(&credentials);
+        let source = source.clone();
+        let save = {
+            let shell = Rc::downgrade(&shell);
+            let button = button.downgrade();
+            move || {
+                let (Some(shell), Some(button)) = (shell.upgrade(), button.upgrade()) else {
+                    return;
+                };
+                complete_source_save(&shell, &button, async move {
+                    source
+                        .save_subsonic(true, authentication, credentials)
+                        .await
+                        .map_err(|error| error.to_string())
+                });
+            }
+        };
+        if switches {
+            confirm_server_switch(&shell, save);
+        } else {
+            save();
         }
     });
 
     Ok(host.widget.upcast())
+}
+
+/// A new address or username counts as another server, so its local state is reset first.
+fn confirm_server_switch(shell: &Rc<Preferences>, save: impl FnOnce() + 'static) {
+    let dialog = adw::AlertDialog::builder()
+        .heading("Switch Server")
+        .body("A different address or username counts as another server. This removes the cached library, queue, downloads, pins, and favorites or ratings not yet sent to the current server")
+        .build();
+    dialog.add_responses(&[("cancel", "Cancel"), ("switch", "Switch Server")]);
+    dialog.set_default_response(Some("cancel"));
+    dialog.set_close_response("cancel");
+    dialog.set_response_appearance("switch", adw::ResponseAppearance::Destructive);
+    dialog.choose(
+        Some(&shell.window),
+        None::<&gtk::gio::Cancellable>,
+        move |response| {
+            if response.as_str() == "switch" {
+                save();
+            }
+        },
+    );
 }
 
 fn complete_source_save(

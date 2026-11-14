@@ -80,6 +80,17 @@ pub(crate) fn require_payload_version(actual: u32, expected: u32) -> SourceResul
     Ok(())
 }
 
+impl CredentialPreset {
+    /// Whether saving `input` may count as a server switch, which resets local server state.
+    /// The server canonicalizes the username on connect, so this can warn where `same_server` then
+    /// matches; it never misses a switch on the address or a different username.
+    pub fn switches_server(&self, input: &CredentialInput) -> bool {
+        crate::source::comparable_address(&self.server_url)
+            != crate::source::comparable_address(&input.server_url)
+            || self.username.trim() != input.username.trim()
+    }
+}
+
 impl SourceConfiguration {
     /// Whether both reach the same account on the same server; anything else is a server switch.
     pub fn same_server(&self, other: &Self) -> bool {
@@ -141,6 +152,27 @@ mod tests {
         assert!(saved.same_server(&source("https://music.example/", "listener", true)));
         assert!(!saved.same_server(&source("https://other.example", "listener", false)));
         assert!(!saved.same_server(&source("https://music.example", "someone", false)));
+    }
+
+    #[test]
+    fn editing_the_address_or_username_switches_the_server() {
+        let saved = CredentialPreset {
+            source_name: "Music".into(),
+            server_url: "https://music.example".into(),
+            username: "listener".into(),
+            trust_invalid_cert: false,
+            open_subsonic_authentication: None,
+        };
+        let input = |url: &str, username: &str| CredentialInput {
+            source_name: Some("Renamed".into()),
+            server_url: url.into(),
+            username: username.into(),
+            secret: "new secret".into(),
+            trust_invalid_cert: true,
+        };
+        assert!(!saved.switches_server(&input(" https://music.example/ ", "listener ")));
+        assert!(saved.switches_server(&input("https://proxy.example/music", "listener")));
+        assert!(saved.switches_server(&input("https://music.example", "someone")));
     }
 
     #[test]
