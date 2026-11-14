@@ -1,5 +1,5 @@
 //! Canonical observations and concrete source membership writes.
-use crate::{Database, LibraryError, LibraryResult, ReadCancellation, SourceKey};
+use crate::{Database, LibraryError, LibraryResult, ReadCancellation};
 use sqlx::{Connection, FromRow, SqliteConnection};
 use std::sync::Arc;
 pub(crate) mod artwork;
@@ -61,7 +61,6 @@ impl CatalogUpdate {
 pub struct Catalog<'a> {
     pub database: &'a Database,
     pub observed: Option<i64>,
-    pub(crate) source: SourceKey,
     pub(crate) changes: CatalogUpdate,
 }
 
@@ -83,13 +82,13 @@ pub struct CachedSource {
 
 impl Database {
     pub async fn catalog(&self, observed: Option<i64>) -> LibraryResult<Catalog<'_>> {
-        let source = self
-            .source_identity_key()
-            .await?
-            .ok_or_else(|| LibraryError::InvalidRequest("source is no longer configured".into()))?;
+        if !self.has_server().await? {
+            return Err(LibraryError::InvalidRequest(
+                "source is no longer configured".into(),
+            ));
+        }
         Ok(Catalog {
             database: self,
-            source,
             observed,
             changes: CatalogUpdate::default(),
         })
@@ -99,9 +98,9 @@ impl Database {
         if !update.changed() && update.track_rekeys.is_empty() {
             return;
         }
-        match self.source_identity_key().await {
-            Ok(Some(_)) => self.catalog_updated(update).await,
-            Ok(None) => {
+        match self.has_server().await {
+            Ok(true) => self.catalog_updated(update).await,
+            Ok(false) => {
                 tracing::warn!("could not publish catalog update for removed source")
             }
             Err(error) => tracing::warn!(%error,"could not read source for catalog update"),
@@ -112,14 +111,12 @@ impl Database {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
         let mut transaction = connection.begin().await?;
-        let source = crate::db::write_source_identity(&mut transaction).await?;
-        sqlx::query("UPDATE sources SET kind=?2,display_name=?3,normalized_name=?4,distinct_track_covers=?5 WHERE source_key=?1 AND (kind,display_name,normalized_name,distinct_track_covers) IS NOT (?2,?3,?4,?5)")
-            .bind(source).bind(kind).bind(name).bind(name.to_lowercase()).bind(self.distinct_track_covers()).execute(&mut *transaction).await?;
-        let row =
-            sqlx::query_as("SELECT display_name,catalog_complete FROM sources WHERE source_key=?1")
-                .bind(source)
-                .fetch_one(&mut *transaction)
-                .await?;
+        crate::db::write_source_identity(&mut transaction).await?;
+        sqlx::query("UPDATE sources SET kind=?1,display_name=?2,normalized_name=?3,distinct_track_covers=?4 WHERE (kind,display_name,normalized_name,distinct_track_covers) IS NOT (?1,?2,?3,?4)")
+            .bind(kind).bind(name).bind(name.to_lowercase()).bind(self.distinct_track_covers()).execute(&mut *transaction).await?;
+        let row = sqlx::query_as("SELECT display_name,catalog_complete FROM sources")
+            .fetch_one(&mut *transaction)
+            .await?;
         transaction.commit().await?;
         Ok(row)
     }
@@ -177,8 +174,7 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<(usize, usize)> {
         let mut connection = self.acquire_general(cancellation).await?;
-        let source = crate::db::server_key(&mut connection).await?;
-        let(album,track)=sqlx::query_as::<_,(i64,i64)>("SELECT (SELECT count(*) FROM albums album WHERE source_key=?1 AND (album.indexed=1 OR EXISTS(SELECT 1 FROM tracks admitted WHERE admitted.album_key=album.album_key AND admitted.indexed=1))),(SELECT count(*) FROM tracks WHERE source_key=?1 AND indexed=1)").bind(source).fetch_one(&mut *connection).await?;
+        let(album,track)=sqlx::query_as::<_,(i64,i64)>("SELECT (SELECT count(*) FROM albums album WHERE (album.indexed=1 OR EXISTS(SELECT 1 FROM tracks admitted WHERE admitted.album_key=album.album_key AND admitted.indexed=1))),(SELECT count(*) FROM tracks WHERE indexed=1)").fetch_one(&mut *connection).await?;
         Ok((
             usize::try_from(album).unwrap_or_default(),
             usize::try_from(track).unwrap_or_default(),

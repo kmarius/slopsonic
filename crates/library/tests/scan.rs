@@ -698,9 +698,8 @@ async fn canonical_publication_preserves_identity_and_user_overrides() {
     .expect("read stable keys");
     assert_eq!(
         sqlx::query_as::<_, (i64, Option<i64>)>(
-            "SELECT COALESCE((SELECT play_count FROM native_media_state WHERE media_uri=tracks.media_uri),0),(SELECT last_played FROM native_media_state WHERE media_uri=tracks.media_uri) FROM tracks\n             WHERE source_key=?1 AND object_id='track-one'",
+            "SELECT COALESCE((SELECT play_count FROM native_media_state WHERE media_uri=tracks.media_uri),0),(SELECT last_played FROM native_media_state WHERE media_uri=tracks.media_uri) FROM tracks\n             WHERE object_id='track-one'",
         )
-        .bind(first.0)
         .fetch_one(&mut outside)
         .await
         .expect("read initial provider activity facts"),
@@ -768,9 +767,8 @@ async fn canonical_publication_preserves_identity_and_user_overrides() {
     );
     assert_eq!(
         sqlx::query_as::<_, (i64, Option<i64>)>(
-            "SELECT COALESCE((SELECT play_count FROM native_media_state WHERE media_uri=tracks.media_uri),0),(SELECT last_played FROM native_media_state WHERE media_uri=tracks.media_uri) FROM tracks\n             WHERE source_key=?1 AND object_id='track-one'",
+            "SELECT COALESCE((SELECT play_count FROM native_media_state WHERE media_uri=tracks.media_uri),0),(SELECT last_played FROM native_media_state WHERE media_uri=tracks.media_uri) FROM tracks\n             WHERE object_id='track-one'",
         )
-        .bind(first.0)
         .fetch_one(&mut outside)
         .await
         .expect("read current provider activity facts"),
@@ -825,7 +823,7 @@ async fn canonical_publication_preserves_identity_and_user_overrides() {
         )
     );
     let artwork_before = sqlx::query_scalar::<_, Vec<u8>>(
-        "SELECT native_artwork FROM genres\n         WHERE source_key=(SELECT source_key FROM sources) ORDER BY genre_key LIMIT 1",
+        "SELECT native_artwork FROM genres\n         ORDER BY genre_key LIMIT 1",
     )
     .fetch_one(&mut outside)
     .await
@@ -841,7 +839,7 @@ async fn canonical_publication_preserves_identity_and_user_overrides() {
     assert!(artwork_change.1.artwork);
     assert!(!artwork_change.1.metadata && !artwork_change.1.playlists);
     let artwork_after = sqlx::query_scalar::<_, Vec<u8>>(
-        "SELECT native_artwork FROM genres\n         WHERE source_key=(SELECT source_key FROM sources) ORDER BY genre_key LIMIT 1",
+        "SELECT native_artwork FROM genres\n         ORDER BY genre_key LIMIT 1",
     )
     .fetch_one(&mut outside)
     .await
@@ -1504,12 +1502,10 @@ async fn completed_batches_survive_later_failure_and_interleaved_changes() {
         third_catalog.into_changes()
     };
     assert_eq!(
-        sqlx::query_scalar::<_, i64>(
-            "SELECT count(*) FROM tracks WHERE source_key=(SELECT source_key FROM sources)"
-        )
-        .fetch_one(&mut outside)
-        .await
-        .unwrap(),
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM tracks WHERE object_id IS NOT NULL")
+            .fetch_one(&mut outside)
+            .await
+            .unwrap(),
         131
     );
     let mut point = library::CatalogBatch::default();
@@ -1572,9 +1568,34 @@ async fn completed_batches_survive_later_failure_and_interleaved_changes() {
             .unwrap(),
         0
     );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT (SELECT count(*) FROM albums)+(SELECT count(*) FROM artists)+(SELECT count(*) FROM playlists)+(SELECT count(*) FROM tracks WHERE object_id IS NOT NULL)",
+        )
+        .fetch_one(&mut outside)
+        .await
+        .unwrap(),
+        0
+    );
+    // A write racing the reset must not revive the forgotten server's catalog.
+    assert!(
+        sqlx::query(
+            "INSERT INTO albums(object_id,media_uri) VALUES('late','slopsonic:album/late')"
+        )
+        .execute(&mut outside)
+        .await
+        .is_err()
+    );
 
     database.reconcile_source("subsonic", "Two").await.unwrap();
-    for (title, stamp) in [("Reacquired", 1_i64), ("Refreshed", 2)] {
+    // A playlist naming the forgotten track before its own sync claims the kept row.
+    super::support::server_playlist(
+        &database,
+        "Before tracks",
+        &[library::entity_uri("track", "known")],
+    )
+    .await;
+    for (title, stamp) in [("Reacquired", 2_i64), ("Refreshed", 3)] {
         let mut catalog = database.catalog(None).await.unwrap();
         assert_eq!(catalog.start_observation().await.unwrap(), stamp);
         point.tracks[0].metadata.title = title.into();

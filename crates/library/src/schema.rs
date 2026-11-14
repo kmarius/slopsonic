@@ -39,7 +39,6 @@ CREATE TABLE IF NOT EXISTS playlists (
     playlist_key INTEGER PRIMARY KEY,
     observed_stamp INTEGER NOT NULL DEFAULT 0,
     indexed INTEGER NOT NULL DEFAULT 1 CHECK(indexed IN (0,1)),
-    source_key INTEGER REFERENCES sources ON DELETE CASCADE,
     object_id TEXT NOT NULL CHECK (object_id <> ''),
     name TEXT,
     normalized_name TEXT,
@@ -50,14 +49,12 @@ CREATE TABLE IF NOT EXISTS playlists (
     metadata_writable INTEGER NOT NULL DEFAULT 1,
     provider_revision TEXT,
     valid_until INTEGER,
-    UNIQUE (source_key, object_id)
+    UNIQUE (object_id)
 ) STRICT;
 
 
-CREATE INDEX IF NOT EXISTS playlists_order_idx ON playlists(source_key, sort_text, playlist_key);
-CREATE INDEX IF NOT EXISTS playlists_membership_idx ON playlists(source_key,indexed,playlist_key);
-
-CREATE INDEX IF NOT EXISTS playlists_title_idx ON playlists(source_key, sort_text, playlist_key);
+CREATE INDEX IF NOT EXISTS playlists_order_idx ON playlists(sort_text, playlist_key);
+CREATE INDEX IF NOT EXISTS playlists_membership_idx ON playlists(indexed,playlist_key);
 
 CREATE UNIQUE INDEX IF NOT EXISTS playlists_position_idx ON playlists(position);
 
@@ -147,15 +144,14 @@ CREATE INDEX IF NOT EXISTS download_files_path_idx ON download_files(path,encodi
 
 CREATE TABLE IF NOT EXISTS download_locators (
     download_access_file_key INTEGER PRIMARY KEY,
-    source_key INTEGER REFERENCES sources ON DELETE CASCADE,
     media_uri TEXT NOT NULL CHECK(media_uri<>''),
     origin TEXT NOT NULL CHECK(origin='download'),
     path TEXT NOT NULL CHECK(path<>''), root TEXT NOT NULL, relative_path TEXT NOT NULL,
     access_uri TEXT NOT NULL CHECK(access_uri<>''),
     UNIQUE(media_uri,origin)
 ) STRICT;
-CREATE INDEX IF NOT EXISTS download_locators_source_idx ON download_locators(source_key,origin);
-CREATE INDEX IF NOT EXISTS download_locators_path_idx ON download_locators(source_key,path);
+CREATE INDEX IF NOT EXISTS download_locators_source_idx ON download_locators(origin);
+CREATE INDEX IF NOT EXISTS download_locators_path_idx ON download_locators(path);
 CREATE INDEX IF NOT EXISTS download_locators_access_idx ON download_locators(media_uri,origin,download_access_file_key);
 
 
@@ -181,7 +177,6 @@ CREATE INDEX IF NOT EXISTS native_media_favorite_idx ON native_media_state(favor
 
 CREATE TABLE IF NOT EXISTS albums (
     album_key INTEGER PRIMARY KEY,
-    source_key INTEGER NOT NULL REFERENCES sources ON DELETE CASCADE,
     object_id TEXT NOT NULL, media_uri TEXT NOT NULL UNIQUE,
     indexed INTEGER NOT NULL DEFAULT 0,
     observed_stamp INTEGER NOT NULL DEFAULT 0,
@@ -207,16 +202,15 @@ CREATE TABLE IF NOT EXISTS albums (
     musicbrainz_release_id TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.musicbrainz_release_id')) VIRTUAL,
     musicbrainz_release_group_id TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.musicbrainz_release_group_id')) VIRTUAL,
     is_compilation INTEGER GENERATED ALWAYS AS (json_extract(metadata,'$.is_compilation')) VIRTUAL,
-    UNIQUE(source_key,object_id)
+    UNIQUE(object_id)
 ) STRICT;
-CREATE INDEX IF NOT EXISTS albums_native_artwork_idx ON albums(source_key,native_artwork) WHERE native_artwork IS NOT NULL;
+CREATE INDEX IF NOT EXISTS albums_native_artwork_idx ON albums(native_artwork) WHERE native_artwork IS NOT NULL;
 CREATE INDEX IF NOT EXISTS albums_artwork_track_idx ON albums(artwork_track_key) WHERE artwork_track_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS albums_artwork_artist_idx ON albums(artwork_artist_key) WHERE artwork_artist_key IS NOT NULL;
-CREATE INDEX IF NOT EXISTS albums_source_idx ON albums(source_key,indexed,album_key);
+CREATE INDEX IF NOT EXISTS albums_source_idx ON albums(indexed,album_key);
 
 CREATE TABLE IF NOT EXISTS tracks (
     track_key INTEGER PRIMARY KEY,
-    source_key INTEGER REFERENCES sources ON DELETE SET NULL,
     object_id TEXT,
     media_uri TEXT NOT NULL UNIQUE,
     album_key INTEGER REFERENCES albums ON DELETE SET NULL,
@@ -245,32 +239,30 @@ CREATE TABLE IF NOT EXISTS tracks (
     date_added TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.date_added')) VIRTUAL,
     source_format TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.source_format')) VIRTUAL,
     bpm INTEGER GENERATED ALWAYS AS (json_extract(metadata,'$.bpm')) VIRTUAL,
-    UNIQUE(source_key,object_id)
+    UNIQUE(object_id)
 ) STRICT;
-CREATE INDEX IF NOT EXISTS tracks_native_artwork_idx ON tracks(source_key,native_artwork) WHERE native_artwork IS NOT NULL;
+CREATE INDEX IF NOT EXISTS tracks_native_artwork_idx ON tracks(native_artwork) WHERE native_artwork IS NOT NULL;
 CREATE INDEX IF NOT EXISTS tracks_artwork_artist_idx ON tracks(artwork_artist_key) WHERE artwork_artist_key IS NOT NULL;
-CREATE INDEX IF NOT EXISTS tracks_order_idx ON tracks(source_key,indexed,sort_text,track_key);
-CREATE INDEX IF NOT EXISTS tracks_downloaded_order_idx ON tracks(source_key,indexed,sort_text,track_key) WHERE is_downloaded=1;
+CREATE INDEX IF NOT EXISTS tracks_order_idx ON tracks(indexed,sort_text,track_key);
+CREATE INDEX IF NOT EXISTS tracks_downloaded_order_idx ON tracks(indexed,sort_text,track_key) WHERE is_downloaded=1;
 CREATE INDEX IF NOT EXISTS tracks_duration_idx ON tracks(track_key,duration_millis);
-CREATE INDEX IF NOT EXISTS tracks_duration_order_idx ON tracks(source_key,indexed,duration_millis,sort_text,track_key);
-CREATE INDEX IF NOT EXISTS tracks_duration_desc_order_idx ON tracks(source_key,indexed,duration_millis DESC,sort_text,track_key);
-CREATE INDEX IF NOT EXISTS tracks_source_path_idx ON tracks(source_key,source_path,album_key);
+CREATE INDEX IF NOT EXISTS tracks_duration_order_idx ON tracks(indexed,duration_millis,sort_text,track_key);
+CREATE INDEX IF NOT EXISTS tracks_duration_desc_order_idx ON tracks(indexed,duration_millis DESC,sort_text,track_key);
+CREATE INDEX IF NOT EXISTS tracks_source_path_idx ON tracks(source_path,album_key);
 CREATE INDEX IF NOT EXISTS tracks_album_order_idx ON tracks(album_key,disc_number,track_number,sort_text,track_key);
-CREATE INDEX IF NOT EXISTS tracks_artist_order_idx ON tracks(source_key,indexed,display_artist,(album_year_sort IS NULL),album_year_sort,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
-CREATE INDEX IF NOT EXISTS tracks_artist_desc_order_idx ON tracks(source_key,indexed,display_artist DESC,(album_year_sort IS NULL),album_year_sort,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
-CREATE INDEX IF NOT EXISTS tracks_year_idx ON tracks(source_key,indexed,year,sort_text,track_key);
-CREATE INDEX IF NOT EXISTS tracks_release_idx ON tracks(source_key,indexed,release_date,sort_text,track_key);
-CREATE INDEX IF NOT EXISTS tracks_added_idx ON tracks(source_key,indexed,(COALESCE(unixepoch(date_added),first_seen_at) IS NULL),COALESCE(unixepoch(date_added),first_seen_at),sort_text,track_key);
-CREATE INDEX IF NOT EXISTS tracks_added_desc_idx ON tracks(source_key,indexed,(COALESCE(unixepoch(date_added),first_seen_at) IS NULL),COALESCE(unixepoch(date_added),first_seen_at) DESC,sort_text,track_key);
+CREATE INDEX IF NOT EXISTS tracks_artist_order_idx ON tracks(indexed,display_artist,(album_year_sort IS NULL),album_year_sort,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
+CREATE INDEX IF NOT EXISTS tracks_artist_desc_order_idx ON tracks(indexed,display_artist DESC,(album_year_sort IS NULL),album_year_sort,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
+CREATE INDEX IF NOT EXISTS tracks_year_idx ON tracks(indexed,year,sort_text,track_key);
+CREATE INDEX IF NOT EXISTS tracks_release_idx ON tracks(indexed,release_date,sort_text,track_key);
+CREATE INDEX IF NOT EXISTS tracks_added_idx ON tracks(indexed,(COALESCE(unixepoch(date_added),first_seen_at) IS NULL),COALESCE(unixepoch(date_added),first_seen_at),sort_text,track_key);
+CREATE INDEX IF NOT EXISTS tracks_added_desc_idx ON tracks(indexed,(COALESCE(unixepoch(date_added),first_seen_at) IS NULL),COALESCE(unixepoch(date_added),first_seen_at) DESC,sort_text,track_key);
 CREATE INDEX IF NOT EXISTS tracks_raw_album_year_idx ON tracks(album_key,source_path,disc_number,track_number,object_id) WHERE indexed=1 AND year IS NOT NULL;
 CREATE INDEX IF NOT EXISTS tracks_raw_album_release_idx ON tracks(album_key,source_path,disc_number,track_number,object_id) WHERE indexed=1 AND release_date IS NOT NULL;
-CREATE INDEX IF NOT EXISTS tracks_shuffle_idx ON tracks(source_key,((track_key*1103515245)%2147483647),media_uri);
 CREATE INDEX IF NOT EXISTS tracks_global_shuffle_idx ON tracks(((track_key*1103515245)%2147483647),media_uri);
-CREATE INDEX IF NOT EXISTS tracks_indexed_idx ON tracks(indexed,source_key,track_key);
+CREATE INDEX IF NOT EXISTS tracks_indexed_idx ON tracks(indexed,track_key);
 
 CREATE TABLE IF NOT EXISTS artists (
     artist_key INTEGER PRIMARY KEY,
-    source_key INTEGER NOT NULL REFERENCES sources ON DELETE CASCADE,
     object_id TEXT NOT NULL,
     media_uri TEXT NOT NULL UNIQUE,
     indexed INTEGER NOT NULL DEFAULT 0,
@@ -283,17 +275,16 @@ CREATE TABLE IF NOT EXISTS artists (
     normalized_name TEXT NOT NULL DEFAULT '',
     sort_text TEXT GENERATED ALWAYS AS (coalesce(json_extract(metadata,'$.sort_text'),normalized_name)) VIRTUAL,
     musicbrainz_artist_id TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.musicbrainz_artist_id')) VIRTUAL,
-    UNIQUE(source_key,object_id)
+    UNIQUE(object_id)
 ) STRICT;
-CREATE INDEX IF NOT EXISTS artists_native_artwork_idx ON artists(source_key,native_artwork) WHERE native_artwork IS NOT NULL;
+CREATE INDEX IF NOT EXISTS artists_native_artwork_idx ON artists(native_artwork) WHERE native_artwork IS NOT NULL;
 CREATE INDEX IF NOT EXISTS artists_artwork_album_idx ON artists(artwork_album_key) WHERE artwork_album_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS artists_artwork_track_idx ON artists(artwork_track_key) WHERE artwork_track_key IS NOT NULL;
-CREATE INDEX IF NOT EXISTS artists_order_idx ON artists(source_key,sort_text,artist_key);
-CREATE INDEX IF NOT EXISTS artists_membership_idx ON artists(source_key,indexed,artist_key);
+CREATE INDEX IF NOT EXISTS artists_order_idx ON artists(sort_text,artist_key);
+CREATE INDEX IF NOT EXISTS artists_membership_idx ON artists(indexed,artist_key);
 
 CREATE TABLE IF NOT EXISTS genres (
     genre_key INTEGER PRIMARY KEY,
-    source_key INTEGER NOT NULL REFERENCES sources ON DELETE CASCADE,
     object_id TEXT NOT NULL,
     media_uri TEXT NOT NULL UNIQUE,
     indexed INTEGER NOT NULL DEFAULT 0,
@@ -304,15 +295,14 @@ CREATE TABLE IF NOT EXISTS genres (
     name TEXT GENERATED ALWAYS AS (coalesce(json_extract(metadata,'$.name'),object_id)) VIRTUAL,
     normalized_name TEXT NOT NULL DEFAULT '',
     sort_text TEXT GENERATED ALWAYS AS (coalesce(json_extract(metadata,'$.sort_text'),normalized_name)) VIRTUAL,
-    UNIQUE(source_key,object_id)
+    UNIQUE(object_id)
 ) STRICT;
-CREATE INDEX IF NOT EXISTS genres_native_artwork_idx ON genres(source_key,native_artwork) WHERE native_artwork IS NOT NULL;
-CREATE INDEX IF NOT EXISTS genres_order_idx ON genres(source_key,sort_text,genre_key);
-CREATE INDEX IF NOT EXISTS genres_membership_idx ON genres(source_key,indexed,genre_key);
+CREATE INDEX IF NOT EXISTS genres_native_artwork_idx ON genres(native_artwork) WHERE native_artwork IS NOT NULL;
+CREATE INDEX IF NOT EXISTS genres_order_idx ON genres(sort_text,genre_key);
+CREATE INDEX IF NOT EXISTS genres_membership_idx ON genres(indexed,genre_key);
 
 CREATE TABLE IF NOT EXISTS moods (
     mood_key INTEGER PRIMARY KEY,
-    source_key INTEGER NOT NULL REFERENCES sources ON DELETE CASCADE,
     object_id TEXT NOT NULL,
     media_uri TEXT NOT NULL UNIQUE,
     indexed INTEGER NOT NULL DEFAULT 0,
@@ -323,14 +313,13 @@ CREATE TABLE IF NOT EXISTS moods (
     name TEXT GENERATED ALWAYS AS (coalesce(json_extract(metadata,'$.name'),object_id)) VIRTUAL,
     normalized_name TEXT NOT NULL DEFAULT '',
     sort_text TEXT GENERATED ALWAYS AS (coalesce(json_extract(metadata,'$.sort_text'),normalized_name)) VIRTUAL,
-    UNIQUE(source_key,object_id)
+    UNIQUE(object_id)
 ) STRICT;
-CREATE INDEX IF NOT EXISTS moods_order_idx ON moods(source_key,sort_text,mood_key);
-CREATE INDEX IF NOT EXISTS moods_membership_idx ON moods(source_key,indexed,mood_key);
+CREATE INDEX IF NOT EXISTS moods_order_idx ON moods(sort_text,mood_key);
+CREATE INDEX IF NOT EXISTS moods_membership_idx ON moods(indexed,mood_key);
 
 CREATE TABLE IF NOT EXISTS folders (
     folder_key INTEGER PRIMARY KEY,
-    source_key INTEGER NOT NULL REFERENCES sources ON DELETE CASCADE,
     object_id TEXT NOT NULL,
     media_uri TEXT NOT NULL UNIQUE,
     indexed INTEGER NOT NULL DEFAULT 0,
@@ -341,17 +330,17 @@ CREATE TABLE IF NOT EXISTS folders (
     name TEXT GENERATED ALWAYS AS (coalesce(json_extract(metadata,'$.name'),object_id)) VIRTUAL,
     normalized_name TEXT NOT NULL DEFAULT '',
     sort_text TEXT GENERATED ALWAYS AS (coalesce(json_extract(metadata,'$.sort_text'),normalized_name)) VIRTUAL,
-    UNIQUE(source_key,object_id)
+    UNIQUE(object_id)
 ) STRICT;
-CREATE INDEX IF NOT EXISTS folders_native_artwork_idx ON folders(source_key,native_artwork) WHERE native_artwork IS NOT NULL;
-CREATE INDEX IF NOT EXISTS folders_order_idx ON folders(source_key,sort_text,folder_key);
-CREATE INDEX IF NOT EXISTS folders_membership_idx ON folders(source_key,indexed,folder_key);
+CREATE INDEX IF NOT EXISTS folders_native_artwork_idx ON folders(native_artwork) WHERE native_artwork IS NOT NULL;
+CREATE INDEX IF NOT EXISTS folders_order_idx ON folders(sort_text,folder_key);
+CREATE INDEX IF NOT EXISTS folders_membership_idx ON folders(indexed,folder_key);
 
-CREATE INDEX IF NOT EXISTS albums_title_idx ON albums(source_key,title_sort,album_key);
-CREATE INDEX IF NOT EXISTS albums_artist_idx ON albums(source_key,(album_artist_sort IS NULL),album_artist_sort,(year_sort IS NULL),year_sort,title_sort,album_key);
-CREATE INDEX IF NOT EXISTS albums_year_idx ON albums(source_key,year_sort,title_sort,album_key);
-CREATE INDEX IF NOT EXISTS albums_release_idx ON albums(source_key,release_sort,title_sort,album_key);
-CREATE INDEX IF NOT EXISTS albums_added_idx ON albums(source_key,added_sort,title_sort,album_key);
+CREATE INDEX IF NOT EXISTS albums_title_idx ON albums(title_sort,album_key);
+CREATE INDEX IF NOT EXISTS albums_artist_idx ON albums((album_artist_sort IS NULL),album_artist_sort,(year_sort IS NULL),year_sort,title_sort,album_key);
+CREATE INDEX IF NOT EXISTS albums_year_idx ON albums(year_sort,title_sort,album_key);
+CREATE INDEX IF NOT EXISTS albums_release_idx ON albums(release_sort,title_sort,album_key);
+CREATE INDEX IF NOT EXISTS albums_added_idx ON albums(added_sort,title_sort,album_key);
 
 CREATE TABLE IF NOT EXISTS album_artists (
     album_key INTEGER NOT NULL REFERENCES albums ON DELETE CASCADE,
@@ -431,7 +420,6 @@ CREATE TABLE IF NOT EXISTS album_release_types (
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS home_entries (
-    source_key INTEGER NOT NULL REFERENCES sources ON DELETE CASCADE,
     section_id TEXT NOT NULL CHECK (section_id <> ''),
     position INTEGER NOT NULL CHECK (position >= 0),
     entity_kind TEXT NOT NULL CHECK (entity_kind IN ('track', 'album', 'artist', 'playlist')),
@@ -439,7 +427,7 @@ CREATE TABLE IF NOT EXISTS home_entries (
     title TEXT NOT NULL,
     subtitle TEXT NOT NULL,
     section_title TEXT,
-    PRIMARY KEY (source_key, section_id, position)
+    PRIMARY KEY (section_id, position)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS artwork_previews(family TEXT PRIMARY KEY,hash TEXT NOT NULL) WITHOUT ROWID;
@@ -451,7 +439,7 @@ CREATE TABLE IF NOT EXISTS download_access_metadata (
 ) STRICT;
 
 CREATE VIEW IF NOT EXISTS download_access_files AS
-          SELECT locator.download_access_file_key,locator.source_key,locator.media_uri,
+          SELECT locator.download_access_file_key,locator.media_uri,
                  locator.origin,locator.path,locator.root,locator.relative_path,
                  COALESCE(metadata.size_bytes,0) size_bytes,COALESCE(metadata.mtime_ns,0) mtime_ns,
                  metadata.device_id,metadata.inode,COALESCE(metadata.parser_version,1) parser_version,
@@ -466,6 +454,17 @@ CREATE TABLE IF NOT EXISTS native_playlist_pending (
     position INTEGER NOT NULL,
     PRIMARY KEY(playlist_key,object_id)
 ) STRICT;
+
+-- Server rows need the server; a write racing a server reset aborts instead of reviving the catalog.
+CREATE TRIGGER IF NOT EXISTS server_required_albums BEFORE INSERT ON albums WHEN NOT EXISTS(SELECT 1 FROM sources) BEGIN SELECT RAISE(ABORT,'no server is configured'); END;
+CREATE TRIGGER IF NOT EXISTS server_required_artists BEFORE INSERT ON artists WHEN NOT EXISTS(SELECT 1 FROM sources) BEGIN SELECT RAISE(ABORT,'no server is configured'); END;
+CREATE TRIGGER IF NOT EXISTS server_required_genres BEFORE INSERT ON genres WHEN NOT EXISTS(SELECT 1 FROM sources) BEGIN SELECT RAISE(ABORT,'no server is configured'); END;
+CREATE TRIGGER IF NOT EXISTS server_required_moods BEFORE INSERT ON moods WHEN NOT EXISTS(SELECT 1 FROM sources) BEGIN SELECT RAISE(ABORT,'no server is configured'); END;
+CREATE TRIGGER IF NOT EXISTS server_required_folders BEFORE INSERT ON folders WHEN NOT EXISTS(SELECT 1 FROM sources) BEGIN SELECT RAISE(ABORT,'no server is configured'); END;
+CREATE TRIGGER IF NOT EXISTS server_required_playlists BEFORE INSERT ON playlists WHEN NOT EXISTS(SELECT 1 FROM sources) BEGIN SELECT RAISE(ABORT,'no server is configured'); END;
+CREATE TRIGGER IF NOT EXISTS server_required_home_entries BEFORE INSERT ON home_entries WHEN NOT EXISTS(SELECT 1 FROM sources) BEGIN SELECT RAISE(ABORT,'no server is configured'); END;
+CREATE TRIGGER IF NOT EXISTS server_required_tracks BEFORE INSERT ON tracks WHEN NEW.object_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM sources) BEGIN SELECT RAISE(ABORT,'no server is configured'); END;
+CREATE TRIGGER IF NOT EXISTS server_required_track_claims BEFORE UPDATE OF object_id ON tracks WHEN NEW.object_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM sources) BEGIN SELECT RAISE(ABORT,'no server is configured'); END;
 "#;
 
 const BASE_VERSION: i64 = 64;
@@ -611,6 +610,7 @@ const MIGRATIONS: &[&str] = &[
     // 72: one server. Media URIs lose the server id and the catalog cache is rebuilt by the
     // next sync; the queue keeps its tracks, and the kept server's outboxes, user state and
     // downloads keep their rows. Rows of any older server are dropped instead of re-pointed.
+    // Upgrades run with foreign keys off, so the former cascades from `sources` are explicit.
     concat!(
         "DROP VIEW download_access_files;
      CREATE TEMP TABLE kept_server(segment TEXT PRIMARY KEY);
@@ -653,6 +653,8 @@ const MIGRATIONS: &[&str] = &[
      DELETE FROM moods;
      DELETE FROM folders;
      DELETE FROM tracks WHERE track_key NOT IN (SELECT track_key FROM queue_entries);
+     DELETE FROM download_locators WHERE source_key<>(SELECT max(source_key) FROM sources);
+     UPDATE tracks SET source_key=NULL WHERE source_key<>(SELECT max(source_key) FROM sources);
      DELETE FROM sources WHERE source_key<>(SELECT max(source_key) FROM sources);
      UPDATE sources SET object_id='server',freshness=NULL,catalog_complete=0,album_count=0,
          track_count=0,observation_stamp=observation_stamp+1;
@@ -680,6 +682,89 @@ const MIGRATIONS: &[&str] = &[
      DROP INDEX download_source_idx;
      ALTER TABLE download_files DROP COLUMN source_id;"
     ),
+    // 73: drop the per-server keys. Runs with foreign keys off; the catalog cache tables are
+    // dropped and recreated empty for the next sync, queued tracks and download locators are copied.
+    "DROP VIEW IF EXISTS download_access_files;
+     DROP TABLE collection_album_index;
+     DROP TABLE collection_totals;
+     DROP TABLE folder_children;
+     DROP TABLE playlist_genres;
+     DROP TABLE home_entries;
+     DROP TABLE native_playlist_pending;
+     DROP TABLE playlist_entries;
+     DROP TABLE playlists;
+     DROP TABLE album_artists;
+     DROP TABLE album_genres;
+     DROP TABLE album_release_types;
+     DROP TABLE track_artists;
+     DROP TABLE track_album_artists;
+     DROP TABLE track_genres;
+     DROP TABLE track_moods;
+     DROP TABLE track_folders;
+     DROP TABLE albums;
+     DROP TABLE artists;
+     DROP TABLE genres;
+     DROP TABLE moods;
+     DROP TABLE folders;
+     DELETE FROM native_media_state;
+     DELETE FROM artwork_previews;
+     CREATE TABLE tracks_new (
+         track_key INTEGER PRIMARY KEY,
+         object_id TEXT,
+         media_uri TEXT NOT NULL UNIQUE,
+         album_key INTEGER REFERENCES albums ON DELETE SET NULL,
+         indexed INTEGER NOT NULL DEFAULT 0,
+         observed_stamp INTEGER NOT NULL DEFAULT 0,
+         metadata BLOB NOT NULL DEFAULT (jsonb('{}')),
+         native_metadata INTEGER NOT NULL DEFAULT 0,
+         source_path TEXT,
+         first_seen_at INTEGER,
+         native_artwork BLOB,
+         artwork_kind INTEGER NOT NULL DEFAULT 0, artwork_artist_key INTEGER,
+         audio_key BLOB NOT NULL DEFAULT (zeroblob(32)),
+         album_title_sort TEXT, album_artist_sort TEXT, album_year_sort INTEGER,
+         displayed_play_count INTEGER NOT NULL DEFAULT 0, displayed_last_played INTEGER,
+         is_downloaded INTEGER NOT NULL DEFAULT 0,
+         title TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.title')) VIRTUAL,
+         display_artist TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.artist')) VIRTUAL,
+         display_album TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.album')) VIRTUAL,
+         sort_text TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.sort_text')) VIRTUAL,
+         normalized_search TEXT NOT NULL DEFAULT '',
+         duration_millis INTEGER GENERATED ALWAYS AS (coalesce(json_extract(metadata,'$.duration_millis'),0)) STORED,
+         disc_number INTEGER GENERATED ALWAYS AS (coalesce(json_extract(metadata,'$.disc_number'),0)) VIRTUAL,
+         track_number INTEGER GENERATED ALWAYS AS (coalesce(json_extract(metadata,'$.track_number'),0)) VIRTUAL,
+         year INTEGER GENERATED ALWAYS AS (json_extract(metadata,'$.year')) VIRTUAL,
+         release_date TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.release_date')) VIRTUAL,
+         date_added TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.date_added')) VIRTUAL,
+         source_format TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.source_format')) VIRTUAL,
+         bpm INTEGER GENERATED ALWAYS AS (json_extract(metadata,'$.bpm')) VIRTUAL,
+         UNIQUE(object_id)
+     ) STRICT;
+     INSERT INTO tracks_new(track_key,object_id,media_uri,metadata,native_metadata,source_path,
+             first_seen_at,native_artwork,artwork_kind,audio_key,displayed_play_count,
+             displayed_last_played,is_downloaded,normalized_search)
+         SELECT track_key,CASE WHEN source_key IN (SELECT source_key FROM sources) THEN object_id END,
+             media_uri,metadata,native_metadata,source_path,first_seen_at,native_artwork,
+             artwork_kind,audio_key,displayed_play_count,displayed_last_played,is_downloaded,
+             normalized_search
+         FROM tracks WHERE track_key IN (SELECT track_key FROM queue_entries);
+     DROP TABLE tracks;
+     ALTER TABLE tracks_new RENAME TO tracks;
+     CREATE TABLE download_locators_new (
+         download_access_file_key INTEGER PRIMARY KEY,
+         media_uri TEXT NOT NULL CHECK(media_uri<>''),
+         origin TEXT NOT NULL CHECK(origin='download'),
+         path TEXT NOT NULL CHECK(path<>''), root TEXT NOT NULL, relative_path TEXT NOT NULL,
+         access_uri TEXT NOT NULL CHECK(access_uri<>''),
+         UNIQUE(media_uri,origin)
+     ) STRICT;
+     INSERT INTO download_locators_new
+         SELECT download_access_file_key,media_uri,origin,path,root,relative_path,access_uri
+         FROM download_locators;
+     DROP TABLE download_locators;
+     ALTER TABLE download_locators_new RENAME TO download_locators;
+     UPDATE sources SET freshness=NULL,catalog_complete=0,album_count=0,track_count=0,
+         observation_stamp=observation_stamp+1;",
 ];
 
 pub(crate) const SCHEMA_VERSION: i64 = BASE_VERSION + MIGRATIONS.len() as i64;
@@ -705,8 +790,28 @@ async fn migrate(
 
 pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> LibraryResult<()> {
     let version = pragma(connection, "user_version").await?;
-    let mut transaction = connection.begin().await?;
     let upgrading = version != 0 && version < SCHEMA_VERSION;
+    if upgrading {
+        // Migrations rebuild tables; dropping one must not cascade into the tables that reference it.
+        sqlx::raw_sql("PRAGMA foreign_keys=OFF")
+            .execute(&mut *connection)
+            .await?;
+    }
+    let result = initialize_in_transaction(connection, version, upgrading).await;
+    if upgrading {
+        sqlx::raw_sql("PRAGMA foreign_keys=ON")
+            .execute(&mut *connection)
+            .await?;
+    }
+    result
+}
+
+async fn initialize_in_transaction(
+    connection: &mut SqliteConnection,
+    version: i64,
+    upgrading: bool,
+) -> LibraryResult<()> {
+    let mut transaction = connection.begin().await?;
     if upgrading {
         let triggers: Vec<String> = sqlx::query_scalar(
             "SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'catalog\\_index\\_%' ESCAPE '\\'",
@@ -725,12 +830,21 @@ pub(crate) async fn initialize_durable(connection: &mut SqliteConnection) -> Lib
     sqlx::raw_sql(STORE_SCHEMA)
         .execute(&mut *transaction)
         .await?;
-    sqlx::raw_sql("UPDATE download_locators AS locator SET source_key=track.source_key FROM tracks track WHERE locator.source_key IS NULL AND locator.origin='download' AND locator.media_uri=track.media_uri AND track.source_key IS NOT NULL;")
-        .execute(&mut *transaction).await?;
     if version == 0 {
         crate::catalog::index::initialize(&mut transaction).await?;
     } else if upgrading {
         crate::catalog::index::recreate_triggers(&mut transaction).await?;
+    }
+    if upgrading {
+        let violation: Option<String> =
+            sqlx::query_scalar("SELECT \"table\" FROM pragma_foreign_key_check")
+                .fetch_optional(&mut *transaction)
+                .await?;
+        if let Some(table) = violation {
+            return Err(crate::LibraryError::Migration(format!(
+                "foreign key violation in {table} after migration"
+            )));
+        }
     }
     sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "PRAGMA user_version = {SCHEMA_VERSION}"

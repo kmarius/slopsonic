@@ -3,7 +3,6 @@ use sqlx::{QueryBuilder, Sqlite};
 
 pub(crate) async fn write_images(
     connection: &mut SqliteConnection,
-    source: i64,
     kind: &str,
     rows: &[(&str, Option<&[u8]>)],
     observed: Option<i64>,
@@ -32,11 +31,7 @@ pub(crate) async fn write_images(
         ))
         .push_bind(observed)
         .push(format!(
-            ",{table}.observed_stamp) FROM input WHERE {table}.source_key="
-        ))
-        .push_bind(source)
-        .push(format!(
-            " AND {table}.object_id=input.object_id AND observed_stamp<="
+            ",{table}.observed_stamp) FROM input WHERE {table}.object_id=input.object_id AND observed_stamp<="
         ))
         .push_bind(observed.unwrap_or(i64::MAX))
         .push(" AND ")
@@ -157,7 +152,7 @@ pub(crate) async fn refresh_track_choices(
            CASE WHEN track.native_artwork IS NOT NULL AND json_array_length(track.native_artwork)>0 AND(coalesce(source.distinct_track_covers,0)=1 OR album.artwork_binding IS NULL) THEN 1
                 WHEN album.artwork_binding IS NOT NULL THEN 2 ELSE 3 END kind,
            (SELECT artist_key FROM track_artists WHERE track_key=track.track_key ORDER BY position LIMIT 1) artist_key
-           FROM requested JOIN tracks track USING(track_key) LEFT JOIN sources source USING(source_key) LEFT JOIN albums album USING(album_key))
+           FROM requested JOIN tracks track USING(track_key) LEFT JOIN sources source ON track.object_id IS NOT NULL LEFT JOIN albums album USING(album_key))
          UPDATE tracks SET artwork_kind=chosen.kind,artwork_artist_key=CASE WHEN chosen.kind=3 THEN chosen.artist_key END FROM chosen
          WHERE tracks.track_key=chosen.track_key AND(artwork_kind,artwork_artist_key) IS NOT(chosen.kind,CASE WHEN chosen.kind=3 THEN chosen.artist_key END) RETURNING track_key",
     ).bind(serde_json::to_string(tracks)?).bind(serde_json::to_string(albums)?).bind(serde_json::to_string(artists)?).fetch_all(&mut *connection).await?;
@@ -166,7 +161,6 @@ pub(crate) async fn refresh_track_choices(
 
 pub(crate) async fn refresh_batch(
     connection: &mut SqliteConnection,
-    source: i64,
     tracks: &[TrackObservation],
     albums: &[AlbumObservation],
     artists: &[ArtistObservation],
@@ -186,8 +180,14 @@ pub(crate) async fn refresh_batch(
         ("artist", artists.iter().map(|row| &row.object_id).collect()),
     ] {
         let (table, key) = super::cache::table(kind);
-        keys.push(sqlx::query_scalar::<_,i64>(sqlx::AssertSqlSafe(format!("SELECT {key} FROM {table} WHERE source_key=?1 AND object_id IN(SELECT value FROM json_each(?2))")))
-            .bind(source).bind(serde_json::to_string(&ids)?).fetch_all(&mut *connection).await?);
+        keys.push(
+            sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(format!(
+                "SELECT {key} FROM {table} WHERE object_id IN(SELECT value FROM json_each(?1))"
+            )))
+            .bind(serde_json::to_string(&ids)?)
+            .fetch_all(&mut *connection)
+            .await?,
+        );
     }
     keys[1].extend(previous_albums);
     if update.metadata {
@@ -211,8 +211,7 @@ impl super::Catalog<'_> {
             .ok_or(LibraryError::WriterUnavailable)?
             .begin()
             .await?;
-        let source = self.source.raw();
-        let observed = super::cache::observation_stamp(&mut tx, source, observed).await?;
+        let observed = super::cache::observation_stamp(&mut tx, observed).await?;
         let mut update = CatalogUpdate::default();
         for page in rows.chunks(128) {
             if page.is_empty() {
@@ -220,7 +219,6 @@ impl super::Catalog<'_> {
             }
             let changed = write_images(
                 &mut tx,
-                source,
                 kind,
                 &page
                     .iter()
@@ -233,8 +231,14 @@ impl super::Catalog<'_> {
             update.artwork |= changed;
             if changed {
                 let (table, key) = super::cache::table(kind);
-                let keys: Vec<i64> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {key} FROM {table} WHERE source_key=?1 AND object_id IN(SELECT value FROM json_each(?2))")))
-                    .bind(source).bind(serde_json::to_string(&page.iter().map(|(id,_)|id).collect::<Vec<_>>())?).fetch_all(&mut *tx).await?;
+                let keys: Vec<i64> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+                    "SELECT {key} FROM {table} WHERE object_id IN(SELECT value FROM json_each(?1))"
+                )))
+                .bind(serde_json::to_string(
+                    &page.iter().map(|(id, _)| id).collect::<Vec<_>>(),
+                )?)
+                .fetch_all(&mut *tx)
+                .await?;
                 refresh_choices(
                     &mut tx,
                     if kind == "track" { &keys } else { &[] },

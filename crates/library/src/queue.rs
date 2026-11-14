@@ -478,15 +478,14 @@ impl Database {
         queue: &QueueRestore,
     ) -> LibraryResult<Vec<usize>> {
         let mut reader = self.acquire_reader().await?;
-        let source = crate::db::server_key(&mut reader).await?;
         let mut positions = Vec::new();
         for (page, order) in queue.order.chunks(4096).enumerate() {
             let keys = order
                 .iter()
                 .map(|i| queue.entries[*i as usize].track_key)
                 .collect::<Vec<_>>();
-            let matching=sqlx::query_scalar::<_,i64>("SELECT CAST(requested.key AS INTEGER) FROM json_each(?1) requested JOIN tracks ON track_key=requested.value WHERE source_key=?2 ORDER BY CAST(requested.key AS INTEGER)")
-                .bind(serde_json::to_string(&keys)?).bind(source).fetch_all(&mut *reader).await?;
+            let matching=sqlx::query_scalar::<_,i64>("SELECT CAST(requested.key AS INTEGER) FROM json_each(?1) requested JOIN tracks ON track_key=requested.value WHERE object_id IS NOT NULL ORDER BY CAST(requested.key AS INTEGER)")
+                .bind(serde_json::to_string(&keys)?).fetch_all(&mut *reader).await?;
             positions.extend(
                 matching
                     .into_iter()

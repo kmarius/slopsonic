@@ -16,7 +16,6 @@ pub(crate) fn table(kind: &str) -> (&'static str, &'static str) {
 
 pub(super) async fn write_headers<T: serde::Serialize + Default + Sync>(
     connection: &mut SqliteConnection,
-    source: i64,
     kind: &str,
     rows: &[(&str, &T, String, Option<Vec<u8>>)],
     admit: bool,
@@ -81,8 +80,7 @@ pub(super) async fn write_headers<T: serde::Serialize + Default + Sync>(
         } else {
             format!("excluded.{normalized}")
         };
-        query.push(format!(") INSERT INTO {table}(source_key,object_id,media_uri,{column},{normalized},indexed,native_metadata) SELECT "))
-            .push_bind(source).push(",object_id,media_uri,");
+        query.push(format!(") INSERT INTO {table}(object_id,media_uri,{column},{normalized},indexed,native_metadata) SELECT object_id,media_uri,"));
         if native {
             query.push("jsonb(metadata)");
         } else {
@@ -93,7 +91,7 @@ pub(super) async fn write_headers<T: serde::Serialize + Default + Sync>(
         }
         query.push(",normalized,").push_bind(admit)
             .push(",").push_bind(native)
-            .push(format!(" FROM input WHERE true ON CONFLICT(source_key,object_id) DO UPDATE SET {column}={metadata},{normalized}={caption},indexed=max({table}.indexed,excluded.indexed),native_metadata=max({table}.native_metadata,excluded.native_metadata) WHERE "))
+            .push(format!(" FROM input WHERE true ON CONFLICT(object_id) DO UPDATE SET {column}={metadata},{normalized}={caption},indexed=max({table}.indexed,excluded.indexed),native_metadata=max({table}.native_metadata,excluded.native_metadata) WHERE "))
             .push(if native { "1" } else { "native_metadata=0" })
             .push(format!(" AND {table}.observed_stamp<=")).push_bind(observed.unwrap_or(i64::MAX))
             .push(format!(" AND ({table}.{column},{table}.indexed,{table}.native_metadata) IS NOT({metadata},max({table}.indexed,excluded.indexed),max({table}.native_metadata,excluded.native_metadata)) RETURNING object_id"));
@@ -105,7 +103,6 @@ pub(super) async fn write_headers<T: serde::Serialize + Default + Sync>(
         );
         changed.1 |= super::artwork::write_images(
             connection,
-            source,
             kind,
             &page
                 .iter()
@@ -121,7 +118,6 @@ pub(super) async fn write_headers<T: serde::Serialize + Default + Sync>(
 
 pub(super) async fn users(
     connection: &mut SqliteConnection,
-    source: i64,
     kind: &str,
     rows: &[(&str, &NativeUserState)],
     observed: Option<i64>,
@@ -142,9 +138,8 @@ pub(super) async fn users(
         }
         let previous: Vec<(String, Option<bool>, Option<i64>, Option<i64>, Option<i64>)> =
             sqlx::query_as(sqlx::AssertSqlSafe(format!(
-                "SELECT item.object_id,state.favorite,state.rating,state.play_count,state.last_played FROM {table} item LEFT JOIN native_media_state state USING(media_uri) WHERE item.source_key=?1 AND item.observed_stamp<=?2 AND item.object_id IN(SELECT value FROM json_each(?3))"
+                "SELECT item.object_id,state.favorite,state.rating,state.play_count,state.last_played FROM {table} item LEFT JOIN native_media_state state USING(media_uri) WHERE item.observed_stamp<=?1 AND item.object_id IN(SELECT value FROM json_each(?2))"
             )))
-            .bind(source)
             .bind(observed.unwrap_or(i64::MAX))
             .bind(serde_json::to_string(&states.keys().collect::<Vec<_>>())?)
             .fetch_all(&mut *connection)
@@ -170,8 +165,7 @@ pub(super) async fn users(
                 .push_bind(state.play_count)
                 .push_bind(state.last_played);
         });
-        query.push(format!(") INSERT INTO native_media_state(media_uri,favorite,rating,play_count,last_played) SELECT item.media_uri,input.favorite,input.rating,input.play_count,input.last_played FROM input JOIN {table} item USING(object_id) WHERE item.source_key="))
-            .push_bind(source).push(" AND item.observed_stamp<=").push_bind(observed.unwrap_or(i64::MAX))
+        query.push(format!(") INSERT INTO native_media_state(media_uri,favorite,rating,play_count,last_played) SELECT item.media_uri,input.favorite,input.rating,input.play_count,input.last_played FROM input JOIN {table} item USING(object_id) WHERE item.observed_stamp<=")).push_bind(observed.unwrap_or(i64::MAX))
             .push(" ON CONFLICT(media_uri) DO UPDATE SET favorite=coalesce(excluded.favorite,native_media_state.favorite),rating=CASE WHEN(SELECT rating_known FROM input JOIN ")
             .push(table).push(" item USING(object_id) WHERE item.media_uri=excluded.media_uri LIMIT 1) THEN excluded.rating ELSE native_media_state.rating END,play_count=coalesce(excluded.play_count,native_media_state.play_count),last_played=coalesce(excluded.last_played,native_media_state.last_played) WHERE (favorite,rating,play_count,last_played) IS NOT(coalesce(excluded.favorite,favorite),CASE WHEN(SELECT rating_known FROM input JOIN ")
             .push(table).push(" item USING(object_id) WHERE item.media_uri=excluded.media_uri LIMIT 1) THEN excluded.rating ELSE rating END,coalesce(excluded.play_count,play_count),coalesce(excluded.last_played,last_played))");
@@ -182,22 +176,20 @@ pub(super) async fn users(
 
 pub(crate) async fn stamp(
     connection: &mut SqliteConnection,
-    source: i64,
     kind: &str,
     ids: &[&str],
     stamp: Option<i64>,
 ) -> LibraryResult<()> {
     if let Some(stamp) = stamp {
         let (table, _) = table(kind);
-        sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE {table} SET observed_stamp=?3 WHERE source_key=?1 AND object_id IN(SELECT value FROM json_each(?2)) AND observed_stamp<?3")))
-            .bind(source).bind(serde_json::to_string(ids)?).bind(stamp).execute(connection).await?;
+        sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE {table} SET observed_stamp=?2 WHERE object_id IN(SELECT value FROM json_each(?1)) AND observed_stamp<?2")))
+            .bind(serde_json::to_string(ids)?).bind(stamp).execute(connection).await?;
     }
     Ok(())
 }
 
 pub(super) fn index_credits<'a>(
     connection: &'a mut SqliteConnection,
-    source: i64,
     credits: impl Iterator<Item = &'a crate::ArtistCredit>,
 ) -> impl std::future::Future<Output = LibraryResult<()>> + Send + 'a {
     let mut names = std::collections::BTreeMap::<&str, ArtistMetadata>::new();
@@ -227,8 +219,7 @@ pub(super) fn index_credits<'a>(
                     .push_bind(metadata.name.to_lowercase());
             });
             let merged = "jsonb_set(artists.metadata,'$.name',CASE WHEN json_extract(excluded.metadata,'$.name')='' THEN json_extract(artists.metadata,'$.name') ELSE json_extract(excluded.metadata,'$.name') END,'$.sort_text',coalesce(json_extract(excluded.metadata,'$.sort_text'),json_extract(artists.metadata,'$.sort_text')),'$.musicbrainz_artist_id',coalesce(json_extract(excluded.metadata,'$.musicbrainz_artist_id'),json_extract(artists.metadata,'$.musicbrainz_artist_id')))";
-            query.push(" ) INSERT INTO artists(source_key,object_id,media_uri,metadata,normalized_name) SELECT ")
-            .push_bind(source).push(",object_id,media_uri,jsonb(metadata),normalized FROM input WHERE true ON CONFLICT(source_key,object_id) DO UPDATE SET metadata=")
+            query.push(" ) INSERT INTO artists(object_id,media_uri,metadata,normalized_name) SELECT object_id,media_uri,jsonb(metadata),normalized FROM input WHERE true ON CONFLICT(object_id) DO UPDATE SET metadata=")
             .push(merged).push(",normalized_name=CASE WHEN excluded.normalized_name='' THEN artists.normalized_name ELSE excluded.normalized_name END WHERE native_metadata=0 AND artists.metadata IS NOT ")
             .push(merged);
             query.build().execute(&mut *connection).await?;
@@ -239,7 +230,6 @@ pub(super) fn index_credits<'a>(
 
 pub(super) fn index_tags<'a>(
     connection: &'a mut SqliteConnection,
-    source: i64,
     kind: &'a str,
     tags: impl Iterator<Item = &'a crate::TagReference>,
 ) -> impl std::future::Future<Output = LibraryResult<()>> + Send + 'a {
@@ -259,8 +249,7 @@ pub(super) fn index_tags<'a>(
                     }))
                     .push_bind(tag.name.to_lowercase());
             });
-            query.push(format!(") INSERT INTO {table}(source_key,object_id,media_uri,metadata,normalized_name) SELECT "))
-            .push_bind(source).push(",object_id,media_uri,jsonb(metadata),normalized FROM input WHERE true ON CONFLICT(source_key,object_id) DO UPDATE SET metadata=excluded.metadata,normalized_name=excluded.normalized_name WHERE native_metadata=0 AND ")
+            query.push(format!(") INSERT INTO {table}(object_id,media_uri,metadata,normalized_name) SELECT object_id,media_uri,jsonb(metadata),normalized FROM input WHERE true ON CONFLICT(object_id) DO UPDATE SET metadata=excluded.metadata,normalized_name=excluded.normalized_name WHERE native_metadata=0 AND "))
             .push(format!("{table}.metadata IS NOT excluded.metadata"));
             query.build().execute(&mut *connection).await?;
         }
@@ -270,12 +259,10 @@ pub(super) fn index_tags<'a>(
 
 async fn track_indexes(
     connection: &mut SqliteConnection,
-    source: i64,
     rows: &[&TrackObservation],
 ) -> LibraryResult<()> {
     index_credits(
         connection,
-        source,
         rows.iter().flat_map(|row| {
             row.metadata
                 .artists
@@ -286,14 +273,12 @@ async fn track_indexes(
     .await?;
     index_tags(
         connection,
-        source,
         "genre",
         rows.iter().flat_map(|row| &row.metadata.genres),
     )
     .await?;
     index_tags(
         connection,
-        source,
         "mood",
         rows.iter().flat_map(|row| &row.metadata.moods),
     )
@@ -308,11 +293,10 @@ async fn track_indexes(
     ] {
         let (entity, key) = table(kind);
         let expected = format!(
-            "SELECT track.track_key,item.{key},CAST(edge.key AS INTEGER) position FROM json_each(?2) input CROSS JOIN tracks track ON track.source_key=?1 AND track.object_id=json_extract(input.value,'$[0]') CROSS JOIN json_each(track.metadata,'$.{array}') edge CROSS JOIN {entity} item ON item.source_key=?1 AND item.object_id=json_extract(edge.value,'$.object_id')"
+            "SELECT track.track_key,item.{key},CAST(edge.key AS INTEGER) position FROM json_each(?1) input CROSS JOIN tracks track ON track.object_id=json_extract(input.value,'$[0]') CROSS JOIN json_each(track.metadata,'$.{array}') edge CROSS JOIN {entity} item ON item.object_id=json_extract(edge.value,'$.object_id')"
         );
         replace_edges(
             connection,
-            source,
             relation,
             "track_key",
             key,
@@ -327,7 +311,6 @@ async fn track_indexes(
 
 async fn track_folders(
     connection: &mut SqliteConnection,
-    source: i64,
     rows: &[TrackObservation],
     observed: Option<i64>,
 ) -> LibraryResult<bool> {
@@ -341,10 +324,9 @@ async fn track_folders(
             })
             .collect::<Vec<_>>(),
     )?;
-    let expected = "SELECT track.track_key,folder.folder_key,CAST(edge.key AS INTEGER) position FROM json_each(?2) input CROSS JOIN tracks track ON track.source_key=?1 AND track.object_id=json_extract(input.value,'$[0]') CROSS JOIN json_each(input.value,'$[1]') edge CROSS JOIN folders folder ON folder.source_key=?1 AND folder.object_id=edge.value";
+    let expected = "SELECT track.track_key,folder.folder_key,CAST(edge.key AS INTEGER) position FROM json_each(?1) input CROSS JOIN tracks track ON track.object_id=json_extract(input.value,'$[0]') CROSS JOIN json_each(input.value,'$[1]') edge CROSS JOIN folders folder ON folder.object_id=edge.value";
     replace_edges(
         connection,
-        source,
         "track_folders",
         "track_key",
         "folder_key",
@@ -357,7 +339,6 @@ async fn track_folders(
 
 pub(super) async fn replace_edges(
     connection: &mut SqliteConnection,
-    source: i64,
     relation: &str,
     owner: &str,
     target: &str,
@@ -370,10 +351,10 @@ pub(super) async fn replace_edges(
     } else {
         "albums"
     };
-    let removed = sqlx::query(sqlx::AssertSqlSafe(format!("WITH expected AS({expected}) DELETE FROM {relation} WHERE {owner} IN(SELECT {owner} FROM {owners} WHERE source_key=?1 AND observed_stamp<=?3 AND object_id IN(SELECT json_extract(value,'$[0]') FROM json_each(?2))) AND NOT EXISTS(SELECT 1 FROM expected WHERE expected.{owner}={relation}.{owner} AND expected.{target}={relation}.{target} AND expected.position={relation}.position)")))
-        .bind(source).bind(input).bind(observed.unwrap_or(i64::MAX)).execute(&mut *connection).await?.rows_affected();
-    let inserted=sqlx::query(sqlx::AssertSqlSafe(format!("WITH expected AS({expected}) INSERT OR IGNORE INTO {relation}({owner},{target},position) SELECT expected.{owner},expected.{target},expected.position FROM expected JOIN {owners} owner ON owner.{owner}=expected.{owner} WHERE owner.observed_stamp<=?3")))
-        .bind(source).bind(input).bind(observed.unwrap_or(i64::MAX)).execute(connection).await?.rows_affected();
+    let removed = sqlx::query(sqlx::AssertSqlSafe(format!("WITH expected AS({expected}) DELETE FROM {relation} WHERE {owner} IN(SELECT {owner} FROM {owners} WHERE observed_stamp<=?2 AND object_id IN(SELECT json_extract(value,'$[0]') FROM json_each(?1))) AND NOT EXISTS(SELECT 1 FROM expected WHERE expected.{owner}={relation}.{owner} AND expected.{target}={relation}.{target} AND expected.position={relation}.position)")))
+        .bind(input).bind(observed.unwrap_or(i64::MAX)).execute(&mut *connection).await?.rows_affected();
+    let inserted=sqlx::query(sqlx::AssertSqlSafe(format!("WITH expected AS({expected}) INSERT OR IGNORE INTO {relation}({owner},{target},position) SELECT expected.{owner},expected.{target},expected.position FROM expected JOIN {owners} owner ON owner.{owner}=expected.{owner} WHERE owner.observed_stamp<=?2")))
+        .bind(input).bind(observed.unwrap_or(i64::MAX)).execute(connection).await?.rows_affected();
     Ok(removed > 0 || inserted > 0)
 }
 
@@ -394,7 +375,6 @@ pub(crate) fn track_search(metadata: &crate::TrackMetadata) -> String {
 
 pub(super) async fn tracks(
     connection: &mut SqliteConnection,
-    source: i64,
     rows: &[TrackObservation],
     observed: Option<i64>,
     admit: bool,
@@ -437,13 +417,11 @@ pub(super) async fn tracks(
             .collect::<std::collections::HashSet<_>>();
         if !with_albums.is_empty() {
             let mut albums =
-                QueryBuilder::<Sqlite>::new("INSERT INTO albums(source_key,object_id,media_uri) ");
+                QueryBuilder::<Sqlite>::new("INSERT INTO albums(object_id,media_uri) ");
             albums.push_values(with_albums, |mut row, id| {
-                row.push_bind(source)
-                    .push_bind(id)
-                    .push_bind(crate::entity_uri("album", id));
+                row.push_bind(id).push_bind(crate::entity_uri("album", id));
             });
-            albums.push(" ON CONFLICT(source_key,object_id) DO NOTHING");
+            albums.push(" ON CONFLICT(object_id) DO NOTHING");
             albums.build().execute(&mut *connection).await?;
         }
         let identities = serde_json::to_string(
@@ -463,9 +441,8 @@ pub(super) async fn tracks(
                 })
                 .collect::<Vec<_>>(),
         )?;
-        let audio_changed = "WITH input AS(SELECT json_extract(value,'$[0]') id,json_extract(value,'$[1]') uri,json_extract(value,'$[2]') album_id,unhex(json_extract(value,'$[3]')) audio FROM json_each(?2)),changed AS(SELECT old.album_key old_album,album.album_key new_album FROM input LEFT JOIN tracks old ON old.media_uri=input.uri LEFT JOIN albums album ON album.source_key=?1 AND album.object_id=input.album_id WHERE NOT EXISTS(SELECT 1 FROM tracks known WHERE known.source_key=?1 AND known.object_id=input.id AND(known.observed_stamp>?4 OR(NOT ?5 AND known.native_metadata=1))) AND(old.track_key IS NULL OR((old.source_key IS NOT ?1 OR old.observed_stamp<=?4) AND(?5 OR old.native_metadata=0) AND(old.album_key IS NOT album.album_key OR old.audio_key IS NOT input.audio OR(?3 AND old.indexed=0))))) SELECT old_album FROM changed WHERE old_album IS NOT NULL UNION SELECT new_album FROM changed WHERE new_album IS NOT NULL";
+        let audio_changed = "WITH input AS(SELECT json_extract(value,'$[0]') id,json_extract(value,'$[1]') uri,json_extract(value,'$[2]') album_id,unhex(json_extract(value,'$[3]')) audio FROM json_each(?1)),changed AS(SELECT old.album_key old_album,album.album_key new_album FROM input LEFT JOIN tracks old ON old.media_uri=input.uri LEFT JOIN albums album ON album.object_id=input.album_id WHERE NOT EXISTS(SELECT 1 FROM tracks known WHERE known.object_id=input.id AND(known.observed_stamp>?3 OR(NOT ?4 AND known.native_metadata=1))) AND(old.track_key IS NULL OR((old.object_id IS NULL OR old.observed_stamp<=?3) AND(?4 OR old.native_metadata=0) AND(old.album_key IS NOT album.album_key OR old.audio_key IS NOT input.audio OR(?2 AND old.indexed=0))))) SELECT old_album FROM changed WHERE old_album IS NOT NULL UNION SELECT new_album FROM changed WHERE new_album IS NOT NULL";
         let audio_albums: Vec<i64> = sqlx::query_scalar(audio_changed)
-            .bind(source)
             .bind(&identities)
             .bind(admit)
             .bind(observed.unwrap_or(i64::MAX))
@@ -473,7 +450,7 @@ pub(super) async fn tracks(
             .fetch_all(&mut *connection)
             .await?;
         if admit {
-            sqlx::query("UPDATE tracks SET source_key=NULL,object_id=NULL,indexed=0 WHERE track_key IN(SELECT known.track_key FROM json_each(?2) input CROSS JOIN tracks known ON known.source_key=?1 AND known.object_id=json_extract(input.value,'$[0]') WHERE known.media_uri<>json_extract(input.value,'$[1]') AND known.observed_stamp<=?3 AND(?4 OR known.native_metadata=0))").bind(source).bind(&identities).bind(observed.unwrap_or(i64::MAX)).bind(authoritative).execute(&mut *connection).await?;
+            sqlx::query("UPDATE tracks SET object_id=NULL,indexed=0 WHERE track_key IN(SELECT known.track_key FROM json_each(?1) input CROSS JOIN tracks known ON known.object_id=json_extract(input.value,'$[0]') WHERE known.media_uri<>json_extract(input.value,'$[1]') AND known.observed_stamp<=?2 AND(?3 OR known.native_metadata=0))").bind(&identities).bind(observed.unwrap_or(i64::MAX)).bind(authoritative).execute(&mut *connection).await?;
         }
         let patches = if authoritative {
             None
@@ -503,8 +480,7 @@ pub(super) async fn tracks(
                     .push_bind(track_search(&row.metadata));
             },
         );
-        query.push(") INSERT INTO tracks(source_key,object_id,media_uri,album_key,metadata,source_path,first_seen_at,audio_key,normalized_search,indexed,native_metadata) SELECT ")
-            .push_bind(source).push(",input.object_id,input.media_uri,album.album_key,");
+        query.push(") INSERT INTO tracks(object_id,media_uri,album_key,metadata,source_path,first_seen_at,audio_key,normalized_search,indexed,native_metadata) SELECT input.object_id,input.media_uri,album.album_key,");
         if authoritative {
             query.push("jsonb(input.metadata)");
         } else {
@@ -514,10 +490,9 @@ pub(super) async fn tracks(
                 .push(",input.metadata)");
         }
         query.push(",input.source_path,input.first_seen,input.audio_key,input.normalized_search,")
-            .push_bind(admit).push(",").push_bind(authoritative).push(" FROM input LEFT JOIN albums album ON album.source_key=").push_bind(source)
-            .push(" AND album.object_id=input.album_id WHERE NOT EXISTS(SELECT 1 FROM tracks known WHERE known.source_key=").push_bind(source).push(" AND known.object_id=input.object_id AND(known.observed_stamp>").push_bind(observed.unwrap_or(i64::MAX)).push(if authoritative{")"}else{" OR known.native_metadata=1)"}).push(") ON CONFLICT(media_uri) DO UPDATE SET source_key=excluded.source_key,object_id=excluded.object_id,album_key=excluded.album_key,metadata=")
-            .push(&metadata).push(",normalized_search=excluded.normalized_search,native_metadata=max(tracks.native_metadata,excluded.native_metadata),observed_stamp=CASE WHEN tracks.source_key IS excluded.source_key THEN tracks.observed_stamp ELSE 0 END,source_path=excluded.source_path,first_seen_at=coalesce(tracks.first_seen_at,excluded.first_seen_at),audio_key=excluded.audio_key,indexed=max(tracks.indexed,excluded.indexed) WHERE ")
-            .push(if authoritative{"1"}else{"tracks.native_metadata=0"}).push(" AND (tracks.source_key IS NOT excluded.source_key OR tracks.observed_stamp<=").push_bind(observed.unwrap_or(i64::MAX)).push(") AND (tracks.source_key,tracks.object_id,tracks.album_key,tracks.metadata,tracks.source_path,tracks.audio_key,tracks.indexed,tracks.native_metadata) IS NOT(excluded.source_key,excluded.object_id,excluded.album_key,").push(&metadata).push(",excluded.source_path,excluded.audio_key,max(tracks.indexed,excluded.indexed),max(tracks.native_metadata,excluded.native_metadata)) RETURNING object_id");
+            .push_bind(admit).push(",").push_bind(authoritative).push(" FROM input LEFT JOIN albums album ON album.object_id=input.album_id WHERE NOT EXISTS(SELECT 1 FROM tracks known WHERE known.object_id=input.object_id AND(known.observed_stamp>").push_bind(observed.unwrap_or(i64::MAX)).push(if authoritative{")"}else{" OR known.native_metadata=1)"}).push(") ON CONFLICT(media_uri) DO UPDATE SET object_id=excluded.object_id,album_key=excluded.album_key,metadata=")
+            .push(&metadata).push(",normalized_search=excluded.normalized_search,native_metadata=max(tracks.native_metadata,excluded.native_metadata),observed_stamp=CASE WHEN tracks.object_id IS NOT NULL THEN tracks.observed_stamp ELSE 0 END,source_path=excluded.source_path,first_seen_at=coalesce(tracks.first_seen_at,excluded.first_seen_at),audio_key=excluded.audio_key,indexed=max(tracks.indexed,excluded.indexed) WHERE ")
+            .push(if authoritative{"1"}else{"tracks.native_metadata=0"}).push(" AND (tracks.object_id IS NULL OR tracks.observed_stamp<=").push_bind(observed.unwrap_or(i64::MAX)).push(") AND (tracks.object_id,tracks.album_key,tracks.metadata,tracks.source_path,tracks.audio_key,tracks.indexed,tracks.native_metadata) IS NOT(excluded.object_id,excluded.album_key,").push(&metadata).push(",excluded.source_path,excluded.audio_key,max(tracks.indexed,excluded.indexed),max(tracks.native_metadata,excluded.native_metadata)) RETURNING object_id");
         let accepted = query
             .build_query_scalar::<String>()
             .fetch_all(&mut *connection)
@@ -527,7 +502,7 @@ pub(super) async fn tracks(
         changed.metadata |= !accepted.is_empty();
 
         if !authoritative && !accepted.is_empty() {
-            let rows: Vec<(i64,sqlx::types::Json<crate::TrackMetadata>)> = sqlx::query_as("SELECT track_key,json(metadata) FROM tracks WHERE source_key=?1 AND object_id IN(SELECT value FROM json_each(?2))").bind(source).bind(serde_json::to_string(&accepted)?).fetch_all(&mut *connection).await?;
+            let rows: Vec<(i64,sqlx::types::Json<crate::TrackMetadata>)> = sqlx::query_as("SELECT track_key,json(metadata) FROM tracks WHERE object_id IN(SELECT value FROM json_each(?1))").bind(serde_json::to_string(&accepted)?).fetch_all(&mut *connection).await?;
             let mut normalized =
                 QueryBuilder::<Sqlite>::new("WITH input(track_key,normalized) AS(");
             normalized.push_values(&rows, |mut value, (key, metadata)| {
@@ -538,7 +513,6 @@ pub(super) async fn tracks(
         }
         changed.artwork |= super::artwork::write_images(
             connection,
-            source,
             "track",
             &page
                 .iter()
@@ -551,7 +525,6 @@ pub(super) async fn tracks(
         previous_albums.extend(&audio_albums);
         stamp(
             connection,
-            source,
             "track",
             &page
                 .iter()
@@ -562,18 +535,16 @@ pub(super) async fn tracks(
         .await?;
         track_indexes(
             connection,
-            source,
             &page
                 .iter()
                 .filter(|row| accepted.contains(&row.object_id))
                 .collect::<Vec<_>>(),
         )
         .await?;
-        changed.metadata |= track_folders(connection, source, page, observed).await?;
+        changed.metadata |= track_folders(connection, page, observed).await?;
         changed.merge(
             users(
                 connection,
-                source,
                 "track",
                 &page
                     .iter()
@@ -608,22 +579,20 @@ pub(crate) async fn remember_track(
     reference: &crate::TrackReference,
 ) -> LibraryResult<crate::TrackKey> {
     let mut uri = reference.media_uri.clone();
-    let (source, object) =
+    let object =
         if let Some((_, object)) = crate::entity_parts(&uri).filter(|(kind, _)| kind == "track") {
-            let source = crate::db::write_source_identity(connection).await?;
-            if let Some(known) = sqlx::query_scalar::<_, String>(
-                "SELECT media_uri FROM tracks WHERE source_key=?1 AND object_id=?2",
-            )
-            .bind(source)
-            .bind(&object)
-            .fetch_optional(&mut *connection)
-            .await?
+            crate::db::write_source_identity(connection).await?;
+            if let Some(known) =
+                sqlx::query_scalar::<_, String>("SELECT media_uri FROM tracks WHERE object_id=?1")
+                    .bind(&object)
+                    .fetch_optional(&mut *connection)
+                    .await?
             {
                 uri = known;
             }
-            (Some(source), Some(object))
+            Some(object)
         } else {
-            (None, None)
+            None
         };
     if reference.metadata == crate::TrackMetadata::default() && reference.artwork_binding.is_none()
     {
@@ -635,9 +604,9 @@ pub(crate) async fn remember_track(
             return Ok(key);
         }
     }
-    let changed: Option<(crate::TrackKey,Option<i64>,Option<String>,sqlx::types::Json<crate::TrackMetadata>)> = sqlx::query_as("INSERT INTO tracks(media_uri,source_key,object_id,metadata,indexed,native_artwork,normalized_search) VALUES(?1,?2,?3,jsonb(?6),0,?4,?5) ON CONFLICT(media_uri) DO UPDATE SET metadata=jsonb_patch(tracks.metadata,?6),native_artwork=coalesce(tracks.native_artwork,excluded.native_artwork) WHERE native_metadata=0 AND(tracks.metadata IS NOT jsonb_patch(tracks.metadata,?6) OR(tracks.native_artwork IS NULL AND excluded.native_artwork IS NOT NULL)) RETURNING track_key,source_key,object_id,json(metadata)")
-        .bind(&uri).bind(source).bind(object.as_deref()).bind(&reference.artwork_binding).bind(track_search(&reference.metadata)).bind(sqlx::types::Json(reference_patch(&reference.metadata)?)).fetch_optional(&mut *connection).await?;
-    let Some((key, source, object, metadata)) = changed else {
+    let changed: Option<(crate::TrackKey,Option<String>,sqlx::types::Json<crate::TrackMetadata>)> = sqlx::query_as("INSERT INTO tracks(media_uri,object_id,metadata,indexed,native_artwork,normalized_search) VALUES(?1,?2,jsonb(?5),0,?3,?4) ON CONFLICT(media_uri) DO UPDATE SET metadata=jsonb_patch(tracks.metadata,?5),native_artwork=coalesce(tracks.native_artwork,excluded.native_artwork) WHERE native_metadata=0 AND(tracks.metadata IS NOT jsonb_patch(tracks.metadata,?5) OR(tracks.native_artwork IS NULL AND excluded.native_artwork IS NOT NULL)) RETURNING track_key,object_id,json(metadata)")
+        .bind(&uri).bind(object.as_deref()).bind(&reference.artwork_binding).bind(track_search(&reference.metadata)).bind(sqlx::types::Json(reference_patch(&reference.metadata)?)).fetch_optional(&mut *connection).await?;
+    let Some((key, object, metadata)) = changed else {
         return Ok(
             sqlx::query_scalar("SELECT track_key FROM tracks WHERE media_uri=?1")
                 .bind(&uri)
@@ -652,10 +621,9 @@ pub(crate) async fn remember_track(
     .bind(track_search(&metadata))
     .execute(&mut *connection)
     .await?;
-    if let Some((source, object)) = source.zip(object) {
+    if let Some(object) = object {
         track_indexes(
             connection,
-            source,
             &[&TrackObservation {
                 object_id: object,
                 metadata: metadata.0,
@@ -670,23 +638,25 @@ pub(crate) async fn remember_track(
 
 pub(super) async fn observation_stamp(
     connection: &mut SqliteConnection,
-    source: i64,
     observed: Option<i64>,
 ) -> LibraryResult<i64> {
     if let Some(observed) = observed {
         return Ok(observed);
     }
-    Ok(sqlx::query_scalar("UPDATE sources SET observation_stamp=observation_stamp+1 WHERE source_key=?1 RETURNING observation_stamp").bind(source).fetch_one(connection).await?)
+    Ok(sqlx::query_scalar(
+        "UPDATE sources SET observation_stamp=observation_stamp+1 RETURNING observation_stamp",
+    )
+    .fetch_one(connection)
+    .await?)
 }
 
 pub(crate) async fn apply_on(
     connection: &mut SqliteConnection,
-    source: i64,
     batch: &CatalogBatch,
     observed: Option<i64>,
     admit: bool,
 ) -> LibraryResult<CatalogUpdate> {
-    let observed = Some(observation_stamp(connection, source, observed).await?);
+    let observed = Some(observation_stamp(connection, observed).await?);
     let mut update = CatalogUpdate::default();
     macro_rules! write {
         ($kind:literal,$rows:expr,$caption:expr,$art:expr) => {{
@@ -704,7 +674,6 @@ pub(crate) async fn apply_on(
                 .collect::<LibraryResult<Vec<_>>>()?;
             let change = write_headers(
                 connection,
-                source,
                 $kind,
                 &inputs,
                 admit,
@@ -716,7 +685,6 @@ pub(crate) async fn apply_on(
             update.artwork |= change.1;
             stamp(
                 connection,
-                source,
                 $kind,
                 &rows
                     .iter()
@@ -762,15 +730,8 @@ pub(crate) async fn apply_on(
             .to_lowercase(),
         |row: &FolderObservation| Ok::<_, LibraryError>(row.artwork_binding.clone())
     );
-    let (track_update, previous_albums) = tracks(
-        connection,
-        source,
-        &batch.tracks,
-        observed,
-        admit,
-        !batch.reference,
-    )
-    .await?;
+    let (track_update, previous_albums) =
+        tracks(connection, &batch.tracks, observed, admit, !batch.reference).await?;
     update.merge(track_update);
     for (kind, states) in [
         (
@@ -790,11 +751,10 @@ pub(crate) async fn apply_on(
                 .collect::<Vec<_>>(),
         ),
     ] {
-        update.merge(users(connection, source, kind, &states, observed).await?);
+        update.merge(users(connection, kind, &states, observed).await?);
     }
     update.metadata |= super::collections::headers(
         connection,
-        source,
         &batch.albums.iter().collect::<Vec<_>>(),
         &batch.folders,
         observed,
@@ -802,7 +762,6 @@ pub(crate) async fn apply_on(
     .await?;
     update.playlists |= super::collections::playlists(
         connection,
-        source,
         &batch.playlists,
         observed,
         admit,
@@ -812,7 +771,6 @@ pub(crate) async fn apply_on(
     if update.metadata || update.artwork {
         update.artwork |= super::artwork::refresh_batch(
             connection,
-            source,
             &batch.tracks,
             &batch.albums,
             &batch.artists,
@@ -822,8 +780,7 @@ pub(crate) async fn apply_on(
         .await?;
     }
     if update.changed() {
-        sqlx::query("UPDATE sources SET catalog_revision=catalog_revision+1 WHERE source_key=?1")
-            .bind(source)
+        sqlx::query("UPDATE sources SET catalog_revision=catalog_revision+1")
             .execute(&mut *connection)
             .await?;
     }
@@ -838,7 +795,7 @@ impl super::Catalog<'_> {
             .ok_or(LibraryError::WriterUnavailable)?
             .begin()
             .await?;
-        let update = apply_on(&mut tx, self.source.raw(), batch, self.observed, admit).await?;
+        let update = apply_on(&mut tx, batch, self.observed, admit).await?;
         tx.commit().await?;
         self.changes.merge(update);
         Ok(())
@@ -859,7 +816,6 @@ impl super::Catalog<'_> {
                     .ok_or(LibraryError::WriterUnavailable)?
                     .begin()
                     .await?;
-                let source = self.source.raw();
                 let (table, key) = if *kind == "playlist" {
                     ("playlists", "playlist_key")
                 } else {
@@ -870,7 +826,7 @@ impl super::Catalog<'_> {
                 } else {
                     ""
                 };
-                let keys:Vec<i64>=sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {key} FROM {table} WHERE source_key=?1 AND indexed=1 AND observed_stamp<?2 AND {key}>?3 {absent} ORDER BY {key} LIMIT 128"))).bind(source).bind(observed).bind(after).fetch_all(&mut *tx).await?;
+                let keys:Vec<i64>=sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT {key} FROM {table} WHERE indexed=1 AND observed_stamp<?1 AND {key}>?2 {absent} ORDER BY {key} LIMIT 128"))).bind(observed).bind(after).fetch_all(&mut *tx).await?;
                 let Some(last) = keys.last() else {
                     tx.commit().await?;
                     self.changes.merge(update.clone());
@@ -914,17 +870,13 @@ impl super::Catalog<'_> {
             .ok_or(LibraryError::WriterUnavailable)?
             .begin()
             .await?;
-        let source = self.source.raw();
         if kinds.is_empty() {
-            sqlx::query("UPDATE sources SET catalog_complete=1,freshness=?2,catalog_revision=catalog_revision+?3 WHERE source_key=?1 AND(catalog_complete,freshness) IS NOT(1,?2)")
-                .bind(source).bind(freshness.map(Freshness::as_bytes)).bind(update.changed()).execute(&mut *tx).await?;
+            sqlx::query("UPDATE sources SET catalog_complete=1,freshness=?1,catalog_revision=catalog_revision+?2 WHERE (catalog_complete,freshness) IS NOT(1,?1)")
+                .bind(freshness.map(Freshness::as_bytes)).bind(update.changed()).execute(&mut *tx).await?;
         } else if update.changed() {
-            sqlx::query(
-                "UPDATE sources SET catalog_revision=catalog_revision+1 WHERE source_key=?1",
-            )
-            .bind(source)
-            .execute(&mut *tx)
-            .await?;
+            sqlx::query("UPDATE sources SET catalog_revision=catalog_revision+1")
+                .execute(&mut *tx)
+                .await?;
         }
         tx.commit().await?;
         self.changes.merge(update);
@@ -940,8 +892,11 @@ impl super::Catalog<'_> {
             .ok_or(LibraryError::WriterUnavailable)?
             .begin()
             .await?;
-        let stamp = sqlx::query_scalar("UPDATE sources SET observation_stamp=observation_stamp+1 WHERE source_key=?1 RETURNING observation_stamp")
-            .bind(self.source).fetch_one(&mut *tx).await?;
+        let stamp = sqlx::query_scalar(
+            "UPDATE sources SET observation_stamp=observation_stamp+1 RETURNING observation_stamp",
+        )
+        .fetch_one(&mut *tx)
+        .await?;
         tx.commit().await?;
         self.observed = Some(stamp);
         Ok(stamp)

@@ -60,29 +60,29 @@ impl Database {
         match seed {
             RadioSeed::Track(uri) => {
                 query
-                    .push("SELECT source_key,NULL object_id FROM tracks WHERE media_uri=")
+                    .push("SELECT NULL object_id FROM tracks WHERE object_id IS NOT NULL AND media_uri=")
                     .push_bind(uri);
             }
             RadioSeed::Album(key) => {
                 query
-                    .push("SELECT source_key,object_id FROM albums WHERE album_key=")
+                    .push("SELECT object_id FROM albums WHERE album_key=")
                     .push_bind(key);
             }
             RadioSeed::Artist(key) | RadioSeed::AlbumArtist(key) => {
                 query
-                    .push("SELECT source_key,object_id FROM artists WHERE artist_key=")
+                    .push("SELECT object_id FROM artists WHERE artist_key=")
                     .push_bind(key);
             }
             RadioSeed::Genre(key) => {
                 query
-                    .push("SELECT source_key,object_id FROM genres WHERE genre_key=")
+                    .push("SELECT object_id FROM genres WHERE genre_key=")
                     .push_bind(key);
             }
             RadioSeed::Playlist(key) => {
-                query.push("SELECT playlist.source_key,playlist.object_id FROM playlists playlist WHERE playlist.playlist_key=").push_bind(key);
+                query.push("SELECT playlist.object_id FROM playlists playlist WHERE playlist.playlist_key=").push_bind(key);
             }
         }
-        query.push(") seed JOIN sources ON sources.source_key=seed.source_key");
+        query.push(") seed");
         let result = query
             .build_query_scalar::<Option<String>>()
             .persistent(false)
@@ -103,12 +103,11 @@ impl Database {
         }
         require_radio_bounds(0, object_ids.len())?;
         let mut connection = self.acquire_general(cancellation).await?;
-        let source = crate::db::server_key(&mut connection).await?;
         let mut query = QueryBuilder::<Sqlite>::new("WITH requested(object_id,position) AS (");
         query.push_values(object_ids.iter().enumerate(), |mut row, (position, id)| {
             row.push_bind(id).push_bind(position as i64);
         });
-        query.push(") SELECT track.track_key FROM requested JOIN tracks track ON track.object_id=requested.object_id WHERE track.source_key=").push_bind(source)
+        query.push(") SELECT track.track_key FROM requested JOIN tracks track ON track.object_id=requested.object_id WHERE track.object_id IS NOT NULL")
             .push(" AND track.track_key NOT IN (SELECT track_key FROM queue_entries)");
         match seed {
             RadioSeed::Track(uri) => {
@@ -122,7 +121,7 @@ impl Database {
             }
             RadioSeed::Playlist(key) => {
                 query.push(" AND track.media_uri IS NOT (SELECT seed.media_uri FROM playlist_entries entry JOIN tracks seed USING(track_key) WHERE entry.playlist_key=").push_bind(key)
-                    .push(" AND seed.source_key=").push_bind(source).push(" ORDER BY entry.position LIMIT 1)");
+                    .push(" ORDER BY entry.position LIMIT 1)");
             }
             _ => {}
         }
@@ -144,18 +143,15 @@ impl Database {
     ) -> LibraryResult<Vec<TrackKey>> {
         require_radio_bounds(extra_excluded.len(), requested)?;
         let mut connection = self.acquire_general(cancellation).await?;
-        let source = crate::db::server_key(&mut connection).await?;
         let (seed_kind, seed_raw) = if let RadioSeed::Playlist(playlist) = seed {
-            let first = sqlx::query_scalar::<_, TrackKey>("SELECT track.track_key FROM playlist_entries entry JOIN tracks track ON track.track_key=entry.track_key AND track.source_key=?1 WHERE entry.playlist_key=?2 ORDER BY entry.position LIMIT 1")
-                .bind(source).bind(playlist).fetch_optional(&mut *connection).await?;
+            let first = sqlx::query_scalar::<_, TrackKey>("SELECT track.track_key FROM playlist_entries entry JOIN tracks track ON track.track_key=entry.track_key AND track.object_id IS NOT NULL WHERE entry.playlist_key=?1 ORDER BY entry.position LIMIT 1").bind(playlist).fetch_optional(&mut *connection).await?;
             (0, first.map(|key| key.raw()))
         } else {
             match seed {
                 RadioSeed::Track(media_uri) => {
                     let key = sqlx::query_scalar::<_, TrackKey>(
-                        "SELECT track_key FROM tracks WHERE source_key=?1 AND media_uri=?2",
+                        "SELECT track_key FROM tracks WHERE media_uri=?1 AND object_id IS NOT NULL",
                     )
-                    .bind(source)
                     .bind(media_uri)
                     .fetch_optional(&mut *connection)
                     .await?;
@@ -169,9 +165,8 @@ impl Database {
             }
         };
         let max_key = sqlx::query_scalar::<_, i64>(
-            "SELECT COALESCE(max(track_key),0) FROM tracks WHERE indexed=1 AND source_key=?1",
+            "SELECT COALESCE(max(track_key),0) FROM tracks WHERE indexed=1",
         )
-        .bind(source)
         .fetch_one(&mut *connection)
         .await?;
         let pivot = if max_key == 0 {
@@ -223,10 +218,9 @@ impl Database {
             }
             query.push(
                 "SELECT track.track_key FROM tracks AS track
-             WHERE track.indexed=1 AND track.source_key=",
+             WHERE track.indexed=1",
             );
             query
-                .push_bind(source)
                 .push(" AND track.track_key>")
                 .push_bind(after)
                 .push(" AND (")
@@ -308,11 +302,9 @@ impl Database {
     ) -> LibraryResult<Vec<TrackKey>> {
         require_radio_bounds(extra_excluded.len(), requested)?;
         let mut connection = self.acquire_general(cancellation).await?;
-        let source = crate::db::server_key(&mut connection).await?;
         let max_key = sqlx::query_scalar::<_, i64>(
-            "SELECT COALESCE(max(track_key),0) FROM tracks WHERE indexed=1 AND source_key=?1",
+            "SELECT COALESCE(max(track_key),0) FROM tracks WHERE indexed=1",
         )
-        .bind(source)
         .fetch_one(&mut *connection)
         .await?;
         let pivot = if max_key == 0 {
@@ -326,10 +318,9 @@ impl Database {
         loop {
             let mut query = QueryBuilder::<Sqlite>::new(
                 "SELECT track.track_key FROM tracks AS track
-             WHERE track.indexed=1 AND track.source_key=",
+             WHERE track.indexed=1",
             );
             query
-                .push_bind(source)
                 .push(" AND track.track_key>")
                 .push_bind(after)
                 .push(" AND (")

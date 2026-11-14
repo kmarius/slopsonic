@@ -147,12 +147,19 @@ impl Database {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
         let mut transaction = connection.begin().await?;
-        let changed:Vec<crate::SourceKey>=sqlx::query_scalar("UPDATE sources SET distinct_track_covers=?1 WHERE distinct_track_covers<>?1 RETURNING source_key").bind(enabled).fetch_all(&mut *transaction).await?;
-        for source in &changed {
+        let changed = sqlx::query(
+            "UPDATE sources SET distinct_track_covers=?1 WHERE distinct_track_covers<>?1",
+        )
+        .bind(enabled)
+        .execute(&mut *transaction)
+        .await?
+        .rows_affected()
+            > 0;
+        if changed {
             let mut after = 0;
             loop {
-                let keys: Vec<i64> = sqlx::query_scalar("SELECT track_key FROM tracks WHERE source_key=?1 AND track_key>?2 ORDER BY track_key LIMIT 128")
-                    .bind(source).bind(after).fetch_all(&mut *transaction).await?;
+                let keys: Vec<i64> = sqlx::query_scalar("SELECT track_key FROM tracks WHERE object_id IS NOT NULL AND track_key>?1 ORDER BY track_key LIMIT 128")
+                    .bind(after).fetch_all(&mut *transaction).await?;
                 let Some(last) = keys.last() else { break };
                 after = *last;
                 if crate::catalog::artwork::refresh_track_choices(&mut transaction, &keys, &[], &[])
@@ -167,7 +174,7 @@ impl Database {
             .distinct_track_covers
             .store(enabled, Ordering::Release);
         drop(writer);
-        if !changed.is_empty() {
+        if changed {
             let mut update = crate::CatalogUpdate::default();
             update.artwork = true;
             self.publish_catalog_update(update).await;
@@ -226,10 +233,10 @@ impl Database {
         })
     }
 
-    pub(crate) async fn source_identity_key(&self) -> LibraryResult<Option<crate::SourceKey>> {
+    pub(crate) async fn has_server(&self) -> LibraryResult<bool> {
         let mut connection = self.acquire_reader().await?;
-        Ok(sqlx::query_scalar("SELECT source_key FROM sources")
-            .fetch_optional(&mut *connection)
+        Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM sources)")
+            .fetch_one(&mut *connection)
             .await?)
     }
 
@@ -246,7 +253,16 @@ impl Database {
              DELETE FROM download_access_metadata WHERE access_uri IN (SELECT access_uri FROM download_locators);
              UPDATE tracks SET indexed=0,artwork_kind=CASE WHEN native_artwork IS NULL THEN 0 ELSE 1 END,artwork_artist_key=NULL;
              UPDATE albums SET indexed=0;
-             UPDATE artists SET indexed=0;",
+             UPDATE artists SET indexed=0;
+             DELETE FROM home_entries;
+             DELETE FROM playlists;
+             DELETE FROM download_locators;
+             UPDATE tracks SET object_id=NULL WHERE object_id IS NOT NULL;
+             DELETE FROM albums;
+             DELETE FROM artists;
+             DELETE FROM genres;
+             DELETE FROM moods;
+             DELETE FROM folders;",
         )
         .execute(&mut *transaction)
         .await?;
@@ -310,19 +326,6 @@ impl Database {
     pub(crate) fn reader_pool(&self) -> &SqlitePool {
         &self.inner.readers
     }
-}
-
-/// The configured server's key as SQL; NULL, so matching nothing, when none is configured.
-pub(crate) const SERVER_KEY: &str = "(SELECT source_key FROM sources)";
-
-/// The configured server's key; key 0 matches nothing when none is configured.
-pub(crate) async fn server_key(
-    connection: &mut SqliteConnection,
-) -> LibraryResult<crate::SourceKey> {
-    Ok(sqlx::query_scalar("SELECT source_key FROM sources")
-        .fetch_optional(connection)
-        .await?
-        .unwrap_or(crate::SourceKey::from_raw(0)))
 }
 
 #[allow(unsafe_code)]
@@ -662,18 +665,14 @@ mod tests {
     }
 }
 
-/// The one server row's fixed identity; the column stays until the per-server keys go.
+/// The one server row's fixed identity.
 pub(crate) const SERVER_OBJECT_ID: &str = "server";
 
-pub(crate) async fn write_source_identity(connection: &mut SqliteConnection) -> LibraryResult<i64> {
+/// Creates the server row, which holds the catalog's freshness, revision and counts.
+pub(crate) async fn write_source_identity(connection: &mut SqliteConnection) -> LibraryResult<()> {
     sqlx::query("INSERT INTO sources(object_id) VALUES(?1) ON CONFLICT(object_id) DO NOTHING")
         .bind(SERVER_OBJECT_ID)
-        .execute(&mut *connection)
+        .execute(connection)
         .await?;
-    Ok(
-        sqlx::query_scalar("SELECT source_key FROM sources WHERE object_id=?1")
-            .bind(SERVER_OBJECT_ID)
-            .fetch_one(connection)
-            .await?,
-    )
+    Ok(())
 }

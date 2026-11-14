@@ -147,7 +147,7 @@ impl Database {
     ) -> LibraryResult<Vec<i64>> {
         let mut connection = self.acquire_general(cancellation).await?;
         let (table, kind) = kind.sql();
-        Ok(sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT entity.{kind}_key FROM json_each(?1) requested JOIN {table} entity ON entity.object_id=requested.value WHERE entity.source_key={} ORDER BY CAST(requested.key AS INTEGER)",crate::db::SERVER_KEY))).bind(serde_json::to_string(objects)?).fetch_all(&mut *connection).await?)
+        Ok(sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT entity.{kind}_key FROM json_each(?1) requested JOIN {table} entity ON entity.object_id=requested.value ORDER BY CAST(requested.key AS INTEGER)"))).bind(serde_json::to_string(objects)?).fetch_all(&mut *connection).await?)
     }
 }
 
@@ -407,9 +407,8 @@ async fn member_count(
         let stored = match read.collection {
             Collection::Library => Some(if let Some(folder) = read.folder {
                 format!(
-                    "SELECT COALESCE(totals.track_count,0) FROM folders folder {} WHERE folder.source_key={} AND folder.folder_key={}",
+                    "SELECT COALESCE(totals.track_count,0) FROM folders folder {} WHERE folder.folder_key={}",
                     crate::collections::global_totals_join("folder", false),
-                    crate::db::SERVER_KEY,
                     folder.raw()
                 )
             } else {
@@ -441,7 +440,7 @@ async fn member_count(
             }
             Collection::Playlist(key) => Some(if let Some(folder) = read.folder {
                 format!(
-                    "SELECT COALESCE(totals.track_count,0) FROM playlists playlist LEFT JOIN collection_totals totals ON totals.kind='playlist' AND totals.entity_key=playlist.playlist_key AND totals.role=0 AND coalesce(totals.folder_key,'')=CASE WHEN playlist.source_key IS NULL THEN '' ELSE {} END WHERE playlist.playlist_key={}",
+                    "SELECT COALESCE(totals.track_count,0) FROM playlists playlist LEFT JOIN collection_totals totals ON totals.kind='playlist' AND totals.entity_key=playlist.playlist_key AND totals.role=0 AND coalesce(totals.folder_key,'')={} WHERE playlist.playlist_key={}",
                     folder.raw(),
                     key.raw()
                 )
@@ -541,11 +540,11 @@ pub(crate) fn member_query(read: &MemberRead) -> LibraryResult<OrderedQuery> {
                     let from = if let Some(folder) = read.folder {
                         format!("track_folders membership CROSS JOIN tracks track ON track.track_key=membership.track_key AND membership.folder_key={}", folder.raw())
                     } else { "tracks track".into() };
-                    (from, format!("track.source_key={}", crate::db::SERVER_KEY))
+                    (from, "track.object_id IS NOT NULL".into())
                 }
                 Collection::Objects(ids) => {
                     arguments.add(serde_json::to_string(ids)?).map_err(sqlx::Error::Encode)?;
-                    (format!("(SELECT DISTINCT value FROM json_each(?1)) requested CROSS JOIN tracks track ON track.source_key={} AND track.object_id=requested.value",crate::db::SERVER_KEY), "1".into())
+                    ("(SELECT DISTINCT value FROM json_each(?1)) requested CROSS JOIN tracks track ON track.object_id=requested.value".into(), "1".into())
                 }
                 Collection::Album(key) => ("tracks track INDEXED BY tracks_album_order_idx".into(), format!("track.album_key={}",key.raw())),
                 Collection::Artist { key, album_artist: false } => ("track_artists membership CROSS JOIN tracks track ON track.track_key=membership.track_key".into(),format!("membership.artist_key={}",key.raw())),

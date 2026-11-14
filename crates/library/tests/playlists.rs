@@ -8,8 +8,8 @@ async fn playlist_pin_import_reads_the_server_playlist_identities() {
     let database = &fixture.database;
     let (_, authored) = super::support::server_playlist(database, "Z saved", &[]).await;
     let mut raw = connection(&fixture.path).await;
-    sqlx::query("INSERT INTO playlists(source_key,position,object_id,name,normalized_name,sort_text) VALUES(?1,(SELECT COALESCE(max(position)+1,0) FROM playlists),'native','A native','a native','a native')")
-        .bind(fixture.source).execute(&mut raw).await.unwrap();
+    sqlx::query("INSERT INTO playlists(position,object_id,name,normalized_name,sort_text) VALUES((SELECT COALESCE(max(position)+1,0) FROM playlists),'native','A native','a native','a native')")
+        .execute(&mut raw).await.unwrap();
     drop(raw);
     let cancel = ReadCancellation::new();
     assert_eq!(
@@ -36,8 +36,7 @@ async fn playlist_order_is_title_ordered_and_folder_scoped() {
     .await
     .0;
     let mut raw = connection(&fixture.path).await;
-    let folder = sqlx::query_scalar("INSERT INTO folders(source_key,object_id,metadata,media_uri,normalized_name) VALUES (?1,'destination-folder',jsonb(json_object('name','Destination Folder','sort_text','destination folder')),'folder:'||COALESCE(?1,0)||':'||'destination-folder',lower(COALESCE(json_extract(jsonb(json_object('name','Destination Folder','sort_text','destination folder')),'$.name'),''))) RETURNING folder_key")
-        .bind(fixture.source)
+    let folder = sqlx::query_scalar("INSERT INTO folders(object_id,metadata,media_uri,normalized_name) VALUES ('destination-folder',jsonb(json_object('name','Destination Folder','sort_text','destination folder')),'folder:'||0||':'||'destination-folder',lower(COALESCE(json_extract(jsonb(json_object('name','Destination Folder','sort_text','destination folder')),'$.name'),''))) RETURNING folder_key")
         .fetch_one(&mut raw)
         .await
         .expect("insert destination folder");

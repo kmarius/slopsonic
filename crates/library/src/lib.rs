@@ -61,7 +61,6 @@ pub use home::{
     HomeAlbumRow, HomeBlockKind, HomeEntryInput, HomeEntryKind, HomePage, HomeProviderSection,
     HomeSectionKind, HomeSectionRows, HomeTrackRow,
 };
-pub(crate) use keys::SourceKey;
 pub use keys::{
     AlbumKey, ArtistKey, DownloadAccessFileKey, FolderKey, GenreKey, ListenOutboxKey, MoodKey,
     PlaylistEntryKey, PlaylistKey, TrackKey, entity_parts, entity_uri, file_media_path,

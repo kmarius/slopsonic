@@ -700,14 +700,13 @@ async fn queue_replacement_retains_uri_metadata_without_writes_on_order_changes(
 async fn large_source_membership_keeps_metadata_reads_bounded() {
     let fixture = fixture().await;
     let mut raw = connection(&fixture.path).await;
-    sqlx::query("WITH RECURSIVE n(i) AS(VALUES(1) UNION ALL SELECT i+1 FROM n WHERE i<20000)\n        INSERT INTO tracks(source_key,object_id,media_uri,metadata,normalized_search,indexed) SELECT ?1,'bulk-'||i,'https://example.test/bulk/'||i,jsonb(json_object('title',COALESCE('Bulk '||i,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE(printf('%06d',i),''),'duration_millis',COALESCE(1000,0))),lower(COALESCE(json_extract(jsonb(json_object('title',COALESCE('Bulk '||i,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE(printf('%06d',i),''),'duration_millis',COALESCE(1000,0))),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Bulk '||i,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE(printf('%06d',i),''),'duration_millis',COALESCE(1000,0))),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Bulk '||i,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE(printf('%06d',i),''),'duration_millis',COALESCE(1000,0))),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Bulk '||i,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE(printf('%06d',i),''),'duration_millis',COALESCE(1000,0))),'$.comment'),'')),1 FROM n")
-        .bind(fixture.source).execute(&mut raw).await.unwrap();
+    sqlx::query("WITH RECURSIVE n(i) AS(VALUES(1) UNION ALL SELECT i+1 FROM n WHERE i<20000)\n        INSERT INTO tracks(object_id,media_uri,metadata,normalized_search,indexed) SELECT 'bulk-'||i,'https://example.test/bulk/'||i,jsonb(json_object('title',COALESCE('Bulk '||i,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE(printf('%06d',i),''),'duration_millis',COALESCE(1000,0))),lower(COALESCE(json_extract(jsonb(json_object('title',COALESCE('Bulk '||i,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE(printf('%06d',i),''),'duration_millis',COALESCE(1000,0))),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Bulk '||i,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE(printf('%06d',i),''),'duration_millis',COALESCE(1000,0))),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Bulk '||i,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE(printf('%06d',i),''),'duration_millis',COALESCE(1000,0))),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Bulk '||i,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE(printf('%06d',i),''),'duration_millis',COALESCE(1000,0))),'$.comment'),'')),1 FROM n")
+        .execute(&mut raw).await.unwrap();
     for activation in 0..6_usize {
         let selected_index = (activation * 7919) % 20000;
         let selected = sqlx::query_scalar::<_, library::TrackKey>(
-            "SELECT track_key FROM tracks WHERE source_key=?1 AND object_id=?2",
+            "SELECT track_key FROM tracks WHERE object_id=?1",
         )
-        .bind(fixture.source)
         .bind(format!("bulk-{}", selected_index + 1))
         .fetch_one(&mut raw)
         .await

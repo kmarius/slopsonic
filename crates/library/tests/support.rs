@@ -17,8 +17,6 @@ pub struct Fixture {
     pub _directory: tempfile::TempDir,
     pub path: PathBuf,
     pub database: Database,
-    /// The server's raw `sources.source_key`, for SQL fixtures.
-    pub source: i64,
     pub tracks: Vec<TrackKey>,
     pub track_uris: Vec<String>,
     pub albums: Vec<AlbumKey>,
@@ -76,10 +74,6 @@ pub async fn fixture() -> Fixture {
     let database = Database::open(&path).await.expect("open Library");
     database
         .reconcile_source("subsonic", "Source")
-        .await
-        .unwrap();
-    let source = sqlx::query_scalar("SELECT source_key FROM sources")
-        .fetch_one(&mut connection(&path).await)
         .await
         .unwrap();
     let mut catalog = database.catalog(None).await.unwrap();
@@ -307,7 +301,6 @@ pub async fn fixture() -> Fixture {
         _directory: directory,
         path,
         database,
-        source,
         tracks,
         track_uris,
         albums,

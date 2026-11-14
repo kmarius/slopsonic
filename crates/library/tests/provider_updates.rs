@@ -158,7 +158,7 @@ async fn fixture() -> (tempfile::TempDir, Database) {
 async fn favorite_and_play_count_changes_do_not_report_new_tracks() {
     let (directory, database) = fixture().await;
     let mut raw = super::support::connection(&directory.path().join("library.sqlite3")).await;
-    sqlx::query("INSERT INTO tracks(source_key,object_id,media_uri,indexed,metadata,normalized_search) SELECT source_key,'unknown',?1,0,jsonb(json_object()),lower(COALESCE(json_extract(jsonb(json_object()),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object()),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object()),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object()),'$.comment'),'')) FROM sources")
+    sqlx::query("INSERT INTO tracks(object_id,media_uri,indexed,metadata,normalized_search) SELECT 'unknown',?1,0,jsonb(json_object()),lower(COALESCE(json_extract(jsonb(json_object()),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object()),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object()),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object()),'$.comment'),'')) FROM sources")
         .bind(library::entity_uri("track", "unknown"))
         .execute(&mut raw).await.unwrap();
     for (favorite, plays, metadata, activity) in [

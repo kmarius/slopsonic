@@ -180,7 +180,7 @@ impl Database {
             > 0;
         if changed {
             sqlx::query(sqlx::AssertSqlSafe(format!(
-                "UPDATE sources SET catalog_revision=catalog_revision+1 WHERE source_key=(SELECT source_key FROM {}s WHERE media_uri=?1)",
+                "UPDATE sources SET catalog_revision=catalog_revision+1 WHERE EXISTS(SELECT 1 FROM {}s WHERE media_uri=?1 AND object_id IS NOT NULL)",
                 target.kind()
             )))
             .bind(target.media_uri())
@@ -289,7 +289,7 @@ impl Database {
                 .bind(target.media_uri()).bind(favorite).execute(&mut *transaction).await?.rows_affected()>0;
             if changed {
                 sqlx::query(sqlx::AssertSqlSafe(format!(
-                    "UPDATE sources SET catalog_revision=catalog_revision+1 WHERE source_key=(SELECT source_key FROM {}s WHERE media_uri=?1)",
+                    "UPDATE sources SET catalog_revision=catalog_revision+1 WHERE EXISTS(SELECT 1 FROM {}s WHERE media_uri=?1 AND object_id IS NOT NULL)",
                     target.kind()
                 )))
                 .bind(target.media_uri())

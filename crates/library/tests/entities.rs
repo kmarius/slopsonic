@@ -102,8 +102,8 @@ async fn track_sorts_keep_nulls_last_and_title_ties_in_both_directions() {
         .await
         .unwrap();
     let empty_genre = sqlx::query_scalar::<_, library::GenreKey>(
-        "INSERT INTO genres(source_key,object_id,metadata,media_uri,normalized_name) VALUES (?1,'empty',jsonb(json_object('name','','sort_text','')),'genre:'||COALESCE(?1,0)||':'||'empty',lower(COALESCE(json_extract(jsonb(json_object('name','','sort_text','')),'$.name'),''))) RETURNING genre_key",
-    ).bind(fixture.source).fetch_one(&mut raw).await.unwrap();
+        "INSERT INTO genres(object_id,metadata,media_uri,normalized_name) VALUES ('empty',jsonb(json_object('name','','sort_text','')),'genre:'||0||':'||'empty',lower(COALESCE(json_extract(jsonb(json_object('name','','sort_text','')),'$.name'),''))) RETURNING genre_key",
+    ).fetch_one(&mut raw).await.unwrap();
     sqlx::query("UPDATE track_genres SET genre_key=?1 WHERE track_key=?2")
         .bind(empty_genre)
         .bind(fixture.tracks[1])
@@ -381,8 +381,8 @@ async fn collection_play_retains_full_order_with_bounded_queue_projection() {
         let id = format!("extra-{position:03}");
         let uri = library::entity_uri("track", &id);
         let key: library::TrackKey = sqlx::query_scalar(
-            "INSERT INTO tracks(source_key,object_id,album_key,media_uri,metadata,normalized_search,indexed) VALUES (?1,?2,?3,?5,jsonb(json_object('title',COALESCE(?2,''),'album',COALESCE('Album A',''),'artist',COALESCE('Artist A',''),'sort_text',COALESCE(?2,''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(1,0),'track_number',COALESCE(?4,0))),lower(COALESCE(json_extract(jsonb(json_object('title',COALESCE(?2,''),'album',COALESCE('Album A',''),'artist',COALESCE('Artist A',''),'sort_text',COALESCE(?2,''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(1,0),'track_number',COALESCE(?4,0))),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE(?2,''),'album',COALESCE('Album A',''),'artist',COALESCE('Artist A',''),'sort_text',COALESCE(?2,''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(1,0),'track_number',COALESCE(?4,0))),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE(?2,''),'album',COALESCE('Album A',''),'artist',COALESCE('Artist A',''),'sort_text',COALESCE(?2,''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(1,0),'track_number',COALESCE(?4,0))),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE(?2,''),'album',COALESCE('Album A',''),'artist',COALESCE('Artist A',''),'sort_text',COALESCE(?2,''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(1,0),'track_number',COALESCE(?4,0))),'$.comment'),'')),1) RETURNING track_key",
-        ).bind(fixture.source).bind(&id).bind(fixture.albums[0]).bind(position + 10).bind(uri)
+            "INSERT INTO tracks(object_id,album_key,media_uri,metadata,normalized_search,indexed) VALUES (?1,?2,?4,jsonb(json_object('title',COALESCE(?1,''),'album',COALESCE('Album A',''),'artist',COALESCE('Artist A',''),'sort_text',COALESCE(?1,''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(1,0),'track_number',COALESCE(?3,0))),lower(COALESCE(json_extract(jsonb(json_object('title',COALESCE(?1,''),'album',COALESCE('Album A',''),'artist',COALESCE('Artist A',''),'sort_text',COALESCE(?1,''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(1,0),'track_number',COALESCE(?3,0))),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE(?1,''),'album',COALESCE('Album A',''),'artist',COALESCE('Artist A',''),'sort_text',COALESCE(?1,''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(1,0),'track_number',COALESCE(?3,0))),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE(?1,''),'album',COALESCE('Album A',''),'artist',COALESCE('Artist A',''),'sort_text',COALESCE(?1,''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(1,0),'track_number',COALESCE(?3,0))),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE(?1,''),'album',COALESCE('Album A',''),'artist',COALESCE('Artist A',''),'sort_text',COALESCE(?1,''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(1,0),'track_number',COALESCE(?3,0))),'$.comment'),'')),1) RETURNING track_key",
+        ).bind(&id).bind(fixture.albums[0]).bind(position + 10).bind(uri)
             .fetch_one(&mut raw).await.expect("extend collection");
         sqlx::query("INSERT INTO track_artists VALUES(?1,?2,0)")
             .bind(key)
@@ -1303,8 +1303,8 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
             .track_count,
         4
     );
-    let empty_folder = sqlx::query_scalar("INSERT INTO folders(source_key,object_id,metadata,media_uri,normalized_name) VALUES (?1,'empty-folder',jsonb(json_object('name','Empty','sort_text','empty')),'folder:'||COALESCE(?1,0)||':'||'empty-folder',lower(COALESCE(json_extract(jsonb(json_object('name','Empty','sort_text','empty')),'$.name'),''))) RETURNING folder_key")
-        .bind(fixture.source).fetch_one(&mut raw).await.expect("insert empty Folder");
+    let empty_folder = sqlx::query_scalar("INSERT INTO folders(object_id,metadata,media_uri,normalized_name) VALUES ('empty-folder',jsonb(json_object('name','Empty','sort_text','empty')),'folder:'||0||':'||'empty-folder',lower(COALESCE(json_extract(jsonb(json_object('name','Empty','sort_text','empty')),'$.name'),''))) RETURNING folder_key")
+        .fetch_one(&mut raw).await.expect("insert empty Folder");
     assert!(
         library::ListRead {
             kind: library::ListKind::Albums,

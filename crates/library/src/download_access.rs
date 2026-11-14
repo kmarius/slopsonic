@@ -117,7 +117,7 @@ pub(crate) async fn write_download_locator(
         },
     )
     .await?;
-    Ok(sqlx::query_scalar("INSERT INTO main.download_locators(source_key,media_uri,origin,path,root,relative_path,access_uri) VALUES((SELECT source_key FROM main.sources),?1,?2,?3,?4,?5,?6) ON CONFLICT(media_uri,origin) DO UPDATE SET source_key=excluded.source_key,path=excluded.path,root=excluded.root,relative_path=excluded.relative_path,access_uri=excluded.access_uri RETURNING download_access_file_key")
+    Ok(sqlx::query_scalar("INSERT INTO main.download_locators(media_uri,origin,path,root,relative_path,access_uri) VALUES(?1,?2,?3,?4,?5,?6) ON CONFLICT(media_uri,origin) DO UPDATE SET path=excluded.path,root=excluded.root,relative_path=excluded.relative_path,access_uri=excluded.access_uri RETURNING download_access_file_key")
         .bind(&locator.media_uri).bind(&locator.origin).bind(&locator.path).bind(&locator.root).bind(&locator.relative_path).bind(&locator.access_uri).fetch_one(connection).await?)
 }
 

@@ -85,14 +85,12 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Option<PlaylistKey>> {
         let mut connection = self.acquire_general(cancellation).await?;
-        let source = crate::db::server_key(&mut connection).await?;
-        Ok(sqlx::query_scalar(
-            "SELECT playlist_key FROM playlists WHERE source_key=?1 AND object_id=?2",
+        Ok(
+            sqlx::query_scalar("SELECT playlist_key FROM playlists WHERE object_id=?1")
+                .bind(object_id)
+                .fetch_optional(&mut *connection)
+                .await?,
         )
-        .bind(source)
-        .bind(object_id)
-        .fetch_optional(&mut *connection)
-        .await?)
     }
 
     pub async fn playlist_key_by_identity(
@@ -103,7 +101,7 @@ impl Database {
         let mut connection = self.acquire_general(cancellation).await?;
         Ok(sqlx::query_scalar(
             "SELECT playlist_key FROM playlists
-             WHERE source_key IS NOT NULL AND object_id=?1 AND name IS NOT NULL",
+             WHERE object_id=?1 AND name IS NOT NULL",
         )
         .bind(object_id)
         .fetch_optional(&mut *connection)
@@ -116,15 +114,12 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<String>> {
         let mut connection = self.acquire_general(cancellation).await?;
-        let source = crate::db::server_key(&mut connection).await?;
         Ok(sqlx::query_scalar::<_, String>(
             "SELECT track.media_uri FROM tracks track
-             WHERE track.source_key=?1
-               AND EXISTS (SELECT 1 FROM playlist_entries entry WHERE entry.track_key=track.track_key)
-               AND (?2 IS NULL OR EXISTS (SELECT 1 FROM track_folders scope WHERE scope.track_key=track.track_key AND scope.folder_key=?2))
+             WHERE track.object_id IS NOT NULL AND EXISTS (SELECT 1 FROM playlist_entries entry WHERE entry.track_key=track.track_key)
+               AND (?1 IS NULL OR EXISTS (SELECT 1 FROM track_folders scope WHERE scope.track_key=track.track_key AND scope.folder_key=?1))
              ORDER BY track.sort_text,track.track_key",
         )
-        .bind(source)
         .bind(folder)
         .fetch_all(&mut *connection)
         .await?)
@@ -193,11 +188,9 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<String>> {
         let mut connection = self.acquire_general(cancellation).await?;
-        let source = crate::db::server_key(&mut connection).await?;
         Ok(sqlx::query_scalar(
-            "SELECT object_id FROM playlists WHERE source_key=?1 AND name IS NOT NULL AND indexed ORDER BY sort_text,playlist_key",
+            "SELECT object_id FROM playlists WHERE name IS NOT NULL AND indexed ORDER BY sort_text,playlist_key",
         )
-        .bind(source)
         .fetch_all(&mut *connection)
         .await?)
     }
@@ -273,11 +266,11 @@ mod point_projection_tests {
             .unwrap();
         let mut writer = database.writer().await.unwrap();
         let connection = writer.as_mut().unwrap();
-        sqlx::raw_sql("INSERT INTO sources(source_key,object_id,display_name,normalized_name,artwork_digest) VALUES (1,'source','Source','source',zeroblob(32));\n          INSERT INTO playlists(playlist_key,source_key,object_id,name,normalized_name,sort_text,position)\n          VALUES(1,1,'small','Small','small','small',0),(2,1,'large','Large','large','large',1);\n          WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<15)\n          INSERT INTO tracks(track_key,source_key,object_id,media_uri,native_artwork,metadata) SELECT x,1,CAST(x AS TEXT),'track:'||x,X'01',jsonb(json_object('title',COALESCE('Title',''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('title',''),'duration_millis',COALESCE(1000,0))) FROM n;\n          INSERT INTO playlist_entries(playlist_key,object_id,track_key,position)\n          SELECT 1,object_id,track_key,track_key FROM tracks;")
+        sqlx::raw_sql("INSERT INTO sources(source_key,object_id,display_name,normalized_name,artwork_digest) VALUES (1,'source','Source','source',zeroblob(32));\n          INSERT INTO playlists(playlist_key,object_id,name,normalized_name,sort_text,position)\n          VALUES(1,'small','Small','small','small',0),(2,'large','Large','large','large',1);\n          WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<15)\n          INSERT INTO tracks(track_key,object_id,media_uri,native_artwork,metadata) SELECT x,CAST(x AS TEXT),'track:'||x,X'01',jsonb(json_object('title',COALESCE('Title',''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('title',''),'duration_millis',COALESCE(1000,0))) FROM n;\n          INSERT INTO playlist_entries(playlist_key,object_id,track_key,position)\n          SELECT 1,object_id,track_key,track_key FROM tracks;")
             .execute(&mut *connection).await.unwrap();
         for grow in [false, true] {
             if grow {
-                sqlx::raw_sql("WITH RECURSIVE n(x) AS (VALUES(16) UNION ALL SELECT x+1 FROM n WHERE x<10000)\n                  INSERT INTO tracks(track_key,source_key,object_id,media_uri,native_artwork,metadata) SELECT x,1,CAST(x AS TEXT),'track:'||x,X'01',jsonb(json_object('title',COALESCE('Title',''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('title',''),'duration_millis',COALESCE(1000,0))) FROM n;\n                  INSERT INTO playlist_entries(playlist_key,object_id,track_key,position)\n                  SELECT 2,object_id,track_key,track_key FROM tracks;")
+                sqlx::raw_sql("WITH RECURSIVE n(x) AS (VALUES(16) UNION ALL SELECT x+1 FROM n WHERE x<10000)\n                  INSERT INTO tracks(track_key,object_id,media_uri,native_artwork,metadata) SELECT x,CAST(x AS TEXT),'track:'||x,X'01',jsonb(json_object('title',COALESCE('Title',''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('title',''),'duration_millis',COALESCE(1000,0))) FROM n;\n                  INSERT INTO playlist_entries(playlist_key,object_id,track_key,position)\n                  SELECT 2,object_id,track_key,track_key FROM tracks;")
                     .execute(&mut *connection).await.unwrap();
             }
             let work = Arc::new(AtomicUsize::new(0));
@@ -436,10 +429,7 @@ pub(crate) fn playlist_list_query(
     descending: bool,
     filter: &str,
 ) -> crate::query::OrderedQuery {
-    let mut predicate = format!(
-        "playlist.name IS NOT NULL AND playlist.indexed AND playlist.source_key={}",
-        crate::db::SERVER_KEY
-    );
+    let mut predicate = "playlist.name IS NOT NULL AND playlist.indexed".to_owned();
     if !filter.trim().is_empty() {
         predicate.push_str(&format!(
             " AND instr(playlist.normalized_name,{})>0",

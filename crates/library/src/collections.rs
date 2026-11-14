@@ -5,7 +5,7 @@ use sqlx::{Arguments, Connection, FromRow, SqliteConnection};
 
 use crate::{
     AlbumKey, ArtistKey, CatalogSort, Database, FolderKey, GenreKey, LibraryResult, MoodKey,
-    ReadCancellation, SourceKey, TrackView,
+    ReadCancellation, TrackView,
 };
 
 pub(crate) const COLLECTION_ROW_LIMIT: usize = 128;
@@ -187,14 +187,12 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<crate::ScrollSection>> {
         let mut connection = self.acquire_general(cancellation).await?;
-        let source = crate::db::server_key(&mut connection).await?;
         let direction = if descending { "DESC" } else { "ASC" };
         let sql = crate::scroll_sections::section_sql(&format!(
             "SELECT sort_text section_text,row_number() OVER(ORDER BY sort_text {direction},folder_key)-1 section_position FROM ({FILTERED_FOLDER_CHILDREN_SQL})"
         ));
         crate::scroll_sections::decode_sections(
             sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
-                .bind(source)
                 .bind(parent)
                 .bind(filter.trim())
                 .persistent(false)
@@ -223,19 +221,17 @@ impl Database {
     ) -> LibraryResult<Vec<String>> {
         let album_limit = album_limit.clamp(1, 100) as i64;
         let mut connection = self.acquire_general(cancellation).await?;
-        let source = crate::db::server_key(&mut connection).await?;
         Ok(sqlx::query_scalar::<_, String>(
             concat!("WITH latest AS (
                SELECT album.album_key FROM albums album
-               WHERE (album.indexed=1 OR album.track_count>0) AND album.source_key=?1
-                 AND (?2 IS NULL OR EXISTS (SELECT 1 FROM collection_album_index scope WHERE scope.kind='folder' AND scope.entity_key=?2 AND scope.role=0 AND scope.album_key=album.album_key AND coalesce(scope.folder_key,'')='' AND scope.track_count>0))
-               ORDER BY ","album.added_sort"," DESC NULLS LAST,album.album_key LIMIT ?3
+               WHERE (album.indexed=1 OR album.track_count>0)
+                 AND (?1 IS NULL OR EXISTS (SELECT 1 FROM collection_album_index scope WHERE scope.kind='folder' AND scope.entity_key=?1 AND scope.role=0 AND scope.album_key=album.album_key AND coalesce(scope.folder_key,'')='' AND scope.track_count>0))
+               ORDER BY ","album.added_sort"," DESC NULLS LAST,album.album_key LIMIT ?2
              )
              SELECT track.media_uri FROM latest JOIN tracks track USING(album_key)
-             WHERE track.indexed=1 AND (?2 IS NULL OR EXISTS (SELECT 1 FROM track_folders scope WHERE scope.track_key=track.track_key AND scope.folder_key=?2))
+             WHERE track.indexed=1 AND (?1 IS NULL OR EXISTS (SELECT 1 FROM track_folders scope WHERE scope.track_key=track.track_key AND scope.folder_key=?1))
              ORDER BY latest.album_key,track.disc_number,track.track_number,track.track_key"),
         )
-        .bind(source)
         .bind(folder)
         .bind(album_limit)
         .fetch_all(&mut *connection)
@@ -244,21 +240,18 @@ impl Database {
 
     pub async fn music_folders(&self) -> LibraryResult<Vec<FolderChoice>> {
         let mut connection = self.acquire_reader().await?;
-        let source = crate::db::server_key(&mut connection).await?;
-        Ok(sqlx::query_as("SELECT folder_key,object_id,name FROM folders WHERE source_key=?1 AND indexed=1 ORDER BY sort_text,folder_key LIMIT 256")
-            .bind(source).fetch_all(&mut *connection).await?)
+        Ok(sqlx::query_as("SELECT folder_key,object_id,name FROM folders WHERE indexed=1 ORDER BY sort_text,folder_key LIMIT 256")
+            .fetch_all(&mut *connection).await?)
     }
 
     pub async fn folder_identity_key(&self, object_id: &str) -> LibraryResult<Option<FolderKey>> {
         let mut connection = self.acquire_reader().await?;
-        let source = crate::db::server_key(&mut connection).await?;
-        Ok(sqlx::query_scalar(
-            "SELECT folder_key FROM folders WHERE source_key=?1 AND object_id=?2",
+        Ok(
+            sqlx::query_scalar("SELECT folder_key FROM folders WHERE object_id=?1")
+                .bind(object_id)
+                .fetch_optional(&mut *connection)
+                .await?,
         )
-        .bind(source)
-        .bind(object_id)
-        .fetch_optional(&mut *connection)
-        .await?)
     }
 
     pub async fn folder_page(
@@ -269,10 +262,9 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<FolderView>> {
         let mut connection = self.acquire_general(cancellation).await?;
-        let source = crate::db::server_key(&mut connection).await?;
         load_folder_requested(
             &mut connection,
-            folder_request(source, parent, "", false, offset, limit)?,
+            folder_request(parent, "", false, offset, limit)?,
         )
         .await
     }
@@ -287,17 +279,15 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<(usize, Vec<FolderView>)> {
         let mut connection = self.acquire_general(cancellation).await?;
-        let source = crate::db::server_key(&mut connection).await?;
         let children = FILTERED_FOLDER_CHILDREN_SQL;
         let count: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT count(*) FROM ({children})"
         )))
-        .bind(source)
         .bind(parent)
         .bind(filter.trim())
         .fetch_one(&mut *connection)
         .await?;
-        let requested = folder_request(source, parent, filter, descending, offset, limit)?;
+        let requested = folder_request(parent, filter, descending, offset, limit)?;
         Ok((
             count.max(0) as usize,
             load_folder_requested(&mut connection, requested).await?,
@@ -334,7 +324,6 @@ pub(crate) async fn album_disc_sections(
 }
 
 fn folder_request(
-    source: SourceKey,
     parent: Option<FolderKey>,
     filter: &str,
     descending: bool,
@@ -342,7 +331,6 @@ fn folder_request(
     limit: usize,
 ) -> LibraryResult<crate::query::RequestedKeys> {
     let mut arguments = sqlx::sqlite::SqliteArguments::default();
-    arguments.add(source).map_err(sqlx::Error::Encode)?;
     arguments.add(parent).map_err(sqlx::Error::Encode)?;
     arguments
         .add(filter.trim().to_owned())
@@ -361,9 +349,9 @@ fn folder_request(
 const ARTIST_ALBUM_SCOPE: &str = "SELECT album.album_key FROM (
     SELECT album_key FROM collection_album_index WHERE kind='artist' AND entity_key=?1 AND role=?2 AND coalesce(folder_key,'')=coalesce(?3,'') AND (track_count>0 OR (?2=1 AND ?3 IS NULL AND album_count>0)) AND album_key IS NOT NULL
 ) candidate CROSS JOIN albums album USING(album_key)
-WHERE (album.indexed=1 OR album.track_count>0) AND album.source_key=(SELECT source_key FROM sources)";
+WHERE (album.indexed=1 OR album.track_count>0)";
 
-const FILTERED_FOLDER_CHILDREN_SQL: &str = "SELECT folder.folder_key,folder.sort_text FROM folder_children relation CROSS JOIN folders folder ON folder.folder_key=relation.child_folder_key WHERE relation.source_key=?1 AND coalesce(relation.parent_folder_key,'')=coalesce(?2,'') AND relation.admitted_track_count>0 AND folder.indexed=1 AND instr(lower(folder.name),lower(?3))>0";
+const FILTERED_FOLDER_CHILDREN_SQL: &str = "SELECT folder.folder_key,folder.sort_text FROM folder_children relation CROSS JOIN folders folder ON folder.folder_key=relation.child_folder_key WHERE coalesce(relation.parent_folder_key,'')=coalesce(?1,'') AND relation.admitted_track_count>0 AND folder.indexed=1 AND instr(lower(folder.name),lower(?2))>0";
 
 pub(crate) fn album_artist_keys(artist: &str) -> String {
     format!("SELECT member.track_key FROM album_artists credit CROSS JOIN tracks member INDEXED BY tracks_album_order_idx ON member.album_key=credit.album_key WHERE credit.artist_key={artist}
@@ -459,10 +447,7 @@ impl CatalogSort {
 }
 
 pub(crate) fn album_scope(folder: Option<FolderKey>, favorites_only: bool, filter: &str) -> String {
-    let mut scope = format!(
-        "(album.indexed=1 OR album.track_count>0) AND album.source_key={}",
-        crate::db::SERVER_KEY
-    );
+    let mut scope = "(album.indexed=1 OR album.track_count>0)".to_owned();
     if folder.is_some() {
         scope.push_str(&format!(
             " AND {}>0",
@@ -488,7 +473,7 @@ pub(crate) fn named_scope(kind: &str, folder: Option<FolderKey>, filter: &str) -
     } else {
         format!("({kind}.indexed=1 OR totals.track_count>0)")
     };
-    let mut scope = format!("{kind}.source_key={} AND {visible}", crate::db::SERVER_KEY);
+    let mut scope = visible;
     if !filter.trim().is_empty() {
         scope.push_str(&format!(
             " AND instr({kind}.normalized_name,{})>0",
@@ -508,10 +493,7 @@ pub(crate) fn artist_scope(
     } else {
         ""
     };
-    let mut scope = format!(
-        "artist.source_key={} AND (totals.track_count>0{empty})",
-        crate::db::SERVER_KEY
-    );
+    let mut scope = format!("(totals.track_count>0{empty})");
     if !filter.trim().is_empty() {
         scope.push_str(&format!(
             " AND instr(artist.normalized_name,{})>0",

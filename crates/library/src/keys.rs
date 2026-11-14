@@ -95,7 +95,6 @@ macro_rules! integer_key {
     };
 }
 
-integer_key!(SourceKey);
 integer_key!(TrackKey);
 integer_key!(AlbumKey);
 integer_key!(ArtistKey);

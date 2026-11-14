@@ -42,7 +42,7 @@ pub(crate) async fn albums(
             SELECT *,row_number() OVER(PARTITION BY album_key,{target}_key ORDER BY path,disc,number,object_id,ordinal) first_credit FROM (
                 SELECT album.album_key,credit.{target}_key,NULL path,0 disc,0 number,'' object_id,CAST(item.key AS INTEGER) ordinal
                 FROM albums album JOIN json_each(album.input_metadata,'$.{array}') item
-                JOIN {target}s credit ON credit.source_key=album.source_key AND credit.object_id=json_extract(item.value,'$.object_id')
+                JOIN {target}s credit ON credit.object_id=json_extract(item.value,'$.object_id')
                 WHERE album.album_key IN(SELECT value FROM json_each(?1)) AND album.input_metadata IS NOT NULL
                 UNION ALL SELECT track.album_key,credit.{target}_key,track.source_path,track.disc_number,track.track_number,track.object_id,credit.position
                 FROM tracks track INDEXED BY tracks_album_order_idx JOIN {edge} credit USING(track_key) JOIN albums album USING(album_key)
@@ -166,21 +166,21 @@ async fn replace(
 
 fn facts(row: &str, direction: i32) -> String {
     format!(
-        "SELECT {row}.track_key,{row}.source_key,{row}.album_key,{row}.indexed,{row}.duration_millis,{row}.is_downloaded downloaded_count,{row}.displayed_play_count play_count,{row}.displayed_last_played last_played,{direction} direction"
+        "SELECT {row}.track_key,{row}.album_key,{row}.indexed,{row}.duration_millis,{row}.is_downloaded downloaded_count,{row}.displayed_play_count play_count,{row}.displayed_last_played last_played,{direction} direction"
     )
 }
 
 fn folder_children_delta(edges: &str) -> String {
     let changes = format!(
-        "SELECT source_key,parent_folder_key,child_folder_key,sum(direction) count FROM ({edges}) edge WHERE EXISTS(SELECT 1 FROM sources WHERE source_key=edge.source_key) AND EXISTS(SELECT 1 FROM folders WHERE folder_key=edge.child_folder_key) AND (parent_folder_key IS NULL OR EXISTS(SELECT 1 FROM folders WHERE folder_key=edge.parent_folder_key)) GROUP BY source_key,parent_folder_key,child_folder_key HAVING sum(direction)<>0"
+        "SELECT parent_folder_key,child_folder_key,sum(direction) count FROM ({edges}) edge WHERE EXISTS(SELECT 1 FROM folders WHERE folder_key=edge.child_folder_key) AND (parent_folder_key IS NULL OR EXISTS(SELECT 1 FROM folders WHERE folder_key=edge.parent_folder_key)) GROUP BY parent_folder_key,child_folder_key HAVING sum(direction)<>0"
     );
-    format!("INSERT INTO folder_children(source_key,parent_folder_key,child_folder_key,admitted_track_count) SELECT source_key,parent_folder_key,child_folder_key,count FROM ({changes}) changed WHERE true ON CONFLICT DO UPDATE SET admitted_track_count=folder_children.admitted_track_count+excluded.admitted_track_count;
-        DELETE FROM folder_children WHERE folder_child_key IN(SELECT stored.folder_child_key FROM ({changes}) changed CROSS JOIN folder_children stored ON stored.source_key=changed.source_key AND coalesce(stored.parent_folder_key,'')=coalesce(changed.parent_folder_key,'') AND stored.child_folder_key=changed.child_folder_key WHERE stored.admitted_track_count=0);")
+    format!("INSERT INTO folder_children(parent_folder_key,child_folder_key,admitted_track_count) SELECT parent_folder_key,child_folder_key,count FROM ({changes}) changed WHERE true ON CONFLICT DO UPDATE SET admitted_track_count=folder_children.admitted_track_count+excluded.admitted_track_count;
+        DELETE FROM folder_children WHERE folder_child_key IN(SELECT stored.folder_child_key FROM ({changes}) changed CROSS JOIN folder_children stored ON coalesce(stored.parent_folder_key,'')=coalesce(changed.parent_folder_key,'') AND stored.child_folder_key=changed.child_folder_key WHERE stored.admitted_track_count=0);")
 }
 
 fn folder_edges(facts: &str) -> String {
     format!(
-        "SELECT facts.source_key,parent.folder_key parent_folder_key,child.folder_key child_folder_key,facts.direction FROM ({facts}) facts JOIN track_folders child USING(track_key) LEFT JOIN track_folders parent ON parent.track_key=child.track_key AND parent.position=child.position-1 WHERE facts.indexed=1 AND facts.source_key IS NOT NULL AND (child.position=0 OR parent.folder_key IS NOT NULL)"
+        "SELECT parent.folder_key parent_folder_key,child.folder_key child_folder_key,facts.direction FROM ({facts}) facts JOIN track_folders child USING(track_key) LEFT JOIN track_folders parent ON parent.track_key=child.track_key AND parent.position=child.position-1 WHERE facts.indexed=1 AND (child.position=0 OR parent.folder_key IS NOT NULL)"
     )
 }
 
@@ -212,7 +212,7 @@ fn folder_path_change(event: &str) -> String {
         ),
     };
     folder_children_delta(&format!(
-        "WITH paths AS MATERIALIZED(SELECT before.*,-1 direction FROM ({before}) before UNION ALL SELECT current.*,1 FROM ({current}) current) SELECT track.source_key,parent.folder_key parent_folder_key,child.folder_key child_folder_key,child.direction FROM paths child JOIN tracks track USING(track_key) LEFT JOIN paths parent ON parent.track_key=child.track_key AND parent.position=child.position-1 AND parent.direction=child.direction WHERE track.indexed=1 AND track.source_key IS NOT NULL AND (child.position=0 OR parent.folder_key IS NOT NULL)"
+        "WITH paths AS MATERIALIZED(SELECT before.*,-1 direction FROM ({before}) before UNION ALL SELECT current.*,1 FROM ({current}) current) SELECT parent.folder_key parent_folder_key,child.folder_key child_folder_key,child.direction FROM paths child JOIN tracks track USING(track_key) LEFT JOIN paths parent ON parent.track_key=child.track_key AND parent.position=child.position-1 AND parent.direction=child.direction WHERE track.indexed=1 AND (child.position=0 OR parent.folder_key IS NOT NULL)"
     ))
 }
 
@@ -360,7 +360,7 @@ fn canonical_delta(input: &str) -> String {
         last_played=CASE WHEN delta.removed_last=albums.last_played AND (delta.last_played IS NULL OR delta.last_played<albums.last_played) THEN (SELECT max(track.displayed_last_played) FROM tracks track WHERE track.album_key=albums.album_key AND track.indexed=1) WHEN delta.last_played IS NULL THEN albums.last_played WHEN albums.last_played IS NULL THEN delta.last_played ELSE max(albums.last_played,delta.last_played) END
         FROM (SELECT album_key,sum(direction) track_count,sum(direction*duration_millis) duration_millis,sum(direction*downloaded_count) downloaded_count,sum(direction*play_count) play_count,max(CASE WHEN direction>0 THEN last_played END) last_played,max(CASE WHEN direction<0 THEN last_played END) removed_last FROM ({input}) facts WHERE indexed=1 AND album_key IS NOT NULL GROUP BY album_key
         HAVING sum(direction)<>0 OR sum(direction*duration_millis)<>0 OR sum(direction*downloaded_count)<>0 OR sum(direction*play_count)<>0 OR max(CASE WHEN direction>0 THEN last_played END) IS NOT max(CASE WHEN direction<0 THEN last_played END)) delta WHERE albums.album_key=delta.album_key;
-        UPDATE sources SET track_count=track_count+delta.count FROM (SELECT source_key,sum(direction) count FROM ({input}) facts WHERE indexed=1 AND source_key IS NOT NULL GROUP BY source_key HAVING sum(direction)<>0) delta WHERE sources.source_key=delta.source_key; ")
+        UPDATE sources SET track_count=track_count+delta.count FROM (SELECT sum(direction) count FROM ({input}) facts WHERE indexed=1 HAVING sum(direction)<>0) delta; ")
 }
 
 fn totals_change(input: &str) -> String {
@@ -385,11 +385,11 @@ fn refresh_group(kind: &str, role: i32, entity: &str, album: &str) -> String {
     let selected = predicate(kind, role, entity, "track");
     let native = native_album(kind, role, entity, album, "NULL");
     let rows = format!(
-        "SELECT '{kind}' kind,{entity} entity_key,{role} role,track.track_key,track.source_key,track.album_key,track.indexed,track.duration_millis,track.is_downloaded downloaded_count,track.displayed_play_count play_count,track.displayed_last_played last_played,1 direction,NULL occurrence FROM tracks track WHERE track.album_key={album} AND track.indexed=1 AND {selected}"
+        "SELECT '{kind}' kind,{entity} entity_key,{role} role,track.track_key,track.album_key,track.indexed,track.duration_millis,track.is_downloaded downloaded_count,track.displayed_play_count play_count,track.displayed_last_played last_played,1 direction,NULL occurrence FROM tracks track WHERE track.album_key={album} AND track.indexed=1 AND {selected}"
     );
     let scope = scoped(&rows);
     let grouped = format!(
-        "SELECT kind,entity_key,role,album_key,folder_key,sum(direction) track_count,sum(direction*duration_millis) duration_millis,sum(direction*downloaded_count) downloaded_count,sum(direction*play_count) play_count,max(last_played) last_played,album_key IS NOT NULL AND (sum(direction)>0 OR ({native}) AND folder_key IS NULL) album_count FROM ({scope} UNION ALL SELECT '{kind}',{entity},{role},NULL,NULL,{album},1,0,0,0,NULL,0,NULL,NULL) current GROUP BY folder_key"
+        "SELECT kind,entity_key,role,album_key,folder_key,sum(direction) track_count,sum(direction*duration_millis) duration_millis,sum(direction*downloaded_count) downloaded_count,sum(direction*play_count) play_count,max(last_played) last_played,album_key IS NOT NULL AND (sum(direction)>0 OR ({native}) AND folder_key IS NULL) album_count FROM ({scope} UNION ALL SELECT '{kind}',{entity},{role},NULL,{album},1,0,0,0,NULL,0,NULL,NULL) current GROUP BY folder_key"
     );
     let keys = format!(
         "SELECT folder_key FROM actual UNION SELECT folder_key FROM collection_album_index WHERE kind='{kind}' AND entity_key={entity} AND role={role} AND coalesce(album_key,'')=coalesce({album},'')"
@@ -420,7 +420,7 @@ fn triggers() -> String {
         ("AFTER INSERT", "insert", vec![("NEW", 1)]),
         ("AFTER DELETE", "delete", vec![("OLD", -1)]),
         (
-            "AFTER UPDATE OF source_key,album_key,indexed,metadata,media_uri,object_id",
+            "AFTER UPDATE OF album_key,indexed,metadata,media_uri,object_id",
             "update",
             vec![("OLD", -1), ("NEW", 1)],
         ),
@@ -452,7 +452,7 @@ fn triggers() -> String {
         }
         let when = match name {
             "update" => {
-                "WHEN (OLD.source_key,OLD.album_key,OLD.indexed,OLD.duration_millis,OLD.media_uri,OLD.object_id) IS NOT (NEW.source_key,NEW.album_key,NEW.indexed,NEW.duration_millis,NEW.media_uri,NEW.object_id)"
+                "WHEN (OLD.album_key,OLD.indexed,OLD.duration_millis,OLD.media_uri,OLD.object_id) IS NOT (NEW.album_key,NEW.indexed,NEW.duration_millis,NEW.media_uri,NEW.object_id)"
             }
             "display" => {
                 "WHEN (OLD.displayed_play_count,OLD.displayed_last_played,OLD.is_downloaded) IS NOT (NEW.displayed_play_count,NEW.displayed_last_played,NEW.is_downloaded)"
@@ -476,7 +476,7 @@ fn triggers() -> String {
         ] {
             let input=rows.iter().map(|(row,sign)|{
                 let admitted=if kind=="playlist" {"1".to_owned()}else if kind=="artist"&&role==1 {"track.indexed=1 AND track.album_key IS NULL".into()}else if kind=="genre" {format!("track.indexed=1 AND NOT EXISTS(SELECT 1 FROM album_genres inherited WHERE inherited.album_key=track.album_key AND inherited.genre_key={row}.genre_key)")}else{"track.indexed=1".into()};
-                format!("SELECT '{kind}' kind,{row}.{kind}_key entity_key,{role} role,track.track_key,track.source_key,track.album_key,track.indexed,track.duration_millis,track.is_downloaded downloaded_count,track.displayed_play_count play_count,track.displayed_last_played last_played,{sign} direction,NULL occurrence FROM tracks track WHERE track.track_key={row}.track_key AND {admitted}")
+                format!("SELECT '{kind}' kind,{row}.{kind}_key entity_key,{role} role,track.track_key,track.album_key,track.indexed,track.duration_millis,track.is_downloaded downloaded_count,track.displayed_play_count play_count,track.displayed_last_played last_played,{sign} direction,NULL occurrence FROM tracks track WHERE track.track_key={row}.track_key AND {admitted}")
             }).collect::<Vec<_>>().join(" UNION ALL ");
             let affected = if kind == "folder" {
                 format!("SELECT changed.*,NULL folder_key FROM ({input}) changed")
@@ -501,7 +501,7 @@ fn triggers() -> String {
                     .chain([("playlist", 0)])
                     .filter(|(kind, _)| *kind != "folder")
                 {
-                    let scope=rows.iter().map(|(row,sign)|{let input=format!("SELECT track_key,source_key,album_key,indexed,duration_millis,is_downloaded downloaded_count,displayed_play_count play_count,displayed_last_played last_played,{sign} direction FROM tracks WHERE track_key={row}.track_key");format!("SELECT member.*,{row}.folder_key folder_key FROM ({}) member",members(&input,kind,role))}).collect::<Vec<_>>().join(" UNION ALL ");
+                    let scope=rows.iter().map(|(row,sign)|{let input=format!("SELECT track_key,album_key,indexed,duration_millis,is_downloaded downloaded_count,displayed_play_count play_count,displayed_last_played last_played,{sign} direction FROM tracks WHERE track_key={row}.track_key");format!("SELECT member.*,{row}.folder_key folder_key FROM ({}) member",members(&input,kind,role))}).collect::<Vec<_>>().join(" UNION ALL ");
                     body.push_str(&contribution_delta(&scope, kind, role));
                 }
                 body.push_str(&folder_path_change(name));
@@ -576,7 +576,7 @@ fn triggers() -> String {
     }
     sql.push_str(&format!("CREATE TRIGGER IF NOT EXISTS catalog_index_gallery_track_uri AFTER UPDATE OF media_uri ON tracks WHEN OLD.media_uri IS NOT NEW.media_uri BEGIN {} END;",gallery("SELECT summary_key FROM collection_album_index INDEXED BY collection_album_index_album WHERE album_key=NEW.album_key UNION SELECT summary_key FROM collection_album_index INDEXED BY collection_album_index_albumless WHERE albumless_track_key=NEW.track_key")));
     sql.push_str(&format!("CREATE TRIGGER IF NOT EXISTS catalog_index_gallery_album_uri AFTER UPDATE OF media_uri ON albums WHEN OLD.media_uri IS NOT NEW.media_uri BEGIN {} END;",gallery("SELECT summary_key FROM collection_album_index INDEXED BY collection_album_index_album WHERE album_key=NEW.album_key")));
-    sql.push_str("CREATE TRIGGER IF NOT EXISTS catalog_index_source_album_insert AFTER INSERT ON albums WHEN NEW.indexed=1 OR NEW.track_count>0 BEGIN UPDATE sources SET album_count=album_count+1 WHERE source_key=NEW.source_key; END; CREATE TRIGGER IF NOT EXISTS catalog_index_source_album_delete BEFORE DELETE ON albums WHEN OLD.indexed=1 OR OLD.track_count>0 BEGIN UPDATE sources SET album_count=album_count-1 WHERE source_key=OLD.source_key; END; CREATE TRIGGER IF NOT EXISTS catalog_index_source_album_update AFTER UPDATE OF source_key,indexed,track_count ON albums WHEN (OLD.source_key,OLD.indexed=1 OR OLD.track_count>0) IS NOT (NEW.source_key,NEW.indexed=1 OR NEW.track_count>0) BEGIN UPDATE sources SET album_count=album_count+changes.count FROM (SELECT source_key,sum(count) count FROM (SELECT OLD.source_key source_key,-1 count WHERE OLD.indexed=1 OR OLD.track_count>0 UNION ALL SELECT NEW.source_key,1 WHERE NEW.indexed=1 OR NEW.track_count>0) GROUP BY source_key HAVING sum(count)<>0) changes WHERE sources.source_key=changes.source_key; END;");
+    sql.push_str("CREATE TRIGGER IF NOT EXISTS catalog_index_source_album_insert AFTER INSERT ON albums WHEN NEW.indexed=1 OR NEW.track_count>0 BEGIN UPDATE sources SET album_count=album_count+1; END; CREATE TRIGGER IF NOT EXISTS catalog_index_source_album_delete BEFORE DELETE ON albums WHEN OLD.indexed=1 OR OLD.track_count>0 BEGIN UPDATE sources SET album_count=album_count-1; END; CREATE TRIGGER IF NOT EXISTS catalog_index_source_album_update AFTER UPDATE OF indexed,track_count ON albums WHEN (OLD.indexed=1 OR OLD.track_count>0) IS NOT (NEW.indexed=1 OR NEW.track_count>0) BEGIN UPDATE sources SET album_count=album_count+CASE WHEN NEW.indexed=1 OR NEW.track_count>0 THEN 1 ELSE -1 END; END;");
     sql.push_str(&activity_triggers());
     sql
 }
@@ -640,12 +640,11 @@ CREATE INDEX IF NOT EXISTS playlist_genres_rank ON playlist_genres(playlist_key,
 CREATE INDEX IF NOT EXISTS playlist_genres_genre ON playlist_genres(genre_key,playlist_key);
 CREATE TABLE IF NOT EXISTS folder_children (
     folder_child_key INTEGER PRIMARY KEY,
-    source_key INTEGER NOT NULL REFERENCES sources ON DELETE CASCADE,
     parent_folder_key INTEGER REFERENCES folders ON DELETE CASCADE,
     child_folder_key INTEGER NOT NULL REFERENCES folders ON DELETE CASCADE,
     admitted_track_count INTEGER NOT NULL
 ) STRICT;
-CREATE UNIQUE INDEX IF NOT EXISTS folder_children_parent ON folder_children(source_key,coalesce(parent_folder_key,''),child_folder_key);
+CREATE UNIQUE INDEX IF NOT EXISTS folder_children_parent ON folder_children(coalesce(parent_folder_key,''),child_folder_key);
 CREATE TABLE IF NOT EXISTS collection_album_index (
     summary_key INTEGER PRIMARY KEY,kind TEXT NOT NULL,entity_key INTEGER NOT NULL,role INTEGER NOT NULL,
     album_key INTEGER REFERENCES albums ON DELETE CASCADE,albumless_track_key INTEGER REFERENCES tracks ON DELETE CASCADE,folder_key INTEGER REFERENCES folders ON DELETE CASCADE,
@@ -669,17 +668,19 @@ CREATE INDEX IF NOT EXISTS collection_totals_folder ON collection_totals(kind,ro
 CREATE INDEX IF NOT EXISTS tracks_album_activity ON tracks(album_key,indexed,displayed_last_played DESC);
 CREATE INDEX IF NOT EXISTS tracks_album_artwork ON tracks(album_key,indexed,media_uri,track_key);
 CREATE INDEX IF NOT EXISTS tracks_album_metadata_order_idx ON tracks(album_key,source_path,disc_number,track_number,object_id) WHERE indexed=1;
-CREATE INDEX IF NOT EXISTS tracks_album_title_window ON tracks(source_key,indexed,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
-CREATE INDEX IF NOT EXISTS tracks_album_title_desc_window ON tracks(source_key,indexed,album_title_sort DESC,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
-CREATE INDEX IF NOT EXISTS tracks_album_artist_window ON tracks(source_key,indexed,(album_artist_sort IS NULL),album_artist_sort,(album_year_sort IS NULL),album_year_sort,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
-CREATE INDEX IF NOT EXISTS tracks_album_artist_desc_window ON tracks(source_key,indexed,(album_artist_sort IS NULL),album_artist_sort DESC,(album_year_sort IS NULL),album_year_sort,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
+CREATE INDEX IF NOT EXISTS tracks_album_title_window ON tracks(indexed,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
+CREATE INDEX IF NOT EXISTS tracks_album_title_desc_window ON tracks(indexed,album_title_sort DESC,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
+CREATE INDEX IF NOT EXISTS tracks_album_artist_window ON tracks(indexed,(album_artist_sort IS NULL),album_artist_sort,(album_year_sort IS NULL),album_year_sort,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
+CREATE INDEX IF NOT EXISTS tracks_album_artist_desc_window ON tracks(indexed,(album_artist_sort IS NULL),album_artist_sort DESC,(album_year_sort IS NULL),album_year_sort,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
 "#;
 
 const PLAYLIST_GENRES: &str = "INSERT INTO playlist_genres(playlist_key,genre_key,track_count)
     SELECT entry.playlist_key,credit.genre_key,count(*) FROM playlist_entries entry JOIN track_genres credit USING(track_key) GROUP BY entry.playlist_key,credit.genre_key;";
 
-/// Recreates the generated triggers, then refreshes the displayed stats through them.
+/// Recreates the index tables a migration dropped and the generated triggers, then refreshes
+/// the displayed stats through them.
 pub(crate) async fn recreate_triggers(connection: &mut SqliteConnection) -> LibraryResult<()> {
+    sqlx::raw_sql(CREATE).execute(&mut *connection).await?;
     sqlx::raw_sql(sqlx::AssertSqlSafe(triggers()))
         .execute(&mut *connection)
         .await?;
@@ -704,10 +705,10 @@ pub(crate) async fn initialize(connection: &mut SqliteConnection) -> LibraryResu
         albums(connection, &keys).await?;
     }
     sqlx::raw_sql("UPDATE albums SET (track_count,duration_millis,downloaded_count,play_count,last_played)=(SELECT count(*),coalesce(sum(duration_millis),0),coalesce(sum(is_downloaded),0),coalesce(sum(displayed_play_count),0),max(displayed_last_played) FROM tracks WHERE tracks.album_key=albums.album_key AND indexed=1);
-        UPDATE sources SET album_count=(SELECT count(*) FROM albums WHERE albums.source_key=sources.source_key AND (indexed=1 OR track_count>0)),track_count=(SELECT count(*) FROM tracks WHERE tracks.source_key=sources.source_key AND indexed=1);")
+        UPDATE sources SET album_count=(SELECT count(*) FROM albums WHERE indexed=1 OR track_count>0),track_count=(SELECT count(*) FROM tracks WHERE indexed=1);")
         .execute(&mut *connection).await?;
-    let input = "SELECT track_key,source_key,album_key,indexed,duration_millis,is_downloaded downloaded_count,displayed_play_count play_count,displayed_last_played last_played,1 direction FROM tracks";
-    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("INSERT INTO folder_children(source_key,parent_folder_key,child_folder_key,admitted_track_count) SELECT source_key,parent_folder_key,child_folder_key,count(*) FROM ({}) edge GROUP BY source_key,parent_folder_key,child_folder_key;",folder_edges(input))))
+    let input = "SELECT track_key,album_key,indexed,duration_millis,is_downloaded downloaded_count,displayed_play_count play_count,displayed_last_played last_played,1 direction FROM tracks";
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!("INSERT INTO folder_children(parent_folder_key,child_folder_key,admitted_track_count) SELECT parent_folder_key,child_folder_key,count(*) FROM ({}) edge GROUP BY parent_folder_key,child_folder_key;",folder_edges(input))))
         .execute(&mut *connection).await?;
     let member_rows = OWNERS
         .iter()
@@ -718,7 +719,7 @@ pub(crate) async fn initialize(connection: &mut SqliteConnection) -> LibraryResu
         .join(" UNION ");
     let rows = scoped(&member_rows);
     let rows = format!(
-        "{rows} UNION ALL SELECT 'artist',credit.artist_key,1,NULL,NULL,credit.album_key,1,0,0,0,NULL,0,NULL,NULL FROM album_artists credit JOIN albums album USING(album_key) WHERE album.indexed=1 UNION ALL SELECT 'genre',credit.genre_key,0,NULL,NULL,credit.album_key,1,0,0,0,NULL,0,NULL,NULL FROM album_genres credit JOIN albums album USING(album_key) WHERE album.indexed=1"
+        "{rows} UNION ALL SELECT 'artist',credit.artist_key,1,NULL,credit.album_key,1,0,0,0,NULL,0,NULL,NULL FROM album_artists credit JOIN albums album USING(album_key) WHERE album.indexed=1 UNION ALL SELECT 'genre',credit.genre_key,0,NULL,credit.album_key,1,0,0,0,NULL,0,NULL,NULL FROM album_genres credit JOIN albums album USING(album_key) WHERE album.indexed=1"
     );
     sqlx::raw_sql(sqlx::AssertSqlSafe(format!("INSERT INTO collection_album_index(kind,entity_key,role,album_key,albumless_track_key,folder_key,album_count,track_count,duration_millis,downloaded_count,play_count,last_played)
         SELECT kind,entity_key,role,album_key,CASE WHEN album_key IS NULL THEN track_key END,folder_key,album_key IS NOT NULL,sum(direction),sum(direction*duration_millis),sum(direction*downloaded_count),sum(direction*play_count),max(last_played) FROM ({rows}) current GROUP BY kind,entity_key,role,album_key,CASE WHEN album_key IS NULL THEN track_key END,folder_key;")))

@@ -289,7 +289,7 @@ impl Database {
             () = cancellation.cancelled() => return Err(LibraryError::ReadCancelled)
         };
         Ok(sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM tracks WHERE media_uri=?1 AND source_key IS NOT NULL)",
+            "SELECT EXISTS(SELECT 1 FROM tracks WHERE media_uri=?1 AND object_id IS NOT NULL)",
         )
         .bind(media_uri)
         .fetch_one(&mut *connection)
@@ -352,7 +352,7 @@ pub(crate) fn track_requested_sql(requested: &crate::query::RequestedKeys) -> St
     format!(
         "WITH requested AS ({})
         SELECT requested.ordinal __ordinal,track.track_key,track.object_id,track.media_uri,
-        json_patch(track.metadata,json_object('title',coalesce(nullif(track.title,''),track.media_uri),'date_added',date(COALESCE(unixepoch(track.date_added),track.first_seen_at),'unixepoch'),'album_display_artist',COALESCE(album.display_artist,json_extract(track.metadata,'$.album_display_artist')),'musicbrainz_album_id',COALESCE(album.musicbrainz_release_id,json_extract(track.metadata,'$.musicbrainz_album_id')),'musicbrainz_release_group_id',COALESCE(album.musicbrainz_release_group_id,json_extract(track.metadata,'$.musicbrainz_release_group_id')),'primary_artist_musicbrainz_id',COALESCE((SELECT artist.musicbrainz_artist_id FROM track_artists credit JOIN artists artist USING(artist_key) WHERE credit.track_key=track.track_key ORDER BY credit.position LIMIT 1),json_extract(track.metadata,'$.primary_artist_musicbrainz_id')))) metadata,COALESCE((SELECT display_name FROM sources WHERE source_key=track.source_key),'') source_name,
+        json_patch(track.metadata,json_object('title',coalesce(nullif(track.title,''),track.media_uri),'date_added',date(COALESCE(unixepoch(track.date_added),track.first_seen_at),'unixepoch'),'album_display_artist',COALESCE(album.display_artist,json_extract(track.metadata,'$.album_display_artist')),'musicbrainz_album_id',COALESCE(album.musicbrainz_release_id,json_extract(track.metadata,'$.musicbrainz_album_id')),'musicbrainz_release_group_id',COALESCE(album.musicbrainz_release_group_id,json_extract(track.metadata,'$.musicbrainz_release_group_id')),'primary_artist_musicbrainz_id',COALESCE((SELECT artist.musicbrainz_artist_id FROM track_artists credit JOIN artists artist USING(artist_key) WHERE credit.track_key=track.track_key ORDER BY credit.position LIMIT 1),json_extract(track.metadata,'$.primary_artist_musicbrainz_id')))) metadata,COALESCE(CASE WHEN track.object_id IS NOT NULL THEN (SELECT display_name FROM sources) END,'') source_name,
         track.source_path,
         CASE WHEN album.indexed OR track.indexed OR album.track_count>0 THEN track.album_key END album_key,
         CASE WHEN album.indexed OR track.indexed OR album.track_count>0 THEN album.media_uri END album_media_uri,
@@ -387,29 +387,27 @@ mod tests {
         schema::initialize_durable(&mut connection)
             .await
             .expect("initialize durable Store");
-        let source = sqlx::query_scalar::<_, crate::SourceKey>(
-            "INSERT INTO sources(object_id,display_name,normalized_name,artwork_digest) VALUES ('source','Source','source',zeroblob(32)) RETURNING source_key",
+        sqlx::query(
+            "INSERT INTO sources(object_id,display_name,normalized_name,artwork_digest) VALUES ('source','Source','source',zeroblob(32))",
         )
-        .fetch_one(&mut connection)
+        .execute(&mut connection)
         .await
         .expect("insert source");
-        let artist = sqlx::query_scalar::<_, ArtistKey>("INSERT INTO artists(source_key,object_id,media_uri,metadata) VALUES (?1,'artist','slopsonic:artist/%61%72%74%69%73%74',jsonb(json_object('name','Artist','sort_text','artist'))) RETURNING artist_key")
-            .bind(source).fetch_one(&mut connection).await.expect("insert Artist");
-        let genre = sqlx::query_scalar::<_, GenreKey>("INSERT INTO genres(source_key,object_id,media_uri,metadata) VALUES (?1,'genre','genre:one',jsonb(json_object('name','Genre','sort_text','genre'))) RETURNING genre_key")
-            .bind(source).fetch_one(&mut connection).await.expect("insert Genre");
-        sqlx::query("WITH RECURSIVE sequence(value) AS (VALUES(0) UNION ALL SELECT value+1 FROM sequence WHERE value<255) INSERT INTO tracks(source_key,object_id,media_uri,normalized_search,indexed,metadata) SELECT ?1,'track-'||value,'file:///track-'||value,'track artist',1,jsonb(json_object('title',COALESCE('Track',''),'album',COALESCE('',''),'artist',COALESCE('Artist',''),'sort_text',COALESCE('track-'||printf('%03d',value),''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(0,0),'track_number',COALESCE(value,0))) FROM sequence")
-            .bind(source).execute(&mut connection).await.expect("insert Track window");
-        sqlx::query("INSERT INTO track_artists(track_key,artist_key,position) SELECT track_key,?1,0 FROM tracks WHERE source_key=?2")
-            .bind(artist).bind(source).execute(&mut connection).await.expect("insert Track Artists");
-        sqlx::query("INSERT INTO track_genres(track_key,genre_key,position) SELECT track_key,?1,0 FROM tracks WHERE source_key=?2")
-            .bind(genre).bind(source).execute(&mut connection).await.expect("insert Track Genres");
-        let mut keys = sqlx::query_scalar::<_, TrackKey>(
-            "SELECT track_key FROM tracks WHERE source_key=?1 ORDER BY track_key",
-        )
-        .bind(source)
-        .fetch_all(&mut connection)
-        .await
-        .expect("read Track window keys");
+        let artist = sqlx::query_scalar::<_, ArtistKey>("INSERT INTO artists(object_id,media_uri,metadata) VALUES ('artist','slopsonic:artist/%61%72%74%69%73%74',jsonb(json_object('name','Artist','sort_text','artist'))) RETURNING artist_key")
+            .fetch_one(&mut connection).await.expect("insert Artist");
+        let genre = sqlx::query_scalar::<_, GenreKey>("INSERT INTO genres(object_id,media_uri,metadata) VALUES ('genre','genre:one',jsonb(json_object('name','Genre','sort_text','genre'))) RETURNING genre_key")
+            .fetch_one(&mut connection).await.expect("insert Genre");
+        sqlx::query("WITH RECURSIVE sequence(value) AS (VALUES(0) UNION ALL SELECT value+1 FROM sequence WHERE value<255) INSERT INTO tracks(object_id,media_uri,normalized_search,indexed,metadata) SELECT 'track-'||value,'file:///track-'||value,'track artist',1,jsonb(json_object('title',COALESCE('Track',''),'album',COALESCE('',''),'artist',COALESCE('Artist',''),'sort_text',COALESCE('track-'||printf('%03d',value),''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(0,0),'track_number',COALESCE(value,0))) FROM sequence")
+            .execute(&mut connection).await.expect("insert Track window");
+        sqlx::query("INSERT INTO track_artists(track_key,artist_key,position) SELECT track_key,?1,0 FROM tracks")
+            .bind(artist).execute(&mut connection).await.expect("insert Track Artists");
+        sqlx::query("INSERT INTO track_genres(track_key,genre_key,position) SELECT track_key,?1,0 FROM tracks")
+            .bind(genre).execute(&mut connection).await.expect("insert Track Genres");
+        let mut keys =
+            sqlx::query_scalar::<_, TrackKey>("SELECT track_key FROM tracks ORDER BY track_key")
+                .fetch_all(&mut connection)
+                .await
+                .expect("read Track window keys");
         keys.reverse();
         let one = load_track_rows(&mut connection, &keys[..1])
             .await
@@ -427,8 +425,8 @@ mod tests {
             assert_eq!(row.links.genres.len(), 1);
             assert_eq!(row.links.genres[0].genre_key, genre);
         }
-        let album = sqlx::query_scalar::<_, AlbumKey>("INSERT INTO albums(source_key,object_id,media_uri,metadata) VALUES (?1,'album','album:one',jsonb(json_object('title',COALESCE('Album',''),'artist',COALESCE('Artist',''),'sort_text',COALESCE('album',''),'year',2000))) RETURNING album_key")
-            .bind(source).fetch_one(&mut connection).await.unwrap();
+        let album = sqlx::query_scalar::<_, AlbumKey>("INSERT INTO albums(object_id,media_uri,metadata) VALUES ('album','album:one',jsonb(json_object('title',COALESCE('Album',''),'artist',COALESCE('Artist',''),'sort_text',COALESCE('album',''),'year',2000))) RETURNING album_key")
+            .fetch_one(&mut connection).await.unwrap();
         sqlx::query("UPDATE albums SET title_sort='album',album_artist_sort='artist',year_sort=2000,title_search='album',artist_search='artist' WHERE album_key=?1").bind(album).execute(&mut connection).await.unwrap();
         sqlx::query("INSERT INTO album_artists VALUES(?1,?2,0)")
             .bind(album)
@@ -499,14 +497,14 @@ mod tests {
         schema::initialize_durable(&mut connection)
             .await
             .expect("initialize durable Store");
-        let source = sqlx::query_scalar::<_, crate::SourceKey>(
-            "INSERT INTO sources(object_id,display_name,normalized_name,artwork_digest) VALUES ('source','Source','source',zeroblob(32)) RETURNING source_key",
+        sqlx::query(
+            "INSERT INTO sources(object_id,display_name,normalized_name,artwork_digest) VALUES ('source','Source','source',zeroblob(32))",
         )
-        .fetch_one(&mut connection)
+        .execute(&mut connection)
         .await
         .expect("insert source");
-        sqlx::query("WITH RECURSIVE sequence(value) AS (VALUES(0) UNION ALL SELECT value+1 FROM sequence WHERE value<299) INSERT INTO tracks(source_key,object_id,media_uri,normalized_search,indexed,metadata) SELECT ?1,'track-'||printf('%03d',value),'file:///track-'||printf('%03d',value),'track artist',1,jsonb(json_object('title',COALESCE('Track',''),'album',COALESCE('',''),'artist',COALESCE('Artist',''),'sort_text',COALESCE('track-'||printf('%03d',value),''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(0,0),'track_number',COALESCE(value,0))) FROM sequence")
-            .bind(source).execute(&mut connection).await.expect("insert large Folder Track order");
+        sqlx::query("WITH RECURSIVE sequence(value) AS (VALUES(0) UNION ALL SELECT value+1 FROM sequence WHERE value<299) INSERT INTO tracks(object_id,media_uri,normalized_search,indexed,metadata) SELECT 'track-'||printf('%03d',value),'file:///track-'||printf('%03d',value),'track artist',1,jsonb(json_object('title',COALESCE('Track',''),'album',COALESCE('',''),'artist',COALESCE('Artist',''),'sort_text',COALESCE('track-'||printf('%03d',value),''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(0,0),'track_number',COALESCE(value,0))) FROM sequence")
+            .execute(&mut connection).await.expect("insert large Folder Track order");
         drop(connection);
 
         let database = Database::open(file.path())

@@ -103,10 +103,12 @@ async fn index_setup_failure_returns_error_without_replacing_the_library() {
     super::support::server_playlist(&fixture.database, "Keep me", &[]).await;
     fixture.database.close().await.unwrap();
     let mut raw = super::support::connection(&fixture.path).await;
-    sqlx::raw_sql("DROP INDEX tracks_shuffle_idx; CREATE TABLE tracks_shuffle_idx(value TEXT);")
-        .execute(&mut raw)
-        .await
-        .unwrap();
+    sqlx::raw_sql(
+        "DROP INDEX tracks_global_shuffle_idx; CREATE TABLE tracks_global_shuffle_idx(value TEXT);",
+    )
+    .execute(&mut raw)
+    .await
+    .unwrap();
     raw.close().await.unwrap();
     let before = durable_rows(&fixture.path).await;
     assert!(Database::open(&fixture.path).await.is_err());
@@ -324,7 +326,7 @@ async fn missing_scrobble_column_returns_error_without_replacing_user_data() {
 }
 
 #[tokio::test]
-async fn single_server_migration_rewrites_local_state_and_clears_the_catalog() {
+async fn single_server_migrations_rewrite_local_state_and_drop_the_server_keys() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("library.sqlite");
     Database::open(&path).await.unwrap().close().await.unwrap();
@@ -337,6 +339,10 @@ async fn single_server_migration_rewrites_local_state_and_clears_the_catalog() {
     };
     sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "ALTER TABLE download_files ADD COLUMN source_id TEXT;
+         ALTER TABLE tracks ADD COLUMN source_key INTEGER;
+         ALTER TABLE albums ADD COLUMN source_key INTEGER;
+         ALTER TABLE artists ADD COLUMN source_key INTEGER;
+         ALTER TABLE download_locators ADD COLUMN source_key INTEGER;
          CREATE INDEX download_source_idx ON download_files(source_id,media_uri,encoding);
          INSERT INTO sources(source_key,object_id) VALUES(6,'slopsonic-source-old'),(7,'slopsonic-source-abc');
          INSERT INTO albums(album_key,source_key,object_id,media_uri,indexed) VALUES(1,7,'a','{album}',1);
@@ -352,7 +358,8 @@ async fn single_server_migration_rewrites_local_state_and_clears_the_catalog() {
              VALUES('{queued}','original','','file:///music/t1.flac',1,'slopsonic-source-abc'),
                    ('{stale_track}','original','','file:///music/t3.flac',1,'slopsonic-source-old');
          INSERT INTO download_locators(source_key,media_uri,origin,path,root,relative_path,access_uri)
-             VALUES(7,'{queued}','download','/music/t1.flac','/music','t1.flac','file:///music/t1.flac');
+             VALUES(7,'{queued}','download','/music/t1.flac','/music','t1.flac','file:///music/t1.flac'),
+                   (6,'{stale_track}','download','/music/t3.flac','/music','t3.flac','file:///music/t3.flac');
          PRAGMA user_version=71;",
         album = old("album", "a"),
         queued = old("track", "t1"),
@@ -369,17 +376,24 @@ async fn single_server_migration_rewrites_local_state_and_clears_the_catalog() {
     Database::open(&path).await.unwrap().close().await.unwrap();
 
     let mut raw = super::support::connection(&path).await;
-    let tracks: Vec<(i64, String, bool)> =
-        sqlx::query_as("SELECT track_key,media_uri,indexed FROM tracks ORDER BY track_key")
-            .fetch_all(&mut raw)
-            .await
-            .unwrap();
-    // A queued track of an older server keeps its old URI, so it is never sent to this one.
+    let tracks: Vec<(i64, String, bool, Option<String>)> = sqlx::query_as(
+        "SELECT track_key,media_uri,indexed,object_id FROM tracks ORDER BY track_key",
+    )
+    .fetch_all(&mut raw)
+    .await
+    .unwrap();
+    // A queued track of an older server keeps its old URI and loses its object id, so it is
+    // never sent to this one.
     assert_eq!(
         tracks,
         [
-            (1, "slopsonic:track/t1".to_string(), false),
-            (3, former("track", "t3"), false)
+            (
+                1,
+                "slopsonic:track/t1".to_string(),
+                false,
+                Some("t1".into())
+            ),
+            (3, former("track", "t3"), false, None)
         ]
     );
     assert_eq!(
@@ -426,7 +440,35 @@ async fn single_server_migration_rewrites_local_state_and_clears_the_catalog() {
     .await
     .unwrap();
     assert_eq!(source_column, 0);
+    let key_columns: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM sqlite_master master JOIN pragma_table_info(master.name) column
+         WHERE master.type='table' AND master.name<>'sources' AND column.name='source_key'",
+    )
+    .fetch_one(&mut raw)
+    .await
+    .unwrap();
+    assert_eq!(key_columns, 0);
     raw.close().await.unwrap();
+    // The upgraded library keeps working: the queue restores and a sync writes the catalog again.
+    let database = Database::open(&path).await.unwrap();
+    database
+        .reconcile_source("subsonic", "Server")
+        .await
+        .unwrap();
+    let mut catalog = database.catalog(None).await.unwrap();
+    let mut batch = library::CatalogBatch::default();
+    batch.tracks.push(library::TrackObservation {
+        object_id: "t1".into(),
+        ..Default::default()
+    });
+    catalog.apply_catalog(&batch, true).await.unwrap();
+    assert!(
+        database
+            .is_server_track("slopsonic:track/t1", &library::ReadCancellation::new())
+            .await
+            .unwrap()
+    );
+    database.close().await.unwrap();
 }
 
 async fn uris(raw: &mut SqliteConnection, sql: &'static str) -> Vec<String> {

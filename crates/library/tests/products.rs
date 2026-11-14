@@ -684,8 +684,8 @@ async fn track_pages_preserve_sort_filter_and_source_scope() {
     );
 
     let mut raw = connection(&fixture.path).await;
-    sqlx::query("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<300) INSERT INTO tracks(source_key,object_id,media_uri,metadata,normalized_search,indexed) SELECT ?1,'extra-'||x,'test:extra-'||x,jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),lower(COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.comment'),'')),1 FROM n")
-        .bind(fixture.source).execute(&mut raw).await.unwrap();
+    sqlx::query("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<300) INSERT INTO tracks(object_id,media_uri,metadata,normalized_search,indexed) SELECT 'extra-'||x,'test:extra-'||x,jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),lower(COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.comment'),'')),1 FROM n")
+        .execute(&mut raw).await.unwrap();
     let rows = (&library::MemberRead {
         collection: library::Collection::Library,
         sort: Some(library::CatalogSort::Title),
@@ -762,8 +762,8 @@ async fn radio_resolves_playlist_ownership_and_filters_native_recommendations() 
     let fixture = fixture().await;
     let cancel = ReadCancellation::new();
     let mut raw = connection(&fixture.path).await;
-    sqlx::query("INSERT INTO playlists(source_key,object_id,name,normalized_name,sort_text,writable,position) VALUES(?1,'native','Native','native','native',0,0)")
-        .bind(fixture.source).execute(&mut raw).await.unwrap();
+    sqlx::query("INSERT INTO playlists(object_id,name,normalized_name,sort_text,writable,position) VALUES('native','Native','native','native',0,0)")
+        .execute(&mut raw).await.unwrap();
     sqlx::query("INSERT INTO playlist_entries(playlist_key,object_id,track_key,position) SELECT playlist_key,'entry',(SELECT track_key FROM tracks WHERE media_uri=?1),0 FROM playlists WHERE object_id='native'")
         .bind(&fixture.track_uris[0]).execute(&mut raw).await.unwrap();
     let native = fixture
@@ -987,8 +987,8 @@ async fn uri_artwork_is_identical_across_owner_projections_and_current_scopes() 
             .0;
     let mut raw = connection(&fixture.path).await;
     let empty_folder: library::FolderKey = sqlx::query_scalar(
-        "INSERT INTO folders(source_key,object_id,metadata,media_uri,normalized_name) VALUES (?1,'empty',jsonb(json_object('name','Empty','sort_text','empty')),'folder:'||COALESCE(?1,0)||':'||'empty',lower(COALESCE(json_extract(jsonb(json_object('name','Empty','sort_text','empty')),'$.name'),''))) RETURNING folder_key",
-    ).bind(fixture.source).fetch_one(&mut raw).await.unwrap();
+        "INSERT INTO folders(object_id,metadata,media_uri,normalized_name) VALUES ('empty',jsonb(json_object('name','Empty','sort_text','empty')),'folder:'||0||':'||'empty',lower(COALESCE(json_extract(jsonb(json_object('name','Empty','sort_text','empty')),'$.name'),''))) RETURNING folder_key",
+    ).fetch_one(&mut raw).await.unwrap();
     sqlx::query("INSERT INTO queue_entries(track_key,provenance) SELECT track_key,'\"Manual\"' FROM tracks WHERE media_uri=?1")
         .bind(uri)
         .execute(&mut raw)
@@ -1328,7 +1328,7 @@ async fn collection_rows_keep_their_server_identity() {
         .await
         .0;
     let mut raw = connection(&fixture.path).await;
-    sqlx::raw_sql("INSERT INTO genres(genre_key,source_key,object_id,metadata,media_uri,normalized_name) VALUES (55,(SELECT source_key FROM sources),'genre-55',jsonb(json_object('name','Other genre','sort_text','other genre')),'genre:'||COALESCE(55,0)||':'||'genre',lower(COALESCE(json_extract(jsonb(json_object('name','Other genre','sort_text','other genre')),'$.name'),'')));\n        INSERT INTO playlists(playlist_key,source_key,object_id,name,position) VALUES(55,(SELECT source_key FROM sources),'native','Native',55),(56,(SELECT source_key FROM sources),'offline-authored','Offline authored',56);")
+    sqlx::raw_sql("INSERT INTO genres(genre_key,object_id,metadata,media_uri,normalized_name) VALUES (55,'genre-55',jsonb(json_object('name','Other genre','sort_text','other genre')),'genre:'||COALESCE(55,0)||':'||'genre',lower(COALESCE(json_extract(jsonb(json_object('name','Other genre','sort_text','other genre')),'$.name'),'')));\n        INSERT INTO playlists(playlist_key,object_id,name,position) VALUES(55,'native','Native',55),(56,'offline-authored','Offline authored',56);")
         .execute(&mut raw).await.unwrap();
 
     let genre = library::GenreKey::from_raw(55);
@@ -1495,9 +1495,8 @@ async fn genre_routes_reject_an_artwork_only_identity_without_track_membership()
     let fixture = fixture().await;
     let mut raw = connection(&fixture.path).await;
     let orphan = sqlx::query_scalar::<_, library::GenreKey>(
-        "INSERT INTO genres(source_key,object_id,native_artwork,metadata,media_uri,normalized_name) VALUES (?1,'orphan-genre',x'01',jsonb(json_object('name','Orphan Genre','sort_text','orphan genre')),'genre:'||COALESCE(?1,0)||':'||'orphan-genre',lower(COALESCE(json_extract(jsonb(json_object('name','Orphan Genre','sort_text','orphan genre')),'$.name'),''))) RETURNING genre_key",
+        "INSERT INTO genres(object_id,native_artwork,metadata,media_uri,normalized_name) VALUES ('orphan-genre',x'01',jsonb(json_object('name','Orphan Genre','sort_text','orphan genre')),'genre:'||0||':'||'orphan-genre',lower(COALESCE(json_extract(jsonb(json_object('name','Orphan Genre','sort_text','orphan genre')),'$.name'),''))) RETURNING genre_key",
     )
-    .bind(fixture.source)
     .fetch_one(&mut raw)
     .await
     .expect("insert artwork-only Genre");
@@ -1604,9 +1603,8 @@ async fn track_artist_and_album_artist_roles_keep_exact_membership_and_own_artwo
     let mut raw = connection(&fixture.path).await;
     let album_owner_uri = library::entity_uri("artist", "album-owner");
     let album_owner = sqlx::query_scalar::<_, library::ArtistKey>(
-        "INSERT INTO artists(source_key,object_id,media_uri,native_artwork,metadata,normalized_name) VALUES (?1,'album-owner',?2,?3,jsonb(json_object('name','Album Owner','sort_text','album owner')),lower(COALESCE(json_extract(jsonb(json_object('name','Album Owner','sort_text','album owner')),'$.name'),'')))\n         RETURNING artist_key",
+        "INSERT INTO artists(object_id,media_uri,native_artwork,metadata,normalized_name) VALUES ('album-owner',?1,?2,jsonb(json_object('name','Album Owner','sort_text','album owner')),lower(COALESCE(json_extract(jsonb(json_object('name','Album Owner','sort_text','album owner')),'$.name'),'')))\n         RETURNING artist_key",
     )
-    .bind(fixture.source)
     .bind(album_owner_uri)
     .bind(br#"[{"key":"native/ebaa41d75cfe4ab0607c3fffc0be8cda","image":{"kind":"native","item_id":"album-artist-art","tag":null},"blur_hash":null}]"#.as_slice())
     .fetch_one(&mut raw)
@@ -1861,9 +1859,8 @@ async fn artist_orders_filter_roles_but_known_artists_remain_addressable() {
         let media_uri = library::entity_uri("artist", object_id);
         role_artists.push(
             sqlx::query_scalar::<_, library::ArtistKey>(
-                "INSERT INTO artists(source_key,object_id,media_uri,metadata,normalized_name) VALUES (?1,?2,?3,jsonb(json_object('name',?4,'sort_text',lower(?4))),lower(COALESCE(json_extract(jsonb(json_object('name',?4,'sort_text',lower(?4))),'$.name'),''))) RETURNING artist_key",
+                "INSERT INTO artists(object_id,media_uri,metadata,normalized_name) VALUES (?1,?2,jsonb(json_object('name',?3,'sort_text',lower(?3))),lower(COALESCE(json_extract(jsonb(json_object('name',?3,'sort_text',lower(?3))),'$.name'),''))) RETURNING artist_key",
             )
-            .bind(fixture.source)
             .bind(object_id)
             .bind(media_uri)
             .bind(name)

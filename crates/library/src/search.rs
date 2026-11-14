@@ -77,7 +77,6 @@ impl Database {
             ));
         }
         let mut connection = self.acquire_general(cancellation).await?;
-        let source = crate::db::server_key(&mut connection).await?;
         let mut transaction = connection.begin().await?;
         let request = |kind: crate::CatalogKind,
                        objects: &[String]|
@@ -86,9 +85,8 @@ impl Database {
             let batch = RequestedKeys::batch(objects)?;
             Ok(RequestedKeys {
                 sql: format!(
-                    "SELECT entity.{name}_key value,request.ordinal FROM ({}) request JOIN {table} entity ON entity.source_key={} AND entity.object_id=request.value",
-                    batch.sql,
-                    source.raw()
+                    "SELECT entity.{name}_key value,request.ordinal FROM ({}) request JOIN {table} entity ON entity.object_id=request.value",
+                    batch.sql
                 ),
                 arguments: batch.arguments,
             })
