@@ -33,14 +33,11 @@ playback-gstreamer = { path = "crates/playback-gstreamer" }
 process-memory = { path = "crates/process-memory" }
 slopsonic-core = { path = "crates/slopsonic-core" }
 scrobbling = { path = "crates/scrobbling" }
-secrets = { path = "crates/secrets" }
 sources = { path = "crates/sources" }
 
 # External dependencies
-age = "0.12.1"
 adw = { package = "libadwaita", version = "0.9.1" }
 async-channel = "2.5.0"
-base64 = "0.23.0"
 blake3 = "1.8.2"
 blurhash = { version = "0.2.3", default-features = false }
 bytes = "1"

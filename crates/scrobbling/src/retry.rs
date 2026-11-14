@@ -317,7 +317,7 @@ impl Scrobbler {
         self.replace_settings(settings, false, None)
     }
 
-    /// Load stored accounts without overwriting an account edited while storage unlocks.
+    /// Load stored accounts without overwriting an account edited while they load.
     pub fn load_credentials(&self, load: impl FnOnce() -> Settings) -> Result<(), String> {
         let expected = self
             .state

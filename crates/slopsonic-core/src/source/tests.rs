@@ -14,7 +14,6 @@ fn subsonic_configuration(source_id: SourceId, name: impl Into<String>) -> Sourc
 }
 
 use super::*;
-use secrets::SecretStore;
 
 #[tokio::test]
 async fn adding_the_first_server_connects() {
@@ -61,7 +60,6 @@ async fn adding_the_first_server_connects() {
             Vec::new(),
         ),
         SettingsFile::memory(),
-        Arc::new(secrets::MemorySecretStore::new()),
         runtime,
         SourceOutputs { events },
     );
@@ -119,7 +117,6 @@ async fn acquisition_progress_belongs_to_its_source() {
             Vec::new(),
         ),
         SettingsFile::memory(),
-        Arc::new(secrets::MemorySecretStore::new()),
         runtime,
         SourceOutputs { events },
     );
@@ -358,25 +355,7 @@ async fn acquisition_progress_belongs_to_its_source() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn cached_selection_is_published_while_credentials_are_held() {
-    struct HeldSecrets {
-        inner: secrets::MemorySecretStore,
-        started: Sender<()>,
-        release: Mutex<std::sync::mpsc::Receiver<()>>,
-    }
-    impl SecretStore for HeldSecrets {
-        fn load_secret(&self, key: &secrets::SecretKey) -> secrets::SecretResult<Option<String>> {
-            let _ = self.started.try_send(());
-            let _ = self.release.lock().unwrap().recv();
-            self.inner.load_secret(key)
-        }
-        fn save_secret(&self, key: &secrets::SecretKey, secret: &str) -> secrets::SecretResult<()> {
-            self.inner.save_secret(key, secret)
-        }
-        fn delete_secret(&self, key: &secrets::SecretKey) -> secrets::SecretResult<()> {
-            self.inner.delete_secret(key)
-        }
-    }
+async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
     {
         let directory = tempfile::tempdir().unwrap();
         let database = Arc::new(
@@ -384,8 +363,6 @@ async fn cached_selection_is_published_while_credentials_are_held() {
                 .await
                 .unwrap(),
         );
-        let held_inner = secrets::MemorySecretStore::new();
-        let held_credential = crate::settings::seal_credential(&held_inner, "salt:token").unwrap();
         let source_id = SourceId::new("held-credential-source");
         database
             .reconcile_source(&source_id, "subsonic", "Music")
@@ -443,19 +420,12 @@ async fn cached_selection_is_published_while_credentials_are_held() {
                 name: "Music".into(),
                 provider_payload: serde_json::json!({ "version": 1, "base_url": "http://127.0.0.1:9", "username": "listener", "trust_invalid_cert": false }).to_string(),
             },
-            credential: Some(held_credential),
+            credential: Some("salt:token".into()),
             music_folder_id: None,
         });
         Ok(())
     }).unwrap();
         let runtime = tokio::runtime::Handle::current();
-        let (started, started_receiver) = async_channel::bounded(1);
-        let (release, release_receiver) = std::sync::mpsc::channel();
-        let secrets: Arc<dyn SecretStore> = Arc::new(HeldSecrets {
-            inner: held_inner,
-            started,
-            release: Mutex::new(release_receiver),
-        });
         let (events, receiver) = async_channel::unbounded();
         let owner = SourceOwner::open_dormant(
             Artwork::new(directory.path().join("artwork"), runtime.clone()).unwrap(),
@@ -470,7 +440,6 @@ async fn cached_selection_is_published_while_credentials_are_held() {
                 Vec::new(),
             ),
             settings,
-            secrets,
             runtime,
             SourceOutputs { events },
         );
@@ -482,7 +451,7 @@ async fn cached_selection_is_published_while_credentials_are_held() {
         let completion = owner.select_source(source_id.clone());
         let selected = tokio::time::timeout(Duration::from_secs(2), completion)
             .await
-            .expect("selection result must not wait for credentials")
+            .expect("selection result must not wait for the server")
             .unwrap();
         assert_eq!(selected, source_id);
         drop(selected);
@@ -499,15 +468,10 @@ async fn cached_selection_is_published_while_credentials_are_held() {
             }
         })
         .await
-        .expect("cached selection must not wait for credentials");
+        .expect("cached selection must not wait for the server");
         assert_eq!(published.source_id, source_id);
         assert_eq!(published.source_key, source_key);
         assert_eq!(published.music_folders[0].name, "New Folder");
-        tokio::time::timeout(Duration::from_secs(2), started_receiver.recv())
-            .await
-            .unwrap()
-            .unwrap();
-        assert!(owner.cached_client(&source_id).is_none());
         let connection = owner
             .shared
             .connection
@@ -601,22 +565,17 @@ async fn cached_selection_is_published_while_credentials_are_held() {
         })
         .await
         .expect("the UI receives the updated folder snapshot");
-        assert!(
-            owner.cached_client(&source_id).is_none(),
-            "summary refresh does not obtain credentials"
-        );
         assert_eq!(
             owner.selected_library().unwrap().music_folders[0].object_id,
             "new-folder"
         );
-        release.send(()).unwrap();
         tokio::time::timeout(Duration::from_secs(2), async {
             while owner.cached_client(&source_id).is_none() || !connection.is_finished() {
                 tokio::task::yield_now().await;
             }
         })
         .await
-        .expect("live access resumes after credential initialization");
+        .expect("live access is attempted");
         assert_eq!(owner.selected_library().unwrap().source_id, source_id);
         assert_eq!(
             owner.selected_library().unwrap().music_folders[0].object_id,
@@ -702,7 +661,6 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
                 Vec::new(),
             ),
             settings.clone(),
-            Arc::new(secrets::MemorySecretStore::new()),
             runtime,
             SourceOutputs { events },
         );

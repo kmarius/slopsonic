@@ -27,7 +27,6 @@ use downloads::Downloads;
 use library::{
     CatalogUpdate, Database, FavoriteTarget, FolderChoice, FolderKey, ReadCancellation, SourceKey,
 };
-use secrets::SecretStore;
 use sources::{
     LiveFolderPage, SelectedFeed, Source, SourceConfiguration, SourceEntityKind, SourceError,
     SourceId, SourceReadProgress, SourceReadStage, SourceSetup,
@@ -35,10 +34,7 @@ use sources::{
 use tracing::{info, warn};
 
 use crate::playback::PlaybackOwner;
-use crate::settings::{
-    ConfiguredSource, SettingsFile, StoredSettings, fresh_source_id, load_provider_secret,
-    load_provider_secret_or_none, seal_credential,
-};
+use crate::settings::{ConfiguredSource, SettingsFile, StoredSettings, fresh_source_id};
 
 const SOURCE_CHECK_INTERVAL: Duration = Duration::from_secs(5 * 60);
 
@@ -54,7 +50,7 @@ pub struct SourceOwner {
 
 struct CachedSource {
     configuration: SourceConfiguration,
-    credential: Option<crate::settings::Credential>,
+    credential: Option<String>,
     source: Arc<Source>,
     refresh: Option<Refresh>,
     observer: Option<(Arc<SelectedFeed>, tokio::task::AbortHandle)>,
@@ -99,7 +95,6 @@ pub(crate) struct Shared {
     pub(crate) database: Arc<Database>,
     downloads: Downloads,
     pub(crate) settings: SettingsFile,
-    pub(crate) secrets: Arc<dyn SecretStore>,
     clients: Mutex<HashMap<SourceId, CachedSource>>,
     pub(crate) runtime: tokio::runtime::Handle,
     outputs: SourceOutputs,
@@ -377,7 +372,6 @@ impl SourceOwner {
         database: Arc<Database>,
         downloads: Downloads,
         settings: SettingsFile,
-        secrets: Arc<dyn SecretStore>,
         runtime: tokio::runtime::Handle,
         outputs: SourceOutputs,
     ) -> Arc<Self> {
@@ -405,7 +399,6 @@ impl SourceOwner {
             database,
             downloads,
             settings,
-            secrets,
             clients: Mutex::new(HashMap::new()),
             runtime,
             outputs,
@@ -718,7 +711,7 @@ impl SourceOwner {
 
 impl SourceOwner {
     /// Completes when the source's stored catalog is selected. Connection and refresh
-    /// continue in the background, including while credentials are being unlocked.
+    /// continue in the background.
     pub(crate) async fn select_source(
         &self,
         source_id: SourceId,
@@ -1130,12 +1123,7 @@ impl SourceOwner {
         {
             return Ok(cached.source.clone());
         }
-        let credential = configured
-            .credential
-            .as_ref()
-            .map(|reference| load_provider_secret(self.shared.secrets.as_ref(), reference))
-            .transpose()?
-            .flatten();
+        let credential = configured.credential.clone();
 
         let source = Arc::new(
             Source::open(configured.configuration.clone(), credential.clone())

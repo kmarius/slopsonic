@@ -1,7 +1,7 @@
 //! Scrobbling settings, credentials, and account authorization.
 //!
 //! The Scrobbling crate owns service protocols and retry delivery. This owner
-//! joins those operations to Slopsonic's settings and secret storage while the UI
+//! joins those operations to Slopsonic's settings while the UI
 //! sees only editable preferences and connection progress.
 
 use std::sync::{Arc, Mutex};
@@ -13,7 +13,6 @@ use crate::runtime::{
 };
 use async_channel::{Receiver, bounded};
 use scrobbling::{AudioscrobblerAuthorization, AudioscrobblerSession, Scrobbler};
-use secrets::SecretStore;
 use tracing::warn;
 
 use crate::settings::{SettingsFile, load_scrobbling_settings, persist_scrobbling_settings};
@@ -41,7 +40,6 @@ async fn wait_for_authorization(
 #[derive(Clone)]
 pub struct ScrobblingOwner {
     settings: SettingsFile,
-    secrets: Arc<dyn SecretStore>,
     runtime: tokio::runtime::Handle,
     scrobbler: Arc<Scrobbler>,
     credential_work: Arc<Mutex<bool>>,
@@ -50,13 +48,11 @@ pub struct ScrobblingOwner {
 impl ScrobblingOwner {
     pub(crate) fn new(
         settings: SettingsFile,
-        secrets: Arc<dyn SecretStore>,
         runtime: tokio::runtime::Handle,
         scrobbler: Arc<Scrobbler>,
     ) -> Arc<Self> {
         Arc::new(Self {
             settings,
-            secrets,
             runtime,
             scrobbler,
             credential_work: Arc::new(Mutex::new(false)),
@@ -90,22 +86,18 @@ impl ScrobblingOwner {
             .lock()
             .unwrap_or_else(|p| p.into_inner());
         if reload || !*loaded {
-            if let Err(error) = self.scrobbler.load_credentials(|| {
-                crate::settings::load_scrobbling_settings(&self.settings, &self.secrets)
-            }) {
+            if let Err(error) = self
+                .scrobbler
+                .load_credentials(|| load_scrobbling_settings(&self.settings))
+            {
                 warn!(%error, "could not load saved scrobbling credentials");
             }
             *loaded = true;
         }
     }
 
-    fn commit(
-        &self,
-        settings: scrobbling::Settings,
-        scope: &str,
-    ) -> Result<ScrobblingPreferences, String> {
-        let committed =
-            persist_scrobbling_settings(&self.settings, &self.secrets, &settings, scope)?;
+    fn commit(&self, settings: scrobbling::Settings) -> Result<ScrobblingPreferences, String> {
+        let committed = persist_scrobbling_settings(&self.settings, &settings)?;
         if let Err(error) = self.scrobbler.update_credentials(committed.clone()) {
             warn!(%error, "could not update external scrobbling settings");
         }
@@ -118,7 +110,6 @@ impl ScrobblingOwner {
     ) -> Receiver<ScrobblingConnectionEvent> {
         let (events, receiver) = bounded(2);
         let owner = self.clone();
-        let scope = self.settings.load().secret_scope_id;
         self.runtime.spawn(async move {
             let authorization = match request {
                 ScrobblingConnection::LastFm {
@@ -171,21 +162,21 @@ impl ScrobblingOwner {
 
             let session = wait_for_authorization(authorization).await;
             match session {
-                Ok(Some(session)) => match tokio::task::spawn_blocking(move || {
-                    owner.save_session(&request, session, &scope)
-                })
-                .await
-                .unwrap_or_else(|error| Err(error.to_string()))
-                {
-                    Ok(username) => {
-                        let _ = events
-                            .send(ScrobblingConnectionEvent::Connected { username })
-                            .await;
+                Ok(Some(session)) => {
+                    match tokio::task::spawn_blocking(move || owner.save_session(&request, session))
+                        .await
+                        .unwrap_or_else(|error| Err(error.to_string()))
+                    {
+                        Ok(username) => {
+                            let _ = events
+                                .send(ScrobblingConnectionEvent::Connected { username })
+                                .await;
+                        }
+                        Err(error) => {
+                            let _ = events.send(ScrobblingConnectionEvent::Failed(error)).await;
+                        }
                     }
-                    Err(error) => {
-                        let _ = events.send(ScrobblingConnectionEvent::Failed(error)).await;
-                    }
-                },
+                }
                 Ok(None) => {
                     let _ = events.send(ScrobblingConnectionEvent::TimedOut).await;
                 }
@@ -201,7 +192,6 @@ impl ScrobblingOwner {
         &self,
         request: &ScrobblingConnection,
         session: AudioscrobblerSession,
-        scope: &str,
     ) -> Result<String, String> {
         let _work = self
             .credential_work
@@ -223,18 +213,14 @@ impl ScrobblingOwner {
                 settings.librefm.session_key = session.session_key;
             }
         }
-        self.commit(settings, scope)?;
+        self.commit(settings)?;
         Ok(session.username)
     }
 }
 
 impl ScrobblingOwner {
     fn loaded_settings(&self) -> scrobbling::Settings {
-        if self.secrets.is_persistent() {
-            load_scrobbling_settings(&self.settings, &self.secrets)
-        } else {
-            self.scrobbler.settings()
-        }
+        load_scrobbling_settings(&self.settings)
     }
 
     pub fn shutdown(&self) {
@@ -305,7 +291,6 @@ impl ScrobblingOwner {
         user_token: String,
     ) -> Result<ScrobblingPreferences, crate::settings::SettingsError> {
         let owner = self.clone();
-        let scope = self.settings.load().secret_scope_id;
         self.runtime
             .spawn_blocking(move || {
                 let result = scrobbling::connect_listenbrainz(&user_token).and_then(|username| {
@@ -316,7 +301,7 @@ impl ScrobblingOwner {
                     let mut settings = owner.loaded_settings();
                     settings.listenbrainz.user_token = user_token;
                     settings.listenbrainz.username = username;
-                    owner.commit(settings, &scope)
+                    owner.commit(settings)
                 });
                 result
             })
@@ -363,7 +348,6 @@ impl ScrobblingOwner {
         edit: ScrobblingCredentialEdit,
     ) -> Result<ScrobblingPreferences, crate::settings::SettingsError> {
         let owner = self.clone();
-        let scope = self.settings.load().secret_scope_id;
         self.runtime
             .spawn_blocking(move || {
                 let _work = owner
@@ -401,7 +385,7 @@ impl ScrobblingOwner {
                 }
                 settings.listenbrainz.user_token =
                     preferences.listenbrainz.user_token.trim().into();
-                owner.commit(settings, &scope)
+                owner.commit(settings)
             })
             .await
             .map_err(|error| crate::settings::SettingsError::from(error.to_string()))?

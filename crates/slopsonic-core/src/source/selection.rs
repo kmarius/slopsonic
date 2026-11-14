@@ -507,19 +507,8 @@ impl SourceOwner {
         credential: Option<String>,
     ) -> Result<ConfiguredSource, String> {
         let mut configured = configured.clone();
-        if let Some(secret) = credential {
-            if configured
-                .credential
-                .as_ref()
-                .and_then(|credential| {
-                    load_provider_secret_or_none(self.shared.secrets.as_ref(), credential)
-                })
-                .as_deref()
-                != Some(secret.as_str())
-            {
-                configured.credential =
-                    Some(seal_credential(self.shared.secrets.as_ref(), &secret)?);
-            }
+        if credential.is_some() {
+            configured.credential = credential;
         }
         self.shared.settings.update(|stored| {
             stored.sources.configured = Some(configured.clone());
@@ -541,9 +530,7 @@ impl SourceOwner {
         input: SourceSetup,
     ) -> Result<(), String> {
         let configured = configured_source(&self.shared.settings.load().sources, &source_id)?;
-        let credential = configured.credential.as_ref().and_then(|reference| {
-            load_provider_secret_or_none(self.shared.secrets.as_ref(), reference)
-        });
+        let credential = configured.credential.clone();
         let edit = Source::edit(configured.configuration.clone(), credential, input)
             .await
             .map_err(string_error)?;

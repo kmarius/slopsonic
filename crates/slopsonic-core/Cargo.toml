@@ -11,8 +11,6 @@ readme.workspace = true
 publish.workspace = true
 
 [dependencies]
-age.workspace = true
-base64.workspace = true
 thiserror.workspace = true
 audio-processing.workspace = true
 app-identity.workspace = true
@@ -26,7 +24,6 @@ glib.workspace = true
 playback.workspace = true
 scrobbling.workspace = true
 sources.workspace = true
-secrets.workspace = true
 library.workspace = true
 serde.workspace = true
 serde_json.workspace = true

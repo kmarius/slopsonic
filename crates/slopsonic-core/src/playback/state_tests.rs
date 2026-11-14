@@ -83,7 +83,6 @@ pub(in crate::playback) async fn seeded(
         Arc::new(database.clone()),
         downloads,
         settings.clone(),
-        Arc::new(secrets::MemorySecretStore::new()),
         runtime.clone(),
         crate::source::SourceOutputs {
             events: async_channel::unbounded().0,

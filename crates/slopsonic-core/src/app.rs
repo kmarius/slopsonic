@@ -11,7 +11,7 @@ use tracing::warn;
 use crate::paths::Paths;
 use crate::playback::PlaybackOwner;
 use crate::scrobbling::ScrobblingOwner;
-use crate::settings::{SettingsFile, SettingsOwner, platform_secret_store};
+use crate::settings::{SettingsFile, SettingsOwner};
 use crate::source::{SourceOutputs, SourceOwner};
 
 /// Runs an application host with Slopsonic's worker runtime available on its calling thread.
@@ -49,7 +49,6 @@ where
 {
     let runtime = tokio::runtime::Handle::current();
     let stored = settings.load();
-    let secrets = platform_secret_store(&settings);
     let store_path = paths.store_file();
     let (database, temporary_store) = match library::Database::open(&store_path).await {
         Ok(database) => (database, false),
@@ -109,7 +108,6 @@ where
         library.clone(),
         downloads.clone(),
         settings.clone(),
-        Arc::clone(&secrets),
         runtime.clone(),
         SourceOutputs {
             events: source_events.clone(),
@@ -159,12 +157,7 @@ where
     );
     playback.install_source_owner(&source);
     playback.start().await?;
-    let scrobbling = ScrobblingOwner::new(
-        settings.clone(),
-        Arc::clone(&secrets),
-        runtime.clone(),
-        scrobbler,
-    );
+    let scrobbling = ScrobblingOwner::new(settings.clone(), runtime.clone(), scrobbler);
     scrobbling.start();
 
     source.attach_playback(&playback);
@@ -265,7 +258,7 @@ pub fn startup_settings(paths: &Paths) -> SettingsFile {
     }
     SettingsFile::open(paths.settings_file()).unwrap_or_else(|error| {
         warn!(%error, "could not use saved settings; startup will continue with defaults");
-        SettingsFile::memory_at(paths.config_dir())
+        SettingsFile::memory()
     })
 }
 

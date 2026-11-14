@@ -37,23 +37,9 @@ use std::sync::{Arc, Mutex, OnceLock, mpsc};
 
 use app::Settings as UiSettings;
 use scrobbling::Settings as ScrobblingSettings;
-use secrets::{CachedSecretStore, ConfigSecretStore, SecretKey, SecretStore};
 use serde::{Deserialize, Serialize};
 use sources::{SourceConfiguration, SourceId};
 use tracing::warn;
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct Credential {
-    encrypted: String,
-    #[serde(skip)]
-    session: bool,
-}
-
-impl Credential {
-    fn session(&self) -> bool {
-        self.session
-    }
-}
 
 pub(crate) fn fresh_source_id() -> Result<sources::SourceId, String> {
     random_identity("slopsonic-source-").map(sources::SourceId::new)
@@ -64,7 +50,7 @@ pub(crate) struct ConfiguredSource {
     #[serde(flatten)]
     pub(crate) configuration: SourceConfiguration,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) credential: Option<Credential>,
+    pub(crate) credential: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) music_folder_id: Option<String>,
 }
@@ -79,9 +65,6 @@ impl SourceSettings {
     pub(crate) fn connections(&self) -> impl Iterator<Item = &ConfiguredSource> {
         self.configured.iter()
     }
-    pub(crate) fn connections_mut(&mut self) -> impl Iterator<Item = &mut ConfiguredSource> {
-        self.configured.iter_mut()
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -93,11 +76,9 @@ pub struct StoredSettings {
     #[serde(default)]
     pub(crate) scrobbling: ScrobblingSettings,
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
-    pub(crate) scrobbling_credentials: std::collections::BTreeMap<String, Credential>,
+    pub(crate) scrobbling_credentials: std::collections::BTreeMap<String, String>,
     #[serde(default)]
     pub(crate) sources: SourceSettings,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub(crate) secret_scope_id: String,
 }
 
 impl Default for StoredSettings {
@@ -108,7 +89,6 @@ impl Default for StoredSettings {
             scrobbling: ScrobblingSettings::default(),
             scrobbling_credentials: Default::default(),
             sources: SourceSettings::default(),
-            secret_scope_id: String::new(),
         }
     }
 }
@@ -133,7 +113,6 @@ pub struct SettingsFile {
     sidebar: tokio::sync::watch::Sender<SidebarSettings>,
     appearance: tokio::sync::watch::Sender<AppearancePreferences>,
     path: Option<PathBuf>,
-    config_dir: PathBuf,
     value: Arc<Mutex<StoredSettings>>,
     persistence: Arc<Mutex<StoredSettings>>,
     edits: Arc<OnceLock<Result<mpsc::SyncSender<Self>, String>>>,
@@ -145,9 +124,6 @@ impl SettingsFile {
         self.sidebar.subscribe()
     }
 
-    pub(crate) fn config_dir(&self) -> &Path {
-        &self.config_dir
-    }
     pub(crate) fn open(path: PathBuf) -> Result<Self, String> {
         let mut value = read_startup_settings(&path)?;
         let mut changed = false;
@@ -170,10 +146,6 @@ impl SettingsFile {
         Ok(Self {
             sidebar: tokio::sync::watch::channel(value.ui.sidebar.clone()).0,
             appearance: tokio::sync::watch::channel(value.ui.appearance.clone()).0,
-            config_dir: path
-                .parent()
-                .unwrap_or_else(|| Path::new("."))
-                .to_path_buf(),
             path: Some(path),
             value: Arc::new(Mutex::new(value.clone())),
             persistence: Arc::new(Mutex::new(value)),
@@ -182,19 +154,13 @@ impl SettingsFile {
         })
     }
 
-    #[cfg(test)]
     pub(crate) fn memory() -> Self {
-        Self::memory_at(PathBuf::from("."))
-    }
-
-    pub(crate) fn memory_at(config_dir: PathBuf) -> Self {
         let mut value = StoredSettings::default();
         value.migrate_defaults();
         Self {
             path: None,
             sidebar: tokio::sync::watch::channel(value.ui.sidebar.clone()).0,
             appearance: tokio::sync::watch::channel(value.ui.appearance.clone()).0,
-            config_dir,
             value: Arc::new(Mutex::new(value.clone())),
             persistence: Arc::new(Mutex::new(value)),
             edits: Arc::new(OnceLock::new()),
@@ -489,165 +455,44 @@ impl SettingsOwner {
     }
 }
 
-pub(crate) fn platform_secret_store(file: &SettingsFile) -> Arc<dyn SecretStore> {
-    Arc::new(CachedSecretStore::new(Arc::new(
-        ConfigSecretStore::with_scope(
-            file.config_dir().join("secrets.json"),
-            file.load().secret_scope_id,
-        ),
-    )))
-}
-
-fn settings_encryption_key() -> SecretKey {
-    SecretKey::namespaced("settings", "encryption-key")
-}
-
-fn settings_key(secrets: &dyn SecretStore, create: bool) -> Result<age::x25519::Identity, String> {
-    use age::secrecy::ExposeSecret as _;
-    let key = settings_encryption_key();
-    if let Some(value) = secrets
-        .load_secret(&key)
-        .map_err(|error| error.to_string())?
-    {
-        return value.parse().map_err(|error: &str| error.to_string());
-    }
-    if !create {
-        return Err("Saved credentials are locked or unavailable".into());
-    }
-    static CREATION: Mutex<()> = Mutex::new(());
-    let _creation = CREATION
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    if let Some(value) = secrets
-        .load_secret(&key)
-        .map_err(|error| error.to_string())?
-    {
-        return value.parse().map_err(|error: &str| error.to_string());
-    }
-    let identity = age::x25519::Identity::generate();
-    secrets
-        .save_secret(&key, identity.to_string().expose_secret())
-        .map_err(|error| error.to_string())?;
-    Ok(identity)
-}
-
-pub(crate) fn seal_credential(
-    secrets: &dyn SecretStore,
-    value: &str,
-) -> Result<Credential, String> {
-    use base64::Engine as _;
-    let identity = settings_key(secrets, true)?;
-    let recipient = identity.to_public();
-    let mut output =
-        age::Encryptor::with_recipients(std::iter::once(&recipient as &dyn age::Recipient))
-            .map_err(|error| error.to_string())?
-            .wrap_output(Vec::new())
-            .map_err(|error| error.to_string())?;
-    output
-        .write_all(value.as_bytes())
-        .map_err(|error| error.to_string())?;
-    Ok(Credential {
-        encrypted: base64::engine::general_purpose::STANDARD
-            .encode(output.finish().map_err(|error| error.to_string())?),
-        session: !secrets.is_persistent(),
-    })
-}
-
-pub(crate) fn load_provider_secret(
-    secrets: &dyn SecretStore,
-    credential: &Credential,
-) -> Result<Option<String>, String> {
-    use base64::Engine as _;
-    use std::io::Read as _;
-    let encrypted = &credential.encrypted;
-    let identity = settings_key(secrets, false)?;
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(encrypted)
-        .map_err(|error| error.to_string())?;
-    let mut input = age::Decryptor::new(bytes.as_slice())
-        .map_err(|error| error.to_string())?
-        .decrypt(std::iter::once(&identity as &dyn age::Identity))
-        .map_err(|error| error.to_string())?;
-    let mut value = String::new();
-    input
-        .read_to_string(&mut value)
-        .map_err(|error| error.to_string())?;
-    Ok(Some(value))
-}
-
-/// Reads a saved credential, treating an unreadable one as missing so it can be re-entered.
-pub(crate) fn load_provider_secret_or_none(
-    secrets: &dyn SecretStore,
-    credential: &Credential,
-) -> Option<String> {
-    match load_provider_secret(secrets, credential) {
-        Ok(secret) => secret,
-        Err(error) => {
-            warn!(%error, "saved credential is unreadable and must be entered again");
-            None
-        }
-    }
-}
-
-pub(crate) fn read_scrobbling(
-    stored: &StoredSettings,
-    secrets: &dyn SecretStore,
-) -> Result<ScrobblingSettings, String> {
+pub(crate) fn read_scrobbling(stored: &StoredSettings) -> ScrobblingSettings {
     let mut settings = stored.scrobbling_runtime_settings();
     for descriptor in scrobbling::secret_descriptors() {
         if let Some(credential) = stored.scrobbling_credentials.get(descriptor.kind()) {
-            *descriptor.value_mut(&mut settings) =
-                load_provider_secret(secrets, credential)?.unwrap_or_default();
+            descriptor.value_mut(&mut settings).clone_from(credential);
         }
     }
     settings.sanitize();
-    Ok(settings)
+    settings
 }
 
-pub(crate) fn store_scrobbling(
-    stored: &mut StoredSettings,
-    secrets: &dyn SecretStore,
-    input: &ScrobblingSettings,
-) -> Result<(), String> {
+pub(crate) fn store_scrobbling(stored: &mut StoredSettings, input: &ScrobblingSettings) {
     let mut input = input.clone();
     input.sanitize();
     for descriptor in scrobbling::secret_descriptors() {
         let value = descriptor.value(&input);
         if value.is_empty() {
             stored.scrobbling_credentials.remove(descriptor.kind());
-        } else if stored
-            .scrobbling_credentials
-            .get(descriptor.kind())
-            .and_then(|credential| load_provider_secret_or_none(secrets, credential))
-            .as_deref()
-            != Some(value)
-        {
-            stored.scrobbling_credentials.insert(
-                descriptor.kind().to_owned(),
-                seal_credential(secrets, value)?,
-            );
+        } else {
+            stored
+                .scrobbling_credentials
+                .insert(descriptor.kind().to_owned(), value.to_owned());
         }
         descriptor.value_mut(&mut input).clear();
     }
     stored.ui.lastfm_api_key = input.lastfm.api_key.clone();
     input.lastfm.api_key.clear();
     stored.scrobbling = input;
-    Ok(())
 }
 
 pub(crate) fn persist_scrobbling_settings(
     file: &SettingsFile,
-    secrets: &Arc<dyn SecretStore>,
     input: &ScrobblingSettings,
-    scope: &str,
 ) -> Result<ScrobblingSettings, String> {
     let mut prepared = file.load();
-    store_scrobbling(&mut prepared, secrets.as_ref(), input)?;
+    store_scrobbling(&mut prepared, input);
     let mut committed = input.clone();
     file.update(|stored| {
-        if stored.secret_scope_id != scope {
-            return Err("credential storage was reset".into());
-        }
         prepared.scrobbling.lastfm.enabled = stored.scrobbling.lastfm.enabled;
         prepared.scrobbling.lastfm.now_playing_enabled =
             stored.scrobbling.lastfm.now_playing_enabled;
@@ -672,18 +517,8 @@ pub(crate) fn persist_scrobbling_settings(
     Ok(committed)
 }
 
-pub(crate) fn load_scrobbling_settings(
-    file: &SettingsFile,
-    secrets: &Arc<dyn SecretStore>,
-) -> ScrobblingSettings {
-    let current = file.load();
-    match read_scrobbling(&current, secrets.as_ref()) {
-        Ok(settings) => settings,
-        Err(error) => {
-            warn!(%error, "could not load saved scrobbling credentials");
-            current.scrobbling_runtime_settings()
-        }
-    }
+pub(crate) fn load_scrobbling_settings(file: &SettingsFile) -> ScrobblingSettings {
+    read_scrobbling(&file.load())
 }
 
 fn random_identity(prefix: &str) -> Result<String, String> {
@@ -823,22 +658,8 @@ fn merge_settings(saved: &mut toml::Value, previous: &toml::Value, next: &toml::
     }
 }
 
-fn persistent_settings(value: &StoredSettings) -> StoredSettings {
-    let mut persistent = value.clone();
-    for source in persistent.sources.connections_mut() {
-        if source.credential.as_ref().is_some_and(Credential::session) {
-            source.credential = None;
-        }
-    }
-    persistent
-        .scrobbling_credentials
-        .retain(|_, credential| !credential.session());
-    persistent
-}
-
 pub(crate) fn write_settings(path: &Path, value: &StoredSettings) -> Result<(), String> {
-    let next =
-        toml::Value::try_from(persistent_settings(value)).map_err(|error| error.to_string())?;
+    let next = toml::Value::try_from(value).map_err(|error| error.to_string())?;
     let merged = match read_settings_file(path)? {
         None => next,
         Some(mut saved) => {
@@ -894,8 +715,6 @@ fn sync_settings_directory(parent: &Path) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use secrets::SecretResult;
-    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
     fn removed_history_entries_keep_the_rest_of_their_lists() {
@@ -932,7 +751,7 @@ mod tests {
         let path = directory.path().join("settings.toml");
         let file = SettingsFile {
             path: Some(path.clone()),
-            ..SettingsFile::memory_at(directory.path().to_path_buf())
+            ..SettingsFile::memory()
         };
         let initial = file.load();
         let (entered, pending) = mpsc::channel();
@@ -990,7 +809,7 @@ mod tests {
         fs::create_dir(&path).unwrap();
         let file = SettingsFile {
             path: Some(path.clone()),
-            ..SettingsFile::memory_at(directory.path().to_path_buf())
+            ..SettingsFile::memory()
         };
         let initial = file.load();
         let changes = file.sidebar_changes();
@@ -1017,43 +836,13 @@ mod tests {
         assert_eq!(read_startup_settings(&path).unwrap(), committed);
     }
 
-    #[derive(Default)]
-    struct CountingSecretStore {
-        loads: AtomicUsize,
-        saves: AtomicUsize,
-        deletes: AtomicUsize,
-    }
-
-    impl SecretStore for CountingSecretStore {
-        fn save_secret(&self, _key: &SecretKey, _secret: &str) -> SecretResult<()> {
-            self.saves.fetch_add(1, Ordering::Relaxed);
-            Ok(())
-        }
-
-        fn load_secret(&self, _key: &SecretKey) -> SecretResult<Option<String>> {
-            self.loads.fetch_add(1, Ordering::Relaxed);
-            Ok(None)
-        }
-
-        fn delete_secret(&self, _key: &SecretKey) -> SecretResult<()> {
-            self.deletes.fetch_add(1, Ordering::Relaxed);
-            Ok(())
-        }
-    }
-
-    fn counting_secrets() -> (Arc<CountingSecretStore>, Arc<dyn SecretStore>) {
-        let store = Arc::new(CountingSecretStore::default());
-        let backend: Arc<dyn SecretStore> = store.clone();
-        (store, backend)
-    }
-
     #[test]
-    fn settings_and_secret_files_are_private_and_replaced_atomically() {
+    fn settings_file_is_private_and_replaced_atomically() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("settings.toml");
         let file = SettingsFile {
             path: Some(path.clone()),
-            ..SettingsFile::memory_at(directory.path().to_path_buf())
+            ..SettingsFile::memory()
         };
         file.update(|stored| {
             stored.ui.application.reduce_motion = true;
@@ -1068,54 +857,52 @@ mod tests {
             );
         }
         assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
-        let secrets = directory.path().join("secrets.json");
-        fs::write(&secrets, b"old").unwrap();
-        write_private(&secrets, br#"{"restored": "secret"}"#).unwrap();
-        assert_eq!(fs::read(&secrets).unwrap(), br#"{"restored": "secret"}"#);
+        fs::write(&path, b"old").unwrap();
+        write_private(&path, b"new").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"new");
         {
             use std::os::unix::fs::PermissionsExt;
             assert_eq!(
-                fs::metadata(&secrets).unwrap().permissions().mode() & 0o777,
+                fs::metadata(&path).unwrap().permissions().mode() & 0o777,
                 0o600
             );
         }
     }
 
     #[test]
-    fn fresh_scrobbling_settings_do_not_open_secret_storage() {
-        let file = SettingsFile::memory();
-        let (store, secrets) = counting_secrets();
-
-        let settings = load_scrobbling_settings(&file, &secrets);
-        persist_scrobbling_settings(&file, &secrets, &settings, &file.load().secret_scope_id)
-            .expect("persist non-secret scrobbling setting");
-
-        assert_eq!(store.loads.load(Ordering::Relaxed), 0);
-        assert_eq!(store.saves.load(Ordering::Relaxed), 0);
-        assert_eq!(store.deletes.load(Ordering::Relaxed), 0);
-    }
-
-    #[test]
-    fn first_scrobbling_secret_write_skips_a_redundant_delete() {
-        let file = SettingsFile::memory();
-        let (store, secrets) = counting_secrets();
-        let mut settings = load_scrobbling_settings(&file, &secrets);
+    fn scrobbling_secrets_are_kept_apart_from_scrobbling_settings() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("settings.toml");
+        let file = SettingsFile {
+            path: Some(path.clone()),
+            ..SettingsFile::memory()
+        };
+        let mut settings = load_scrobbling_settings(&file);
         settings.listenbrainz.user_token = "token".to_string();
 
         let committed =
-            persist_scrobbling_settings(&file, &secrets, &settings, &file.load().secret_scope_id)
-                .expect("persist first scrobbling secret");
+            persist_scrobbling_settings(&file, &settings).expect("persist scrobbling secret");
+        file.flush().unwrap();
 
-        assert_eq!(store.loads.load(Ordering::Relaxed), 2);
-        assert_eq!(store.deletes.load(Ordering::Relaxed), 0);
-        assert_eq!(store.saves.load(Ordering::Relaxed), 1);
         assert_eq!(committed.listenbrainz.user_token, "token");
-        assert!(
-            file.load()
-                .scrobbling_credentials
-                .contains_key("listenbrainz-token")
-        );
-        assert!(file.load().scrobbling.listenbrainz.user_token.is_empty());
+        let saved = read_startup_settings(&path).unwrap();
+        assert_eq!(saved.scrobbling_credentials["listenbrainz-token"], "token");
+        assert!(saved.scrobbling.listenbrainz.user_token.is_empty());
+        assert_eq!(read_scrobbling(&saved).listenbrainz.user_token, "token");
+    }
+
+    #[test]
+    fn encrypted_credentials_from_older_settings_are_dropped() {
+        let raw: toml::Value = toml::from_str(
+            r#"
+            [scrobbling_credentials.listenbrainz-token]
+            encrypted = "age"
+            "#,
+        )
+        .unwrap();
+        let (stored, unsupported) = decode_settings(&raw).unwrap();
+        assert!(stored.scrobbling_credentials.is_empty());
+        assert!(!unsupported.is_empty());
     }
 }
 

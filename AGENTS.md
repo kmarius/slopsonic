@@ -64,7 +64,6 @@ Do not implement or expand. If you find leftover code for a non-feature, remove 
   - `downloads` — offline download queue and on-disk storage
   - `artwork` — artwork selection, fetch, cache and decode
   - `scrobbling` — Last.fm, Libre.fm and ListenBrainz delivery
-  - `secrets` — credential store backed by the config file
   - `app-identity` — app id and display name, release vs. devel
   - `process-memory` — glibc allocator tuning and memory reclaim
   - `desktop-integration` — MPRIS media controls
