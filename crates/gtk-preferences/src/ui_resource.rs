@@ -21,10 +21,6 @@ pub const APPEARANCE_PREFERENCES_RESOURCE: &str =
 pub const THEME_PREFERENCES_RESOURCE: &str = "/io/github/kmarius/Slopsonic/ui/preferences/theme.ui";
 pub const STORAGE_PREFERENCES_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/preferences/storage.ui";
-pub const SOURCE_CHOICE_RESOURCE: &str =
-    "/io/github/kmarius/Slopsonic/ui/preferences/source/choice.ui";
-pub const SOURCE_CHOICE_SELECTOR_RESOURCE: &str =
-    "/io/github/kmarius/Slopsonic/ui/preferences/source/choice_selector.ui";
 pub const CONNECTION_PROGRESS_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/preferences/source/connection_progress.ui";
 pub const CREDENTIAL_HOST_RESOURCE: &str =
@@ -50,8 +46,6 @@ pub const INTERFACE_RESOURCE_PATHS: &[&str] = &[
     APPEARANCE_PREFERENCES_RESOURCE,
     THEME_PREFERENCES_RESOURCE,
     STORAGE_PREFERENCES_RESOURCE,
-    SOURCE_CHOICE_RESOURCE,
-    SOURCE_CHOICE_SELECTOR_RESOURCE,
     CONNECTION_PROGRESS_RESOURCE,
     CREDENTIAL_HOST_RESOURCE,
     ONBOARDING_RESOURCE,

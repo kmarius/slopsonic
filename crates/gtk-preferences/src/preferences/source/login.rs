@@ -16,27 +16,11 @@ const ADD_SERVER_CLAMP_WIDTH: i32 = 560;
 const SETUP_FORM_PAGE: &str = "form";
 const SETUP_PROGRESS_PAGE: &str = "progress";
 
-const SOURCE_KINDS: [SubsonicFlavor; 2] = [SubsonicFlavor::Navidrome, SubsonicFlavor::Subsonic];
-
 pub fn source_settings_group(
     shell: &Rc<Preferences>,
     saved: &EditableSource,
 ) -> Result<gtk::Widget, String> {
     subsonic_settings_group(shell, saved, saved.source.kind)
-}
-
-pub enum SetupFlow {
-    Choice,
-    Credentials(CredentialSetupFlow),
-}
-
-impl SetupFlow {
-    fn view(&self, shell: &Rc<Preferences>, context: &SetupViewContext) -> gtk::Widget {
-        match self {
-            Self::Choice => source_choice_selector(shell),
-            Self::Credentials(flow) => flow.view(shell, context),
-        }
-    }
 }
 
 pub struct SourceSetupViewHandle {
@@ -96,8 +80,7 @@ struct CredentialHostDraft {
     cert_verify: bool,
 }
 
-pub struct CredentialSetupFlow {
-    kind: SubsonicFlavor,
+pub struct SetupFlow {
     draft: Rc<RefCell<CredentialHostDraft>>,
     authentication: Rc<Cell<SubsonicAuthentication>>,
 }
@@ -298,7 +281,7 @@ impl Preferences {
             status: gtk::Label,
         });
         status.set_label(&self.source_connection_progress_text());
-        let flow = flow.unwrap_or_else(|| Rc::new(RefCell::new(self.default_source_setup_flow())));
+        let flow = flow.unwrap_or_else(|| Rc::new(RefCell::new(credential_setup_flow())));
         SetupViewContext {
             onboarding,
             content,
@@ -312,22 +295,17 @@ impl Preferences {
         }
     }
 
-    fn default_source_setup_flow(self: &Rc<Self>) -> Rc<SetupFlow> {
-        Rc::new(SetupFlow::Choice)
-    }
-
     fn source_connection_progress_text(&self) -> String {
         source_operation_text(&self.source.operation.borrow())
             .unwrap_or_else(|| "Preparing library...".to_string())
     }
 }
 
-fn credential_setup_flow(kind: SubsonicFlavor) -> Rc<SetupFlow> {
-    Rc::new(SetupFlow::Credentials(CredentialSetupFlow {
-        kind,
+fn credential_setup_flow() -> Rc<SetupFlow> {
+    Rc::new(SetupFlow {
         draft: Rc::new(RefCell::new(credential_draft(None))),
         authentication: Rc::new(Cell::new(SubsonicAuthentication::Password)),
-    }))
+    })
 }
 
 fn subsonic_settings_group(
@@ -336,7 +314,7 @@ fn subsonic_settings_group(
     kind: SubsonicFlavor,
 ) -> Result<gtk::Widget, String> {
     let source_id = saved.source.id.clone();
-    let authentication = (kind == SubsonicFlavor::Subsonic).then_some(
+    let authentication = Some(
         saved
             .credentials
             .open_subsonic_authentication
@@ -380,7 +358,6 @@ fn subsonic_settings_group(
                 source
                     .save_subsonic(
                         Some(source_id),
-                        kind,
                         authentication.unwrap_or(SubsonicAuthentication::Password),
                         credentials,
                     )
@@ -423,17 +400,12 @@ fn complete_source_save(
     });
 }
 
-impl CredentialSetupFlow {
+impl SetupFlow {
     fn view(&self, shell: &Rc<Preferences>, context: &SetupViewContext) -> gtk::Widget {
-        let (scroller, content, actions, status) = setup_scaffold(shell, self.kind);
-        let offer_authentication = self.kind == SubsonicFlavor::Subsonic;
-        let host = credential_host(
-            &self.draft,
-            offer_authentication.then(|| Rc::clone(&self.authentication)),
-        );
+        let (scroller, content, actions, status) = setup_scaffold(shell);
+        let host = credential_host(&self.draft, Some(Rc::clone(&self.authentication)));
         content.append(&host.widget);
         let authentication = Rc::clone(&self.authentication);
-        let kind = self.kind;
         append_credential_connect(
             shell,
             context,
@@ -445,9 +417,7 @@ impl CredentialSetupFlow {
                 let source = source.clone();
                 let authentication = authentication.get();
                 gtk::glib::spawn_future_local(async move {
-                    let _ = source
-                        .save_subsonic(None, kind, authentication, input)
-                        .await;
+                    let _ = source.save_subsonic(None, authentication, input).await;
                 });
             },
         );
@@ -457,7 +427,6 @@ impl CredentialSetupFlow {
 
 fn setup_scaffold(
     shell: &Rc<Preferences>,
-    kind: SubsonicFlavor,
 ) -> (gtk::ScrolledWindow, gtk::Box, gtk::Box, gtk::Label) {
     let resource = crate::ui_resource::SETUP_SCAFFOLD_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
@@ -467,27 +436,12 @@ fn setup_scaffold(
         content: gtk::Box,
         actions: gtk::Box,
         status: gtk::Label,
-        source_summary: gtk::Box, source_icon: gtk::Image, source_title: gtk::Label, change_source: gtk::Button,
     });
     clamp.set_maximum_size(large_popup_content_width(ADD_SERVER_CLAMP_WIDTH));
     clamp.set_margin_top(8);
     clamp.set_margin_bottom(20);
     content.set_spacing(10);
     content.add_css_class("add-server-compact-content");
-    source_icon.set_icon_name(Some(gtk_widgets::source_labels::source_kind_icon_name(
-        kind,
-    )));
-    source_title.set_label(&gtk_widgets::source_labels::source_kind_title(kind));
-    let weak = Rc::downgrade(shell);
-    change_source.connect_clicked(move |_| {
-        let Some(shell) = weak.upgrade() else { return };
-        let Some(context) = shell.mounted_add_server_context() else {
-            return;
-        };
-        *context.flow.borrow_mut() = Rc::new(SetupFlow::Choice);
-        mount_setup_flow(&shell, &context);
-    });
-    content.append(&source_summary);
     if let SourceOperation::Failed {
         message,
         add_form: true,
@@ -499,40 +453,6 @@ fn setup_scaffold(
         status.set_visible(true);
     }
     (scroller, content, actions, status)
-}
-
-fn source_choice_selector(shell: &Rc<Preferences>) -> gtk::Widget {
-    let resource = crate::ui_resource::SOURCE_CHOICE_SELECTOR_RESOURCE;
-    let builder = gtk_widgets::ui_resource::builder(resource);
-    gtk_widgets::objects!(builder, resource, {
-        wrapper: gtk::ScrolledWindow,
-        server_sources: adw::PreferencesGroup,
-    });
-    for kind in SOURCE_KINDS {
-        let resource = crate::ui_resource::SOURCE_CHOICE_RESOURCE;
-        let builder = gtk_widgets::ui_resource::builder(resource);
-        gtk_widgets::objects!(builder, resource, {
-            row: adw::ActionRow, icon: gtk::Image,
-        });
-        row.set_title(&gtk_widgets::source_labels::source_kind_title(kind));
-        icon.set_icon_name(Some(gtk_widgets::source_labels::source_kind_icon_name(
-            kind,
-        )));
-        row.update_property(&[gtk::accessible::Property::Label(
-            &gtk_widgets::source_labels::source_kind_title(kind),
-        )]);
-        let weak = Rc::downgrade(shell);
-        row.connect_activated(move |_| {
-            let Some(shell) = weak.upgrade() else { return };
-            let Some(context) = shell.mounted_add_server_context() else {
-                return;
-            };
-            *context.flow.borrow_mut() = credential_setup_flow(kind);
-            mount_setup_flow(&shell, &context);
-        });
-        server_sources.add(&row);
-    }
-    wrapper.upcast()
 }
 
 fn mount_setup_flow(shell: &Rc<Preferences>, context: &SetupViewContext) {

@@ -424,13 +424,7 @@ impl Source {
     }
 
     pub async fn connect(source_id: SourceId, input: SourceSetup) -> SourceResult<ConnectedSource> {
-        crate::subsonic::connect(
-            source_id,
-            input.kind,
-            input.authentication,
-            input.credentials,
-        )
-        .await
+        crate::subsonic::connect(source_id, input.authentication, input.credentials).await
     }
 
     pub async fn edit(

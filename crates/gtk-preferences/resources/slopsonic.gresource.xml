@@ -11,8 +11,6 @@
     <file compressed="true">preferences/appearance.ui</file>
     <file compressed="true">preferences/theme.ui</file>
     <file compressed="true">preferences/storage.ui</file>
-    <file compressed="true">preferences/source/choice.ui</file>
-    <file compressed="true">preferences/source/choice_selector.ui</file>
     <file compressed="true">preferences/source/connection_progress.ui</file>
     <file compressed="true">preferences/source/credential_host.ui</file>
     <file compressed="true">preferences/source/onboarding.ui</file>

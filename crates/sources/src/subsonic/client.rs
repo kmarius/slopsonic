@@ -1288,6 +1288,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn login_detects_navidrome_from_the_server_type() {
+        for (server_type, authentication, expected) in [
+            (
+                "navidrome",
+                SubsonicAuthentication::Password,
+                SubsonicFlavor::Navidrome,
+            ),
+            (
+                "navidrome",
+                SubsonicAuthentication::LegacyPassword,
+                SubsonicFlavor::Subsonic,
+            ),
+            (
+                "gonic",
+                SubsonicAuthentication::Password,
+                SubsonicFlavor::Subsonic,
+            ),
+        ] {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "subsonic-response": {"status":"ok", "type": server_type, "user": {"username":"listener"}}
+                })))
+                .mount(&server)
+                .await;
+            let authenticated = SubsonicSource::authenticate(
+                crate::SourceId::new("source"),
+                authentication,
+                crate::CredentialInput {
+                    source_name: None,
+                    server_url: server.uri(),
+                    username: "listener".into(),
+                    secret: "password".into(),
+                    trust_invalid_cert: false,
+                },
+            )
+            .await
+            .unwrap();
+            assert_eq!(authenticated.configuration.kind, expected, "{server_type}");
+            assert_eq!(
+                authenticated
+                    .source
+                    .credential
+                    .navidrome_password()
+                    .is_some(),
+                expected == SubsonicFlavor::Navidrome
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn optional_metadata_does_not_block_login_tracks_or_playlist_positions() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -1309,7 +1360,6 @@ mod tests {
                 }))).mount_as_scoped(&server).await;
             let authenticated = SubsonicSource::authenticate(
                 crate::SourceId::new("source"),
-                SubsonicFlavor::Subsonic,
                 SubsonicAuthentication::Password,
                 crate::CredentialInput {
                     source_name: None,
@@ -1454,7 +1504,6 @@ mod tests {
                 .await;
             let result = SubsonicSource::authenticate(
                 crate::SourceId::new("source"),
-                SubsonicFlavor::Subsonic,
                 SubsonicAuthentication::Password,
                 crate::CredentialInput {
                     source_name: None,
@@ -1494,7 +1543,6 @@ mod tests {
             let source_id = crate::SourceId::new("opaque-source-instance");
             let authenticated = SubsonicSource::authenticate(
                 source_id.clone(),
-                SubsonicFlavor::Subsonic,
                 authentication,
                 crate::CredentialInput {
                     source_name: None,

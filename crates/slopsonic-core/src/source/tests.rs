@@ -67,7 +67,6 @@ async fn adding_the_first_server_connects() {
         std::time::Duration::from_secs(20),
         owner
             .configure_source(SourceSetup {
-                kind: sources::SubsonicFlavor::Navidrome,
                 authentication: sources::SubsonicAuthentication::Password,
                 credentials: sources::CredentialInput {
                     source_name: None,

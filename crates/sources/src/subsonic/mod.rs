@@ -132,11 +132,10 @@ impl AuthenticatedSubsonic {
 
 pub(crate) async fn connect(
     source_id: SourceId,
-    flavor: SubsonicFlavor,
     authentication: SubsonicAuthentication,
     credentials: CredentialInput,
 ) -> SourceResult<ConnectedSource> {
-    SubsonicSource::authenticate(source_id, flavor, authentication, credentials)
+    SubsonicSource::authenticate(source_id, authentication, credentials)
         .await
         .map(AuthenticatedSubsonic::connected)
 }
@@ -179,8 +178,7 @@ pub(crate) async fn edit(
     if has_password {
         credentials.source_name = Some(name);
         let authenticated =
-            SubsonicSource::authenticate(current.source_id, flavor, authentication, credentials)
-                .await?;
+            SubsonicSource::authenticate(current.source_id, authentication, credentials).await?;
         return Ok(SourceEditResult::Connected(Box::new(
             authenticated.connected(),
         )));
@@ -292,10 +290,9 @@ impl SubsonicSource {
         })
     }
 
-    #[instrument(skip(credentials), fields(base_url = %credentials.server_url, username = %credentials.username, source_kind = flavor.source_id(), trust_invalid_cert = credentials.trust_invalid_cert))]
+    #[instrument(skip(credentials), fields(base_url = %credentials.server_url, username = %credentials.username, trust_invalid_cert = credentials.trust_invalid_cert))]
     async fn authenticate(
         source_id: SourceId,
-        flavor: SubsonicFlavor,
         authentication: SubsonicAuthentication,
         credentials: CredentialInput,
     ) -> SourceResult<AuthenticatedSubsonic> {
@@ -308,24 +305,12 @@ impl SubsonicSource {
         } = credentials;
         let base_url = normalize_base_url(&server_url)?;
         let client = build_client(trust_invalid_cert)?;
-        let credential = match (flavor, authentication) {
-            (SubsonicFlavor::Navidrome, SubsonicAuthentication::Password) => {
+        let mut credential = match authentication {
+            SubsonicAuthentication::Password => {
                 SubsonicCredential::from_navidrome_password(&password)
             }
-            (SubsonicFlavor::Navidrome, _) => {
-                return Err(SourceError::InvalidRequest(
-                    "Navidrome requires password authentication",
-                ));
-            }
-            (SubsonicFlavor::Subsonic, SubsonicAuthentication::Password) => {
-                SubsonicCredential::from_password(&password)
-            }
-            (SubsonicFlavor::Subsonic, SubsonicAuthentication::LegacyPassword) => {
-                SubsonicCredential::LegacyPassword(password)
-            }
-            (SubsonicFlavor::Subsonic, SubsonicAuthentication::ApiKey) => {
-                SubsonicCredential::from_api_key(&password)?
-            }
+            SubsonicAuthentication::LegacyPassword => SubsonicCredential::LegacyPassword(password),
+            SubsonicAuthentication::ApiKey => SubsonicCredential::from_api_key(&password)?,
         };
         let (canonical_username, provider_name) = match authentication {
             SubsonicAuthentication::Password | SubsonicAuthentication::LegacyPassword => {
@@ -354,7 +339,7 @@ impl SubsonicSource {
                     .and_then(|value| value.server_type)
                     .or(response.server_type)
                     .filter(|name| !name.trim().is_empty())
-                    .unwrap_or_else(|| flavor.display_name().to_string());
+                    .unwrap_or_default();
                 (canonical, name)
             }
             SubsonicAuthentication::ApiKey => {
@@ -368,9 +353,28 @@ impl SubsonicSource {
                 let name = response
                     .server_type
                     .filter(|name| !name.trim().is_empty())
-                    .unwrap_or_else(|| flavor.display_name().to_string());
+                    .unwrap_or_default();
                 (canonical, name)
             }
+        };
+        // Navidrome's native API needs the plain password, so only password logins use it.
+        let flavor = if provider_name.trim().eq_ignore_ascii_case("navidrome")
+            && authentication == SubsonicAuthentication::Password
+        {
+            SubsonicFlavor::Navidrome
+        } else {
+            if let SubsonicCredential::Token {
+                navidrome_password, ..
+            } = &mut credential
+            {
+                *navidrome_password = None;
+            }
+            SubsonicFlavor::Subsonic
+        };
+        let provider_name = if provider_name.is_empty() {
+            flavor.display_name().to_string()
+        } else {
+            provider_name
         };
         if canonical_username.trim().is_empty() {
             return Err(SourceError::Auth(

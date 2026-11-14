@@ -27,7 +27,6 @@ pub struct CredentialInput {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SourceSetup {
-    pub kind: SubsonicFlavor,
     pub authentication: crate::SubsonicAuthentication,
     pub credentials: CredentialInput,
 }

@@ -1556,7 +1556,6 @@ impl SourceOwner {
     pub async fn save_subsonic(
         &self,
         source_id: Option<SourceId>,
-        kind: sources::SubsonicFlavor,
         authentication: sources::SubsonicAuthentication,
         credentials: sources::CredentialInput,
     ) -> sources::SourceResult<()> {
@@ -1564,7 +1563,6 @@ impl SourceOwner {
             self.update_source(
                 source_id,
                 SourceSetup {
-                    kind,
                     authentication,
                     credentials,
                 },
@@ -1575,7 +1573,6 @@ impl SourceOwner {
             .map_err(SourceError::Other)
         } else {
             self.configure_source(SourceSetup {
-                kind,
                 authentication,
                 credentials,
             })
