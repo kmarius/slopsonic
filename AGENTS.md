@@ -96,4 +96,4 @@ Keep the commit subject to one short line that says what changed, as `area: phra
 
 ## Code Style
 
-Do not add comments to code. Short doc comments (`///`, `//!`) are allowed.
+Comments are allowed extremely sparingly: only a short line explaining a non-obvious why that the code cannot show (a workaround, a hidden constraint, a known issue to revisit). Never describe what the code does. Short doc comments (`///`, `//!`) are allowed.
