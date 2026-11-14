@@ -69,6 +69,7 @@ impl SourceOwner {
                 owner.shared.warn_nonfatal(&error);
             }
             if !owner.shared.selection_is_current(&cancelled) {
+                owner.restate_selection().await;
                 return;
             }
             let source = match source {
@@ -78,7 +79,12 @@ impl SourceOwner {
                     return;
                 }
             };
-            let activated = owner.start_observer(source.clone(), refresh && !cached_start);
+            // A reset retires the client first; never attach the old server's observer after it.
+            let Some(activated) = owner.shared.install_if_current(&cancelled, || {
+                owner.start_observer(source.clone(), refresh && !cached_start)
+            }) else {
+                return;
+            };
             owner.shared.present_refresh();
             if refresh && activated && !cached_start {
                 let refresh_owner = owner.clone();
@@ -126,7 +132,7 @@ impl SourceOwner {
     pub(super) async fn install_selected(
         &self,
         configured: ConfiguredSource,
-        mut source: Option<Arc<Source>>,
+        source: Option<Arc<Source>>,
         acquisition: Arc<AtomicBool>,
     ) -> Result<(), String> {
         let (music_folders, music_folder_key) = self.selected_folders(&configured).await?;
@@ -135,26 +141,35 @@ impl SourceOwner {
             music_folder_object_id: configured.music_folder_id.clone(),
             music_folders,
         };
-        if !self.shared.selection_is_current(&acquisition) {
+        // Atomic against a server reset cancelling this selection between the check and the install.
+        let Some(source) = self.shared.install_if_current(&acquisition, || {
+            self.cancel_selected_jobs();
+            *self
+                .shared
+                .selected
+                .lock()
+                .unwrap_or_else(|p| p.into_inner()) = Some(selected.clone());
+            source.map(|source| {
+                let source = self.cache_connected(&configured, source);
+                self.start_observer(source.clone(), true);
+                source
+            })
+        }) else {
             return Ok(());
-        }
-        self.cancel_selected_jobs();
-        source = source.map(|source| self.cache_connected(&configured, source));
-        *self
-            .shared
-            .selected
-            .lock()
-            .unwrap_or_else(|p| p.into_inner()) = Some(selected.clone());
+        };
         self.shared
             .send(SourceEvent::Selected {
                 configured: self.shared.source_status(Some(&selected)),
                 selected: selected.clone(),
             })
             .await;
+        if !self.shared.selection_is_current(&acquisition) {
+            self.restate_selection().await;
+            return Ok(());
+        }
         self.publish_operation(SourceOperation::Idle).await;
         self.shared.present_refresh();
-        if let Some(source) = source {
-            self.start_observer(source.clone(), true);
+        if source.is_some() {
             let owner = self.clone();
             self.shared.runtime.spawn(async move {
                 if let Err(error) = owner
@@ -165,9 +180,39 @@ impl SourceOwner {
                 {
                     owner.shared.warn_nonfatal(&error);
                 }
+                if !owner.shared.selection_is_current(&acquisition) {
+                    owner.restate_selection().await;
+                }
             });
         }
         Ok(())
+    }
+
+    /// A selection a reset overtook may have published or attached after the reset released it;
+    /// restates the current selection, or its absence, to listeners and downloads.
+    pub(super) async fn restate_selection(&self) {
+        match self.shared.selected() {
+            Some(selected) => {
+                if let Err(error) = self
+                    .shared
+                    .downloads
+                    .attach(selected.music_folder_key)
+                    .await
+                {
+                    self.shared.warn_nonfatal(&error);
+                }
+                self.shared
+                    .send(SourceEvent::Selected {
+                        configured: self.shared.source_status(Some(&selected)),
+                        selected,
+                    })
+                    .await;
+            }
+            None => {
+                self.shared.downloads.detach();
+                self.shared.send(SourceEvent::ReleaseSelected).await;
+            }
+        }
     }
 
     pub(super) async fn release_selected(&self) {

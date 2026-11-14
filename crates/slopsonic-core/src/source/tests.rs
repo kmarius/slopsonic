@@ -600,6 +600,20 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
             .expect("selection completes without consuming events")
             .unwrap();
         drop(lane);
+        // A reset cancelling a selection waits for an install already past its check.
+        let intent = owner.shared.begin_selection();
+        let shared = Arc::clone(&owner.shared);
+        let canceller = owner
+            .shared
+            .install_if_current(&intent, move || {
+                let canceller = std::thread::spawn(move || shared.cancel_selection());
+                std::thread::sleep(Duration::from_millis(50));
+                assert!(!canceller.is_finished());
+                canceller
+            })
+            .expect("the current selection installs");
+        canceller.join().unwrap();
+        assert!(owner.shared.install_if_current(&intent, || ()).is_none());
         tokio::time::timeout(Duration::from_secs(5), owner.forget_source())
             .await
             .expect("removal completes without consuming events")
@@ -627,6 +641,11 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
             assert_eq!(assignments.len(), 2);
             assert!(assignments[0].is_some() && assignments[1].is_none());
         }
+        // A selection overtaken by the forget restates the release, again without a consumer.
+        tokio::time::timeout(Duration::from_secs(5), owner.restate_selection())
+            .await
+            .expect("restating completes without consuming events");
+        assert!(owner.shared.selected().is_none());
         owner.shared.client.lock().unwrap().take();
         owner.shared.cancel_selection();
         owner.forget_source().await.unwrap();

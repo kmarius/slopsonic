@@ -249,13 +249,30 @@ impl Shared {
                 .is_some_and(|active| Arc::ptr_eq(&active, cancelled))
     }
 
-    fn cancel_selection(&self) {
-        if let Some(cancelled) = self
+    /// Runs `install` only while `cancelled` is the current selection. The intent lock is held
+    /// throughout, so a concurrent `cancel_selection` lands either before the check or after the install.
+    fn install_if_current<T>(
+        &self,
+        cancelled: &Arc<AtomicBool>,
+        install: impl FnOnce() -> T,
+    ) -> Option<T> {
+        let intent = self
             .selection_intent
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .upgrade()
-        {
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let current = !cancelled.load(Ordering::Acquire)
+            && intent
+                .upgrade()
+                .is_some_and(|active| Arc::ptr_eq(&active, cancelled));
+        current.then(install)
+    }
+
+    fn cancel_selection(&self) {
+        let intent = self
+            .selection_intent
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(cancelled) = intent.upgrade() {
             cancelled.store(true, Ordering::Release);
         }
     }
@@ -460,7 +477,9 @@ impl SourceOwner {
         if self.configuration().is_none() {
             return Ok(());
         }
-        // Retiring the old client first stops its refresh and observer from writing.
+        // Cancel the selection before retiring the client, so a startup connect cannot reopen
+        // and observe the old server in between; retiring it stops its refresh and observer.
+        self.shared.cancel_selection();
         self.shared
             .client
             .lock()
@@ -664,7 +683,9 @@ impl SourceOwner {
                     if owner.shared.selected().is_some()
                         && let Some(source) = owner.cached_client()
                     {
-                        owner.start_observer(source, false);
+                        owner
+                            .shared
+                            .install_if_current(&cancelled, || owner.start_observer(source, false));
                     }
                     owner
                         .publish_operation(SourceOperation::Failed {
@@ -715,7 +736,9 @@ impl SourceOwner {
                     if owner.shared.selected().is_some()
                         && let Some(source) = owner.cached_client()
                     {
-                        owner.start_observer(source, false);
+                        owner
+                            .shared
+                            .install_if_current(&cancelled, || owner.start_observer(source, false));
                     }
                     owner.shared.publish_operation(SourceOperation::Failed {
                         message: error.clone(),
@@ -748,12 +771,12 @@ impl SourceOwner {
         if self.configuration().is_none() {
             return Ok(());
         }
+        self.shared.cancel_selection();
         self.shared
             .client
             .lock()
             .unwrap_or_else(|p| p.into_inner())
             .take();
-        self.shared.cancel_selection();
         if matches!(
             &*self.shared.operation.borrow(),
             SourceOperation::Refreshing { .. }
