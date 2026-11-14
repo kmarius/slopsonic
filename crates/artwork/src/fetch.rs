@@ -40,14 +40,14 @@ impl FetchContext {
             .clone()
     }
 
-    fn source(&self, source_id: &sources::SourceId) -> Result<Arc<sources::Source>, String> {
+    fn source(&self) -> Result<Arc<sources::Source>, String> {
         let resolver = self
             .source_resolver
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone()
             .ok_or_else(|| "artwork source is unavailable".to_string())?;
-        resolver(source_id).ok_or_else(|| "artwork source is unavailable".to_string())
+        resolver().ok_or_else(|| "artwork source is unavailable".to_string())
     }
 
     pub(crate) fn fetch(
@@ -59,12 +59,8 @@ impl FetchContext {
         match &candidate.image {
             // Generated playlist collages resolve in the pipeline; nothing else is stored.
             library::ArtworkImage::Playlist { .. } => Ok(FetchOutcome::Missing),
-            library::ArtworkImage::Native {
-                source_id,
-                item_id,
-                tag,
-            } => {
-                let source = self.source(source_id)?;
+            library::ArtworkImage::Native { item_id, tag, .. } => {
+                let source = self.source()?;
                 runtime
                     .block_on(source.image(SourceImageRequest::Native {
                         image_ref: sources::NativeImageRef::new(item_id, tag.clone()),

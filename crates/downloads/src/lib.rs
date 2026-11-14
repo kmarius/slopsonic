@@ -4,12 +4,12 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::Poll;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_channel::{Receiver, Sender};
-use audio_processing::ResolvedStream;
 use library::{Database, FolderKey, SourceKey};
 use serde::{Deserialize, Serialize};
 use sources::{DownloadQuality, ResolvedDownload};
@@ -30,8 +30,8 @@ mod storage;
 mod tests;
 mod track_download;
 
-/// Finds a source's current client, which its owner keeps and may replace at any time.
-pub type SourceResolver = dyn Fn(&SourceId) -> Option<Arc<Source>> + Send + Sync;
+/// Finds the server's current client, which its owner keeps and may replace at any time.
+pub type SourceResolver = dyn Fn() -> Option<Arc<Source>> + Send + Sync;
 
 use actor::*;
 use queue::*;
@@ -50,7 +50,6 @@ pub struct Downloads {
 enum Command {
     ClearArtworkCache(Sender<Result<(), String>>),
     Page {
-        scope: DownloadQueueScope,
         offset: u64,
         limit: u32,
         response: Sender<Result<DownloadPage, String>>,
@@ -70,37 +69,32 @@ enum Command {
         media_uris: Vec<String>,
         notify: bool,
     },
-    LibraryChanged {
-        source_id: SourceId,
-    },
-    SettingsChanged(Vec<SourceDownloadSettings>),
+    LibraryChanged,
+    SettingsChanged(DownloadSettings),
     RemoveRule {
-        source_id: SourceId,
         rule: DownloadRule,
         delete_downloads: bool,
     },
     Cancel {
-        source_id: Option<SourceId>,
         job_id: String,
     },
     ClearJob {
-        source_id: SourceId,
         job_id: String,
     },
     SetPaused(bool),
     Move {
-        source_id: SourceId,
         job_id: String,
         movement: DownloadQueueMove,
     },
     Clear {
-        source_id: SourceId,
         notify: bool,
     },
+    Detach,
 }
 
 #[derive(Clone)]
 struct AttachedSource {
+    source_id: SourceId,
     source_key: SourceKey,
     folder: Option<FolderKey>,
     directory: Option<PathBuf>,
@@ -195,9 +189,8 @@ impl DownloadRule {
     ];
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct SourceDownloadSettings {
-    pub source_id: SourceId,
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DownloadSettings {
     #[serde(flatten)]
     pub rules: DownloadRules,
     #[serde(default)]
@@ -207,16 +200,7 @@ pub struct SourceDownloadSettings {
     pub directory: Option<PathBuf>,
 }
 
-impl SourceDownloadSettings {
-    pub fn for_source(source_id: SourceId) -> Self {
-        Self {
-            source_id,
-            rules: DownloadRules::default(),
-            quality: DownloadQuality::Original,
-            directory: None,
-        }
-    }
-
+impl DownloadSettings {
     pub fn is_default(&self) -> bool {
         self.rules.is_empty()
             && self.quality == DownloadQuality::Original
@@ -327,7 +311,6 @@ pub enum DownloadQueueState {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DownloadQueueItem {
     pub id: String,
-    pub source_id: Option<SourceId>,
     pub subject: DownloadSubject,
     pub preview_uris: Vec<String>,
     pub quality: DownloadQuality,
@@ -342,12 +325,6 @@ pub enum DownloadQueueMove {
     Down,
     Before { job_id: String },
     After { job_id: String },
-}
-
-#[derive(Clone, Debug)]
-pub enum DownloadQueueScope {
-    Source { source_id: SourceId },
-    Direct,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -390,11 +367,11 @@ struct Actor {
     transfers: Arc<TransferClients>,
     prepared_rules: Sender<PreparedRules>,
     sources: Arc<SourceResolver>,
-    attached: HashMap<SourceId, AttachedSource>,
-    settings: HashMap<SourceId, SourceDownloadSettings>,
+    attached: Option<AttachedSource>,
+    settings: DownloadSettings,
     running_rules: Option<RuleIntent>,
     pending_rules: Option<RuleIntent>,
-    jobs: HashMap<Option<SourceId>, Vec<DownloadJob>>,
+    jobs: Vec<DownloadJob>,
     paused: bool,
     next_job: u64,
 }
@@ -410,7 +387,7 @@ impl Downloads {
         database: Database,
         runtime: tokio::runtime::Handle,
         events: Sender<DownloadEvent>,
-        settings: Vec<SourceDownloadSettings>,
+        settings: DownloadSettings,
     ) -> Self {
         let (commands, receiver) = async_channel::unbounded();
         let (prepared_rules, rule_results) = async_channel::unbounded();
@@ -428,19 +405,16 @@ impl Downloads {
                 events: DownloadEvents {
                     sender: events,
                     status,
-                    counts_dirty: Mutex::new(HashSet::new()),
+                    counts_dirty: AtomicBool::new(false),
                 },
                 transfers: Arc::new(TransferClients::default()),
                 prepared_rules,
-                sources: Arc::new(|_| None),
-                attached: HashMap::new(),
-                settings: settings
-                    .into_iter()
-                    .map(|settings| (settings.source_id.clone(), settings))
-                    .collect(),
+                sources: Arc::new(|| None),
+                attached: None,
+                settings,
                 running_rules: None,
                 pending_rules: None,
-                jobs: HashMap::new(),
+                jobs: Vec::new(),
                 paused: false,
                 next_job: 0,
             },
@@ -450,10 +424,10 @@ impl Downloads {
         downloads
     }
 
-    /// Downloads ask `resolve` for a source's client each time they start one.
+    /// Downloads ask `resolve` for the server's client each time they start one.
     pub fn install_source_resolver(
         &self,
-        resolve: impl Fn(&SourceId) -> Option<Arc<Source>> + Send + Sync + 'static,
+        resolve: impl Fn() -> Option<Arc<Source>> + Send + Sync + 'static,
     ) {
         self.send(Command::SourceResolver(Arc::new(resolve)));
     }
@@ -491,47 +465,44 @@ impl Downloads {
         self.send(Command::Remove { media_uris, notify });
     }
 
-    pub fn library_changed(&self, source_id: SourceId) {
-        self.send(Command::LibraryChanged { source_id });
+    pub fn library_changed(&self) {
+        self.send(Command::LibraryChanged);
     }
 
-    pub fn settings_changed(&self, settings: Vec<SourceDownloadSettings>) {
+    pub fn settings_changed(&self, settings: DownloadSettings) {
         self.send(Command::SettingsChanged(settings));
     }
 
-    pub fn remove_rule(&self, source_id: SourceId, rule: DownloadRule, delete_downloads: bool) {
+    pub fn remove_rule(&self, rule: DownloadRule, delete_downloads: bool) {
         self.send(Command::RemoveRule {
-            source_id,
             rule,
             delete_downloads,
         });
     }
 
-    pub fn cancel(&self, source_id: SourceId, job_id: String) {
-        self.send(Command::Cancel {
-            source_id: Some(source_id),
-            job_id,
-        });
+    pub fn cancel(&self, job_id: String) {
+        self.send(Command::Cancel { job_id });
     }
 
-    pub fn clear_job(&self, source_id: SourceId, job_id: String) {
-        self.send(Command::ClearJob { source_id, job_id });
+    pub fn clear_job(&self, job_id: String) {
+        self.send(Command::ClearJob { job_id });
     }
 
     pub fn set_paused(&self, paused: bool) {
         self.send(Command::SetPaused(paused));
     }
 
-    pub fn move_job(&self, source_id: SourceId, job_id: String, movement: DownloadQueueMove) {
-        self.send(Command::Move {
-            source_id,
-            job_id,
-            movement,
-        });
+    pub fn move_job(&self, job_id: String, movement: DownloadQueueMove) {
+        self.send(Command::Move { job_id, movement });
     }
 
-    pub fn clear(&self, source_id: SourceId, notify: bool) {
-        self.send(Command::Clear { source_id, notify });
+    pub fn clear(&self, notify: bool) {
+        self.send(Command::Clear { notify });
+    }
+
+    /// Stops all work for the attached server until the next attach.
+    pub fn detach(&self) {
+        self.send(Command::Detach);
     }
 
     fn send(&self, command: Command) {
@@ -546,13 +517,12 @@ pub struct DownloadStatus {
     pub revision: u64,
     pub queue_revision: u64,
     pub paused: bool,
-    pub queues: Vec<DownloadQueueSummary>,
+    pub queue: Option<DownloadQueueSummary>,
     pub notice: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DownloadQueueSummary {
-    pub source_id: Option<SourceId>,
     pub downloaded_tracks: u64,
     pub total_jobs: u64,
 }
@@ -566,7 +536,7 @@ pub struct DownloadPage {
 struct DownloadEvents {
     sender: Sender<DownloadEvent>,
     status: tokio::sync::watch::Sender<DownloadStatus>,
-    counts_dirty: Mutex<HashSet<Option<SourceId>>>,
+    counts_dirty: AtomicBool,
 }
 
 impl DownloadEvents {
@@ -578,16 +548,7 @@ impl DownloadEvents {
                 DownloadEvent::Queue { summary, paused } => {
                     state.paused = *paused;
                     state.queue_revision += 1;
-                    if let Some(previous) = state
-                        .queues
-                        .iter_mut()
-                        .find(|queue| queue.source_id == summary.source_id)
-                    {
-                        *previous = summary.clone();
-                    } else {
-                        state.queues.push(summary.clone());
-                        state.queues.sort_by(|a, b| a.source_id.cmp(&b.source_id));
-                    }
+                    state.queue = Some(summary.clone());
                 }
                 DownloadEvent::Feedback(_) | DownloadEvent::SubjectChanged { .. } => return false,
             }
@@ -611,10 +572,9 @@ impl DownloadEvents {
 }
 
 impl DownloadJob {
-    fn queue_item(&self, source_id: Option<SourceId>) -> DownloadQueueItem {
+    fn queue_item(&self) -> DownloadQueueItem {
         DownloadQueueItem {
             id: self.id.clone(),
-            source_id,
             subject: self.subject.clone(),
             preview_uris: self
                 .completed
@@ -646,15 +606,9 @@ impl Downloads {
         self.status.borrow().clone()
     }
 
-    pub async fn queue_page(
-        &self,
-        scope: DownloadQueueScope,
-        offset: u64,
-        limit: u32,
-    ) -> sources::SourceResult<DownloadPage> {
+    pub async fn queue_page(&self, offset: u64, limit: u32) -> sources::SourceResult<DownloadPage> {
         let (response, receive) = async_channel::bounded(1);
         self.send(Command::Page {
-            scope,
             offset,
             limit,
             response,

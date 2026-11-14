@@ -16,7 +16,7 @@ pub use app::{
 };
 pub use context_menu::{ContextMenuItem, ContextMenuItemSettings, ContextMenuSettings};
 pub use downloads::DownloadRule;
-pub use downloads::{DownloadRules, SourceDownloadSettings};
+pub use downloads::{DownloadRules, DownloadSettings};
 pub use layout::{
     AccentPreference, DEFAULT_LEFT_SIDEBAR_WIDTH, DEFAULT_RIGHT_SIDEBAR_WIDTH,
     DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH, LayoutProfile, LayoutSettings, LeftSidebarMode,
@@ -38,7 +38,7 @@ use std::sync::{Arc, Mutex, OnceLock, mpsc};
 use app::Settings as UiSettings;
 use scrobbling::Settings as ScrobblingSettings;
 use serde::{Deserialize, Serialize};
-use sources::{SourceConfiguration, SourceId};
+use sources::SourceConfiguration;
 use tracing::warn;
 
 pub(crate) fn fresh_source_id() -> Result<sources::SourceId, String> {
@@ -427,34 +427,6 @@ impl SettingsOwner {
     }
 }
 
-impl SettingsOwner {
-    pub fn set_download_location(
-        &self,
-        source_id: SourceId,
-        location: Option<std::path::PathBuf>,
-    ) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            ui.set_download_location(source_id, location);
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-}
-
-impl SettingsOwner {
-    pub fn set_download_quality(
-        &self,
-        source_id: SourceId,
-        quality: sources::DownloadQuality,
-    ) -> Result<(), SettingsError> {
-        self.update_preferences(move |ui| {
-            ui.set_download_quality(source_id, quality);
-            Ok(())
-        })
-        .map_err(Into::into)
-    }
-}
-
 pub(crate) fn read_scrobbling(stored: &StoredSettings) -> ScrobblingSettings {
     let mut settings = stored.scrobbling_runtime_settings();
     for descriptor in scrobbling::secret_descriptors() {
@@ -594,6 +566,24 @@ fn drop_removed_entries(raw: &mut toml::Value) {
         "item",
     );
     strip(raw.get_mut("library_lists"), "key");
+    // The former per-server download list keeps only the configured server's entry.
+    let configured = raw
+        .get("sources")
+        .and_then(|sources| sources.get("configured"))
+        .and_then(|configured| configured.get("source_id"))
+        .cloned();
+    if let Some(table) = raw.as_table_mut()
+        && let Some(list) = table.get("downloads").and_then(toml::Value::as_array)
+    {
+        match list
+            .iter()
+            .find(|entry| configured.is_some() && entry.get("source_id") == configured.as_ref())
+            .cloned()
+        {
+            Some(entry) => table.insert("downloads".into(), entry),
+            None => table.remove("downloads"),
+        };
+    }
 }
 
 pub(crate) fn decode_settings(
@@ -715,6 +705,57 @@ fn sync_settings_directory(parent: &Path) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn former_download_list_keeps_the_configured_server_entry() {
+        let mut saved = toml::Value::try_from(StoredSettings::default()).unwrap();
+        let source = |id: &str| {
+            toml::Value::try_from(ConfiguredSource {
+                configuration: SourceConfiguration {
+                    source_id: sources::SourceId::new(id),
+                    kind: sources::SubsonicFlavor::Navidrome,
+                    name: "Server".into(),
+                    provider_payload: "{}".into(),
+                },
+                credential: None,
+                music_folder_id: None,
+            })
+            .unwrap()
+        };
+        saved["sources"]
+            .as_table_mut()
+            .unwrap()
+            .insert("configured".into(), source("current"));
+        saved.as_table_mut().unwrap().insert(
+            "downloads".into(),
+            toml::toml! {
+                [[list]]
+                source_id = "forgotten"
+                entire_library = true
+                directory = "/old"
+                [[list]]
+                source_id = "current"
+                favorites = true
+                directory = "/music"
+            }["list"]
+                .clone(),
+        );
+        let (stored, unsupported) = decode_settings(&saved).unwrap();
+        assert!(unsupported.is_empty());
+        assert!(stored.ui.downloads.rules.favorites);
+        assert!(!stored.ui.downloads.rules.entire_library);
+        assert_eq!(
+            stored.ui.downloads.directory.as_deref(),
+            Some(std::path::Path::new("/music"))
+        );
+
+        saved["sources"]
+            .as_table_mut()
+            .unwrap()
+            .insert("configured".into(), source("other"));
+        let (stored, _) = decode_settings(&saved).unwrap();
+        assert!(stored.ui.downloads.is_default());
+    }
 
     #[test]
     fn removed_history_entries_keep_the_rest_of_their_lists() {
@@ -903,11 +944,5 @@ mod tests {
         let (stored, unsupported) = decode_settings(&raw).unwrap();
         assert!(stored.scrobbling_credentials.is_empty());
         assert!(!unsupported.is_empty());
-    }
-}
-
-impl SettingsOwner {
-    pub fn download_settings(&self, source_id: SourceId) -> downloads::SourceDownloadSettings {
-        self.load().download_settings(&source_id)
     }
 }

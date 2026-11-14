@@ -139,24 +139,16 @@ pub(super) fn downloads_page(
         downloads_group: adw::PreferencesGroup,
         empty_remote_row: adw::ActionRow,
     });
-    let Some(configuration) = shell.products.source.configuration() else {
+    if shell.products.source.configuration().is_none() {
         downloads_group.add(&empty_remote_row);
         downloads_page.add(&downloads_group);
         return downloads_page;
-    };
-    downloads_page.add(&source_downloads_group(
-        shell,
-        dialog,
-        &configuration.source_id,
-    ));
+    }
+    downloads_page.add(&source_downloads_group(shell, dialog));
     downloads_page
 }
 
-fn source_downloads_group(
-    shell: &Rc<Preferences>,
-    dialog: &adw::Dialog,
-    source_id: &sources::SourceId,
-) -> adw::PreferencesGroup {
+fn source_downloads_group(shell: &Rc<Preferences>, dialog: &adw::Dialog) -> adw::PreferencesGroup {
     let resource = crate::ui_resource::LIBRARY_PREFERENCES_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, {
@@ -172,7 +164,7 @@ fn source_downloads_group(
         download_queue_header: adw::PreferencesRow,
         pause_downloads: gtk::Button,
     });
-    let download_settings = shell.settings.current.borrow().download_settings(source_id);
+    let download_settings = shell.settings.current.borrow().downloads.clone();
     download_folder_row.set_subtitle(
         &download_settings
             .directory
@@ -182,35 +174,30 @@ fn source_downloads_group(
     );
     reset_folder.set_visible(download_settings.directory.is_some());
     let weak = Rc::downgrade(shell);
-    let open_source_id = source_id.clone();
     open_folder.connect_clicked(move |_| {
         let Some(shell) = weak.upgrade() else { return };
         let directory = shell
             .settings
             .current
             .borrow()
-            .download_directory(&open_source_id)
+            .downloads
+            .directory
+            .clone()
             .unwrap_or_else(|| shell.products.downloads.default_directory().to_path_buf());
         super::open_folder(&shell, gio::File::for_path(directory));
     });
     let choose_shell = Rc::clone(shell);
-    let choose_source_id = source_id.clone();
     let choose_row = download_folder_row.downgrade();
     let choose_reset = reset_folder.downgrade();
     choose_folder.connect_clicked(move |_| {
         let shell = Rc::clone(&choose_shell);
-        let source_id = choose_source_id.clone();
         let row = choose_row.clone();
         let reset = choose_reset.clone();
         gtk::glib::spawn_future_local(async move {
             let chooser = gtk::FileDialog::builder()
                 .title("Select Download Folder".to_string())
                 .build();
-            let initial_directory = shell
-                .settings
-                .current
-                .borrow()
-                .download_directory(&source_id);
+            let initial_directory = shell.settings.current.borrow().downloads.directory.clone();
             if let Some(directory) = initial_directory.as_ref() {
                 chooser.set_initial_folder(Some(&gio::File::for_path(directory)));
             }
@@ -223,7 +210,7 @@ fn source_downloads_group(
             if shell
                 .settings
                 .update_app_settings("download folder", |settings| {
-                    settings.set_download_directory(source_id, Some(path.clone()))
+                    settings.set_download_directory(Some(path.clone()))
                 })
                 .is_some()
             {
@@ -237,7 +224,6 @@ fn source_downloads_group(
         });
     });
     let reset_shell = Rc::clone(shell);
-    let reset_source_id = source_id.clone();
     let reset_row = download_folder_row.downgrade();
     let reset_button = reset_folder.downgrade();
     reset_folder.connect_clicked(move |_| {
@@ -247,7 +233,7 @@ fn source_downloads_group(
         if reset_shell
             .settings
             .update_app_settings("reset download folder", |settings| {
-                settings.set_download_directory(reset_source_id.clone(), None)
+                settings.set_download_directory(None)
             })
             .is_some()
         {
@@ -260,12 +246,11 @@ fn source_downloads_group(
     downloads_group.add(&download_folder_row);
 
     let quality_shell = Rc::clone(shell);
-    let quality_source_id = source_id.clone();
     for row in crate::download_quality::rows(download_settings.quality, move |quality, _| {
         quality_shell
             .settings
             .update_app_settings("download quality", |settings| {
-                settings.set_download_quality(quality_source_id.clone(), quality)
+                settings.set_download_quality(quality)
             });
     }) {
         downloads_group.add(&row);
@@ -285,28 +270,21 @@ fn source_downloads_group(
             .set_downloaded_badges_visible(row.is_active());
     });
     downloads_group.add(&downloaded_badge);
-    let add_rule = add_download_rules(
-        &downloads_group,
-        shell,
-        dialog,
-        source_id,
-        download_settings.rules,
-    );
+    let add_rule = add_download_rules(&downloads_group, shell, dialog, download_settings.rules);
 
     download_action_buttons.prepend(&add_rule);
     let remove_shell = Rc::clone(shell);
-    let remove_source_id = source_id.clone();
     let preferences_dialog = dialog.downgrade();
     remove_all.connect_clicked(move |_| {
         let Some(preferences_dialog) = preferences_dialog.upgrade() else {
             return;
         };
-        confirm_remove_all_downloads(&remove_shell, &preferences_dialog, remove_source_id.clone());
+        confirm_remove_all_downloads(&remove_shell, &preferences_dialog);
     });
     downloads_group.add(&download_actions_row);
 
     downloads_group.add(&download_queue_header);
-    add_download_queue(&downloads_group, shell, source_id, &pause_downloads);
+    add_download_queue(&downloads_group, shell, &pause_downloads);
     downloads_group
 }
 
@@ -314,7 +292,6 @@ fn add_download_rules(
     group: &adw::PreferencesGroup,
     shell: &Rc<Preferences>,
     preferences_dialog: &adw::Dialog,
-    source_id: &sources::SourceId,
     rules: slopsonic_core::settings::DownloadRules,
 ) -> gtk::MenuButton {
     let mut rows = Vec::new();
@@ -328,7 +305,11 @@ fn add_download_rules(
             &shell.artwork,
             &shell.products.library,
             &shell.products.runtime,
-            source_id.clone(),
+            shell
+                .products
+                .source
+                .selected_library()
+                .map(|selected| selected.source_key),
             rule,
             48,
         );
@@ -354,31 +335,23 @@ fn add_download_rules(
         let actions = gio::SimpleActionGroup::new();
         let remove = gio::SimpleAction::new("remove", None);
         let remove_shell = Rc::clone(shell);
-        let remove_source_id = source_id.clone();
         let remove_row = row.downgrade();
         remove.connect_activate(move |_, _| {
             let Some(row) = remove_row.upgrade() else {
                 return;
             };
-            remove_download_rule(&remove_shell, remove_source_id.clone(), rule, false, &row);
+            remove_download_rule(&remove_shell, rule, false, &row);
         });
         actions.add_action(&remove);
         let delete = gio::SimpleAction::new("delete", None);
         let delete_shell = Rc::clone(shell);
-        let delete_source_id = source_id.clone();
         let delete_row = row.downgrade();
         let delete_dialog = preferences_dialog.downgrade();
         delete.connect_activate(move |_, _| {
             let (Some(row), Some(dialog)) = (delete_row.upgrade(), delete_dialog.upgrade()) else {
                 return;
             };
-            confirm_remove_download_rule(
-                &delete_shell,
-                &dialog,
-                delete_source_id.clone(),
-                rule,
-                row,
-            );
+            confirm_remove_download_rule(&delete_shell, &dialog, rule, row);
         });
         actions.add_action(&delete);
         more.insert_action_group("download-rule", Some(&actions));
@@ -397,7 +370,6 @@ fn add_download_rules(
         );
         let action = gio::SimpleAction::new(action_name, None);
         let add_shell = Rc::clone(shell);
-        let add_source_id = source_id.clone();
         let add_row = row.downgrade();
         action.connect_activate(move |_, _| {
             let Some(row) = add_row.upgrade() else {
@@ -406,16 +378,17 @@ fn add_download_rules(
             if add_shell
                 .settings
                 .update_app_settings("add download rule", |settings| {
-                    let mut rules = settings.download_rules(&add_source_id);
+                    let mut rules = settings.downloads.rules;
                     rules.set(rule, true);
-                    settings.set_download_rules(add_source_id.clone(), rules)
+                    settings.set_download_rules(rules)
                 })
                 .is_some()
                 || add_shell
                     .settings
                     .current
                     .borrow()
-                    .download_rules(&add_source_id)
+                    .downloads
+                    .rules
                     .contains(rule)
             {
                 row.set_visible(true);
@@ -439,7 +412,6 @@ fn add_download_rules(
 
 fn remove_download_rule(
     shell: &Rc<Preferences>,
-    source_id: sources::SourceId,
     rule: DownloadRule,
     delete_downloads: bool,
     row: &adw::ActionRow,
@@ -447,16 +419,13 @@ fn remove_download_rule(
     let removed = shell
         .settings
         .update_app_settings("remove download rule", |settings| {
-            let mut rules = settings.download_rules(&source_id);
+            let mut rules = settings.downloads.rules;
             rules.set(rule, false);
-            settings.set_download_rules(source_id.clone(), rules)
+            settings.set_download_rules(rules)
         })
         .is_some();
     if removed {
-        shell
-            .products
-            .downloads
-            .remove_rule(source_id, rule, delete_downloads);
+        shell.products.downloads.remove_rule(rule, delete_downloads);
         row.set_visible(false);
     }
 }
@@ -464,7 +433,6 @@ fn remove_download_rule(
 fn confirm_remove_download_rule(
     shell: &Rc<Preferences>,
     preferences_dialog: &adw::Dialog,
-    source_id: sources::SourceId,
     rule: DownloadRule,
     row: adw::ActionRow,
 ) {
@@ -486,7 +454,7 @@ fn confirm_remove_download_rule(
         None::<&gio::Cancellable>,
         move |response| {
             if response.as_str() == "remove" {
-                remove_download_rule(&shell, source_id.clone(), rule, true, &row);
+                remove_download_rule(&shell, rule, true, &row);
             }
         },
     );
@@ -519,12 +487,7 @@ fn download_rule_action_name(rule: DownloadRule) -> &'static str {
     }
 }
 
-fn add_download_queue(
-    group: &adw::PreferencesGroup,
-    shell: &Rc<Preferences>,
-    source_id: &sources::SourceId,
-    pause: &gtk::Button,
-) {
+fn add_download_queue(group: &adw::PreferencesGroup, shell: &Rc<Preferences>, pause: &gtk::Button) {
     let resource = crate::ui_resource::DOWNLOAD_QUEUE_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
     gtk_widgets::objects!(builder, resource, { scroll: gtk::ScrolledWindow, queue: gtk::ListView, empty: adw::ActionRow });
@@ -532,21 +495,15 @@ fn add_download_queue(
         SparseRouteModel, SparseSource, bind_sparse_item, item_at_from_item, unbind_sparse_item,
     };
     let owner = shell.products.downloads.clone();
-    let source = source_id.clone();
     let jobs = SparseRouteModel::<String, downloads::DownloadQueueItem>::new(
         SparseSource::Query { count: 0 },
         64,
         shell.products.runtime.clone(),
         Rc::new(move |_, range, _| {
             let owner = owner.clone();
-            let source_id = source.clone();
             Box::pin(async move {
                 owner
-                    .queue_page(
-                        downloads::DownloadQueueScope::Source { source_id },
-                        range.start as u64,
-                        range.len() as u32,
-                    )
+                    .queue_page(range.start as u64, range.len() as u32)
                     .await
                     .map(|page| page.jobs)
                     .map_err(|error| error.to_string())
@@ -556,7 +513,6 @@ fn add_download_queue(
     queue.set_model(Some(&gtk::NoSelection::new(Some(jobs.list_model()))));
     let factory = gtk::SignalListItemFactory::new();
     let weak_shell = Rc::downgrade(shell);
-    let source = source_id.clone();
     factory.connect_setup(move |_, item| {
         let item = item.downcast_ref::<gtk::ListItem>().unwrap();
         let resource = crate::ui_resource::DOWNLOAD_QUEUE_ROW_RESOURCE;
@@ -569,7 +525,6 @@ fn add_download_queue(
         for (button, after) in [(&up, false), (&down, true)] {
             let weak = weak_shell.clone();
             let item = item.downgrade();
-            let source = source.clone();
             button.connect_clicked(move |_| {
                 let (Some(shell), Some(item)) = (weak.upgrade(), item.upgrade()) else {
                     return;
@@ -578,7 +533,6 @@ fn add_download_queue(
                     return;
                 };
                 shell.products.downloads.move_job(
-                    source.clone(),
                     job.id,
                     if after {
                         downloads::DownloadQueueMove::Down
@@ -595,13 +549,10 @@ fn add_download_queue(
                 let Some(shell) = weak.upgrade() else { return };
                 let current = current.borrow();
                 let Some(job) = current.as_ref() else { return };
-                let Some(source) = job.source_id.clone() else {
-                    return;
-                };
                 if remove_files {
-                    shell.products.downloads.clear_job(source, job.id.clone());
+                    shell.products.downloads.clear_job(job.id.clone());
                 } else {
-                    shell.products.downloads.cancel(source, job.id.clone());
+                    shell.products.downloads.cancel(job.id.clone());
                 }
             });
         }
@@ -634,9 +585,6 @@ fn add_download_queue(
             let Some(job) = drop_job.borrow().clone() else {
                 return false;
             };
-            let Some(source) = job.source_id else {
-                return false;
-            };
             if id == job.id {
                 return false;
             }
@@ -645,16 +593,12 @@ fn add_download_queue(
             } else {
                 downloads::DownloadQueueMove::Before { job_id: job.id }
             };
-            shell
-                .products
-                .downloads
-                .move_job(source, id.into(), movement);
+            shell.products.downloads.move_job(id.into(), movement);
             true
         });
         row.add_controller(target);
         item.set_child(Some(&row));
         let weak = weak_shell.clone();
-        let source = source.clone();
         row.set_sensitive(false);
         let row = row.downgrade();
         let artwork = artwork.downgrade();
@@ -707,9 +651,7 @@ fn add_download_queue(
                     .products
                     .downloads
                     .status()
-                    .queues
-                    .iter()
-                    .find(|queue| queue.source_id.as_ref() == Some(&source))
+                    .queue
                     .is_some_and(|queue| (position as u64 + 1) < queue.total_jobs),
             );
             *current.borrow_mut() = Some(job.clone());
@@ -733,8 +675,6 @@ fn add_download_queue(
     let scroll = scroll.downgrade();
     let empty = empty.downgrade();
     let owner = shell.products.downloads.clone();
-    let refresh_source = source_id.clone();
-    let source_id = source_id.clone();
     let rows = jobs.clone();
     let refresh: Rc<dyn Fn()> = Rc::new(move || {
         let (Some(group), Some(pause), Some(scroll), Some(empty)) = (
@@ -750,9 +690,8 @@ fn add_download_queue(
         }
         let state = owner.status();
         let count = state
-            .queues
-            .iter()
-            .find(|queue| queue.source_id.as_ref() == Some(&source_id))
+            .queue
+            .as_ref()
             .map_or(0, |queue| queue.total_jobs as usize);
         pause.set_visible(count > 0);
         let (icon, label) = if state.paused {
@@ -777,17 +716,9 @@ fn add_download_queue(
         let offset = (rows.first_live_position().unwrap_or_default() / 64 * 64)
             .min(count.saturating_sub(1) / 64 * 64);
         let owner = owner.clone();
-        let source_id = source_id.clone();
         let rows = rows.clone();
         *running.borrow_mut() = Some(gtk::glib::spawn_future_local(async move {
-            if let Ok(page) = owner
-                .queue_page(
-                    downloads::DownloadQueueScope::Source { source_id },
-                    offset as u64,
-                    128,
-                )
-                .await
-            {
+            if let Ok(page) = owner.queue_page(offset as u64, 128).await {
                 rows.replace_prepared_at(
                     SparseSource::Query {
                         count: page.total as usize,
@@ -803,7 +734,7 @@ fn add_download_queue(
     });
     let downloads = shell.downloads.clone();
     group.connect_map(move |_| {
-        downloads.set_queue_refresh(refresh_source.clone(), &refresh);
+        downloads.set_queue_refresh(&refresh);
         refresh();
     });
     group.connect_unmap(move |_| {
@@ -830,11 +761,7 @@ fn download_queue_item_subtitle(job: &downloads::DownloadQueueItem) -> String {
     format!("{state} · {progress} · {quality}")
 }
 
-fn confirm_remove_all_downloads(
-    shell: &Rc<Preferences>,
-    preferences_dialog: &adw::Dialog,
-    source_id: sources::SourceId,
-) {
+fn confirm_remove_all_downloads(shell: &Rc<Preferences>, preferences_dialog: &adw::Dialog) {
     let dialog = adw::AlertDialog::builder()
         .heading("Remove All Downloads".to_string())
         .body(
@@ -852,22 +779,16 @@ fn confirm_remove_all_downloads(
     let preferences_dialog = preferences_dialog.downgrade();
     dialog.choose(Some(&window), None::<&gio::Cancellable>, move |response| {
         if response.as_str() == "remove" {
-            let rules_are_empty = shell
-                .settings
-                .current
-                .borrow()
-                .download_rules(&source_id)
-                .is_empty();
+            let rules_are_empty = shell.settings.current.borrow().downloads.rules.is_empty();
             let rules_disabled = rules_are_empty
                 || shell
                     .settings
                     .update_app_settings("remove all downloads", |settings| {
-                        settings
-                            .set_download_rules(source_id.clone(), crate::DownloadRules::default())
+                        settings.set_download_rules(crate::DownloadRules::default())
                     })
                     .is_some();
             if rules_disabled {
-                shell.products.downloads.clear(source_id.clone(), true);
+                shell.products.downloads.clear(true);
                 if let Some(preferences_dialog) = preferences_dialog.upgrade() {
                     preferences_dialog.close();
                 }

@@ -75,12 +75,10 @@ pub(super) async fn load_queue(
     Ok(queue.jobs)
 }
 
-pub(super) async fn load_direct_queue(
-    root: &Path,
-    database: &Database,
-) -> Result<Vec<DownloadJob>, String> {
+/// Moves jobs of the former direct queue into the server's queue; media without a server is dropped.
+pub(super) async fn merge_direct_queue(root: &Path, database: &Database) -> Result<(), String> {
     let Some((bytes, recovered, path, part)) = read_queue_file(root, None)? else {
-        return Ok(Vec::new());
+        return Ok(());
     };
     let queue: QueueFile = serde_json::from_slice(&bytes)
         .map_err(|error| format!("could not decode {}: {error}", path.display()))?;
@@ -114,7 +112,7 @@ pub(super) async fn load_direct_queue(
             }
         }
     }
-    let direct = grouped.remove(&None).unwrap_or_default();
+    grouped.remove(&None);
     for (source, jobs) in grouped {
         let source = source.unwrap();
         let mut saved = load_queue(root, &source).await?;
@@ -139,15 +137,10 @@ pub(super) async fn load_direct_queue(
         }
         persist_queue(root, Some(&source), &saved).await?;
     }
-    persist_queue(root, None, &direct).await?;
-    let queued = direct
-        .iter()
-        .flat_map(|job| job.remaining.iter().cloned())
-        .collect();
-    cleanup_staging(root, None, None, &queued)
+    persist_queue(root, None, &[]).await?;
+    cleanup_staging(root, None, None, &HashSet::new())
         .await
-        .map_err(|error| error.to_string())?;
-    Ok(direct)
+        .map_err(|error| error.to_string())
 }
 
 pub(super) async fn media_source_id(database: &Database, media_uri: &str) -> Option<SourceId> {

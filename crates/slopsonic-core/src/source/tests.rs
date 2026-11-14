@@ -247,7 +247,6 @@ async fn acquisition_progress_belongs_to_its_source() {
         let catalog = owner.catalog_changes();
         owner
             .catalog_updated(
-                source_id.clone(),
                 cached.source,
                 CatalogUpdate {
                     metadata,
@@ -284,7 +283,6 @@ async fn acquisition_progress_belongs_to_its_source() {
     for (metadata, activity) in [(true, false), (false, true)] {
         owner
             .catalog_updated(
-                source_id.clone(),
                 cached.source,
                 CatalogUpdate {
                     metadata,
@@ -306,7 +304,6 @@ async fn acquisition_progress_belongs_to_its_source() {
     ] {
         owner
             .catalog_updated(
-                source_id.clone(),
                 cached.source,
                 CatalogUpdate {
                     metadata: false,

@@ -386,21 +386,16 @@ impl SourceOwner {
         });
         let weak = Arc::downgrade(&shared);
         let clients = weak.clone();
-        shared.downloads.install_source_resolver(move |source_id| {
+        shared.downloads.install_source_resolver(move || {
             let shared = clients.upgrade()?;
-            Self { shared }
-                .client()
-                .ok()
-                .filter(|source| source.source_id() == source_id)
+            Self { shared }.client().ok()
         });
         shared.database.observe_catalog(move |source, update| {
             let shared = weak.upgrade();
             async move {
                 if let Some(shared) = shared {
-                    if let Some((id, key)) = source {
-                        SourceOwner { shared }
-                            .catalog_updated(id, key, update)
-                            .await;
+                    if let Some((_, key)) = source {
+                        SourceOwner { shared }.catalog_updated(key, update).await;
                     } else if update.activity {
                         shared
                             .send(SourceEvent::CatalogPublished(CatalogPublication {
@@ -467,7 +462,7 @@ impl SourceOwner {
         Ok(())
     }
 
-    async fn remove_source_resources(&self, source_id: &SourceId) {
+    async fn remove_source_resources(&self) {
         self.shared
             .client
             .lock()
@@ -478,8 +473,8 @@ impl SourceOwner {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .take();
-        self.shared.downloads.clear(source_id.clone(), false);
-        if let Err(error) = self.shared.artwork.invalidate_source(source_id) {
+        self.shared.downloads.clear(false);
+        if let Err(error) = self.shared.artwork.invalidate_server_images() {
             self.shared.warn_nonfatal(&error.to_string());
         }
     }
@@ -779,7 +774,7 @@ impl SourceOwner {
                 let _ = sender.try_send(Err(error));
                 return;
             }
-            owner.remove_source_resources(&source_id).await;
+            owner.remove_source_resources().await;
             owner
                 .shared
                 .send(SourceEvent::Configured(owner.shared.source_status(None)))

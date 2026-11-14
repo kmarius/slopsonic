@@ -76,7 +76,7 @@ pub(in crate::playback) async fn seeded(
         database.clone(),
         runtime.clone(),
         async_channel::unbounded().0,
-        Vec::new(),
+        Default::default(),
     );
     let source = SourceOwner::open_dormant(
         artwork.clone(),

@@ -15,67 +15,41 @@ impl Actor {
 
     pub(super) async fn start_next(&mut self, active: &[ActiveDownload]) -> Option<ActiveDownload> {
         loop {
-            let (source_id, job_id, subject, quality, media_uri) = self.next_candidate(active)?;
-            let attached = source_id
-                .as_ref()
-                .and_then(|source_id| self.attached.get(source_id))
-                .cloned();
-            let source = match &source_id {
-                Some(source_id) => self.source(source_id).await,
-                None => None,
-            };
-            if source_id.is_some() && source.is_none() {
-                if let Some(job) = self.find_job_mut(&source_id, &job_id) {
+            let (job_id, subject, quality, media_uri) = self.next_candidate(active)?;
+            let attached = self.attached.clone()?;
+            let source_id = attached.source_id.clone();
+            let Some(source) = self.source().await else {
+                if let Some(job) = self.find_job_mut(&job_id) {
                     job.state = DownloadQueueState::WaitingForConnection;
                 }
-                self.publish(source_id.as_ref()).await;
+                self.publish().await;
                 continue;
-            }
+            };
             let replace_unknown = self
-                .find_job_mut(&source_id, &job_id)
+                .find_job_mut(&job_id)
                 .is_some_and(|job| job.replace_unknown);
-            let custom_directory = attached
-                .as_ref()
-                .and_then(|attached| attached.directory.as_deref());
+            let custom_directory = attached.directory.as_deref();
             let owner = DownloadOwner::Subject(subject.clone());
             match self
-                .add_download_owner(
-                    source_id.as_ref(),
-                    &media_uri,
-                    &owner,
-                    quality,
-                    replace_unknown,
-                )
+                .add_download_owner(&media_uri, &owner, quality, replace_unknown)
                 .await
             {
                 Ok(true) => {
-                    self.remove_job_track(&source_id, &job_id, &media_uri, true);
-                    self.persist_and_publish(source_id.as_ref()).await;
+                    self.remove_job_track(&job_id, &media_uri, true);
+                    self.persist_and_publish().await;
                     continue;
                 }
                 Ok(false) => {}
                 Err(error) => {
-                    warn!(%error, source_id=?source_id, %media_uri, "could not update download ownership");
-                    if let Some(job) = self.find_job_mut(&source_id, &job_id) {
+                    warn!(%error, %media_uri, "could not update download ownership");
+                    if let Some(job) = self.find_job_mut(&job_id) {
                         job.state = DownloadQueueState::NeedsAttention;
                     }
-                    self.persist_and_publish(source_id.as_ref()).await;
+                    self.persist_and_publish().await;
                     continue;
                 }
             }
-            let resolved = if let Some(source) = source.as_ref() {
-                source.resolve_download(&media_uri, quality).await
-            } else {
-                Some(media_uri.as_str())
-                    .filter(|uri| uri.starts_with("http://") || uri.starts_with("https://"))
-                    .map(|uri| ResolvedDownload::Ready {
-                        stream: ResolvedStream::new(uri),
-                        codec: None,
-                    })
-                    .ok_or(SourceError::InvalidRequest(
-                        "Direct media is not downloadable",
-                    ))
-            };
+            let resolved = source.resolve_download(&media_uri, quality).await;
             let transcoded_extension = match &resolved {
                 Ok(ResolvedDownload::Ready { codec, .. }) => codec.map(|codec| codec.extension()),
                 Ok(ResolvedDownload::Encode { encoding, .. }) => Some(encoding.codec.extension()),
@@ -89,23 +63,22 @@ impl Actor {
                 .flatten();
             let paths = new_download_paths(
                 &self.root,
-                source_id.as_ref(),
+                Some(&source_id),
                 &media_uri,
                 metadata.as_ref(),
                 custom_directory,
                 transcoded_extension,
             );
-            if let Some(job) = self.find_job_mut(&source_id, &job_id) {
+            if let Some(job) = self.find_job_mut(&job_id) {
                 job.state = DownloadQueueState::Downloading;
             }
-            self.publish(source_id.as_ref()).await;
+            self.publish().await;
             let task_paths = paths.clone();
             let transfers = Arc::clone(&self.transfers);
             let (cancellation, cancelled) = tokio::sync::oneshot::channel();
             let uri = media_uri.clone();
             let database = self.database.clone();
             let artwork = self.artwork.clone();
-            let task_source_id = source_id.clone();
             let task = tokio::spawn(async move {
                 let mut cancelled = cancelled;
                 match resolved.map_err(download_source_failure)? {
@@ -116,7 +89,7 @@ impl Actor {
                     }
                     ResolvedDownload::Ready { stream, codec } => {
                         let needs_encoding = match run_transfer(
-                            task_source_id.as_ref(),
+                            Some(&source_id),
                             &uri,
                             quality,
                             &stream,
@@ -147,11 +120,6 @@ impl Actor {
                             Err(error) => return Err(download_source_failure(error)),
                         };
                         if needs_encoding {
-                            let source = source.as_ref().ok_or_else(|| {
-                                DownloadFailure::NeedsAttention(
-                                    "The audio format did not match the download profile".into(),
-                                )
-                            })?;
                             let (ResolvedDownload::Ready {
                                 stream: original, ..
                             }
@@ -178,7 +146,6 @@ impl Actor {
                 Ok(())
             });
             return Some(ActiveDownload {
-                source_id,
                 job_id,
                 media_uri,
                 subject,
@@ -193,35 +160,26 @@ impl Actor {
     pub(super) fn next_candidate(
         &self,
         active: &[ActiveDownload],
-    ) -> Option<(
-        Option<SourceId>,
-        String,
-        DownloadSubject,
-        DownloadQuality,
-        String,
-    )> {
-        for (source_id, jobs) in &self.jobs {
-            for job in jobs {
-                if !matches!(
-                    job.state,
-                    DownloadQueueState::Queued | DownloadQueueState::Downloading
-                ) {
-                    break;
-                }
-                let media_uri = job.remaining.iter().find(|media_uri| {
-                    !active.iter().any(|download| {
-                        download.source_id == *source_id && download.media_uri == **media_uri
-                    })
-                });
-                if let Some(media_uri) = media_uri {
-                    return Some((
-                        source_id.clone(),
-                        job.id.clone(),
-                        job.subject.clone(),
-                        job.quality,
-                        media_uri.clone(),
-                    ));
-                }
+    ) -> Option<(String, DownloadSubject, DownloadQuality, String)> {
+        for job in &self.jobs {
+            if !matches!(
+                job.state,
+                DownloadQueueState::Queued | DownloadQueueState::Downloading
+            ) {
+                break;
+            }
+            let media_uri = job.remaining.iter().find(|media_uri| {
+                !active
+                    .iter()
+                    .any(|download| download.media_uri == **media_uri)
+            });
+            if let Some(media_uri) = media_uri {
+                return Some((
+                    job.id.clone(),
+                    job.subject.clone(),
+                    job.quality,
+                    media_uri.clone(),
+                ));
             }
         }
         None
@@ -233,14 +191,10 @@ impl Actor {
         joined: Result<Result<(), DownloadFailure>, tokio::task::JoinError>,
         remaining_active: &mut Vec<ActiveDownload>,
     ) {
-        if self
-            .find_job_mut(&active.source_id, &active.job_id)
-            .is_none()
-        {
+        if self.find_job_mut(&active.job_id).is_none() {
             return;
         }
         let ActiveDownload {
-            source_id,
             job_id,
             media_uri,
             subject,
@@ -250,7 +204,7 @@ impl Actor {
         } = active;
         let result = match joined {
             Ok(Ok(())) => self
-                .commit_transfer(&source_id, &media_uri, &subject, &paths, quality)
+                .commit_transfer(&media_uri, &subject, &paths, quality)
                 .await
                 .map(|_| ()),
             Ok(Err(error)) => Err(error),
@@ -260,49 +214,44 @@ impl Actor {
         };
         let persist = match result {
             Ok(()) => {
-                self.remove_job_track(&source_id, &job_id, &media_uri, true);
+                self.remove_job_track(&job_id, &media_uri, true);
                 true
             }
             Err(DownloadFailure::Item(error)) => {
-                warn!(%error, source_id=?source_id, %media_uri, "could not download track");
+                warn!(%error, %media_uri, "could not download track");
                 self.mark_subject_incomplete(&subject).await;
-                self.remove_job_track(&source_id, &job_id, &media_uri, false);
+                self.remove_job_track(&job_id, &media_uri, false);
                 true
             }
             Err(DownloadFailure::Retry(error)) => {
-                warn!(%error, source_id=?source_id, "download is waiting for the server");
+                warn!(%error, "download is waiting for the server");
                 let completed = self
-                    .abort_matching(remaining_active, true, |download| {
-                        download.source_id == source_id && download.job_id == job_id
-                    })
+                    .abort_matching(remaining_active, true, |download| download.job_id == job_id)
                     .await;
-                if let Some(job) = self.find_job_mut(&source_id, &job_id) {
+                if let Some(job) = self.find_job_mut(&job_id) {
                     job.state = DownloadQueueState::WaitingForConnection;
                 }
                 !completed.is_empty()
             }
             Err(DownloadFailure::NeedsAttention(error)) => {
-                warn!(%error, source_id=?source_id, "download needs attention");
-                self.abort_matching(remaining_active, true, |download| {
-                    download.source_id == source_id && download.job_id == job_id
-                })
-                .await;
-                if let Some(job) = self.find_job_mut(&source_id, &job_id) {
+                warn!(%error, "download needs attention");
+                self.abort_matching(remaining_active, true, |download| download.job_id == job_id)
+                    .await;
+                if let Some(job) = self.find_job_mut(&job_id) {
                     job.state = DownloadQueueState::NeedsAttention;
                 }
                 true
             }
         };
         if persist {
-            self.persist_and_publish(source_id.as_ref()).await;
+            self.persist_and_publish().await;
         } else {
-            self.publish(source_id.as_ref()).await;
+            self.publish().await;
         }
     }
 
     pub(super) async fn commit_transfer(
         &self,
-        source_id: &Option<SourceId>,
         media_uri: &str,
         subject: &DownloadSubject,
         paths: &DownloadPaths,
@@ -335,7 +284,7 @@ impl Actor {
             .map_err(DownloadFailure::NeedsAttention)?
             .unwrap_or_default();
         owners.insert(DownloadOwner::Subject(subject.clone()));
-        file.source_id = source_id.as_ref().map(ToString::to_string);
+        file.source_id = self.source_id().map(ToString::to_string);
         file.path = finished
             .paths
             .audio
@@ -366,10 +315,7 @@ impl Actor {
         }
         file.retired_documents = serde_json::to_string(&retired)
             .map_err(|error| DownloadFailure::NeedsAttention(error.to_string()))?;
-        let source = source_id
-            .as_ref()
-            .and_then(|id| self.attached.get(id))
-            .map(|source| source.source_key);
+        let source = self.attached.as_ref().map(|source| source.source_key);
         let access = download_access(media_uri, &finished.paths, file.completed_size)
             .await
             .map_err(DownloadFailure::NeedsAttention)?;
@@ -379,11 +325,7 @@ impl Actor {
             .commit_download(&file, source, &access)
             .await
             .map_err(|error| DownloadFailure::NeedsAttention(error.to_string()))?;
-        self.events
-            .counts_dirty
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .insert(source_id.clone());
+        self.events.counts_dirty.store(true, Ordering::Release);
         let _ = self
             .events
             .send(DownloadEvent::Changed {

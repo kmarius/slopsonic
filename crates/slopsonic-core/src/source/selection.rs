@@ -553,12 +553,7 @@ impl SourceOwner {
         Ok(())
     }
 
-    pub(super) async fn catalog_updated(
-        &self,
-        source_id: SourceId,
-        source: library::SourceKey,
-        update: CatalogUpdate,
-    ) {
+    pub(super) async fn catalog_updated(&self, source: library::SourceKey, update: CatalogUpdate) {
         if !update.track_rekeys.is_empty()
             && let Ok(playback) = self.shared.playback()
         {
@@ -608,7 +603,7 @@ impl SourceOwner {
             self.request_asset_downloads();
         }
         if update.metadata || update.playlists {
-            self.shared.downloads.library_changed(source_id);
+            self.shared.downloads.library_changed();
         }
         if update.metadata {
             if let Err(error) = self.shared.refresh_source_counts(source).await {

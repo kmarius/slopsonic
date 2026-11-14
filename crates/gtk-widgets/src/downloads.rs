@@ -2,7 +2,6 @@ use adw::prelude::*;
 use artwork::ArtworkBinding;
 use downloads::DownloadSubject;
 use gtk::glib;
-use sources::SourceId;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -39,7 +38,7 @@ pub struct OperationFeedback {
 
 pub struct DownloadsState {
     settings: Rc<crate::settings::SettingsState>,
-    queue_refresh: RefCell<Option<(SourceId, Weak<dyn Fn()>)>>,
+    queue_refresh: RefCell<Option<Weak<dyn Fn()>>>,
     badges: Rc<RefCell<HashMap<usize, DownloadBadgeBinding>>>,
 }
 
@@ -52,18 +51,12 @@ impl DownloadsState {
         })
     }
 
-    pub fn set_queue_refresh(&self, source_id: SourceId, refresh: &Rc<dyn Fn()>) {
-        self.queue_refresh
-            .replace(Some((source_id, Rc::downgrade(refresh))));
+    pub fn set_queue_refresh(&self, refresh: &Rc<dyn Fn()>) {
+        self.queue_refresh.replace(Some(Rc::downgrade(refresh)));
     }
 
-    pub fn refresh_queue(&self, source_id: Option<&SourceId>) {
-        let refresh = self
-            .queue_refresh
-            .borrow()
-            .as_ref()
-            .filter(|(source, _)| Some(source) == source_id)
-            .and_then(|(_, refresh)| refresh.upgrade());
+    pub fn refresh_queue(&self) {
+        let refresh = self.queue_refresh.borrow().as_ref().and_then(Weak::upgrade);
         if let Some(refresh) = refresh {
             refresh();
         }
@@ -196,7 +189,7 @@ pub fn download_rule_artwork(
     artwork: &Rc<crate::artwork::ArtworkState>,
     database: &Arc<library::Database>,
     runtime: &tokio::runtime::Handle,
-    source_id: SourceId,
+    source: Option<library::SourceKey>,
     rule: downloads::DownloadRule,
     size: i32,
 ) -> gtk::Widget {
@@ -205,10 +198,7 @@ pub fn download_rule_artwork(
     let database = Arc::clone(database);
     let task = runtime.spawn(async move {
         let cancellation = library::ReadCancellation::new();
-        let Some(source) = database
-            .cached_source(source_id.as_str(), &cancellation)
-            .await?
-        else {
+        let Some(source) = source else {
             return Ok::<_, library::LibraryError>(Vec::new());
         };
         let scope = match rule {
@@ -226,7 +216,7 @@ pub fn download_rule_artwork(
             }
         };
         database
-            .representative_artwork_page(source.source, None, scope, 4, &cancellation)
+            .representative_artwork_page(source, None, scope, 4, &cancellation)
             .await
     });
     let shell = Rc::downgrade(artwork);

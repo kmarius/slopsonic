@@ -122,34 +122,30 @@ async fn queued_media_survives_restart_serialization() {
     std::fs::write(&old.audio_part, b"old partial").unwrap();
     std::fs::write(&http.audio_part, b"http partial").unwrap();
     for _ in 0..2 {
-        let direct_queue = load_direct_queue(root.path(), &database).await.unwrap();
-        assert_eq!(direct_queue[0].remaining, std::slice::from_ref(&direct));
+        merge_direct_queue(root.path(), &database).await.unwrap();
+        assert!(read_queue_file(root.path(), None).unwrap().is_none());
         let ordinary = load_queue(root.path(), &source_id).await.unwrap();
         assert_eq!(ordinary.len(), 1);
         assert_eq!(ordinary[0].remaining, std::slice::from_ref(&media_uri));
     }
     assert!(!old.audio_part.exists());
-    assert!(http.audio_part.exists());
+    assert!(!http.audio_part.exists());
     let mut actor = actor_for_test(root.path(), database, &source_id, source);
-    let mut settings = SourceDownloadSettings::for_source(source_id.clone());
-    settings.quality = DownloadQuality::Transcoded(library::AudioEncoding {
+    actor.attached = None;
+    actor.settings.quality = DownloadQuality::Transcoded(library::AudioEncoding {
         codec: library::AudioCodec::Opus,
         bitrate_kbps: Some(64),
         channels: library::AudioChannels::Preserve,
     });
-    actor.settings.insert(source_id.clone(), settings.clone());
     actor
         .attach(source_id.clone(), source, None, None)
         .await
         .unwrap();
-    assert_eq!(
-        actor.jobs[&Some(source_id.clone())][0].quality,
-        settings.quality
-    );
+    assert_eq!(actor.jobs[0].quality, actor.settings.quality);
 }
 
 #[tokio::test]
-async fn collection_completion_follows_its_download_jobs_across_sources() {
+async fn collection_completion_follows_its_download_jobs() {
     for fail_first in [false, true] {
         let (_directory, database, source_key, _) = download_fixture("source", "track").await;
         let root = tempfile::tempdir().unwrap();
@@ -162,28 +158,24 @@ async fn collection_completion_follows_its_download_jobs_across_sources() {
             title: None,
         };
         let remote = library::source_entity_uri(&source, "track", "track");
-        let direct = "https://example.org/track.flac".to_string();
+        let second = library::source_entity_uri(&source, "track", "second");
         actor
             .apply(
                 Command::Download {
                     subject: subject.clone(),
-                    media_uris: vec![remote.clone(), direct.clone()],
+                    media_uris: vec![remote.clone(), second.clone()],
                 },
                 &mut Vec::new(),
             )
             .await;
         while received.try_recv().is_ok() {}
 
-        for (index, (group, uri)) in [(Some(source.clone()), remote), (None, direct)]
-            .into_iter()
-            .enumerate()
-        {
-            let job = actor.jobs[&group][0].clone();
-            let paths = download_paths(root.path(), group.as_ref(), &uri);
+        for (index, uri) in [remote, second].into_iter().enumerate() {
+            let job = actor.jobs[0].clone();
+            let paths = download_paths(root.path(), Some(&source), &uri);
             std::fs::create_dir_all(&paths.directory).unwrap();
             std::fs::write(&paths.audio_part, b"completed transfer").unwrap();
             let active = ActiveDownload {
-                source_id: group,
                 job_id: job.id,
                 media_uri: uri,
                 subject: job.subject,
@@ -212,7 +204,8 @@ async fn collection_completion_follows_its_download_jobs_across_sources() {
             assert_eq!(completed, usize::from(index == 1 && !fail_first));
             if index == 0 && fail_first {
                 let saved: QueueFile = serde_json::from_slice(
-                    &std::fs::read(source_directory(root.path(), None).join(QUEUE_FILE)).unwrap(),
+                    &std::fs::read(source_directory(root.path(), Some(&source)).join(QUEUE_FILE))
+                        .unwrap(),
                 )
                 .unwrap();
                 assert!(
@@ -240,23 +233,21 @@ fn actor_for_test(
         events: DownloadEvents {
             sender: events,
             status: tokio::sync::watch::channel(DownloadStatus::default()).0,
-            counts_dirty: Mutex::new(HashSet::new()),
+            counts_dirty: AtomicBool::new(false),
         },
         transfers: Arc::new(TransferClients::default()),
         prepared_rules,
-        sources: Arc::new(|_| None),
-        attached: HashMap::from([(
-            source_id.clone(),
-            AttachedSource {
-                source_key,
-                folder: None,
-                directory: None,
-            },
-        )]),
-        settings: HashMap::new(),
+        sources: Arc::new(|| None),
+        attached: Some(AttachedSource {
+            source_id: source_id.clone(),
+            source_key,
+            folder: None,
+            directory: None,
+        }),
+        settings: DownloadSettings::default(),
         running_rules: None,
         pending_rules: None,
-        jobs: HashMap::new(),
+        jobs: Vec::new(),
         paused: false,
         next_job: 0,
     }
@@ -290,9 +281,7 @@ async fn pausing_cancels_active_work_and_keeps_the_job_queued() {
     let source_id = SourceId::new("pause");
     let mut actor = actor_for_test(root.path(), database, &source_id, source_key);
     let media_uri = test_media(&source_id, source_key, track);
-    actor
-        .jobs
-        .insert(Some(source_id.clone()), vec![test_job(media_uri.clone())]);
+    actor.jobs = vec![test_job(media_uri.clone())];
     let paths = download_paths(root.path(), Some(&source_id), &media_uri);
     let (cancel, cancelled) = tokio::sync::oneshot::channel();
     let task = tokio::spawn(async move {
@@ -300,7 +289,6 @@ async fn pausing_cancels_active_work_and_keeps_the_job_queued() {
         Err(DownloadFailure::Retry("cancelled".to_string()))
     });
     let mut active = vec![ActiveDownload {
-        source_id: Some(source_id.clone()),
         job_id: "job".to_string(),
         media_uri: media_uri.clone(),
         subject: DownloadSubject::for_media_uris(
@@ -318,10 +306,7 @@ async fn pausing_cancels_active_work_and_keeps_the_job_queued() {
 
     assert!(actor.paused);
     assert!(active.is_empty());
-    assert_eq!(
-        actor.jobs[&Some(source_id)][0].state,
-        DownloadQueueState::Queued
-    );
+    assert_eq!(actor.jobs[0].state, DownloadQueueState::Queued);
 }
 
 #[tokio::test]
@@ -331,9 +316,7 @@ async fn cancelling_removes_the_job_and_reconciles_its_staging_file() {
     let source_id = SourceId::new("cancel");
     let mut actor = actor_for_test(root.path(), database, &source_id, source_key);
     let media_uri = test_media(&source_id, source_key, track);
-    actor
-        .jobs
-        .insert(Some(source_id.clone()), vec![test_job(media_uri.clone())]);
+    actor.jobs = vec![test_job(media_uri.clone())];
     let paths = download_paths(root.path(), Some(&source_id), &media_uri);
     std::fs::create_dir_all(paths.audio_part.parent().expect("staging parent"))
         .expect("create staging");
@@ -344,7 +327,6 @@ async fn cancelling_removes_the_job_and_reconciles_its_staging_file() {
         Err(DownloadFailure::Retry("cancelled".to_string()))
     });
     let mut active = vec![ActiveDownload {
-        source_id: Some(source_id.clone()),
         job_id: "job".to_string(),
         media_uri: media_uri.clone(),
         subject: DownloadSubject::for_media_uris(
@@ -358,9 +340,9 @@ async fn cancelling_removes_the_job_and_reconciles_its_staging_file() {
         task,
     }];
 
-    actor.cancel(Some(&source_id), "job", &mut active).await;
+    actor.cancel("job", &mut active).await;
 
-    assert!(actor.jobs[&Some(source_id)].is_empty());
+    assert!(actor.jobs.is_empty());
     assert!(active.is_empty());
     assert!(!paths.audio_part.exists());
 }
@@ -377,7 +359,6 @@ async fn stale_completed_transfer_cannot_commit_after_its_job_was_removed() {
         .expect("create staging");
     std::fs::write(&paths.audio_part, b"complete bytes").expect("write completed staging");
     let active = ActiveDownload {
-        source_id: Some(source_id.clone()),
         job_id: "removed".to_string(),
         media_uri: media_uri.clone(),
         subject: DownloadSubject::for_media_uris(
@@ -405,11 +386,13 @@ async fn authoritative_rule_change_is_retained_while_prior_rules_prepare() {
     let mut actor = actor_for_test(root.path(), database, &source_id, source_key);
     let mut first = DownloadRules::default();
     first.set(DownloadRule::Favorites, true);
-    actor.schedule_rules(&source_id, first);
+    actor.settings.rules = first;
+    actor.reconcile_all_rules();
     assert!(actor.running_rules.is_some());
     let mut replacement = DownloadRules::default();
     replacement.set(DownloadRule::LatestFiveAlbums, true);
-    actor.schedule_rules(&source_id, replacement);
+    actor.settings.rules = replacement;
+    actor.reconcile_all_rules();
 
     assert_eq!(
         actor.pending_rules.as_ref().map(|intent| intent.rules),

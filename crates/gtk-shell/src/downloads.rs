@@ -15,9 +15,7 @@ const OPERATION_FEEDBACK_DURATION: Duration = Duration::from_secs(3);
 impl Shell {
     pub(crate) fn apply_download_event(self: &Rc<Self>, event: DownloadEvent) {
         match event {
-            DownloadEvent::Queue { summary, .. } => {
-                self.downloads.refresh_queue(summary.source_id.as_ref())
-            }
+            DownloadEvent::Queue { .. } => self.downloads.refresh_queue(),
             event @ (DownloadEvent::Changed { .. } | DownloadEvent::SubjectChanged { .. }) => {
                 self.apply_download_change_to_mounted_route(&event);
             }

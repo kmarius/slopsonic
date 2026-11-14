@@ -3,41 +3,23 @@ use super::*;
 impl Actor {
     pub(super) fn queued_owners_for_track(
         &self,
-        source_id: &SourceId,
         identity: &str,
         excluded_subject: Option<&DownloadSubject>,
     ) -> HashSet<DownloadOwner> {
         self.jobs
-            .get(&Some(source_id.clone()))
-            .into_iter()
-            .flatten()
+            .iter()
             .filter(|job| excluded_subject != Some(&job.subject))
             .filter(|job| job.remaining.iter().any(|media_uri| media_uri == identity))
             .map(|job| DownloadOwner::Subject(job.subject.clone()))
             .collect()
     }
 
-    pub(super) fn find_job_mut(
-        &mut self,
-        source_id: &Option<SourceId>,
-        job_id: &str,
-    ) -> Option<&mut DownloadJob> {
-        self.jobs
-            .get_mut(source_id)?
-            .iter_mut()
-            .find(|job| job.id == job_id)
+    pub(super) fn find_job_mut(&mut self, job_id: &str) -> Option<&mut DownloadJob> {
+        self.jobs.iter_mut().find(|job| job.id == job_id)
     }
 
-    pub(super) fn remove_job_track(
-        &mut self,
-        source_id: &Option<SourceId>,
-        job_id: &str,
-        media_uri: &str,
-        completed: bool,
-    ) {
-        let Some(jobs) = self.jobs.get_mut(source_id) else {
-            return;
-        };
+    pub(super) fn remove_job_track(&mut self, job_id: &str, media_uri: &str, completed: bool) {
+        let jobs = &mut self.jobs;
         let Some(job_index) = jobs.iter().position(|job| job.id == job_id) else {
             return;
         };
@@ -63,12 +45,7 @@ impl Actor {
     }
 
     pub(super) fn publish_subject_complete(&self, subject: &DownloadSubject) {
-        if !self
-            .jobs
-            .values()
-            .flatten()
-            .any(|job| &job.subject == subject)
-        {
+        if !self.jobs.iter().any(|job| &job.subject == subject) {
             let _ = self.events.try_send(DownloadEvent::SubjectChanged {
                 subject: subject.clone(),
                 downloaded: true,
@@ -77,18 +54,20 @@ impl Actor {
     }
 
     pub(super) async fn mark_subject_incomplete(&mut self, subject: &DownloadSubject) {
-        for (source, jobs) in &mut self.jobs {
-            let mut changed = false;
-            for job in jobs
-                .iter_mut()
-                .filter(|job| &job.subject == subject && !job.failed)
-            {
-                job.failed = true;
-                changed = true;
-            }
-            if changed && let Err(error) = persist_queue(&self.root, source.as_ref(), jobs).await {
-                warn!(%error, "could not save download progress");
-            }
+        let mut changed = false;
+        for job in self
+            .jobs
+            .iter_mut()
+            .filter(|job| &job.subject == subject && !job.failed)
+        {
+            job.failed = true;
+            changed = true;
+        }
+        if changed
+            && let Some(source_id) = self.source_id()
+            && let Err(error) = persist_queue(&self.root, Some(source_id), &self.jobs).await
+        {
+            warn!(%error, "could not save download progress");
         }
         let _ = self.events.try_send(DownloadEvent::SubjectChanged {
             subject: subject.clone(),
@@ -97,62 +76,38 @@ impl Actor {
     }
 
     pub(super) fn retry_waiting(&mut self) {
-        for jobs in self.jobs.values_mut() {
-            if let Some(first) = jobs.first_mut()
-                && first.state == DownloadQueueState::WaitingForConnection
-            {
-                first.state = DownloadQueueState::Queued;
-            }
+        if let Some(first) = self.jobs.first_mut()
+            && first.state == DownloadQueueState::WaitingForConnection
+        {
+            first.state = DownloadQueueState::Queued;
         }
     }
 
-    pub(super) async fn source(&self, source_id: &SourceId) -> Option<Arc<Source>> {
-        let (resolve, source_id) = (Arc::clone(&self.sources), source_id.clone());
-        tokio::task::spawn_blocking(move || resolve(&source_id))
+    pub(super) async fn source(&self) -> Option<Arc<Source>> {
+        let resolve = Arc::clone(&self.sources);
+        tokio::task::spawn_blocking(move || resolve())
             .await
             .ok()
             .flatten()
     }
 
-    pub(super) async fn cancel(
-        &mut self,
-        source_id: Option<&SourceId>,
-        job_id: &str,
-        active: &mut Vec<ActiveDownload>,
-    ) {
-        let group = source_id.cloned();
+    pub(super) async fn cancel(&mut self, job_id: &str, active: &mut Vec<ActiveDownload>) {
         let subject = self
             .jobs
-            .get(&group)
-            .and_then(|jobs| jobs.iter().find(|job| job.id == job_id))
+            .iter()
+            .find(|job| job.id == job_id)
             .map(|job| job.subject.clone());
         let Some(subject) = subject else { return };
         self.mark_subject_incomplete(&subject).await;
-        self.abort_matching(active, true, |download| {
-            download.source_id.as_ref() == source_id && download.job_id == job_id
-        })
-        .await;
-        self.jobs
-            .entry(group.clone())
-            .or_default()
-            .retain(|job| job.id != job_id);
-        self.reconcile_staging(&group).await;
-        self.persist_and_publish(source_id).await;
+        self.abort_matching(active, true, |download| download.job_id == job_id)
+            .await;
+        self.jobs.retain(|job| job.id != job_id);
+        self.reconcile_staging().await;
+        self.persist_and_publish().await;
     }
 
-    pub(super) async fn clear_job(
-        &mut self,
-        source_id: &SourceId,
-        job_id: &str,
-        active: &mut Vec<ActiveDownload>,
-    ) {
-        let group = Some(source_id.clone());
-        let Some(job) = self
-            .jobs
-            .get(&group)
-            .and_then(|jobs| jobs.iter().find(|job| job.id == job_id))
-            .cloned()
-        else {
+    pub(super) async fn clear_job(&mut self, job_id: &str, active: &mut Vec<ActiveDownload>) {
+        let Some(job) = self.jobs.iter().find(|job| job.id == job_id).cloned() else {
             return;
         };
         self.mark_subject_incomplete(&job.subject).await;
@@ -160,26 +115,19 @@ impl Actor {
             .completed
             .into_iter()
             .chain(
-                self.abort_matching(active, true, |download| {
-                    download.source_id.as_ref() == Some(source_id) && download.job_id == job_id
-                })
-                .await,
+                self.abort_matching(active, true, |download| download.job_id == job_id)
+                    .await,
             )
             .collect::<HashSet<_>>();
         let subject = job.subject;
-        self.jobs
-            .entry(group.clone())
-            .or_default()
-            .retain(|job| job.id != job_id);
-        self.reconcile_staging(&group).await;
-        self.release_owner(source_id, &subject, Some(&completed), false)
-            .await;
-        self.persist_and_publish(Some(source_id)).await;
+        self.jobs.retain(|job| job.id != job_id);
+        self.reconcile_staging().await;
+        self.release_owner(&subject, Some(&completed), false).await;
+        self.persist_and_publish().await;
     }
 
     pub(super) async fn release_owner(
         &self,
-        source_id: &SourceId,
         subject: &DownloadSubject,
         media_ids: Option<&HashSet<String>>,
         retain: bool,
@@ -187,6 +135,9 @@ impl Actor {
         if media_ids.is_some_and(HashSet::is_empty) {
             return;
         }
+        let Some(source_id) = self.source_id() else {
+            return;
+        };
         let owner = DownloadOwner::Subject(subject.clone());
         let owner_key = serde_json::to_string(&owner).expect("download ownership can be stored");
         let mut after = (String::new(), String::new());
@@ -216,7 +167,7 @@ impl Actor {
                 if retain {
                     owners.insert(DownloadOwner::Retained);
                 }
-                owners.extend(self.queued_owners_for_track(source_id, &record.media_uri, None));
+                owners.extend(self.queued_owners_for_track(&record.media_uri, None));
                 if let Err(error) = self.store_owners(&mut record, owners).await {
                     warn!(%error, %source_id, media_uri=%record.media_uri, "could not update download ownership");
                 }
@@ -240,13 +191,8 @@ impl Actor {
         }
     }
 
-    pub(super) async fn move_job(
-        &mut self,
-        source_id: &SourceId,
-        job_id: &str,
-        movement: DownloadQueueMove,
-    ) {
-        let jobs = self.jobs.entry(Some(source_id.clone())).or_default();
+    pub(super) async fn move_job(&mut self, job_id: &str, movement: DownloadQueueMove) {
+        let jobs = &mut self.jobs;
         let (target, after) = match movement {
             DownloadQueueMove::Before { job_id } => (job_id, false),
             DownloadQueueMove::After { job_id } => (job_id, true),
@@ -268,28 +214,27 @@ impl Actor {
         };
         let changed = reorder_jobs(jobs, job_id, &target, after);
         if changed {
-            self.persist_and_publish(Some(source_id)).await;
+            self.persist_and_publish().await;
         } else {
-            self.publish(Some(source_id)).await;
+            self.publish().await;
         }
     }
 
-    pub(super) async fn clear(&mut self, source_id: &SourceId, notify: bool) {
+    pub(super) async fn clear(&mut self, notify: bool) {
         let subjects = self
             .jobs
-            .get(&Some(source_id.clone()))
-            .into_iter()
-            .flatten()
+            .iter()
             .map(|job| job.subject.clone())
             .collect::<HashSet<_>>();
         for subject in subjects {
             self.mark_subject_incomplete(&subject).await;
         }
-        let staging_directory = self
-            .attached
-            .get(source_id)
-            .and_then(|attached| attached.directory.clone());
-        self.jobs.remove(&Some(source_id.clone()));
+        let Some(attached) = self.attached.clone() else {
+            return;
+        };
+        let source_id = &attached.source_id;
+        let staging_directory = attached.directory.clone();
+        self.jobs.clear();
         let directory = source_directory(&self.root, Some(source_id));
         let result = async {
             cleanup_staging(
@@ -333,7 +278,7 @@ impl Actor {
         .await;
         match result {
             Ok(()) => {
-                self.publish(Some(source_id)).await;
+                self.publish().await;
                 if notify {
                     let _ = self
                         .events
@@ -355,57 +300,37 @@ impl Actor {
         }
     }
 
-    pub(super) async fn persist_and_publish(&self, source_id: Option<&SourceId>) {
-        let group = source_id.cloned();
-        if let Err(error) = persist_queue(
-            &self.root,
-            source_id,
-            self.jobs.get(&group).map(Vec::as_slice).unwrap_or(&[]),
-        )
-        .await
+    pub(super) async fn persist_and_publish(&self) {
+        if let Some(source_id) = self.source_id()
+            && let Err(error) = persist_queue(&self.root, Some(source_id), &self.jobs).await
         {
-            warn!(%error, source_id=?source_id, "could not save the download queue");
+            warn!(%error, %source_id, "could not save the download queue");
         }
-        self.publish(source_id).await;
+        self.publish().await;
     }
 
-    pub(super) async fn publish_all(&self) {
-        let source_ids = self.jobs.keys().cloned().collect::<Vec<_>>();
-        for source_id in source_ids {
-            self.publish(source_id.as_ref()).await;
-        }
-    }
-
-    pub(super) async fn publish(&self, source_id: Option<&SourceId>) {
-        let group = source_id.cloned();
+    pub(super) async fn publish(&self) {
         let previous = self
             .events
             .status
             .borrow()
-            .queues
-            .iter()
-            .find(|queue| queue.source_id == group)
+            .queue
+            .as_ref()
             .map(|queue| queue.downloaded_tracks);
-        let changed = self
-            .events
-            .counts_dirty
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .remove(&group);
-        let downloaded_tracks = if changed || previous.is_none() {
-            self.database
-                .downloaded_count(source_id.map(SourceId::as_str))
+        let changed = self.events.counts_dirty.swap(false, Ordering::AcqRel);
+        let downloaded_tracks = match previous {
+            Some(previous) if !changed => previous,
+            _ => self
+                .database
+                .downloaded_count(self.source_id().map(SourceId::as_str))
                 .await
-                .unwrap_or_default() as u64
-        } else {
-            previous.unwrap()
+                .unwrap_or_default() as u64,
         };
         let _ = self
             .events
             .send(DownloadEvent::Queue {
                 summary: DownloadQueueSummary {
-                    source_id: group.clone(),
-                    total_jobs: self.jobs.get(&group).map_or(0, |jobs| jobs.len() as u64),
+                    total_jobs: self.jobs.len() as u64,
                     downloaded_tracks,
                 },
                 paused: self.paused,
@@ -413,42 +338,16 @@ impl Actor {
             .await;
     }
 
-    pub(super) async fn queue_page(
-        &self,
-        scope: DownloadQueueScope,
-        offset: u64,
-        limit: u32,
-    ) -> Result<DownloadPage, String> {
-        let mut groups = self
+    pub(super) async fn queue_page(&self, offset: u64, limit: u32) -> Result<DownloadPage, String> {
+        let total = self.jobs.len() as u64;
+        let offset = usize::try_from(offset).unwrap_or(usize::MAX);
+        let jobs = self
             .jobs
             .iter()
-            .filter(|(source, _)| match &scope {
-                DownloadQueueScope::Source { source_id } => source.as_ref() == Some(source_id),
-                DownloadQueueScope::Direct => source.is_none(),
-            })
+            .skip(offset)
+            .take(limit.min(128) as usize)
+            .map(DownloadJob::queue_item)
             .collect::<Vec<_>>();
-        groups.sort_by(|(a, _), (b, _)| a.cmp(b));
-        let total = groups.iter().map(|(_, jobs)| jobs.len() as u64).sum();
-        let mut offset = usize::try_from(offset).unwrap_or(usize::MAX);
-        let limit = limit.min(128) as usize;
-        let mut jobs = Vec::with_capacity(limit);
-        for (source, queued) in groups {
-            if offset >= queued.len() {
-                offset -= queued.len();
-                continue;
-            }
-            jobs.extend(
-                queued
-                    .iter()
-                    .skip(offset)
-                    .take(limit - jobs.len())
-                    .map(|job| job.queue_item(source.clone())),
-            );
-            offset = 0;
-            if jobs.len() == limit {
-                break;
-            }
-        }
         let uris = jobs
             .iter()
             .filter_map(|job| job.preview_uris.first().cloned())

@@ -1,14 +1,13 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use downloads::{DownloadRules, SourceDownloadSettings};
+use downloads::{DownloadRules, DownloadSettings};
 use library::PlayedFilter;
 use playback::{
     DEFAULT_AUTO_DJ_REFILL_THRESHOLD, MAX_AUTO_DJ_REFILL_THRESHOLD, MIN_AUTO_DJ_REFILL_THRESHOLD,
     PlaybackSettings, RepeatMode,
 };
 use serde::{Deserialize, Serialize};
-use sources::SourceId;
 
 use super::{
     AccentPreference, ContextMenuSettings, LayoutSettings, LibraryListKey, LibraryListSettings,
@@ -178,8 +177,8 @@ pub struct Settings {
     pub layout: LayoutSettings,
     #[serde(default)]
     pub sidebar: SidebarSettings,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub downloads: Vec<SourceDownloadSettings>,
+    #[serde(default, skip_serializing_if = "DownloadSettings::is_default")]
+    pub downloads: DownloadSettings,
     #[serde(default = "default_true")]
     pub type_to_search_enabled: bool,
     #[serde(default)]
@@ -211,7 +210,7 @@ impl Default for Settings {
             recent_search_results: Vec::new(),
             layout: LayoutSettings::default(),
             sidebar: SidebarSettings::default(),
-            downloads: Vec::new(),
+            downloads: DownloadSettings::default(),
             type_to_search_enabled: true,
             lastfm_api_key: String::new(),
             auto_dj_enabled: false,
@@ -260,7 +259,14 @@ impl Settings {
             self.window_height = None;
         }
         sanitize_home_blocks(&mut self.application.home_blocks);
-        sanitize_downloads(&mut self.downloads);
+        if self
+            .downloads
+            .directory
+            .as_ref()
+            .is_some_and(|directory| directory.as_os_str().is_empty())
+        {
+            self.downloads.directory = None;
+        }
     }
 
     pub fn library_list(&self, key: LibraryListKey) -> LibraryListSettings {
@@ -271,68 +277,22 @@ impl Settings {
             .unwrap_or_else(|| LibraryListSettings::for_key(key))
     }
 
-    pub fn download_rules(&self, source_id: &SourceId) -> DownloadRules {
-        self.download_settings(source_id).rules
+    pub fn set_download_rules(&mut self, rules: DownloadRules) -> bool {
+        self.update_download_settings(|settings| settings.rules = rules)
     }
 
-    pub fn download_directory(&self, source_id: &SourceId) -> Option<PathBuf> {
-        self.download_settings(source_id).directory
+    pub fn set_download_quality(&mut self, quality: sources::DownloadQuality) -> bool {
+        self.update_download_settings(|settings| settings.quality = quality)
     }
 
-    pub fn download_settings(&self, source_id: &SourceId) -> SourceDownloadSettings {
-        self.downloads
-            .iter()
-            .find(|entry| &entry.source_id == source_id)
-            .cloned()
-            .unwrap_or_else(|| SourceDownloadSettings::for_source(source_id.clone()))
+    pub fn set_download_directory(&mut self, directory: Option<PathBuf>) -> bool {
+        self.update_download_settings(|settings| settings.directory = directory)
     }
 
-    pub fn set_download_rules(&mut self, source_id: SourceId, rules: DownloadRules) -> bool {
-        self.update_download_settings(source_id, |settings| settings.rules = rules)
-    }
-
-    pub fn set_download_quality(
-        &mut self,
-        source_id: SourceId,
-        quality: sources::DownloadQuality,
-    ) -> bool {
-        self.update_download_settings(source_id, |settings| settings.quality = quality)
-    }
-
-    pub fn set_download_directory(
-        &mut self,
-        source_id: SourceId,
-        directory: Option<PathBuf>,
-    ) -> bool {
-        self.set_download_location(source_id, directory)
-    }
-
-    pub fn set_download_location(
-        &mut self,
-        source_id: SourceId,
-        directory: Option<PathBuf>,
-    ) -> bool {
-        self.update_download_settings(source_id, |settings| settings.directory = directory)
-    }
-
-    fn update_download_settings(
-        &mut self,
-        source_id: SourceId,
-        update: impl FnOnce(&mut SourceDownloadSettings),
-    ) -> bool {
-        let previous = self.download_settings(&source_id);
-        let mut next = previous.clone();
-        update(&mut next);
-        if previous == next {
-            return false;
-        }
-        self.downloads.retain(|entry| entry.source_id != source_id);
-        if !next.is_default() {
-            self.downloads.push(next);
-            self.downloads
-                .sort_by(|left, right| left.source_id.cmp(&right.source_id));
-        }
-        true
+    fn update_download_settings(&mut self, update: impl FnOnce(&mut DownloadSettings)) -> bool {
+        let previous = self.downloads.clone();
+        update(&mut self.downloads);
+        previous != self.downloads
     }
 }
 
@@ -399,21 +359,6 @@ pub(super) fn migrate_library_lists(lists: &mut Vec<LibraryListSettingsEntry>) {
     for entry in lists {
         entry.settings.sanitize(entry.key);
     }
-}
-
-fn sanitize_downloads(downloads: &mut Vec<SourceDownloadSettings>) {
-    for entry in downloads.iter_mut() {
-        if entry
-            .directory
-            .as_ref()
-            .is_some_and(|directory| directory.as_os_str().is_empty())
-        {
-            entry.directory = None;
-        }
-    }
-    downloads.retain(|entry| !entry.is_default());
-    downloads.sort_by(|left, right| left.source_id.cmp(&right.source_id));
-    downloads.dedup_by(|left, right| left.source_id == right.source_id);
 }
 
 #[cfg(test)]

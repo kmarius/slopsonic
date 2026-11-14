@@ -1,85 +1,46 @@
 use super::*;
 
 impl Actor {
-    pub(super) fn settings_for(&self, source_id: &SourceId) -> SourceDownloadSettings {
-        self.settings
-            .get(source_id)
-            .cloned()
-            .unwrap_or_else(|| SourceDownloadSettings::for_source(source_id.clone()))
-    }
-
     pub(super) async fn apply_settings(
         &mut self,
-        settings: Vec<SourceDownloadSettings>,
+        settings: DownloadSettings,
         active: &mut Vec<ActiveDownload>,
     ) {
-        let settings = settings
-            .into_iter()
-            .map(|settings| (settings.source_id.clone(), settings))
-            .collect::<HashMap<_, _>>();
-        let changed_quality = self
-            .settings
-            .keys()
-            .chain(settings.keys())
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .filter_map(|id| {
-                let quality = settings
-                    .get(id)
-                    .map_or(DownloadQuality::Original, |setting| setting.quality);
-                (self.settings_for(id).quality != quality).then(|| (id.clone(), quality))
-            })
-            .collect::<Vec<_>>();
+        let quality = settings.quality;
+        let quality_changed = self.settings.quality != quality;
+        let directory = settings.directory.clone();
         self.settings = settings;
-        let source_ids = self.attached.keys().cloned().collect::<Vec<_>>();
-        for source_id in &source_ids {
-            let directory = self
-                .settings
-                .get(source_id)
-                .and_then(|settings| settings.directory.clone());
-            if self
-                .attached
-                .get(source_id)
-                .is_some_and(|attached| attached.directory != directory)
-            {
-                self.abort_matching(active, false, |download| {
-                    download.source_id.as_ref() == Some(source_id)
-                })
+        if self
+            .attached
+            .as_ref()
+            .is_some_and(|attached| attached.directory != directory)
+        {
+            self.abort_matching(active, false, |_| true).await;
+            self.discard_previous_directory(&directory).await;
+            if let Some(attached) = self.attached.as_mut() {
+                attached.directory = directory;
+            }
+        }
+        if quality_changed {
+            self.abort_matching(active, true, |download| download.quality != quality)
                 .await;
-                self.discard_previous_directory(source_id, &directory).await;
-                if let Some(attached) = self.attached.get_mut(source_id) {
-                    attached.directory = directory;
-                }
+            for job in &mut self.jobs {
+                job.quality = quality;
+                job.replace_unknown = true;
+                job.remaining.extend(job.completed.drain(..));
+                job.failed = false;
+                job.state = DownloadQueueState::Queued;
             }
+            self.requeue_downloads(quality, false).await;
         }
-        for (source_id, quality) in changed_quality {
-            self.abort_matching(active, true, |download| {
-                download.source_id.as_ref() == Some(&source_id) && download.quality != quality
-            })
-            .await;
-            if let Some(jobs) = self.jobs.get_mut(&Some(source_id.clone())) {
-                for job in jobs {
-                    job.quality = quality;
-                    job.replace_unknown = true;
-                    job.remaining.extend(job.completed.drain(..));
-                    job.failed = false;
-                    job.state = DownloadQueueState::Queued;
-                }
-            }
-            self.requeue_downloads(&source_id, quality, false).await;
-        }
-        for source_id in source_ids {
-            self.reconcile_all_rules(&source_id);
-        }
+        self.reconcile_all_rules();
     }
 
     /// Downloads again every file of the source, or only those whose audio changed on the server.
-    pub(super) async fn requeue_downloads(
-        &mut self,
-        source_id: &SourceId,
-        quality: DownloadQuality,
-        stale: bool,
-    ) {
+    pub(super) async fn requeue_downloads(&mut self, quality: DownloadQuality, stale: bool) {
+        let Some(source_id) = self.source_id().cloned() else {
+            return;
+        };
         let mut after = (String::new(), String::new());
         loop {
             let records = match self
@@ -116,21 +77,16 @@ impl Actor {
                 }
             }
             for (subject, uris) in replacements {
-                self.enqueue(Some(source_id.clone()), subject, quality, uris, true)
-                    .await;
+                self.enqueue(subject, quality, uris, true).await;
             }
         }
     }
 
-    pub(super) fn reconcile_all_rules(&mut self, source_id: &SourceId) {
-        let rules = self.settings_for(source_id).rules;
-        self.schedule_rules(source_id, rules);
-    }
-
-    pub(super) fn schedule_rules(&mut self, source_id: &SourceId, rules: DownloadRules) {
-        let Some(attached) = self.attached.get(source_id) else {
+    pub(super) fn reconcile_all_rules(&mut self) {
+        let Some(attached) = &self.attached else {
             return;
         };
+        let rules = self.settings.rules;
         self.pending_rules = Some(RuleIntent {
             database: self.database.clone(),
             source_key: attached.source_key,
@@ -163,25 +119,26 @@ impl Actor {
         let Some(intent) = self.running_rules.take() else {
             return;
         };
-        let Some(source_id) = self.attached.iter().find_map(|(id, attached)| {
-            (attached.source_key == intent.source_key).then(|| id.clone())
-        }) else {
+        let Some(attached) = self
+            .attached
+            .as_ref()
+            .filter(|attached| attached.source_key == intent.source_key)
+        else {
             self.start_rule_preparation();
             return;
         };
         let superseded = self.pending_rules.is_some();
-        let same_context = self.attached[&source_id].folder == intent.folder;
+        let same_context = attached.folder == intent.folder;
         if !superseded && same_context {
             match prepared {
                 Ok(prepared) => {
-                    let quality = self.settings_for(&source_id).quality;
+                    let quality = self.settings.quality;
                     for (rule, media_uris) in prepared {
-                        self.reconcile_rule(source_id.clone(), rule, quality, media_uris, active)
-                            .await;
+                        self.reconcile_rule(rule, quality, media_uris, active).await;
                     }
                 }
                 Err(error) => {
-                    warn!(%error, %source_id, "could not prepare automatic downloads");
+                    warn!(%error, "could not prepare automatic downloads");
                 }
             }
         }
@@ -190,16 +147,15 @@ impl Actor {
 
     pub(super) async fn reconcile_rule(
         &mut self,
-        source_id: SourceId,
         rule: DownloadRule,
         quality: DownloadQuality,
         media_uris: Vec<String>,
         active: &mut Vec<ActiveDownload>,
     ) {
-        if !self.attached.contains_key(&source_id) {
-            warn!(%source_id, "ignored download reconciliation for an unattached source");
+        let Some(source_id) = self.source_id().cloned() else {
+            warn!("ignored download reconciliation without an attached server");
             return;
-        }
+        };
 
         let mut seen = HashSet::new();
         let media_uris = media_uris
@@ -208,22 +164,18 @@ impl Actor {
             .collect::<Vec<_>>();
         let desired = media_uris.iter().cloned().collect::<HashSet<_>>();
         let subject = DownloadSubject::Rule(rule);
-        let group = Some(source_id.clone());
-        let quality_changed = self.jobs.get(&group).is_some_and(|jobs| {
-            jobs.iter()
-                .any(|job| job.subject == subject && job.quality != quality)
-        });
+        let quality_changed = self
+            .jobs
+            .iter()
+            .any(|job| job.subject == subject && job.quality != quality);
         self.abort_matching(active, true, |download| {
-            download.source_id.as_ref() == Some(&source_id)
-                && download.subject == subject
+            download.subject == subject
                 && (quality_changed || !desired.contains(&download.media_uri))
         })
         .await;
         let active_job_id = active
             .iter()
-            .find(|download| {
-                download.source_id.as_ref() == Some(&source_id) && download.subject == subject
-            })
+            .find(|download| download.subject == subject)
             .map(|download| download.job_id.clone());
         let owner = DownloadOwner::Subject(subject.clone());
 
@@ -252,32 +204,22 @@ impl Actor {
                     continue;
                 };
                 owners.remove(&owner);
-                owners.extend(self.queued_owners_for_track(
-                    &source_id,
-                    &record.media_uri,
-                    Some(&subject),
-                ));
+                owners.extend(self.queued_owners_for_track(&record.media_uri, Some(&subject)));
                 if let Err(error) = self.store_owners(&mut record, owners).await {
                     warn!(%error, %source_id, media_uri=%record.media_uri, "could not update rule ownership");
                 }
             }
         }
 
-        let replace_unknown = self.jobs.get(&Some(source_id.clone())).is_some_and(|jobs| {
-            jobs.iter()
-                .any(|job| job.subject == subject && job.replace_unknown)
-        });
+        let replace_unknown = self
+            .jobs
+            .iter()
+            .any(|job| job.subject == subject && job.replace_unknown);
         let mut completed = Vec::new();
         let mut remaining = Vec::new();
         for media_uri in &media_uris {
             match self
-                .add_download_owner(
-                    Some(&source_id),
-                    media_uri,
-                    &owner,
-                    quality,
-                    replace_unknown,
-                )
+                .add_download_owner(media_uri, &owner, quality, replace_unknown)
                 .await
             {
                 Ok(true) => completed.push(media_uri.clone()),
@@ -289,7 +231,7 @@ impl Actor {
             }
         }
 
-        let jobs = self.jobs.entry(group).or_default();
+        let jobs = &mut self.jobs;
         let existing_index = jobs.iter().position(|job| job.subject == subject);
         let existing_id = existing_index.map(|index| jobs[index].id.clone());
         let old_remaining = jobs
@@ -306,7 +248,7 @@ impl Actor {
         if !remaining.is_empty() {
             let id = existing_id.unwrap_or_else(|| {
                 self.next_job = self.next_job.wrapping_add(1);
-                job_id(Some(&source_id), &subject, self.next_job)
+                job_id(&subject, self.next_job)
             });
             let state = if active_job_id.as_deref() == Some(id.as_str()) {
                 DownloadQueueState::Downloading
@@ -325,9 +267,9 @@ impl Actor {
             };
             jobs.insert(existing_index.unwrap_or(jobs.len()).min(jobs.len()), job);
         }
-        self.reconcile_staging(&Some(source_id.clone())).await;
+        self.reconcile_staging().await;
 
-        self.persist_and_publish(Some(&source_id)).await;
+        self.persist_and_publish().await;
         if scheduled_tracks > 0 {
             let _ = self
                 .events

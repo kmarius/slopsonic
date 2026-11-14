@@ -8,43 +8,45 @@ impl Actor {
         folder: Option<FolderKey>,
         directory: Option<PathBuf>,
     ) -> Result<(), String> {
-        let unchanged = self.attached.get(&source_id).is_some_and(|attached| {
-            attached.directory == directory && attached.source_key == source_key
+        let same_source = self
+            .attached
+            .as_ref()
+            .is_some_and(|attached| attached.source_id == source_id);
+        let unchanged = same_source
+            && self.attached.as_ref().is_some_and(|attached| {
+                attached.directory == directory && attached.source_key == source_key
+            });
+        if same_source {
+            self.discard_previous_directory(&directory).await;
+        }
+        self.attached = Some(AttachedSource {
+            source_id: source_id.clone(),
+            source_key,
+            folder,
+            directory: directory.clone(),
         });
-        self.discard_previous_directory(&source_id, &directory)
-            .await;
-        self.attached.insert(
-            source_id.clone(),
-            AttachedSource {
-                source_key,
-                folder,
-                directory: directory.clone(),
-            },
-        );
-        let group = Some(source_id.clone());
-        if unchanged && self.jobs.contains_key(&group) {
+        if unchanged {
             self.retry_waiting();
-            self.publish(Some(&source_id)).await;
+            self.publish().await;
             return Ok(());
         }
         let mut attachment_error = None;
-        self.events
-            .counts_dirty
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .insert(group.clone());
-        let mut jobs = if let Some(jobs) = self.jobs.get(&group) {
-            jobs.clone()
+        self.events.counts_dirty.store(true, Ordering::Release);
+        let mut jobs = if same_source {
+            std::mem::take(&mut self.jobs)
         } else {
             match load_queue(&self.root, &source_id).await {
                 Ok(jobs) => jobs,
                 Err(error) => {
                     warn!(%error, %source_id, "could not load the download queue");
+                    // The next attach retries the load instead of overwriting the saved queue.
+                    self.attached = None;
+                    self.jobs.clear();
                     return Err(error);
                 }
             }
         };
-        let quality = self.settings_for(&source_id).quality;
+        let quality = self.settings.quality;
         jobs.retain_mut(|job| {
             if job.quality != quality {
                 job.quality = quality;
@@ -68,14 +70,13 @@ impl Actor {
         {
             attachment_error.get_or_insert_with(|| error.to_string());
         }
-        self.jobs.insert(group.clone(), jobs);
-        self.persist_and_publish(group.as_ref()).await;
+        self.jobs = jobs;
+        self.persist_and_publish().await;
         attachment_error.map_or(Ok(()), Err)
     }
 
     pub(super) async fn add_download_owner(
         &self,
-        source_id: Option<&SourceId>,
         media_uri: &str,
         owner: &DownloadOwner,
         quality: DownloadQuality,
@@ -123,7 +124,7 @@ impl Actor {
             return Ok(false);
         };
         file.media_uri = media_uri.into();
-        file.source_id = source_id.map(ToString::to_string);
+        file.source_id = self.source_id().map(ToString::to_string);
         let mut owners = download_owners(&file)?;
         if !owners.insert(owner.clone())
             && previous.as_ref().is_some_and(|previous| {
@@ -134,9 +135,7 @@ impl Actor {
             return Ok(true);
         }
         file.owners = serde_json::to_string(&owners).map_err(|error| error.to_string())?;
-        let source = source_id
-            .and_then(|source| self.attached.get(source))
-            .map(|source| source.source_key);
+        let source = self.attached.as_ref().map(|source| source.source_key);
         let access = download_access(media_uri, &paths, file.completed_size).await?;
         file.storage_root = access.root.clone();
         file.relative_path = access.relative_path.clone();
@@ -155,7 +154,6 @@ impl Actor {
 
     pub(super) async fn enqueue(
         &mut self,
-        source_id: Option<SourceId>,
         subject: DownloadSubject,
         quality: DownloadQuality,
         media_uris: Vec<String>,
@@ -175,19 +173,13 @@ impl Actor {
         let mut remaining = Vec::new();
         for media_uri in &media_uris {
             match self
-                .add_download_owner(
-                    source_id.as_ref(),
-                    media_uri,
-                    &owner,
-                    quality,
-                    replace_unknown,
-                )
+                .add_download_owner(media_uri, &owner, quality, replace_unknown)
                 .await
             {
                 Ok(true) => completed.push(media_uri.clone()),
                 Ok(false) => remaining.push(media_uri.clone()),
                 Err(error) => {
-                    warn!(%error, source_id=?source_id, %media_uri, "could not update download ownership");
+                    warn!(%error, %media_uri, "could not update download ownership");
                     remaining.push(media_uri.clone());
                 }
             }
@@ -195,7 +187,7 @@ impl Actor {
 
         let mut scheduled_tracks = 0usize;
         if !remaining.is_empty() || !completed.is_empty() {
-            let jobs = self.jobs.entry(source_id.clone()).or_default();
+            let jobs = &mut self.jobs;
             if let Some(existing_index) = jobs
                 .iter()
                 .position(|job| job.subject == subject && job.quality == quality)
@@ -234,7 +226,7 @@ impl Actor {
                 scheduled_tracks = remaining.len();
                 self.next_job = self.next_job.wrapping_add(1);
                 jobs.push(DownloadJob {
-                    id: job_id(source_id.as_ref(), &subject, self.next_job),
+                    id: job_id(&subject, self.next_job),
                     subject: subject.clone(),
                     quality,
                     replace_unknown,
@@ -246,7 +238,7 @@ impl Actor {
             }
         }
 
-        self.persist_and_publish(source_id.as_ref()).await;
+        self.persist_and_publish().await;
         (scheduled_tracks > 0).then(|| DownloadFeedback {
             subject,
             preview_uris: media_uris.iter().take(4).cloned().collect(),

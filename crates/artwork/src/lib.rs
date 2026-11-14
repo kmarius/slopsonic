@@ -9,7 +9,7 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
 use md5_digest::{Digest, Md5};
-use sources::{ImageSize, Source, SourceId};
+use sources::{ImageSize, Source};
 use thiserror::Error;
 use tokio::runtime::Handle;
 use tokio::sync::oneshot;
@@ -26,7 +26,7 @@ pub use cache::{ArtworkCacheEntries, ArtworkCacheEntry};
 pub use decode::{DecodedImage, RgbaImage, collage_png, decode_rgba, image_mime};
 pub use selection::ArtworkBinding;
 
-pub(crate) type SourceResolver = dyn Fn(&SourceId) -> Option<Arc<Source>> + Send + Sync;
+pub(crate) type SourceResolver = dyn Fn() -> Option<Arc<Source>> + Send + Sync;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ArtworkRequest {
     pub binding: ArtworkBinding,
@@ -293,7 +293,7 @@ impl Artwork {
 
     pub fn install_source_resolver(
         &self,
-        resolver: impl Fn(&SourceId) -> Option<Arc<Source>> + Send + Sync + 'static,
+        resolver: impl Fn() -> Option<Arc<Source>> + Send + Sync + 'static,
     ) {
         *self
             .source_resolver
@@ -342,8 +342,9 @@ impl Artwork {
             .map_err(|error| error.to_string())
     }
 
-    pub fn invalidate_source(&self, source_id: &SourceId) -> Result<(), ArtworkError> {
-        self.pipeline.invalidate_source(source_id)
+    /// Drops every cached server image, keeping generated playlist artwork.
+    pub fn invalidate_server_images(&self) -> Result<(), ArtworkError> {
+        self.pipeline.invalidate_server_images()
     }
 
     pub fn invalidate_image(&self, binding: &ArtworkBinding) -> Result<bool, ArtworkError> {
@@ -354,6 +355,7 @@ impl Artwork {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sources::SourceId;
     use std::sync::atomic::AtomicUsize;
 
     #[test]
@@ -384,7 +386,7 @@ mod tests {
         assert!(!first.same_image(&original));
         assert!(first.same_asset(&original));
 
-        artwork.invalidate_source(&SourceId::new("source")).unwrap();
+        artwork.invalidate_server_images().unwrap();
         assert!(!first.same_asset(&key(native("source", "cover", "one"))));
     }
 
@@ -401,7 +403,7 @@ mod tests {
         let identity_without_resolver = artwork.key(&request);
         let resolutions = Arc::new(AtomicUsize::new(0));
         let observed = Arc::clone(&resolutions);
-        artwork.install_source_resolver(move |_| {
+        artwork.install_source_resolver(move || {
             observed.fetch_add(1, Ordering::Relaxed);
             None
         });
@@ -483,7 +485,7 @@ mod tests {
             .unwrap();
         let resolutions = Arc::new(AtomicUsize::new(0));
         let observed = Arc::clone(&resolutions);
-        artwork.install_source_resolver(move |_| {
+        artwork.install_source_resolver(move || {
             observed.fetch_add(1, Ordering::Relaxed);
             None
         });
@@ -658,7 +660,7 @@ mod tests {
             preview.image.rgba()
         );
 
-        artwork.invalidate_source(&SourceId::new("source")).unwrap();
+        artwork.invalidate_server_images().unwrap();
         let invalidated = ArtworkRequest::new(binding, 128);
         assert_ne!(artwork.key(&invalidated), key);
         assert!(matches!(artwork.load(invalidated), ArtworkLoad::Pending(_)));
@@ -670,7 +672,7 @@ mod tests {
         let artwork = Artwork::new(directory.path().join("covers"), Handle::current()).unwrap();
         let resolutions = Arc::new(AtomicUsize::new(0));
         let observed = Arc::clone(&resolutions);
-        artwork.install_source_resolver(move |_| {
+        artwork.install_source_resolver(move || {
             observed.fetch_add(1, Ordering::Relaxed);
             None
         });
@@ -696,7 +698,7 @@ mod tests {
         let artwork = Artwork::new(directory.path().join("covers"), Handle::current()).unwrap();
         let resolutions = Arc::new(AtomicUsize::new(0));
         let observed = Arc::clone(&resolutions);
-        artwork.install_source_resolver(move |_| {
+        artwork.install_source_resolver(move || {
             observed.fetch_add(1, Ordering::Relaxed);
             None
         });

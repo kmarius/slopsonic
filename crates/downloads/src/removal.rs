@@ -48,7 +48,6 @@ impl Actor {
             if completed && commit_completed {
                 match self
                     .commit_transfer(
-                        &download.source_id,
                         &download.media_uri,
                         &download.subject,
                         &download.paths,
@@ -58,22 +57,15 @@ impl Actor {
                 {
                     Ok(_) => {
                         completed_tracks.push(download.media_uri.clone());
-                        self.remove_job_track(
-                            &download.source_id,
-                            &download.job_id,
-                            &download.media_uri,
-                            true,
-                        );
+                        self.remove_job_track(&download.job_id, &download.media_uri, true);
                     }
                     Err(DownloadFailure::NeedsAttention(error)) => {
                         warn!(
                             %error,
-                            source_id = ?download.source_id,
                             media_uri = %download.media_uri,
                             "could not finish a completed download"
                         );
-                        if let Some(job) = self.find_job_mut(&download.source_id, &download.job_id)
-                        {
+                        if let Some(job) = self.find_job_mut(&download.job_id) {
                             job.state = DownloadQueueState::NeedsAttention;
                         }
                     }
@@ -81,21 +73,18 @@ impl Actor {
                 }
                 continue;
             }
-            affected.insert((download.source_id.clone(), download.job_id.clone()));
+            affected.insert(download.job_id.clone());
             if !preserve && let Err(error) = discard_staging(&download.paths).await {
                 warn!(
                     %error,
-                    source_id = ?download.source_id,
                     media_uri = %download.media_uri,
                     "could not settle an interrupted download"
                 );
             }
         }
-        for (source_id, job_id) in affected {
-            let still_active = active
-                .iter()
-                .any(|download| download.source_id == source_id && download.job_id == job_id);
-            if let Some(job) = self.find_job_mut(&source_id, &job_id) {
+        for job_id in affected {
+            let still_active = active.iter().any(|download| download.job_id == job_id);
+            if let Some(job) = self.find_job_mut(&job_id) {
                 job.state = if still_active {
                     DownloadQueueState::Downloading
                 } else {
@@ -106,31 +95,29 @@ impl Actor {
         completed_tracks
     }
 
-    pub(super) async fn reconcile_staging(&self, source_id: &Option<SourceId>) {
+    pub(super) async fn reconcile_staging(&self) {
+        let Some(attached) = &self.attached else {
+            return;
+        };
         let queued = self
             .jobs
-            .get(source_id)
-            .into_iter()
-            .flatten()
+            .iter()
             .flat_map(|job| job.remaining.iter().cloned())
             .collect::<HashSet<_>>();
-        let directory = source_id
-            .as_ref()
-            .and_then(|source_id| self.attached.get(source_id))
-            .and_then(|attached| attached.directory.as_deref());
-        if let Err(error) =
-            cleanup_staging(&self.root, source_id.as_ref(), directory, &queued).await
+        if let Err(error) = cleanup_staging(
+            &self.root,
+            Some(&attached.source_id),
+            attached.directory.as_deref(),
+            &queued,
+        )
+        .await
         {
-            warn!(%error, source_id=?source_id, "could not reconcile download staging");
+            warn!(%error, "could not reconcile download staging");
         }
     }
 
-    pub(super) async fn discard_previous_directory(
-        &self,
-        source_id: &SourceId,
-        directory: &Option<PathBuf>,
-    ) {
-        let Some(attached) = self.attached.get(source_id) else {
+    pub(super) async fn discard_previous_directory(&self, directory: &Option<PathBuf>) {
+        let Some(attached) = &self.attached else {
             return;
         };
         if attached.directory == *directory {
@@ -138,29 +125,21 @@ impl Actor {
         }
         if let Err(error) = cleanup_staging(
             &self.root,
-            Some(source_id),
+            Some(&attached.source_id),
             attached.directory.as_deref(),
             &HashSet::new(),
         )
         .await
         {
-            warn!(%error, %source_id, "could not remove download staging from the previous folder");
+            warn!(%error, "could not remove download staging from the previous folder");
         }
     }
 
-    pub(super) async fn force_remove(
-        &mut self,
-        source_id: Option<&SourceId>,
-        media_uris: Vec<String>,
-        notify: bool,
-    ) {
-        let group = source_id.cloned();
+    pub(super) async fn force_remove(&mut self, media_uris: Vec<String>, notify: bool) {
         let remove = media_uris.iter().collect::<HashSet<_>>();
         let subjects = self
             .jobs
-            .get(&group)
-            .into_iter()
-            .flatten()
+            .iter()
             .filter(|job| {
                 job.remaining
                     .iter()
@@ -172,20 +151,17 @@ impl Actor {
         for subject in subjects {
             self.mark_subject_incomplete(&subject).await;
         }
-        for job in self.jobs.entry(group.clone()).or_default().iter_mut() {
+        for job in &mut self.jobs {
             job.remaining
                 .retain(|media_uri| !remove.contains(media_uri));
             job.completed
                 .retain(|media_uri| !remove.contains(media_uri));
         }
-        self.jobs
-            .entry(group.clone())
-            .or_default()
-            .retain(|job| !job.remaining.is_empty());
-        self.reconcile_staging(&group).await;
+        self.jobs.retain(|job| !job.remaining.is_empty());
+        self.reconcile_staging().await;
 
-        let (removed, failed) = self.delete_downloads(source_id, media_uris).await;
-        self.persist_and_publish(source_id).await;
+        let (removed, failed) = self.delete_downloads(media_uris).await;
+        self.persist_and_publish().await;
         if notify {
             self.send_removal_notice(removed, failed).await;
         }
@@ -193,7 +169,6 @@ impl Actor {
 
     pub(super) async fn delete_downloads(
         &self,
-        _source_id: Option<&SourceId>,
         media_uris: impl IntoIterator<Item = String>,
     ) -> (usize, usize) {
         let mut removed = 0;
@@ -253,11 +228,7 @@ impl Actor {
             .await
             .map_err(|error| error.to_string())?
             .is_empty();
-        self.events
-            .counts_dirty
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .insert(file.source_id.clone().map(SourceId::new));
+        self.events.counts_dirty.store(true, Ordering::Release);
         let _ = self
             .events
             .send(DownloadEvent::Changed {
@@ -286,21 +257,11 @@ impl Actor {
         let _ = self.events.send(DownloadEvent::Notice(message)).await;
     }
 
-    pub(super) async fn remove_rule(
-        &mut self,
-        source_id: &SourceId,
-        rule: DownloadRule,
-        delete_downloads: bool,
-    ) {
+    pub(super) async fn remove_rule(&mut self, rule: DownloadRule, delete_downloads: bool) {
         let subject = DownloadSubject::Rule(rule);
-        let group = Some(source_id.clone());
-        self.jobs
-            .entry(group.clone())
-            .or_default()
-            .retain(|job| job.subject != subject);
-        self.reconcile_staging(&group).await;
-        self.release_owner(source_id, &subject, None, !delete_downloads)
-            .await;
-        self.persist_and_publish(Some(source_id)).await;
+        self.jobs.retain(|job| job.subject != subject);
+        self.reconcile_staging().await;
+        self.release_owner(&subject, None, !delete_downloads).await;
+        self.persist_and_publish().await;
     }
 }

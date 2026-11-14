@@ -7,7 +7,6 @@ pub(super) enum DownloadFailure {
 }
 
 pub(super) struct ActiveDownload {
-    pub(super) source_id: Option<SourceId>,
     pub(super) job_id: String,
     pub(super) media_uri: String,
     pub(super) subject: DownloadSubject,
@@ -22,14 +21,10 @@ pub(super) async fn run(
     receiver: Receiver<Command>,
     rule_results: Receiver<PreparedRules>,
 ) {
-    match load_direct_queue(&actor.root, &actor.database).await {
-        Ok(jobs) if !jobs.is_empty() => {
-            actor.jobs.insert(None, jobs);
-        }
-        Ok(_) => {}
-        Err(error) => warn!(%error, "could not load the direct download queue"),
+    if let Err(error) = merge_direct_queue(&actor.root, &actor.database).await {
+        warn!(%error, "could not merge the direct download queue");
     }
-    actor.publish(None).await;
+    actor.publish().await;
     let mut retry = tokio::time::interval(RETRY_INTERVAL);
     retry.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut active = Vec::new();
@@ -102,6 +97,10 @@ pub(super) async fn wait_for_finished(
 }
 
 impl Actor {
+    pub(super) fn source_id(&self) -> Option<&SourceId> {
+        self.attached.as_ref().map(|attached| &attached.source_id)
+    }
+
     pub(super) async fn apply(&mut self, command: Command, active: &mut Vec<ActiveDownload>) {
         match command {
             Command::ClearArtworkCache(response) => {
@@ -117,14 +116,11 @@ impl Actor {
                 let _ = response.send(result).await;
             }
             Command::Page {
-                scope,
                 offset,
                 limit,
                 response,
             } => {
-                let _ = response
-                    .send(self.queue_page(scope, offset, limit).await)
-                    .await;
+                let _ = response.send(self.queue_page(offset, limit).await).await;
             }
             Command::SourceResolver(resolve) => self.sources = resolve,
             Command::Attach {
@@ -133,59 +129,42 @@ impl Actor {
                 folder,
                 response,
             } => {
-                let directory = self.settings_for(&source_id).directory;
-                if self
-                    .attached
-                    .get(&source_id)
-                    .is_some_and(|attached| attached.directory != directory)
-                {
-                    self.discard_matching(active, false, |download| {
-                        download.source_id.as_ref() == Some(&source_id)
-                    })
-                    .await;
+                let directory = self.settings.directory.clone();
+                if self.attached.as_ref().is_some_and(|attached| {
+                    attached.directory != directory || attached.source_id != source_id
+                }) {
+                    self.discard_matching(active, false, |_| true).await;
                 }
-                let result = self
-                    .attach(source_id.clone(), source_key, folder, directory)
-                    .await;
+                let result = self.attach(source_id, source_key, folder, directory).await;
                 let ready = result.is_ok();
                 self.pending_rules = None;
                 let _ = response.send(result).await;
                 if ready {
-                    self.reconcile_all_rules(&source_id);
+                    self.reconcile_all_rules();
                 }
             }
             Command::Download {
                 subject,
                 media_uris,
             } => {
+                let mut accepted = Vec::new();
                 let mut skipped = false;
-                let mut grouped = HashMap::<Option<SourceId>, Vec<String>>::new();
                 for media_uri in media_uris {
-                    grouped
-                        .entry(media_source_id(&self.database, &media_uri).await)
-                        .or_default()
-                        .push(media_uri);
-                }
-                for (source_id, media_uris) in grouped {
-                    if source_id
-                        .as_ref()
-                        .is_some_and(|source_id| !self.attached.contains_key(source_id))
-                    {
-                        warn!(source_id=?source_id, "ignored a download for an unattached source");
+                    let source = media_source_id(&self.database, &media_uri).await;
+                    if self.source_id().is_some() && source.as_ref() == self.source_id() {
+                        accepted.push(media_uri);
+                    } else {
                         skipped = true;
-                        continue;
                     }
-                    let quality = source_id
-                        .as_ref()
-                        .map_or(DownloadQuality::Original, |source_id| {
-                            self.settings_for(source_id).quality
-                        });
-                    if let Some(feedback) = self
-                        .enqueue(source_id, subject.clone(), quality, media_uris, false)
-                        .await
-                    {
-                        let _ = self.events.send(DownloadEvent::Feedback(feedback)).await;
-                    }
+                }
+                if skipped {
+                    warn!("ignored a download that does not belong to the attached server");
+                }
+                if let Some(feedback) = self
+                    .enqueue(subject.clone(), self.settings.quality, accepted, false)
+                    .await
+                {
+                    let _ = self.events.send(DownloadEvent::Feedback(feedback)).await;
                 }
                 if skipped {
                     self.mark_subject_incomplete(&subject).await;
@@ -194,48 +173,35 @@ impl Actor {
                 }
             }
             Command::Remove { media_uris, notify } => {
-                let mut grouped = HashMap::<Option<SourceId>, Vec<String>>::new();
-                for media_uri in media_uris {
-                    grouped
-                        .entry(media_source_id(&self.database, &media_uri).await)
-                        .or_default()
-                        .push(media_uri);
-                }
-                for (source_id, media_uris) in grouped {
-                    let remove = media_uris.iter().collect::<HashSet<_>>();
-                    self.abort_matching(active, false, |download| {
-                        download.source_id == source_id && remove.contains(&download.media_uri)
-                    })
-                    .await;
-                    self.force_remove(source_id.as_ref(), media_uris, notify)
-                        .await;
-                }
+                let remove = media_uris.iter().collect::<HashSet<_>>();
+                self.abort_matching(active, false, |download| {
+                    remove.contains(&download.media_uri)
+                })
+                .await;
+                self.force_remove(media_uris, notify).await;
             }
-            Command::LibraryChanged { source_id } => {
-                let quality = self.settings_for(&source_id).quality;
-                self.requeue_downloads(&source_id, quality, true).await;
-                self.reconcile_all_rules(&source_id);
+            Command::LibraryChanged => {
+                self.requeue_downloads(self.settings.quality, true).await;
+                self.reconcile_all_rules();
             }
             Command::SettingsChanged(settings) => {
                 self.apply_settings(settings, active).await;
             }
             Command::RemoveRule {
-                source_id,
                 rule,
                 delete_downloads,
             } => {
                 self.abort_matching(active, true, |download| {
-                    download.source_id.as_ref() == Some(&source_id)
-                        && download.subject == DownloadSubject::Rule(rule)
+                    download.subject == DownloadSubject::Rule(rule)
                 })
                 .await;
-                self.remove_rule(&source_id, rule, delete_downloads).await;
+                self.remove_rule(rule, delete_downloads).await;
             }
-            Command::Cancel { source_id, job_id } => {
-                self.cancel(source_id.as_ref(), &job_id, active).await;
+            Command::Cancel { job_id } => {
+                self.cancel(&job_id, active).await;
             }
-            Command::ClearJob { source_id, job_id } => {
-                self.clear_job(&source_id, &job_id, active).await;
+            Command::ClearJob { job_id } => {
+                self.clear_job(&job_id, active).await;
             }
             Command::SetPaused(paused) => {
                 if self.paused == paused {
@@ -245,25 +211,23 @@ impl Actor {
                 if paused {
                     self.abort_matching(active, true, |_| true).await;
                 }
-                self.publish_all().await;
+                self.publish().await;
             }
-            Command::Move {
-                source_id,
-                job_id,
-                movement,
-            } => {
-                self.move_job(&source_id, &job_id, movement).await;
+            Command::Move { job_id, movement } => {
+                self.move_job(&job_id, movement).await;
             }
-            Command::Clear { source_id, notify } => {
-                if let Some(settings) = self.settings.get_mut(&source_id) {
-                    settings.rules = DownloadRules::default();
-                }
-                self.reconcile_all_rules(&source_id);
-                self.abort_matching(active, false, |download| {
-                    download.source_id.as_ref() == Some(&source_id)
-                })
-                .await;
-                self.clear(&source_id, notify).await;
+            Command::Clear { notify } => {
+                self.settings.rules = DownloadRules::default();
+                self.reconcile_all_rules();
+                self.abort_matching(active, false, |_| true).await;
+                self.clear(notify).await;
+            }
+            Command::Detach => {
+                self.abort_matching(active, false, |_| true).await;
+                self.attached = None;
+                self.pending_rules = None;
+                self.jobs.clear();
+                self.publish().await;
             }
         }
     }
@@ -312,16 +276,12 @@ pub(super) fn download_source_failure(error: SourceError) -> DownloadFailure {
     }
 }
 
-pub(super) fn job_id(
-    source_id: Option<&SourceId>,
-    subject: &DownloadSubject,
-    sequence: u64,
-) -> String {
+pub(super) fn job_id(subject: &DownloadSubject, sequence: u64) -> String {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    let input = serde_json::to_vec(&(source_id, subject, now, sequence)).unwrap_or_default();
+    let input = serde_json::to_vec(&(subject, now, sequence)).unwrap_or_default();
     hash_id_bytes(&input)
 }
 

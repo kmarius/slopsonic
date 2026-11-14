@@ -6,8 +6,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use md5_digest::{Digest, Md5};
-use sources::{ImageSize, SourceId};
+use sources::ImageSize;
 
 use crate::selection::Candidate;
 
@@ -326,11 +325,10 @@ impl FilesystemCache {
         atomic_write(&self.missing_path(candidate), &b"missing\n"[..])
     }
 
-    pub(crate) fn invalidate_source(&self, source_id: &SourceId) -> io::Result<()> {
-        let source = digest(source_id.as_str());
-        remove_dir_if_present(&self.root.join("missing/native").join(&source))?;
-        remove_dir_if_present(&self.root.join("originals/native").join(&source))?;
-        self.remove_dir_budgeted(&self.root.join("displays/native").join(source))
+    pub(crate) fn invalidate_server_images(&self) -> io::Result<()> {
+        remove_dir_if_present(&self.root.join("missing/native"))?;
+        remove_dir_if_present(&self.root.join("originals/native"))?;
+        self.remove_dir_budgeted(&self.root.join("displays/native"))
     }
 
     pub(crate) fn invalidate_image(&self, candidate: &Candidate) -> io::Result<()> {
@@ -589,10 +587,6 @@ pub(crate) struct CacheEntry {
     pub(crate) path: PathBuf,
 }
 
-fn digest(value: &str) -> String {
-    format!("{:x}", Md5::digest(value.as_bytes()))
-}
-
 fn atomic_write(path: &Path, mut bytes: impl Read) -> io::Result<()> {
     let Some(parent) = path.parent() else {
         return Err(io::Error::new(
@@ -624,6 +618,7 @@ fn atomic_write(path: &Path, mut bytes: impl Read) -> io::Result<()> {
 mod tests {
     use super::*;
     use library::ArtworkImage;
+    use sources::SourceId;
 
     fn native() -> Candidate {
         Candidate::new(
@@ -666,10 +661,9 @@ mod tests {
     }
 
     #[test]
-    fn source_invalidation_removes_only_that_native_binding_family() {
+    fn image_invalidation_is_exact_and_server_invalidation_drops_all_native_images() {
         let directory = tempfile::tempdir().expect("temporary artwork cache");
         let cache = FilesystemCache::new(directory.path().to_path_buf()).expect("open cache");
-        let source = SourceId::new("source");
         let other = Candidate::new(
             ArtworkImage::Native {
                 source_id: SourceId::new("other"),
@@ -691,14 +685,16 @@ mod tests {
             .write_ready(&other, ImageSize::Thumbnail(512), b"\x89PNG\r\n\x1a\n")
             .unwrap();
 
-        cache.invalidate_source(&source).expect("invalidate source");
-        assert!(cache.ready_entry(&native()).is_none());
-        assert!(cache.ready_entry(&other).is_some());
-        assert!(cache.display_path(&native(), 512).is_none());
-        assert!(cache.display_path(&other, 512).is_some());
         cache.invalidate_image(&other).expect("invalidate image");
         assert!(cache.ready_entry(&other).is_none());
         assert!(cache.display_path(&other, 512).is_none());
+        assert!(cache.ready_entry(&native()).is_some());
+        assert!(cache.display_path(&native(), 512).is_some());
+        cache
+            .invalidate_server_images()
+            .expect("invalidate server images");
+        assert!(cache.ready_entry(&native()).is_none());
+        assert!(cache.display_path(&native(), 512).is_none());
     }
 }
 

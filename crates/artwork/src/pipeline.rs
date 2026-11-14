@@ -3,7 +3,7 @@ use std::path::Path;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, Weak};
 use std::thread;
 
-use sources::{ImageSize, SourceId};
+use sources::ImageSize;
 use tokio::runtime::Handle;
 use tokio::sync::oneshot;
 
@@ -34,7 +34,7 @@ struct Shared {
 #[derive(Default)]
 struct State {
     next_request: u64,
-    source_epochs: HashMap<SourceId, u64>,
+    source_epoch: u64,
     foreground: VecDeque<ArtworkKey>,
     background: VecDeque<ArtworkKey>,
     jobs: HashMap<ArtworkKey, JobRecord>,
@@ -72,7 +72,7 @@ struct DecodedIndex {
 }
 
 struct DecodedEntry {
-    source_id: Option<SourceId>,
+    native: bool,
     image: Weak<DecodedImage>,
 }
 
@@ -239,30 +239,26 @@ impl Pipeline {
         request_key(&lock_state(&self.shared), request)
     }
 
-    pub(crate) fn invalidate_source(&self, source_id: &SourceId) -> Result<(), ArtworkError> {
-        self.invalidate_source_images(source_id, None)
+    pub(crate) fn invalidate_server_images(&self) -> Result<(), ArtworkError> {
+        self.invalidate_native_images(None)
     }
 
     pub(crate) fn invalidate_image(&self, binding: &ArtworkBinding) -> Result<bool, ArtworkError> {
         let Some(candidate) = binding.candidates.first() else {
             return Ok(false);
         };
-        let Some(source_id) = candidate.source_id() else {
+        if candidate.source_id().is_none() {
             return Ok(false);
-        };
-        self.invalidate_source_images(source_id, Some(candidate))?;
+        }
+        self.invalidate_native_images(Some(candidate))?;
         Ok(true)
     }
 
-    fn invalidate_source_images(
-        &self,
-        source_id: &SourceId,
-        image: Option<&Candidate>,
-    ) -> Result<(), ArtworkError> {
+    fn invalidate_native_images(&self, image: Option<&Candidate>) -> Result<(), ArtworkError> {
         let commit = lock_cache_commit(&self.shared);
         match image {
             Some(image) => self.shared.cache.invalidate_image(image)?,
-            None => self.shared.cache.invalidate_source(source_id)?,
+            None => self.shared.cache.invalidate_server_images()?,
         }
         {
             let mut previews = self
@@ -276,17 +272,12 @@ impl Pipeline {
             }
         }
         let mut state = lock_state(&self.shared);
-        *state.source_epochs.entry(source_id.clone()).or_default() = state
-            .source_epochs
-            .get(source_id)
-            .copied()
-            .unwrap_or_default()
-            .wrapping_add(1);
-        state.decoded_index.invalidate_source(source_id);
+        state.source_epoch = state.source_epoch.wrapping_add(1);
+        state.decoded_index.invalidate_native();
         let keys = state
             .jobs
             .iter()
-            .filter(|(_, record)| record.request.binding.source_id() == Some(source_id))
+            .filter(|(_, record)| record.request.binding.source_id().is_some())
             .map(|(key, _)| key.clone())
             .collect::<Vec<_>>();
         let completions = keys
@@ -333,21 +324,20 @@ impl DecodedIndex {
             .map(|(_, image)| image)
     }
 
-    fn insert(&mut self, key: ArtworkKey, source_id: Option<SourceId>, image: Arc<DecodedImage>) {
+    fn insert(&mut self, key: ArtworkKey, native: bool, image: Arc<DecodedImage>) {
         self.entries
             .retain(|_, entry| entry.image.strong_count() > 0);
         self.entries.insert(
             key,
             DecodedEntry {
-                source_id,
+                native,
                 image: Arc::downgrade(&image),
             },
         );
     }
 
-    fn invalidate_source(&mut self, source_id: &SourceId) {
-        self.entries
-            .retain(|_, entry| entry.source_id.as_ref() != Some(source_id));
+    fn invalidate_native(&mut self) {
+        self.entries.retain(|_, entry| !entry.native);
     }
 }
 
@@ -441,11 +431,11 @@ fn job_key(request: &ArtworkRequest, source_epoch: u64) -> ArtworkKey {
 }
 
 fn source_epoch(state: &State, binding: &ArtworkBinding) -> u64 {
-    binding
-        .source_id()
-        .and_then(|source_id| state.source_epochs.get(source_id))
-        .copied()
-        .unwrap_or_default()
+    if binding.source_id().is_some() {
+        state.source_epoch
+    } else {
+        0
+    }
 }
 
 fn run_worker(shared: Arc<Shared>, foreground_reserved: bool) {
@@ -897,7 +887,7 @@ fn finish(shared: &Shared, work: Work, resolution: Resolution) {
     {
         state.decoded_index.insert(
             image.key().clone(),
-            work.request.binding.source_id().cloned(),
+            work.request.binding.source_id().is_some(),
             Arc::clone(image),
         );
     }

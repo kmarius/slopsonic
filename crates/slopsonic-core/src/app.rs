@@ -143,7 +143,7 @@ where
         }
     }
     let artwork_source = Arc::downgrade(&source);
-    artwork.install_source_resolver(move |_| {
+    artwork.install_source_resolver(move || {
         artwork_source
             .upgrade()
             .and_then(|owner| owner.client().ok())
