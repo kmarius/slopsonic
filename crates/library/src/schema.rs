@@ -150,7 +150,6 @@ CREATE TABLE IF NOT EXISTS download_locators (
     access_uri TEXT NOT NULL CHECK(access_uri<>''),
     UNIQUE(media_uri,origin)
 ) STRICT;
-CREATE INDEX IF NOT EXISTS download_locators_source_idx ON download_locators(origin);
 CREATE INDEX IF NOT EXISTS download_locators_path_idx ON download_locators(path);
 CREATE INDEX IF NOT EXISTS download_locators_access_idx ON download_locators(media_uri,origin,download_access_file_key);
 
@@ -765,6 +764,8 @@ const MIGRATIONS: &[&str] = &[
      ALTER TABLE download_locators_new RENAME TO download_locators;
      UPDATE sources SET freshness=NULL,catalog_complete=0,album_count=0,track_count=0,
          observation_stamp=observation_stamp+1;",
+    // 74: drop the locator index on `origin`, which always holds 'download'.
+    "DROP INDEX IF EXISTS download_locators_source_idx;",
 ];
 
 pub(crate) const SCHEMA_VERSION: i64 = BASE_VERSION + MIGRATIONS.len() as i64;
