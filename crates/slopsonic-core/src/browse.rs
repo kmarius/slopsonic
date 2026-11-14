@@ -516,7 +516,7 @@ fn list_plan(
 impl ListPlan {
     async fn load(
         self,
-        owner: &crate::source::SourceOwner,
+        owner: &crate::source::ServerOwner,
         window: library::RouteSeedWindow,
         cancel: &ReadCancellation,
     ) -> library::LibraryResult<OpenedCollection> {
@@ -628,7 +628,7 @@ pub fn uses_activity(route: &Route, settings: &LibraryListSettings) -> bool {
         .any(|field| field.catalog_sort().activity_sensitive())
 }
 
-impl crate::source::SourceOwner {
+impl crate::source::ServerOwner {
     pub async fn album_list_page(
         &self,
         read: ListRead,

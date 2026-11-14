@@ -13,12 +13,12 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::runtime::source::{
-    EditableSource, SourceCacheSummary, SourceOperation, SourceProgress, SourceProgressStage,
-    SourceStatus, SourceSummary,
+    EditableServer, ServerCacheSummary, ServerOperation, ServerProgress, ServerProgressStage,
+    ServerStatus, ServerSummary,
 };
 use crate::runtime::{
     CatalogChange, CatalogPublication, CatalogRevision, FavoriteSettlement, SelectedLibrary,
-    SourceEvent, SourceNotice, SourceNoticeKind,
+    ServerEvent, ServerNotice, ServerNoticeKind,
 };
 use artwork::Artwork;
 use async_channel::{Receiver, Sender};
@@ -31,17 +31,17 @@ use sources::{
 use tracing::{info, warn};
 
 use crate::playback::PlaybackOwner;
-use crate::settings::{ConfiguredSource, SettingsFile, StoredSettings};
+use crate::settings::{ConfiguredServer, SettingsFile, StoredSettings};
 
 const SOURCE_CHECK_INTERVAL: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Clone)]
-pub(crate) struct SourceOutputs {
-    pub(crate) events: Sender<SourceEvent>,
+pub(crate) struct ServerOutputs {
+    pub(crate) events: Sender<ServerEvent>,
 }
 
 #[derive(Clone)]
-pub struct SourceOwner {
+pub struct ServerOwner {
     pub(crate) shared: Arc<Shared>,
 }
 
@@ -55,7 +55,7 @@ struct CachedSource {
 
 struct Refresh {
     cancelled: Arc<AtomicBool>,
-    progress: SourceProgress,
+    progress: ServerProgress,
     visible: bool,
 }
 
@@ -73,7 +73,7 @@ impl Drop for CachedSource {
 }
 
 impl CachedSource {
-    fn matches(&self, configured: &ConfiguredSource) -> bool {
+    fn matches(&self, configured: &ConfiguredServer) -> bool {
         same_native_input(&self.configuration, &configured.configuration)
             && self.credential == configured.credential
     }
@@ -92,8 +92,8 @@ pub(crate) struct Shared {
     pub(crate) settings: SettingsFile,
     client: Mutex<Option<CachedSource>>,
     pub(crate) runtime: tokio::runtime::Handle,
-    outputs: SourceOutputs,
-    operation: tokio::sync::watch::Sender<SourceOperation>,
+    outputs: ServerOutputs,
+    operation: tokio::sync::watch::Sender<ServerOperation>,
     catalog_changed: tokio::sync::watch::Sender<CatalogRevision>,
     configuration_changed: tokio::sync::watch::Sender<()>,
     selected: Mutex<Option<SelectedLibrary>>,
@@ -110,7 +110,7 @@ pub(crate) struct Shared {
 }
 
 impl Shared {
-    pub(crate) fn cached_source_counts(&self) -> Option<(usize, usize)> {
+    pub(crate) fn cached_server_counts(&self) -> Option<(usize, usize)> {
         *self
             .catalog_counts
             .lock()
@@ -120,7 +120,7 @@ impl Shared {
     async fn refresh_source_counts(&self) -> Result<(usize, usize), String> {
         let counts = self
             .database
-            .source_counts(&ReadCancellation::new())
+            .server_counts(&ReadCancellation::new())
             .await
             .map_err(string_error)?;
         self.catalog_counts
@@ -133,13 +133,13 @@ impl Shared {
     async fn load_source_counts(&self) -> Result<(), String> {
         let counts = match self
             .database
-            .cached_source(&ReadCancellation::new())
+            .cached_server(&ReadCancellation::new())
             .await
             .map_err(string_error)?
         {
             Some(_) if self.settings.load().sources.configured.is_some() => Some(
                 self.database
-                    .source_counts(&ReadCancellation::new())
+                    .server_counts(&ReadCancellation::new())
                     .await
                     .map_err(string_error)?,
             ),
@@ -152,8 +152,8 @@ impl Shared {
         Ok(())
     }
 
-    pub(crate) fn source_status(&self, selected: Option<&SelectedLibrary>) -> Option<SourceStatus> {
-        source_status(&self.settings.load(), selected, self.cached_source_counts())
+    pub(crate) fn server_status(&self, selected: Option<&SelectedLibrary>) -> Option<ServerStatus> {
+        server_status(&self.settings.load(), selected, self.cached_server_counts())
     }
 
     pub(crate) fn selected(&self) -> Option<SelectedLibrary> {
@@ -163,16 +163,16 @@ impl Shared {
             .clone()
     }
 
-    pub(crate) async fn send(&self, event: SourceEvent) {
+    pub(crate) async fn send(&self, event: ServerEvent) {
         if matches!(
             &event,
-            SourceEvent::Configured(_)
-                | SourceEvent::Selected { .. }
-                | SourceEvent::ReleaseSelected
+            ServerEvent::Configured(_)
+                | ServerEvent::Selected { .. }
+                | ServerEvent::ReleaseSelected
         ) {
             self.configuration_changed.send_replace(());
         }
-        if let SourceEvent::CatalogPublished(publication) = &event
+        if let ServerEvent::CatalogPublished(publication) = &event
             && publication.change != CatalogChange::Home
         {
             self.catalog_changed.send_modify(|revision| {
@@ -194,18 +194,18 @@ impl Shared {
         let _ = self.outputs.events.send(event).await;
     }
 
-    fn publish_operation(&self, operation: SourceOperation) {
+    fn publish_operation(&self, operation: ServerOperation) {
         let active = self
             .asset_download
             .lock()
             .unwrap_or_else(|p| p.into_inner());
         if matches!(
             operation,
-            SourceOperation::Idle | SourceOperation::Refreshing { .. }
+            ServerOperation::Idle | ServerOperation::Refreshing { .. }
         ) && active.is_some()
             && matches!(
                 *self.operation.borrow(),
-                SourceOperation::Downloading { .. }
+                ServerOperation::Downloading { .. }
             )
         {
             return;
@@ -214,7 +214,7 @@ impl Shared {
         let _ = self
             .outputs
             .events
-            .try_send(SourceEvent::Operation(operation));
+            .try_send(ServerEvent::Operation(operation));
     }
 
     pub(crate) fn warn_nonfatal(&self, message: &str) {
@@ -327,7 +327,7 @@ impl Shared {
         if let Some(progress) = progress
             && !self.operation.borrow().blocks_library()
         {
-            self.publish_operation(SourceOperation::Refreshing { progress });
+            self.publish_operation(ServerOperation::Refreshing { progress });
         }
     }
 
@@ -351,28 +351,28 @@ impl Shared {
         }
         if matches!(
             &*self.operation.borrow(),
-            SourceOperation::Refreshing { .. }
+            ServerOperation::Refreshing { .. }
         ) {
-            self.publish_operation(SourceOperation::Refreshing { progress });
+            self.publish_operation(ServerOperation::Refreshing { progress });
         }
     }
 }
 
-impl SourceOwner {
+impl ServerOwner {
     pub(crate) fn open_dormant(
         artwork: Artwork,
         database: Arc<Database>,
         downloads: Downloads,
         settings: SettingsFile,
         runtime: tokio::runtime::Handle,
-        outputs: SourceOutputs,
+        outputs: ServerOutputs,
     ) -> Arc<Self> {
         let stored = settings.load();
         let operation = stored
             .sources
             .configured
             .as_ref()
-            .map_or(SourceOperation::Idle, |_| SourceOperation::Switching {
+            .map_or(ServerOperation::Idle, |_| ServerOperation::Switching {
                 progress: initial_progress(),
             });
         let home_variation = std::time::SystemTime::now()
@@ -413,7 +413,7 @@ impl SourceOwner {
             let shared = weak.upgrade();
             async move {
                 if let Some(shared) = shared {
-                    SourceOwner { shared }.catalog_updated(update).await;
+                    ServerOwner { shared }.catalog_updated(update).await;
                 }
             }
         });
@@ -437,7 +437,7 @@ impl SourceOwner {
         if stored.sources.configured.is_some() {
             let owner = self.clone();
             self.shared.runtime.spawn(async move {
-                let _ = owner.select_source().await;
+                let _ = owner.select_server().await;
             });
         }
         let owner = self.clone();
@@ -447,7 +447,7 @@ impl SourceOwner {
             }
             owner
                 .shared
-                .send(SourceEvent::Configured(owner.source_status()))
+                .send(ServerEvent::Configured(owner.server_status()))
                 .await;
         });
         let weak = Arc::downgrade(&self.shared);
@@ -463,7 +463,7 @@ impl SourceOwner {
                 let Some(shared) = weak.upgrade() else {
                     break;
                 };
-                let owner = SourceOwner { shared };
+                let owner = ServerOwner { shared };
                 owner.deliver_pending_favorites().await;
                 owner.deliver_pending_ratings().await;
             }
@@ -505,7 +505,7 @@ impl SourceOwner {
         }));
         let database = &self.shared.database;
         if let Ok(playback) = self.shared.playback() {
-            note(playback.forget_source().await);
+            note(playback.forget_server().await);
         }
         // Clearing downloads needs the server attached, even when it never connected.
         note(self.shared.downloads.attach(None).await);
@@ -513,7 +513,7 @@ impl SourceOwner {
         self.shared.downloads.detach();
         note(
             database
-                .remove_source()
+                .remove_server()
                 .await
                 .map(|_| ())
                 .map_err(string_error),
@@ -539,19 +539,19 @@ impl SourceOwner {
 
     pub(crate) fn spawn_serialized<F, Work>(&self, work: F)
     where
-        F: FnOnce(SourceOwner) -> Work + Send + 'static,
+        F: FnOnce(ServerOwner) -> Work + Send + 'static,
         Work: Future<Output = ()> + Send + 'static,
     {
         let shared = Arc::clone(&self.shared);
         self.shared.runtime.spawn(async move {
             let lane_owner = Arc::clone(&shared);
             let _lane = lane_owner.lane.lock().await;
-            work(SourceOwner { shared }).await;
+            work(ServerOwner { shared }).await;
         });
     }
 }
 
-impl SourceOwner {
+impl ServerOwner {
     pub fn home_variations(&self) -> (i64, i64) {
         (
             self.shared.home_showcase_variation,
@@ -560,7 +560,7 @@ impl SourceOwner {
     }
 }
 
-impl SourceOwner {
+impl ServerOwner {
     pub fn prepare_collection(&self, media_uri: String) -> Receiver<Result<(), String>> {
         self.reply(move |owner, database| async move {
             let source = owner.media_client(&media_uri).await?;
@@ -570,14 +570,14 @@ impl SourceOwner {
     }
 }
 
-impl SourceOwner {
-    pub fn source_status(&self) -> Option<SourceStatus> {
-        self.shared.source_status(self.shared.selected().as_ref())
+impl ServerOwner {
+    pub fn server_status(&self) -> Option<ServerStatus> {
+        self.shared.server_status(self.shared.selected().as_ref())
     }
 }
 
-impl SourceOwner {
-    pub fn operation(&self) -> tokio::sync::watch::Receiver<SourceOperation> {
+impl ServerOwner {
+    pub fn operation(&self) -> tokio::sync::watch::Receiver<ServerOperation> {
         self.shared.operation.subscribe()
     }
 
@@ -589,8 +589,8 @@ impl SourceOwner {
         self.shared.configuration_changed.subscribe()
     }
 
-    pub fn cached_source_counts(&self) -> Option<(usize, usize)> {
-        self.shared.cached_source_counts()
+    pub fn cached_server_counts(&self) -> Option<(usize, usize)> {
+        self.shared.cached_server_counts()
     }
 
     /// Browse the server without changing the selected library.
@@ -615,8 +615,8 @@ impl SourceOwner {
     }
 }
 
-impl SourceOwner {
-    pub fn configure_source(
+impl ServerOwner {
+    pub fn configure_server(
         &self,
         input: SourceSetup,
     ) -> Receiver<Result<SelectedLibrary, String>> {
@@ -633,7 +633,7 @@ impl SourceOwner {
                 return;
             }
             owner
-                .publish_operation(SourceOperation::Adding {
+                .publish_operation(ServerOperation::Adding {
                     progress: initial_progress(),
                 })
                 .await;
@@ -643,16 +643,16 @@ impl SourceOwner {
                 if !owner.shared.selection_is_current(&cancelled) {
                     return Err(SourceError::Cancelled.to_string());
                 }
-                let configured = ConfiguredSource {
+                let configured = ConfiguredServer {
                     configuration: configuration.clone(),
                     credential: None,
                     music_folder_id: None,
                 };
-                let configured = owner.persist_connected_source(&configured, credential)?;
+                let configured = owner.persist_connected_server(&configured, credential)?;
                 owner
                     .shared
                     .database
-                    .reconcile_source(configuration.kind.kind_name(), &configuration.name)
+                    .reconcile_server(configuration.kind.kind_name(), &configuration.name)
                     .await
                     .map_err(string_error)?;
                 let source = Arc::new(source);
@@ -688,7 +688,7 @@ impl SourceOwner {
                             .install_if_current(&cancelled, || owner.start_observer(source, false));
                     }
                     owner
-                        .publish_operation(SourceOperation::Failed {
+                        .publish_operation(ServerOperation::Failed {
                             message: error.clone(),
                             add_form: true,
                         })
@@ -700,10 +700,10 @@ impl SourceOwner {
         receiver
     }
 
-    pub fn update_source(&self, input: SourceSetup) -> Receiver<Result<(), String>> {
+    pub fn update_server(&self, input: SourceSetup) -> Receiver<Result<(), String>> {
         let (sender, receiver) = async_channel::bounded(1);
         self.spawn_serialized(move |owner| async move {
-            let result = owner.edit_configured_source(input).await;
+            let result = owner.edit_configured_server(input).await;
             if let Err(error) = &result {
                 owner.shared.warn_nonfatal(&error);
             }
@@ -713,10 +713,10 @@ impl SourceOwner {
     }
 }
 
-impl SourceOwner {
+impl ServerOwner {
     /// Completes when the source's stored catalog is selected. Connection and refresh
     /// continue in the background.
-    pub(crate) async fn select_source(&self) -> sources::SourceResult<()> {
+    pub(crate) async fn select_server(&self) -> sources::SourceResult<()> {
         let cancelled = self.shared.begin_selection();
         let owner = self.clone();
         self.shared
@@ -725,7 +725,7 @@ impl SourceOwner {
                 if cancelled.load(Ordering::Acquire) {
                     return Err(SourceError::Cancelled.to_string());
                 }
-                owner.shared.publish_operation(SourceOperation::Switching {
+                owner.shared.publish_operation(ServerOperation::Switching {
                     progress: initial_progress(),
                 });
                 let result = owner.select_now(Arc::clone(&cancelled), true).await;
@@ -740,7 +740,7 @@ impl SourceOwner {
                             .shared
                             .install_if_current(&cancelled, || owner.start_observer(source, false));
                     }
-                    owner.shared.publish_operation(SourceOperation::Failed {
+                    owner.shared.publish_operation(ServerOperation::Failed {
                         message: error.clone(),
                         add_form: false,
                     });
@@ -757,8 +757,8 @@ impl SourceOwner {
     }
 }
 
-impl SourceOwner {
-    pub async fn refresh_source(&self, automatic: bool) -> sources::SourceResult<()> {
+impl ServerOwner {
+    pub async fn refresh_server(&self, automatic: bool) -> sources::SourceResult<()> {
         let source = self.open_client().await.map_err(SourceError::Other)?;
         self.refresh_now(&source, automatic, true)
             .await
@@ -766,8 +766,8 @@ impl SourceOwner {
     }
 }
 
-impl SourceOwner {
-    pub async fn forget_source(&self) -> sources::SourceResult<()> {
+impl ServerOwner {
+    pub async fn forget_server(&self) -> sources::SourceResult<()> {
         if self.configuration().is_none() {
             return Ok(());
         }
@@ -779,9 +779,9 @@ impl SourceOwner {
             .take();
         if matches!(
             &*self.shared.operation.borrow(),
-            SourceOperation::Refreshing { .. }
+            ServerOperation::Refreshing { .. }
         ) {
-            self.shared.publish_operation(SourceOperation::Idle);
+            self.shared.publish_operation(ServerOperation::Idle);
         }
         let (sender, receiver) = async_channel::bounded(1);
         self.spawn_serialized(move |owner| async move {
@@ -799,7 +799,7 @@ impl SourceOwner {
             }
             owner
                 .shared
-                .send(SourceEvent::Configured(owner.shared.source_status(None)))
+                .send(ServerEvent::Configured(owner.shared.server_status(None)))
                 .await;
             let _ = sender.try_send(removed);
         });
@@ -811,7 +811,7 @@ impl SourceOwner {
     }
 }
 
-impl SourceOwner {
+impl ServerOwner {
     pub fn download_media(&self, subject: downloads::DownloadSubject, media_uris: Vec<String>) {
         let owner = self.clone();
         self.shared.runtime.spawn(async move {
@@ -826,7 +826,7 @@ impl SourceOwner {
                 match owner
                     .shared
                     .database
-                    .cached_source(&ReadCancellation::new())
+                    .cached_server(&ReadCancellation::new())
                     .await
                 {
                     Ok(Some(_)) => {
@@ -850,7 +850,7 @@ impl SourceOwner {
     }
 }
 
-impl SourceOwner {
+impl ServerOwner {
     pub async fn set_favorite_with_result(
         &self,
         target: FavoriteTarget,
@@ -873,7 +873,7 @@ impl SourceOwner {
     }
 }
 
-impl SourceOwner {
+impl ServerOwner {
     pub fn set_rating(&self, target: FavoriteTarget, rating: Option<u8>) {
         let owner = self.clone();
         self.shared.runtime.spawn(async move {
@@ -882,7 +882,7 @@ impl SourceOwner {
     }
 }
 
-impl SourceOwner {
+impl ServerOwner {
     pub fn refresh_home(
         &self,
         kind: crate::settings::HomeSectionKind,
@@ -890,7 +890,7 @@ impl SourceOwner {
         use crate::settings::HomeSectionKind;
         if kind == HomeSectionKind::NewlyAdded {
             return self.reply(move |owner, _| async move {
-                owner.refresh_source(false).await.map_err(string_error)
+                owner.refresh_server(false).await.map_err(string_error)
             });
         }
         self.reply(move |owner, database| async move {
@@ -921,7 +921,7 @@ impl SourceOwner {
     }
 }
 
-impl SourceOwner {
+impl ServerOwner {
     /// Whether the target is a server item while a server is configured.
     async fn favorite_source(&self, target: &FavoriteTarget) -> bool {
         let server = match library::entity_parts(target.media_uri()) {
@@ -940,7 +940,7 @@ impl SourceOwner {
             && self
                 .shared
                 .database
-                .cached_source(&ReadCancellation::new())
+                .cached_server(&ReadCancellation::new())
                 .await
                 .is_ok_and(|cached| cached.is_some())
     }
@@ -992,7 +992,7 @@ impl SourceOwner {
     pub(crate) fn reply<T, F, Work>(&self, work: F) -> Receiver<T>
     where
         T: Send + 'static,
-        F: FnOnce(SourceOwner, Arc<Database>) -> Work + Send + 'static,
+        F: FnOnce(ServerOwner, Arc<Database>) -> Work + Send + 'static,
         Work: Future<Output = T> + Send + 'static,
     {
         let (sender, receiver) = async_channel::bounded(1);
@@ -1150,8 +1150,8 @@ impl SourceOwner {
                     )
                     .await;
                     self.shared
-                        .send(SourceEvent::Notice(SourceNotice {
-                            kind: SourceNoticeKind::FavoriteRejected,
+                        .send(ServerEvent::Notice(ServerNotice {
+                            kind: ServerNoticeKind::FavoriteRejected,
                         }))
                         .await;
                 }
@@ -1321,27 +1321,27 @@ fn source_error_is_temporary(error: &SourceError) -> bool {
 }
 
 fn configured_source(
-    settings: &crate::settings::SourceSettings,
-) -> Result<ConfiguredSource, String> {
+    settings: &crate::settings::ServerSettings,
+) -> Result<ConfiguredServer, String> {
     settings
         .configured
         .clone()
         .ok_or_else(|| "the configured source no longer exists".to_string())
 }
 
-fn source_status(
+fn server_status(
     stored: &StoredSettings,
     selected: Option<&SelectedLibrary>,
     counts: Option<(usize, usize)>,
-) -> Option<SourceStatus> {
+) -> Option<ServerStatus> {
     let configured = stored.sources.configured.as_ref()?;
     let (album_count, track_count) = counts.unwrap_or_default();
-    Some(SourceStatus {
-        source: SourceSummary {
+    Some(ServerStatus {
+        source: ServerSummary {
             kind: configured.configuration.kind,
             name: configured.configuration.name.clone(),
         },
-        cache: SourceCacheSummary {
+        cache: ServerCacheSummary {
             selected_music_folder_name: selected
                 .and_then(|selected| {
                     let wanted = selected.music_folder_object_id.as_ref()?;
@@ -1376,10 +1376,10 @@ fn source_refresh_error_text(error: &SourceError) -> String {
     }
 }
 
-fn editable_source(configuration: &SourceConfiguration) -> Result<EditableSource, String> {
+fn editable_source(configuration: &SourceConfiguration) -> Result<EditableServer, String> {
     let credentials = configuration.editable().map_err(string_error)?;
-    Ok(EditableSource {
-        source: SourceSummary {
+    Ok(EditableServer {
+        source: ServerSummary {
             kind: configuration.kind,
             name: configuration.name.clone(),
         },
@@ -1387,25 +1387,25 @@ fn editable_source(configuration: &SourceConfiguration) -> Result<EditableSource
     })
 }
 
-fn source_progress(progress: SourceReadProgress) -> SourceProgress {
-    SourceProgress {
+fn source_progress(progress: SourceReadProgress) -> ServerProgress {
+    ServerProgress {
         stage: match progress.stage {
-            SourceReadStage::Albums => SourceProgressStage::Albums,
-            SourceReadStage::Tracks => SourceProgressStage::Tracks,
-            SourceReadStage::Artists => SourceProgressStage::Artists,
-            SourceReadStage::Genres => SourceProgressStage::Genres,
-            SourceReadStage::Playlists => SourceProgressStage::Playlists,
-            SourceReadStage::Home => SourceProgressStage::Home,
-            SourceReadStage::Finalizing => SourceProgressStage::Finalizing,
+            SourceReadStage::Albums => ServerProgressStage::Albums,
+            SourceReadStage::Tracks => ServerProgressStage::Tracks,
+            SourceReadStage::Artists => ServerProgressStage::Artists,
+            SourceReadStage::Genres => ServerProgressStage::Genres,
+            SourceReadStage::Playlists => ServerProgressStage::Playlists,
+            SourceReadStage::Home => ServerProgressStage::Home,
+            SourceReadStage::Finalizing => ServerProgressStage::Finalizing,
         },
         completed: progress.completed,
         total: progress.total,
     }
 }
 
-fn initial_progress() -> SourceProgress {
-    SourceProgress {
-        stage: SourceProgressStage::Connecting,
+fn initial_progress() -> ServerProgress {
+    ServerProgress {
+        stage: ServerProgressStage::Connecting,
         completed: 0,
         total: None,
     }
@@ -1426,19 +1426,19 @@ fn unix_seconds() -> i64 {
         .unwrap_or_default()
 }
 
-pub struct SourceSubscription {
-    source: SourceOwner,
+pub struct ServerSubscription {
+    source: ServerOwner,
     changes: tokio::sync::Mutex<tokio::sync::watch::Receiver<()>>,
 }
-pub struct SourceOperationSubscription {
-    changes: tokio::sync::Mutex<tokio::sync::watch::Receiver<SourceOperation>>,
+pub struct ServerOperationSubscription {
+    changes: tokio::sync::Mutex<tokio::sync::watch::Receiver<ServerOperation>>,
 }
 
-impl SourceOwner {
-    pub fn subscribe(&self) -> Arc<SourceSubscription> {
+impl ServerOwner {
+    pub fn subscribe(&self) -> Arc<ServerSubscription> {
         let mut changes = self.configuration_changes();
         changes.mark_changed();
-        Arc::new(SourceSubscription {
+        Arc::new(ServerSubscription {
             source: self.clone(),
             changes: tokio::sync::Mutex::new(changes),
         })
@@ -1454,13 +1454,13 @@ impl SourceOwner {
             credentials,
         };
         if edit {
-            self.update_source(setup)
+            self.update_server(setup)
                 .recv()
                 .await
                 .map_err(|error| SourceError::Other(error.to_string()))?
                 .map_err(SourceError::Other)
         } else {
-            self.configure_source(setup)
+            self.configure_server(setup)
                 .recv()
                 .await
                 .map_err(|error| SourceError::Other(error.to_string()))?
@@ -1470,19 +1470,19 @@ impl SourceOwner {
     }
 }
 
-impl SourceSubscription {
-    pub async fn next(&self) -> sources::SourceResult<Option<SourceStatus>> {
+impl ServerSubscription {
+    pub async fn next(&self) -> sources::SourceResult<Option<ServerStatus>> {
         self.changes
             .lock()
             .await
             .changed()
             .await
             .map_err(|error| SourceError::Other(error.to_string()))?;
-        Ok(self.source.source_status())
+        Ok(self.source.server_status())
     }
 }
-impl SourceOperationSubscription {
-    pub async fn next(&self) -> sources::SourceResult<SourceOperation> {
+impl ServerOperationSubscription {
+    pub async fn next(&self) -> sources::SourceResult<ServerOperation> {
         let mut changes = self.changes.lock().await;
         changes
             .changed()
@@ -1491,8 +1491,8 @@ impl SourceOperationSubscription {
         Ok(changes.borrow_and_update().clone())
     }
 }
-impl SourceOwner {
-    pub fn editable(&self) -> sources::SourceResult<Option<EditableSource>> {
+impl ServerOwner {
+    pub fn editable(&self) -> sources::SourceResult<Option<EditableServer>> {
         self.shared
             .settings
             .load()
@@ -1504,10 +1504,10 @@ impl SourceOwner {
     }
 }
 
-pub struct SourceCatalogSubscription {
+pub struct ServerCatalogSubscription {
     changes: tokio::sync::Mutex<tokio::sync::watch::Receiver<CatalogRevision>>,
 }
-impl SourceCatalogSubscription {
+impl ServerCatalogSubscription {
     pub async fn next(&self) -> sources::SourceResult<CatalogRevision> {
         let mut changes = self.changes.lock().await;
         changes

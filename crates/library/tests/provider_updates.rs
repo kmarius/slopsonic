@@ -53,11 +53,11 @@ async fn fixture() -> (tempfile::TempDir, Database) {
 
     let mut scan_catalog = async {
         if database
-            .cached_source(&library::ReadCancellation::new())
+            .cached_server(&library::ReadCancellation::new())
             .await?
             .is_none()
         {
-            (&database).reconcile_source("subsonic", "Source").await?;
+            (&database).reconcile_server("subsonic", "Source").await?;
         }
         database.catalog(None).await
     }
@@ -493,11 +493,11 @@ async fn incomplete_catalog_keeps_home_sections_when_their_refresh_fails() {
 
     let mut scan_catalog = async {
         if database
-            .cached_source(&library::ReadCancellation::new())
+            .cached_server(&library::ReadCancellation::new())
             .await?
             .is_none()
         {
-            (&database).reconcile_source("subsonic", "Source").await?;
+            (&database).reconcile_server("subsonic", "Source").await?;
         }
         database.catalog(None).await
     }

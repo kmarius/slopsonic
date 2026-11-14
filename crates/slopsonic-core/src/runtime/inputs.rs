@@ -2,7 +2,7 @@ use crate::SettingsHandle;
 use library::{FolderChoice, FolderKey, PlaylistKey};
 use std::sync::Arc;
 
-use super::source::{SourceOperation, SourceStatus};
+use super::source::{ServerOperation, ServerStatus};
 use super::{DiagnosticsHandle, ProductHandles, ProductReceivers};
 
 #[derive(Clone)]
@@ -12,15 +12,15 @@ pub struct SelectedLibrary {
     pub music_folders: Arc<[FolderChoice]>,
 }
 
-pub enum SourceEvent {
-    Configured(Option<SourceStatus>),
+pub enum ServerEvent {
+    Configured(Option<ServerStatus>),
     Selected {
-        configured: Option<SourceStatus>,
+        configured: Option<ServerStatus>,
         selected: SelectedLibrary,
     },
-    Operation(SourceOperation),
+    Operation(ServerOperation),
     CatalogPublished(CatalogPublication),
-    Notice(SourceNotice),
+    Notice(ServerNotice),
     ReleaseSelected,
 }
 
@@ -55,12 +55,12 @@ pub struct FavoriteSettlement {
 }
 
 #[derive(Clone, Debug)]
-pub struct SourceNotice {
-    pub kind: SourceNoticeKind,
+pub struct ServerNotice {
+    pub kind: ServerNoticeKind,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum SourceNoticeKind {
+pub enum ServerNoticeKind {
     ServerUnreachable,
     FavoriteRejected,
 }
@@ -71,6 +71,6 @@ pub struct RuntimeInputs {
     pub products: ProductHandles,
     pub settings: SettingsHandle,
     pub receivers: ProductReceivers,
-    pub source_status: Option<SourceStatus>,
-    pub source_operation: SourceOperation,
+    pub server_status: Option<ServerStatus>,
+    pub source_operation: ServerOperation,
 }

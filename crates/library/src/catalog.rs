@@ -107,7 +107,7 @@ impl Database {
         }
     }
 
-    pub async fn reconcile_source(&self, kind: &str, name: &str) -> LibraryResult<CachedSource> {
+    pub async fn reconcile_server(&self, kind: &str, name: &str) -> LibraryResult<CachedSource> {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
         let mut transaction = connection.begin().await?;
@@ -121,7 +121,7 @@ impl Database {
         Ok(row)
     }
 
-    pub async fn cached_source(
+    pub async fn cached_server(
         &self,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Option<CachedSource>> {
@@ -151,7 +151,7 @@ impl Database {
         .await?)
     }
 
-    pub async fn invalidate_source_observation(&self) -> LibraryResult<()> {
+    pub async fn invalidate_server_observation(&self) -> LibraryResult<()> {
         let mut writer = self.writer().await?;
         sqlx::query("UPDATE sources SET observation_stamp=observation_stamp+1,freshness=NULL")
             .execute(writer.as_mut().ok_or(LibraryError::WriterUnavailable)?)
@@ -169,7 +169,7 @@ impl Database {
             .bind(serde_json::to_string(media)?).fetch_all(&mut *connection).await?)
     }
 
-    pub async fn source_counts(
+    pub async fn server_counts(
         &self,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<(usize, usize)> {

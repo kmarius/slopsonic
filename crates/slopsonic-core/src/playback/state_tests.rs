@@ -4,7 +4,7 @@ use super::super::{
 };
 use super::*;
 use crate::playback::Placement;
-use crate::{settings::SettingsFile, source::SourceOwner};
+use crate::{settings::SettingsFile, source::ServerOwner};
 use playback::{BackendError, PlaybackBackend};
 use playback::{Provenance, TrackReference};
 use std::sync::Mutex;
@@ -78,13 +78,13 @@ pub(in crate::playback) async fn seeded(
         async_channel::unbounded().0,
         Default::default(),
     );
-    let source = SourceOwner::open_dormant(
+    let source = ServerOwner::open_dormant(
         artwork.clone(),
         Arc::new(database.clone()),
         downloads,
         settings.clone(),
         runtime.clone(),
-        crate::source::SourceOutputs {
+        crate::source::ServerOutputs {
             events: async_channel::unbounded().0,
         },
     );
@@ -106,7 +106,7 @@ pub(in crate::playback) async fn seeded(
         scrobbler,
         move |_| Ok(Box::new(IdleBackend(backend_commands.clone()))),
     );
-    owner.install_source_owner(&source);
+    owner.install_server_owner(&source);
     let (playback, inbox) = actor::channel();
     (
         directory, database, sequence, owner, commands, playback, inbox,
@@ -1335,7 +1335,7 @@ async fn repeat_wraps_when_source_exhaustion_is_discovered_after_a_full_page() {
     let uris = (0..100)
         .map(|i| library::entity_uri("track", &i.to_string()))
         .collect::<Vec<_>>();
-    db.reconcile_source("subsonic", "Source").await.unwrap();
+    db.reconcile_server("subsonic", "Source").await.unwrap();
     let mut catalog = db.catalog(None).await.unwrap();
     catalog
         .apply_catalog(

@@ -1,6 +1,6 @@
 use adw::prelude::*;
 use library::PlaylistKey;
-use slopsonic_core::runtime::source::SourceSummary;
+use slopsonic_core::runtime::source::ServerSummary;
 use std::rc::Rc;
 
 pub fn delete_playlist_dialog(name: &str, delete: impl Fn() + 'static) -> adw::AlertDialog {
@@ -27,7 +27,7 @@ pub fn delete_playlists_dialog(count: usize, delete: impl Fn() + 'static) -> adw
 }
 
 pub fn add_media_to_playlist(
-    source: &slopsonic_core::source::SourceOwner,
+    source: &slopsonic_core::source::ServerOwner,
     playlist: PlaylistKey,
     selection: library::MemberSelection,
     skip_existing: bool,
@@ -48,7 +48,7 @@ pub fn add_media_to_playlist(
 }
 pub fn new_playlist_dialog(
     name: &str,
-    selected: Option<SourceSummary>,
+    selected: Option<ServerSummary>,
     create: impl Fn(String, bool) + 'static,
 ) -> adw::Dialog {
     let resource = crate::ui_resource::PLAYLIST_NAME_DIALOG_RESOURCE;

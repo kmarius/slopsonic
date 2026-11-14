@@ -73,7 +73,7 @@ pub async fn fixture() -> Fixture {
     let path = directory.path().join("library.sqlite3");
     let database = Database::open(&path).await.expect("open Library");
     database
-        .reconcile_source("subsonic", "Source")
+        .reconcile_server("subsonic", "Source")
         .await
         .unwrap();
     let mut catalog = database.catalog(None).await.unwrap();

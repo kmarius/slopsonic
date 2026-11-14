@@ -1,6 +1,6 @@
 //! Media details and artwork preparation.
 mod details;
-use crate::source::{SourceOwner, string_error};
+use crate::source::{ServerOwner, string_error};
 use async_channel::Receiver;
 pub use details::{
     MediaDetailField, MediaDetailSection, MediaDetailText, MediaDetails, MediaDetailsItem,
@@ -25,7 +25,7 @@ impl MetadataItemId {
 }
 
 pub fn prepare_artwork(
-    owner: &SourceOwner,
+    owner: &ServerOwner,
     bytes: Vec<u8>,
 ) -> Receiver<Result<Arc<sources::ImageBytes>, String>> {
     owner.reply(move |_, _| async move {

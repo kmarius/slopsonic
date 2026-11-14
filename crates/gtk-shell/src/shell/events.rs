@@ -10,11 +10,11 @@ use crate::shell::playlist_picker::refresh_context_playlist_picker;
 use gtk_player::fullscreen::{FullscreenPlaybackRefresh, fullscreen_playback_refresh};
 use gtk_player::state::NowPlayingPresentation;
 use gtk_widgets::route::Route;
-use slopsonic_core::runtime::source::source_progress_text;
-use slopsonic_core::runtime::source::{SourceOperation, SourceProgress};
+use slopsonic_core::runtime::source::server_progress_text;
+use slopsonic_core::runtime::source::{ServerOperation, ServerProgress};
 use slopsonic_core::runtime::{
-    CatalogChange, CatalogPublication, ProductReceivers, SourceEvent, SourceNotice,
-    SourceNoticeKind,
+    CatalogChange, CatalogPublication, ProductReceivers, ServerEvent, ServerNotice,
+    ServerNoticeKind,
 };
 
 use super::Shell;
@@ -59,26 +59,26 @@ pub(crate) fn install_product_event_receivers(shell: &Rc<Shell>, receivers: Prod
     });
 }
 
-fn apply_source_event(shell: &Rc<Shell>, event: SourceEvent) {
+fn apply_source_event(shell: &Rc<Shell>, event: ServerEvent) {
     match event {
-        SourceEvent::Configured(configured) => apply_source_status(shell, configured),
-        SourceEvent::Selected {
+        ServerEvent::Configured(configured) => apply_source_status(shell, configured),
+        ServerEvent::Selected {
             configured,
             selected,
         } => {
             let added = matches!(
                 *shell.source.operation.borrow(),
-                SourceOperation::Adding { .. }
+                ServerOperation::Adding { .. }
             );
             apply_selected_source(shell, configured, selected);
             if added {
                 shell.preferences.complete_add_server_dialog();
             }
         }
-        SourceEvent::Operation(operation) => apply_source_operation(shell, operation),
-        SourceEvent::CatalogPublished(publication) => apply_catalog_publication(shell, publication),
-        SourceEvent::Notice(notice) => apply_source_notice(shell, notice),
-        SourceEvent::ReleaseSelected => release_selected_source(shell),
+        ServerEvent::Operation(operation) => apply_source_operation(shell, operation),
+        ServerEvent::CatalogPublished(publication) => apply_catalog_publication(shell, publication),
+        ServerEvent::Notice(notice) => apply_source_notice(shell, notice),
+        ServerEvent::ReleaseSelected => release_selected_source(shell),
     }
 }
 
@@ -95,7 +95,7 @@ fn release_selected_source(shell: &Rc<Shell>) {
 
 fn apply_source_status(
     shell: &Rc<Shell>,
-    configured: Option<slopsonic_core::runtime::source::SourceStatus>,
+    configured: Option<slopsonic_core::runtime::source::ServerStatus>,
 ) {
     *shell.source.configured.borrow_mut() = configured;
     refresh_context_playlist_picker(shell);
@@ -104,7 +104,7 @@ fn apply_source_status(
 
 fn apply_selected_source(
     shell: &Rc<Shell>,
-    configured: Option<slopsonic_core::runtime::source::SourceStatus>,
+    configured: Option<slopsonic_core::runtime::source::ServerStatus>,
     selected: slopsonic_core::runtime::SelectedLibrary,
 ) {
     let changed = shell.selected_library().as_deref().is_none_or(|previous| {
@@ -269,19 +269,19 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
     }
 }
 
-fn apply_source_notice(shell: &Rc<Shell>, notice: SourceNotice) {
+fn apply_source_notice(shell: &Rc<Shell>, notice: ServerNotice) {
     if shell.selected_library().is_none() {
         return;
     }
     shell
         .control_feedback
         .show_feedback_toast(match notice.kind {
-            SourceNoticeKind::ServerUnreachable => "Server is unreachable".to_string(),
-            SourceNoticeKind::FavoriteRejected => "Could not update favorites".to_string(),
+            ServerNoticeKind::ServerUnreachable => "Server is unreachable".to_string(),
+            ServerNoticeKind::FavoriteRejected => "Could not update favorites".to_string(),
         });
 }
 
-fn apply_source_operation(shell: &Rc<Shell>, operation: SourceOperation) {
+fn apply_source_operation(shell: &Rc<Shell>, operation: ServerOperation) {
     let previous_operation = shell.source.operation.borrow().clone();
     let previously_blocked = previous_operation.blocks_library();
     let started_blocking = source_operation_started_blocking(&previous_operation, &operation);
@@ -292,8 +292,8 @@ fn apply_source_operation(shell: &Rc<Shell>, operation: SourceOperation) {
     apply_source_refresh_feedback(shell, &previous_operation, &operation);
 
     match &operation {
-        SourceOperation::Adding { .. } | SourceOperation::Switching { .. } => {
-            if started_blocking && matches!(operation, SourceOperation::Adding { .. }) {
+        ServerOperation::Adding { .. } | ServerOperation::Switching { .. } => {
+            if started_blocking && matches!(operation, ServerOperation::Adding { .. }) {
                 shell.preferences.close_preferences_dialog();
             }
             if !shell.has_active_mounted_route() {
@@ -301,8 +301,8 @@ fn apply_source_operation(shell: &Rc<Shell>, operation: SourceOperation) {
                 shell.render_startup_loading_view();
             }
         }
-        SourceOperation::Refreshing { .. } | SourceOperation::Downloading { .. } => {}
-        SourceOperation::Failed {
+        ServerOperation::Refreshing { .. } | ServerOperation::Downloading { .. } => {}
+        ServerOperation::Failed {
             message, add_form, ..
         } => {
             warn!(error = %message, "source operation failed");
@@ -317,7 +317,7 @@ fn apply_source_operation(shell: &Rc<Shell>, operation: SourceOperation) {
                 shell.prepare_startup_route_content();
             }
         }
-        SourceOperation::Idle => {
+        ServerOperation::Idle => {
             shell.preferences.update_add_server_dialog();
             if shell.selected_library().is_some() && !shell.startup.route_revealed.get() {
                 shell.prepare_startup_route_content();
@@ -328,15 +328,15 @@ fn apply_source_operation(shell: &Rc<Shell>, operation: SourceOperation) {
 
 fn apply_source_refresh_feedback(
     shell: &Shell,
-    previous: &SourceOperation,
-    operation: &SourceOperation,
+    previous: &ServerOperation,
+    operation: &ServerOperation,
 ) {
-    let refreshing = matches!(previous, SourceOperation::Refreshing { .. });
+    let refreshing = matches!(previous, ServerOperation::Refreshing { .. });
     match operation {
-        SourceOperation::Refreshing { progress } => {
+        ServerOperation::Refreshing { progress } => {
             let continues = matches!(
                 previous,
-                SourceOperation::Refreshing {
+                ServerOperation::Refreshing {
                     progress: previous_progress,
                 } if previous_progress.stage == progress.stage
             );
@@ -353,7 +353,7 @@ fn apply_source_refresh_feedback(
             shell
                 .chrome
                 .source_refresh_feedback_label
-                .set_text(&source_progress_text(progress));
+                .set_text(&server_progress_text(progress));
             let next_fraction = source_progress_fraction(progress);
             let fraction = if continues {
                 shell
@@ -374,24 +374,24 @@ fn apply_source_refresh_feedback(
                 .set_visible(progress.total.is_some_and(|total| total > 0));
             shell.chrome.source_refresh_feedback.set_visible(true);
         }
-        SourceOperation::Idle | SourceOperation::Downloading { .. } if refreshing => {
+        ServerOperation::Idle | ServerOperation::Downloading { .. } if refreshing => {
             finish_source_refresh_feedback(shell, None, Duration::from_millis(1_200));
         }
-        SourceOperation::Failed {
+        ServerOperation::Failed {
             message,
             add_form: false,
             ..
         } if refreshing => {
             finish_source_refresh_feedback(shell, Some(message), Duration::from_secs(5));
         }
-        SourceOperation::Failed {
+        ServerOperation::Failed {
             message,
             add_form: false,
             ..
         } => {
             shell.control_feedback.show_feedback_toast(message.clone());
         }
-        SourceOperation::Adding { .. } | SourceOperation::Switching { .. } if refreshing => {
+        ServerOperation::Adding { .. } | ServerOperation::Switching { .. } if refreshing => {
             shell.source.refresh_feedback_generation.set(
                 shell
                     .source
@@ -430,7 +430,7 @@ fn finish_source_refresh_feedback(shell: &Shell, error: Option<&str>, delay: Dur
     });
 }
 
-fn source_progress_fraction(progress: &SourceProgress) -> f64 {
+fn source_progress_fraction(progress: &ServerProgress) -> f64 {
     match progress.total {
         Some(0) => 1.0,
         Some(total) => progress.completed.min(total) as f64 / total as f64,
@@ -438,7 +438,7 @@ fn source_progress_fraction(progress: &SourceProgress) -> f64 {
     }
 }
 
-fn source_operation_started_blocking(previous: &SourceOperation, next: &SourceOperation) -> bool {
+fn source_operation_started_blocking(previous: &ServerOperation, next: &ServerOperation) -> bool {
     !previous.blocks_library() && next.blocks_library()
 }
 
@@ -621,7 +621,7 @@ mod tests {
         bottom_player_can_update_position_only, media_controls_static_state_changed,
         queue_panel_refresh_needed, source_operation_started_blocking, source_progress_fraction,
     };
-    use slopsonic_core::runtime::source::{SourceOperation, SourceProgress, SourceProgressStage};
+    use slopsonic_core::runtime::source::{ServerOperation, ServerProgress, ServerProgressStage};
 
     #[test]
     fn playback_toasts_omit_backend_diagnostics() {
@@ -639,10 +639,10 @@ mod tests {
         );
     }
 
-    fn adding() -> SourceOperation {
-        SourceOperation::Adding {
-            progress: SourceProgress {
-                stage: SourceProgressStage::Connecting,
+    fn adding() -> ServerOperation {
+        ServerOperation::Adding {
+            progress: ServerProgress {
+                stage: ServerProgressStage::Connecting,
                 completed: 0,
                 total: None,
             },
@@ -652,15 +652,15 @@ mod tests {
     #[test]
     fn source_progress_does_not_restart_the_blocking_transition() {
         assert!(source_operation_started_blocking(
-            &SourceOperation::Idle,
+            &ServerOperation::Idle,
             &adding()
         ));
         assert!(!source_operation_started_blocking(&adding(), &adding()));
         assert!(source_operation_started_blocking(
-            &SourceOperation::Idle,
-            &SourceOperation::Switching {
-                progress: SourceProgress {
-                    stage: SourceProgressStage::Connecting,
+            &ServerOperation::Idle,
+            &ServerOperation::Switching {
+                progress: ServerProgress {
+                    stage: ServerProgressStage::Connecting,
                     completed: 0,
                     total: None,
                 },
@@ -671,22 +671,22 @@ mod tests {
     #[test]
     fn source_progress_follows_the_visible_stage_ratio() {
         let fraction = |stage, completed, total| {
-            source_progress_fraction(&SourceProgress {
+            source_progress_fraction(&ServerProgress {
                 stage,
                 completed,
                 total,
             })
         };
-        assert_eq!(fraction(SourceProgressStage::Connecting, 0, None), 0.0);
-        assert_eq!(fraction(SourceProgressStage::Tracks, 200, None), 0.0);
-        assert_eq!(fraction(SourceProgressStage::Tracks, 10, Some(10)), 1.0);
-        assert_eq!(fraction(SourceProgressStage::Tracks, 0, Some(10)), 0.0);
-        assert_eq!(fraction(SourceProgressStage::Tracks, 5, Some(10)), 0.5);
+        assert_eq!(fraction(ServerProgressStage::Connecting, 0, None), 0.0);
+        assert_eq!(fraction(ServerProgressStage::Tracks, 200, None), 0.0);
+        assert_eq!(fraction(ServerProgressStage::Tracks, 10, Some(10)), 1.0);
+        assert_eq!(fraction(ServerProgressStage::Tracks, 0, Some(10)), 0.0);
+        assert_eq!(fraction(ServerProgressStage::Tracks, 5, Some(10)), 0.5);
         assert_eq!(
-            fraction(SourceProgressStage::Tracks, 52, Some(2_584)),
+            fraction(ServerProgressStage::Tracks, 52, Some(2_584)),
             52.0 / 2_584.0
         );
-        assert_eq!(fraction(SourceProgressStage::Finalizing, 1, Some(1)), 1.0);
+        assert_eq!(fraction(ServerProgressStage::Finalizing, 1, Some(1)), 1.0);
     }
 
     #[test]

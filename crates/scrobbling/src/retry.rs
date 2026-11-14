@@ -847,7 +847,7 @@ mod tests {
         let database = Database::open(directory.path().join("library.sqlite3"))
             .await
             .expect("open Database");
-        database.reconcile_source("server", "Source").await.unwrap();
+        database.reconcile_server("server", "Source").await.unwrap();
         database
             .catalog(None)
             .await

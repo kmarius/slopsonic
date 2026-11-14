@@ -441,7 +441,7 @@ impl Player {
     fn play_random(&mut self, request: crate::playback::RandomPlayRequest) {
         let owner = self.owner();
         let Some(selected) = owner
-            .source_owner()
+            .server_owner()
             .and_then(|owner| owner.selected_library())
         else {
             return;

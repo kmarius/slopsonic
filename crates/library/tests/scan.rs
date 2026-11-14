@@ -11,11 +11,11 @@ async fn publication_keeps_tracks_and_known_credits_beside_missing_related_objec
 
     let mut scan_catalog = async {
         if database
-            .cached_source(&library::ReadCancellation::new())
+            .cached_server(&library::ReadCancellation::new())
             .await?
             .is_none()
         {
-            (&database).reconcile_source("subsonic", "Source").await?;
+            (&database).reconcile_server("subsonic", "Source").await?;
         }
         database.catalog(None).await
     }
@@ -158,7 +158,7 @@ async fn reopening_preserves_accepted_source_rows_and_noop_refresh() {
     let reopened = Database::open(&path).await.unwrap();
     assert_eq!(
         reopened
-            .source_counts(&ReadCancellation::default())
+            .server_counts(&ReadCancellation::default())
             .await
             .unwrap(),
         (1, 2)
@@ -178,7 +178,7 @@ async fn artist_names_and_sort_names_survive_sparse_credits_and_reset_with_compl
     let path = directory.path().join("library.sqlite3");
     let database = Database::open(&path).await.unwrap();
     database
-        .reconcile_source("subsonic", "Source")
+        .reconcile_server("subsonic", "Source")
         .await
         .unwrap();
     let mut write = library::CatalogBatch::default();
@@ -301,7 +301,7 @@ async fn sparse_artist_credits_preserve_metadata_and_complete_records_can_clear_
     let path = directory.path().join("library.sqlite3");
     let database = Database::open(&path).await.unwrap();
     database
-        .reconcile_source("subsonic", "Source")
+        .reconcile_server("subsonic", "Source")
         .await
         .unwrap();
     let mut write = library::CatalogBatch::default();
@@ -438,12 +438,12 @@ async fn write_small_catalog(
 
     let mut scan_catalog = async {
         if database
-            .cached_source(&library::ReadCancellation::new())
+            .cached_server(&library::ReadCancellation::new())
             .await?
             .is_none()
         {
             (database)
-                .reconcile_source("subsonic", "Source One")
+                .reconcile_server("subsonic", "Source One")
                 .await?;
         }
         database.catalog(None).await
@@ -679,7 +679,7 @@ async fn canonical_publication_preserves_identity_and_user_overrides() {
     assert!(first_revision > 0);
     assert_eq!(
         database
-            .cached_source(&ReadCancellation::new())
+            .cached_server(&ReadCancellation::new())
             .await
             .expect("read saved source without provider contact")
             .is_some(),
@@ -1131,11 +1131,11 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
     ] {
         let mut scan_catalog = async {
             if database
-                .cached_source(&library::ReadCancellation::new())
+                .cached_server(&library::ReadCancellation::new())
                 .await?
                 .is_none()
             {
-                (&database).reconcile_source("subsonic", "Source").await?;
+                (&database).reconcile_server("subsonic", "Source").await?;
             }
             database.catalog(None).await
         }
@@ -1232,11 +1232,11 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
 
     let mut complete_catalog = async {
         if database
-            .cached_source(&library::ReadCancellation::new())
+            .cached_server(&library::ReadCancellation::new())
             .await?
             .is_none()
         {
-            (&database).reconcile_source("subsonic", "Source").await?;
+            (&database).reconcile_server("subsonic", "Source").await?;
         }
         database.catalog(None).await
     }
@@ -1310,7 +1310,7 @@ async fn saved_source_opens_from_cache_without_starting_a_scan() {
 
     let reopened = Database::open(&path).await.expect("reopen cached Store");
     let cached = reopened
-        .cached_source(&ReadCancellation::new())
+        .cached_server(&ReadCancellation::new())
         .await
         .expect("resolve configured source from SQLite")
         .expect("cached source");
@@ -1319,7 +1319,7 @@ async fn saved_source_opens_from_cache_without_starting_a_scan() {
     assert_eq!(cached.display_name, "Source One");
     assert_eq!(
         reopened
-            .source_counts(&ReadCancellation::new())
+            .server_counts(&ReadCancellation::new())
             .await
             .unwrap(),
         (1, 2)
@@ -1331,9 +1331,9 @@ async fn completed_batches_survive_later_failure_and_interleaved_changes() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("library.sqlite3");
     let database = Database::open(&path).await.unwrap();
-    database.reconcile_source("subsonic", "Two").await.unwrap();
+    database.reconcile_server("subsonic", "Two").await.unwrap();
     database
-        .reconcile_source("subsonic", "Three")
+        .reconcile_server("subsonic", "Three")
         .await
         .unwrap();
 
@@ -1442,7 +1442,7 @@ async fn completed_batches_survive_later_failure_and_interleaved_changes() {
     assert!(database.favorite(&favorite).await.unwrap());
     assert!(
         !database
-            .cached_source(&ReadCancellation::new())
+            .cached_server(&ReadCancellation::new())
             .await
             .unwrap()
             .unwrap()
@@ -1559,7 +1559,7 @@ async fn completed_batches_survive_later_failure_and_interleaved_changes() {
             .fetch_one(&mut outside)
             .await
             .unwrap();
-    database.remove_source().await.unwrap();
+    database.remove_server().await.unwrap();
     assert!(database.catalog(None).await.is_err());
     assert_eq!(
         sqlx::query_scalar::<_, i64>("SELECT count(*) FROM sources")
@@ -1587,7 +1587,7 @@ async fn completed_batches_survive_later_failure_and_interleaved_changes() {
         .is_err()
     );
 
-    database.reconcile_source("subsonic", "Two").await.unwrap();
+    database.reconcile_server("subsonic", "Two").await.unwrap();
     // A playlist naming the forgotten track before its own sync claims the kept row.
     super::support::server_playlist(
         &database,
@@ -2013,7 +2013,7 @@ async fn reference_names_can_change_and_complete_artist_names_take_precedence() 
     let path = directory.path().join("library.sqlite");
     let database = Database::open(&path).await.unwrap();
     database
-        .reconcile_source("subsonic", "Source")
+        .reconcile_server("subsonic", "Source")
         .await
         .unwrap();
     let mut raw = connection(&path).await;

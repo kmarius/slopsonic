@@ -33,7 +33,7 @@ use state::{AutoDjRequest, ClockSample, Command};
 use tracing::{debug, warn};
 
 use crate::settings::SettingsFile;
-use crate::source::SourceOwner;
+use crate::source::ServerOwner;
 
 pub struct PlaybackOwner {
     database: Arc<Database>,
@@ -41,7 +41,7 @@ pub struct PlaybackOwner {
     runtime: tokio::runtime::Handle,
     pub updates: playback::PlaybackUpdates,
     scrobbler: Arc<Scrobbler>,
-    source: Mutex<std::sync::Weak<SourceOwner>>,
+    source: Mutex<std::sync::Weak<ServerOwner>>,
     active: Mutex<Option<Playback>>,
     pending_queue: Mutex<Option<QueueUpdate>>,
     equalizer: Mutex<equalizer::EqualizerState>,
@@ -150,7 +150,7 @@ impl PlaybackOwner {
         owner.runtime.spawn(async move {
             while let Ok(report) = report_receiver.recv().await {
                 let Some(owner) = weak.upgrade() else { break };
-                let source = owner.source_owner();
+                let source = owner.server_owner();
                 if let Ok(Some(source)) =
                     tokio::task::spawn_blocking(move || source?.client().ok()).await
                     && let Err(error) = source.report_playback(&report).await
@@ -170,7 +170,7 @@ impl PlaybackOwner {
         owner
     }
 
-    pub(crate) fn install_source_owner(&self, source: &Arc<SourceOwner>) {
+    pub(crate) fn install_server_owner(&self, source: &Arc<ServerOwner>) {
         *self
             .source
             .lock()
@@ -220,7 +220,7 @@ impl PlaybackOwner {
         Ok(projection)
     }
 
-    pub(crate) async fn forget_source(&self) -> Result<(), String> {
+    pub(crate) async fn forget_server(&self) -> Result<(), String> {
         let Some(active) = self.active() else {
             return Ok(());
         };
@@ -316,7 +316,7 @@ impl PlaybackOwner {
 
     fn request_auto_dj(&self, playback: WeakPlayback, request: AutoDjRequest) {
         let database = self.database.clone();
-        let source = self.source_owner();
+        let source = self.server_owner();
         let selected = source.as_ref().and_then(|owner| owner.selected_library());
         let source = source.as_ref().map(Arc::downgrade).unwrap_or_default();
         self.runtime.spawn(async move {
@@ -369,13 +369,13 @@ impl PlaybackOwner {
         normalization: playback::LoudnessNormalization,
     ) -> tokio::task::JoinHandle<()> {
         let database = Arc::clone(&self.database);
-        let source_owner = self.source_owner();
+        let server_owner = self.server_owner();
         self.runtime.spawn(async move {
             let loudness =
                 cached_loudness(&database, &occurrence.track.media_uri, normalization).await;
             let result = prepare_stream(&database, request, move || async move {
                 tokio::task::spawn_blocking(move || {
-                    source_owner
+                    server_owner
                         .ok_or_else(crate::source::source_access_unavailable)?
                         .client()
                 })
@@ -452,7 +452,7 @@ impl PlaybackOwner {
             .clone()
     }
 
-    fn source_owner(&self) -> Option<Arc<SourceOwner>> {
+    fn server_owner(&self) -> Option<Arc<ServerOwner>> {
         self.source
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())

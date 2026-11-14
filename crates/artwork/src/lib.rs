@@ -522,7 +522,7 @@ mod tests {
             "display size does not trigger another source request"
         );
 
-        database.reconcile_source("server", "Source").await.unwrap();
+        database.reconcile_server("server", "Source").await.unwrap();
         database
             .catalog(None)
             .await

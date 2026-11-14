@@ -1,10 +1,10 @@
 use async_channel::Receiver;
 
-use super::SourceOwner;
-use crate::runtime::source::{SourceOperation, SourceProgress, SourceProgressStage};
+use super::ServerOwner;
+use crate::runtime::source::{ServerOperation, ServerProgress, ServerProgressStage};
 use std::sync::{Arc, atomic::Ordering};
 
-impl SourceOwner {
+impl ServerOwner {
     pub(crate) fn request_asset_downloads(&self) {
         self.shared.asset_download_requested.notify_one();
     }
@@ -19,7 +19,7 @@ impl SourceOwner {
                 if !shared.started.load(Ordering::Acquire) {
                     break;
                 }
-                SourceOwner { shared }.download_assets().await;
+                ServerOwner { shared }.download_assets().await;
             }
         });
         *self
@@ -42,7 +42,7 @@ impl SourceOwner {
                 }
             }
         }
-        self.publish_asset_operation(SourceOperation::Idle);
+        self.publish_asset_operation(ServerOperation::Idle);
     }
 
     async fn download_source_assets(&self) -> Result<(), String> {
@@ -51,9 +51,9 @@ impl SourceOwner {
         let mut reported_at = std::time::Instant::now();
         let mut report = |completed| {
             if completed == 0 || reported_at.elapsed() >= std::time::Duration::from_millis(100) {
-                self.publish_asset_operation(SourceOperation::Downloading {
-                    progress: SourceProgress {
-                        stage: SourceProgressStage::Artwork,
+                self.publish_asset_operation(ServerOperation::Downloading {
+                    progress: ServerProgress {
+                        stage: ServerProgressStage::Artwork,
                         completed,
                         total: None,
                     },
@@ -91,13 +91,13 @@ impl SourceOwner {
         Ok(())
     }
 
-    fn publish_asset_operation(&self, operation: SourceOperation) {
-        let finished = !matches!(operation, SourceOperation::Downloading { .. });
+    fn publish_asset_operation(&self, operation: ServerOperation) {
+        let finished = !matches!(operation, ServerOperation::Downloading { .. });
         if self.shared.operation.borrow().blocks_library()
             || (finished
                 && !matches!(
                     *self.shared.operation.borrow(),
-                    SourceOperation::Downloading { .. }
+                    ServerOperation::Downloading { .. }
                 ))
         {
             return;
@@ -107,11 +107,11 @@ impl SourceOwner {
             .shared
             .outputs
             .events
-            .try_send(crate::runtime::SourceEvent::Operation(operation));
+            .try_send(crate::runtime::ServerEvent::Operation(operation));
     }
 }
 
-impl SourceOwner {
+impl ServerOwner {
     pub fn download_selection(
         &self,
         selection: library::MemberSelection,

@@ -9,7 +9,7 @@ use sources::{Source, SourceRadioSeed};
 
 use crate::playback::random_u64;
 use crate::runtime::SelectedLibrary;
-use crate::source::SourceOwner;
+use crate::source::ServerOwner;
 
 pub fn random_play_request(
     settings: &crate::settings::RandomPlaySettings,
@@ -60,14 +60,14 @@ pub async fn queue_random(
 
 pub(crate) async fn radio_candidates(
     database: &Database,
-    source_owner: Weak<SourceOwner>,
+    server_owner: Weak<ServerOwner>,
     selected: Option<SelectedLibrary>,
     seed: RadioSeed,
     requested: usize,
     cancellation: &ReadCancellation,
 ) -> Result<Vec<library::TrackKey>, String> {
     let requested = requested.min(library::QUEUE_CONTEXT_LIMIT);
-    let owner = source_owner.upgrade();
+    let owner = server_owner.upgrade();
     let seed_source = database
         .radio_source(&seed, cancellation)
         .await

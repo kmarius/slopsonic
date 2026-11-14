@@ -1627,7 +1627,7 @@ mod tests {
         let database = library::Database::open(directory.path().join("library.db"))
             .await
             .unwrap();
-        database.reconcile_source("search", "Search").await.unwrap();
+        database.reconcile_server("search", "Search").await.unwrap();
         let (sender, mut updates) = tokio::sync::mpsc::unbounded_channel();
         database.observe_catalog(move |update| {
             let _ = sender.send(update);
@@ -1742,7 +1742,7 @@ mod tests {
             let database = library::Database::open(root.path().join("library.sqlite"))
                 .await
                 .unwrap();
-            database.reconcile_source("search", "Search").await.unwrap();
+            database.reconcile_server("search", "Search").await.unwrap();
             let mut catalog = database.catalog(None).await.unwrap();
             catalog.start_observation().await.unwrap();
             if cached {

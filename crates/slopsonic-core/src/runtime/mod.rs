@@ -15,13 +15,13 @@ pub use downloads::{DownloadEvent, DownloadQueueItem, DownloadQueueState, Downlo
 pub use events::ProductReceivers;
 pub use inputs::{
     CatalogChange, CatalogPublication, CatalogRevision, FavoriteSettlement, RuntimeInputs,
-    SelectedLibrary, SourceEvent, SourceNotice, SourceNoticeKind,
+    SelectedLibrary, ServerEvent, ServerNotice, ServerNoticeKind,
 };
 pub use scrobbling::{
     LastFmPreferences, LibreFmPreferences, ListenBrainzPreferences, ScrobblingConnection,
     ScrobblingConnectionEvent, ScrobblingHandle, ScrobblingPreferences,
 };
-pub use source::SourceHandle;
+pub use source::ServerHandle;
 pub use storage::{CacheKind, CacheSummary, CacheUsage, StorageSummary};
 
 #[derive(Clone)]
@@ -29,7 +29,7 @@ pub struct ProductHandles {
     pub settings: crate::SettingsHandle,
     pub library: Arc<library::Database>,
     pub runtime: tokio::runtime::Handle,
-    pub source: SourceHandle,
+    pub source: ServerHandle,
     pub downloads: downloads::Downloads,
     pub playback: std::sync::Arc<crate::playback::PlaybackOwner>,
     pub artwork: artwork::Artwork,

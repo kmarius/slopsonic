@@ -1,10 +1,10 @@
 use async_channel::Receiver;
 use library::ReadCancellation;
 
-use super::SourceOwner;
+use super::ServerOwner;
 use crate::SettingsHandle;
 
-impl SourceOwner {
+impl ServerOwner {
     pub fn import_playlist_pins_once(
         &self,
         settings: SettingsHandle,

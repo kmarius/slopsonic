@@ -12,7 +12,7 @@ use crate::paths::Paths;
 use crate::playback::PlaybackOwner;
 use crate::scrobbling::ScrobblingOwner;
 use crate::settings::{SettingsFile, SettingsOwner};
-use crate::source::{SourceOutputs, SourceOwner};
+use crate::source::{ServerOutputs, ServerOwner};
 
 /// Runs an application host with Slopsonic's worker runtime available on its calling thread.
 /// The host shuts down playback before returning; workers are stopped afterwards.
@@ -103,13 +103,13 @@ where
         stored.ui.downloads.clone(),
     );
 
-    let source = SourceOwner::open_dormant(
+    let source = ServerOwner::open_dormant(
         artwork.clone(),
         library.clone(),
         downloads.clone(),
         settings.clone(),
         runtime.clone(),
-        SourceOutputs {
+        ServerOutputs {
             events: source_events.clone(),
         },
     );
@@ -155,7 +155,7 @@ where
         Arc::clone(&scrobbler),
         start_backend,
     );
-    playback.install_source_owner(&source);
+    playback.install_server_owner(&source);
     playback.start().await?;
     let scrobbling = ScrobblingOwner::new(settings.clone(), runtime.clone(), scrobbler);
     scrobbling.start();
@@ -216,7 +216,7 @@ where
 
     if let Some(configured) = &stored.sources.configured {
         if let Err(error) = library
-            .reconcile_source(
+            .reconcile_server(
                 configured.configuration.kind.kind_name(),
                 &configured.configuration.name,
             )
@@ -226,7 +226,7 @@ where
         }
     }
     source.start()?;
-    let source_handle: crate::runtime::SourceHandle = source.clone();
+    let source_handle: crate::runtime::ServerHandle = source.clone();
 
     Ok(RuntimeInputs {
         temporary_store,
@@ -246,7 +246,7 @@ where
             source: source_receiver,
             downloads: download_receiver,
         },
-        source_status: source.source_status(),
+        server_status: source.server_status(),
         source_operation: source.operation().borrow().clone(),
     })
 }

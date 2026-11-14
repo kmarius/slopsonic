@@ -42,7 +42,7 @@ use sources::SourceConfiguration;
 use tracing::warn;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct ConfiguredSource {
+pub(crate) struct ConfiguredServer {
     #[serde(flatten)]
     pub(crate) configuration: SourceConfiguration,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -52,9 +52,9 @@ pub(crate) struct ConfiguredSource {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SourceSettings {
+pub(crate) struct ServerSettings {
     #[serde(default)]
-    pub(crate) configured: Option<ConfiguredSource>,
+    pub(crate) configured: Option<ConfiguredServer>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -68,7 +68,7 @@ pub struct StoredSettings {
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub(crate) scrobbling_credentials: std::collections::BTreeMap<String, String>,
     #[serde(default)]
-    pub(crate) sources: SourceSettings,
+    pub(crate) sources: ServerSettings,
 }
 
 impl Default for StoredSettings {
@@ -78,7 +78,7 @@ impl Default for StoredSettings {
             equalizer: Default::default(),
             scrobbling: ScrobblingSettings::default(),
             scrobbling_credentials: Default::default(),
-            sources: SourceSettings::default(),
+            sources: ServerSettings::default(),
         }
     }
 }

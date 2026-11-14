@@ -6,7 +6,7 @@ async fn download_fixture(track_object_id: &str) -> (tempfile::TempDir, Database
     let database = Database::open(&directory.path().join("library.sqlite3"))
         .await
         .expect("open Library");
-    database.reconcile_source("server", "Source").await.unwrap();
+    database.reconcile_server("server", "Source").await.unwrap();
     database
         .catalog(None)
         .await

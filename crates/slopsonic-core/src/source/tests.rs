@@ -67,7 +67,7 @@ async fn adding_the_first_server_connects() {
     );
     let runtime = tokio::runtime::Handle::current();
     let (events, _receiver) = async_channel::unbounded();
-    let owner = SourceOwner::open_dormant(
+    let owner = ServerOwner::open_dormant(
         Artwork::new(directory.path().join("artwork"), runtime.clone()).unwrap(),
         Arc::clone(&database),
         Downloads::new(
@@ -81,12 +81,12 @@ async fn adding_the_first_server_connects() {
         ),
         SettingsFile::memory(),
         runtime,
-        SourceOutputs { events },
+        ServerOutputs { events },
     );
     let result = tokio::time::timeout(
         std::time::Duration::from_secs(20),
         owner
-            .configure_source(server_setup(format!("http://127.0.0.1:{port}"), None))
+            .configure_server(server_setup(format!("http://127.0.0.1:{port}"), None))
             .recv(),
     )
     .await;
@@ -102,10 +102,10 @@ async fn acquisition_progress_belongs_to_its_source() {
             .await
             .unwrap(),
     );
-    database.reconcile_source("subsonic", "Test").await.unwrap();
+    database.reconcile_server("subsonic", "Test").await.unwrap();
     let runtime = tokio::runtime::Handle::current();
     let (events, receiver) = async_channel::unbounded();
-    let owner = SourceOwner::open_dormant(
+    let owner = ServerOwner::open_dormant(
         Artwork::new(directory.path().join("artwork"), runtime.clone()).unwrap(),
         Arc::clone(&database),
         Downloads::new(
@@ -119,13 +119,13 @@ async fn acquisition_progress_belongs_to_its_source() {
         ),
         SettingsFile::memory(),
         runtime,
-        SourceOutputs { events },
+        ServerOutputs { events },
     );
 
     let music = directory.path().join("music");
     std::fs::create_dir(&music).unwrap();
     let configuration = subsonic_configuration("Test");
-    let configured = ConfiguredSource {
+    let configured = ConfiguredServer {
         configuration: configuration.clone(),
         credential: None,
         music_folder_id: None,
@@ -157,9 +157,9 @@ async fn acquisition_progress_belongs_to_its_source() {
     );
     assert!(matches!(
         &*owner.shared.operation.borrow(),
-        SourceOperation::Refreshing { progress } if progress.completed == 128
+        ServerOperation::Refreshing { progress } if progress.completed == 128
     ));
-    owner.finish_source_refresh(&first, Ok(())).await;
+    owner.finish_server_refresh(&first, Ok(())).await;
     for error in [
         SourceError::Network("connection refused".into()),
         SourceError::Cancelled,
@@ -167,7 +167,7 @@ async fn acquisition_progress_belongs_to_its_source() {
         SourceError::Network("connection timed out".into()),
     ] {
         while receiver.try_recv().is_ok() {}
-        owner.publish_operation(SourceOperation::Idle).await;
+        owner.publish_operation(ServerOperation::Idle).await;
         let token = owner.shared.begin_refresh(false, false).unwrap();
         owner.shared.present_refresh();
         owner.shared.refresh_progress(
@@ -180,17 +180,17 @@ async fn acquisition_progress_belongs_to_its_source() {
         );
         assert!(matches!(
             *owner.shared.operation.borrow(),
-            SourceOperation::Idle
+            ServerOperation::Idle
         ));
-        owner.finish_source_refresh(&token, Err(error)).await;
+        owner.finish_server_refresh(&token, Err(error)).await;
         assert!(matches!(
             *owner.shared.operation.borrow(),
-            SourceOperation::Idle
+            ServerOperation::Idle
         ));
         while let Ok(event) = receiver.try_recv() {
             assert!(!matches!(
                 event,
-                SourceEvent::Operation(SourceOperation::Failed { .. })
+                ServerEvent::Operation(ServerOperation::Failed { .. })
             ));
         }
     }
@@ -198,15 +198,15 @@ async fn acquisition_progress_belongs_to_its_source() {
         .finish_refresh(Err(SourceError::Network("connection refused".into())))
         .await;
     assert!(matches!(&*owner.shared.operation.borrow(),
-        SourceOperation::Failed { message, .. } if message == "Server is unreachable"));
+        ServerOperation::Failed { message, .. } if message == "Server is unreachable"));
     let token = owner.shared.begin_refresh(false, true).unwrap();
     owner.shared.present_refresh();
     owner
-        .finish_source_refresh(&token, Err(SourceError::Auth("Login expired".into())))
+        .finish_server_refresh(&token, Err(SourceError::Auth("Login expired".into())))
         .await;
     assert!(matches!(
         *owner.shared.operation.borrow(),
-        SourceOperation::Failed { .. }
+        ServerOperation::Failed { .. }
     ));
 
     let selected_library = SelectedLibrary {
@@ -240,7 +240,7 @@ async fn acquisition_progress_belongs_to_its_source() {
         (false, true, false, true, false),
         (false, true, false, false, false),
     ] {
-        owner.publish_operation(SourceOperation::Idle).await;
+        owner.publish_operation(ServerOperation::Idle).await;
         *owner.shared.selected.lock().unwrap() = selected.then(|| selected_library.clone());
         while receiver.try_recv().is_ok() {}
         let configuration = owner.configuration_changes();
@@ -268,9 +268,9 @@ async fn acquisition_progress_belongs_to_its_source() {
         while let Ok(event) = receiver.try_recv() {
             refreshing |= matches!(
                 event,
-                SourceEvent::Operation(SourceOperation::Refreshing { .. })
+                ServerEvent::Operation(ServerOperation::Refreshing { .. })
             );
-            published |= matches!(event, SourceEvent::CatalogPublished(_));
+            published |= matches!(event, ServerEvent::CatalogPublished(_));
         }
         assert_eq!(refreshing, visible);
         assert_eq!(published, metadata || artwork || activity);
@@ -306,7 +306,7 @@ async fn acquisition_progress_belongs_to_its_source() {
                 track_rekeys: Arc::from([]),
             })
             .await;
-        let SourceEvent::CatalogPublished(publication) = receiver.recv().await.unwrap() else {
+        let ServerEvent::CatalogPublished(publication) = receiver.recv().await.unwrap() else {
             panic!("scan changes publish catalog content");
         };
         assert_eq!(publication.change, expected);
@@ -323,7 +323,7 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
                 .unwrap(),
         );
         database
-            .reconcile_source("subsonic", "Music")
+            .reconcile_server("subsonic", "Music")
             .await
             .unwrap();
         let update = {
@@ -364,7 +364,7 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
         database.publish_catalog_update(update).await;
         let settings = SettingsFile::memory();
         settings.update(|stored| {
-        stored.sources.configured = Some(ConfiguredSource {
+        stored.sources.configured = Some(ConfiguredServer {
             configuration: SourceConfiguration {
                 kind: sources::SubsonicFlavor::Subsonic,
                 name: "Music".into(),
@@ -377,7 +377,7 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
     }).unwrap();
         let runtime = tokio::runtime::Handle::current();
         let (events, receiver) = async_channel::unbounded();
-        let owner = SourceOwner::open_dormant(
+        let owner = ServerOwner::open_dormant(
             Artwork::new(directory.path().join("artwork"), runtime.clone()).unwrap(),
             Arc::clone(&database),
             Downloads::new(
@@ -391,21 +391,21 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
             ),
             settings,
             runtime,
-            SourceOutputs { events },
+            ServerOutputs { events },
         );
         owner.shared.load_source_counts().await.unwrap();
         assert_eq!(
-            owner.shared.source_status(None).unwrap().cache.album_count,
+            owner.shared.server_status(None).unwrap().cache.album_count,
             1
         );
-        let completion = owner.select_source();
+        let completion = owner.select_server();
         tokio::time::timeout(Duration::from_secs(2), completion)
             .await
             .expect("selection result must not wait for the server")
             .unwrap();
         let published = tokio::time::timeout(Duration::from_secs(2), async {
             loop {
-                if let SourceEvent::Selected {
+                if let ServerEvent::Selected {
                     configured,
                     selected,
                 } = receiver.recv().await.unwrap()
@@ -493,7 +493,7 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
         database.publish_catalog_update(update).await;
         tokio::time::timeout(Duration::from_secs(2), async {
             loop {
-                if let SourceEvent::CatalogPublished(CatalogPublication {
+                if let ServerEvent::CatalogPublished(CatalogPublication {
                     change: CatalogChange::Broad,
                     ..
                 }) = receiver.recv().await.unwrap()
@@ -525,15 +525,15 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
         );
         assert!(
             database
-                .cached_source(&ReadCancellation::new())
+                .cached_server(&ReadCancellation::new())
                 .await
                 .unwrap()
                 .is_some()
         );
         assert_eq!(
             (
-                owner.shared.source_status(None).unwrap().cache.album_count,
-                owner.shared.source_status(None).unwrap().cache.track_count,
+                owner.shared.server_status(None).unwrap().cache.album_count,
+                owner.shared.server_status(None).unwrap().cache.track_count,
             ),
             (1, 1)
         );
@@ -570,7 +570,7 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
         let settings = SettingsFile::open(settings_path.clone()).unwrap();
         settings
             .update(|stored| {
-                stored.sources.configured = Some(ConfiguredSource {
+                stored.sources.configured = Some(ConfiguredServer {
                     configuration: subsonic_configuration("first"),
                     credential: None,
                     music_folder_id: None,
@@ -579,13 +579,13 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
             })
             .unwrap();
         database
-            .reconcile_source("subsonic", "first")
+            .reconcile_server("subsonic", "first")
             .await
             .unwrap();
         let runtime = tokio::runtime::Handle::current();
         let (events, receiver) = async_channel::unbounded();
         let receiver = keep_receiver.then_some(receiver);
-        let owner = SourceOwner::open_dormant(
+        let owner = ServerOwner::open_dormant(
             Artwork::new(directory.path().join("artwork"), runtime.clone()).unwrap(),
             Arc::clone(&database),
             Downloads::new(
@@ -599,13 +599,13 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
             ),
             settings.clone(),
             runtime,
-            SourceOutputs { events },
+            ServerOutputs { events },
         );
-        assert!(owner.source_status().is_some());
+        assert!(owner.server_status().is_some());
         assert!(owner.selected_library().is_none());
         // A pending playlist edit must not hold up source selection.
         let lane = owner.shared.lane.lock().await;
-        let mut selection = Box::pin(owner.select_source());
+        let mut selection = Box::pin(owner.select_server());
         assert!(futures_util::poll!(selection.as_mut()).is_pending());
         tokio::time::timeout(Duration::from_secs(5), selection)
             .await
@@ -626,15 +626,15 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
             .expect("the current selection installs");
         canceller.join().unwrap();
         assert!(owner.shared.install_if_current(&intent, || ()).is_none());
-        tokio::time::timeout(Duration::from_secs(5), owner.forget_source())
+        tokio::time::timeout(Duration::from_secs(5), owner.forget_server())
             .await
             .expect("removal completes without consuming events")
             .unwrap();
-        assert!(owner.source_status().is_none());
+        assert!(owner.server_status().is_none());
         assert!(owner.shared.selected().is_none());
         assert!(
             database
-                .cached_source(&ReadCancellation::new())
+                .cached_server(&ReadCancellation::new())
                 .await
                 .unwrap()
                 .is_none()
@@ -643,10 +643,10 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
             let mut assignments = Vec::new();
             while let Ok(event) = receiver.try_recv() {
                 match event {
-                    SourceEvent::Selected { selected, .. } => {
+                    ServerEvent::Selected { selected, .. } => {
                         assignments.push(Some(selected.music_folder_key))
                     }
-                    SourceEvent::ReleaseSelected => assignments.push(None),
+                    ServerEvent::ReleaseSelected => assignments.push(None),
                     _ => {}
                 }
             }
@@ -660,8 +660,8 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
         assert!(owner.shared.selected().is_none());
         owner.shared.client.lock().unwrap().take();
         owner.shared.cancel_selection();
-        owner.forget_source().await.unwrap();
-        assert!(owner.source_status().is_none(), "removal can be repeated");
+        owner.forget_server().await.unwrap();
+        assert!(owner.server_status().is_none(), "removal can be repeated");
     }
 }
 
@@ -674,7 +674,7 @@ async fn server_reset_drops_its_local_state_and_keeps_the_configuration() {
             .unwrap(),
     );
     database
-        .reconcile_source("subsonic", "Server")
+        .reconcile_server("subsonic", "Server")
         .await
         .unwrap();
     let album = FavoriteTarget::Album(library::entity_uri("album", "a"));
@@ -687,7 +687,7 @@ async fn server_reset_drops_its_local_state_and_keeps_the_configuration() {
     let settings = SettingsFile::memory();
     settings
         .update(|stored| {
-            stored.sources.configured = Some(ConfiguredSource {
+            stored.sources.configured = Some(ConfiguredServer {
                 configuration: subsonic_configuration("Server"),
                 credential: None,
                 music_folder_id: None,
@@ -714,7 +714,7 @@ async fn server_reset_drops_its_local_state_and_keeps_the_configuration() {
         })
         .unwrap();
     let runtime = tokio::runtime::Handle::current();
-    let owner = SourceOwner::open_dormant(
+    let owner = ServerOwner::open_dormant(
         Artwork::new(directory.path().join("artwork"), runtime.clone()).unwrap(),
         Arc::clone(&database),
         Downloads::new(
@@ -728,7 +728,7 @@ async fn server_reset_drops_its_local_state_and_keeps_the_configuration() {
         ),
         settings.clone(),
         runtime,
-        SourceOutputs {
+        ServerOutputs {
             events: async_channel::unbounded().0,
         },
     );
@@ -764,7 +764,7 @@ async fn server_reset_drops_its_local_state_and_keeps_the_configuration() {
     assert!(database.download_files(&track).await.unwrap().is_empty());
     assert!(
         database
-            .cached_source(&ReadCancellation::new())
+            .cached_server(&ReadCancellation::new())
             .await
             .unwrap()
             .is_none()
@@ -803,7 +803,7 @@ async fn editing_to_another_server_resets_and_a_same_server_edit_keeps_state() {
     );
     let settings = SettingsFile::memory();
     let runtime = tokio::runtime::Handle::current();
-    let owner = SourceOwner::open_dormant(
+    let owner = ServerOwner::open_dormant(
         Artwork::new(directory.path().join("artwork"), runtime.clone()).unwrap(),
         Arc::clone(&database),
         Downloads::new(
@@ -817,11 +817,11 @@ async fn editing_to_another_server_resets_and_a_same_server_edit_keeps_state() {
         ),
         settings.clone(),
         runtime,
-        SourceOutputs {
+        ServerOutputs {
             events: async_channel::unbounded().0,
         },
     );
-    wait(owner.configure_source(server_setup(format!("http://127.0.0.1:{first}"), None)))
+    wait(owner.configure_server(server_setup(format!("http://127.0.0.1:{first}"), None)))
         .await
         .map(|_| ())
         .unwrap();
@@ -852,7 +852,7 @@ async fn editing_to_another_server_resets_and_a_same_server_edit_keeps_state() {
         .unwrap();
 
     // The same server under another name and spelling of its address keeps its state.
-    wait(owner.update_source(server_setup(
+    wait(owner.update_server(server_setup(
         format!("http://127.0.0.1:{first}/"),
         Some("Renamed"),
     )))
@@ -861,7 +861,7 @@ async fn editing_to_another_server_resets_and_a_same_server_edit_keeps_state() {
     assert!(pending().await);
     assert!(pinned());
 
-    wait(owner.update_source(server_setup(format!("http://127.0.0.1:{second}"), None)))
+    wait(owner.update_server(server_setup(format!("http://127.0.0.1:{second}"), None)))
         .await
         .unwrap();
     assert!(

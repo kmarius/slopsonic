@@ -1,8 +1,8 @@
 use async_channel::Receiver;
 
-use super::SourceEvent;
+use super::ServerEvent;
 
 pub struct ProductReceivers {
-    pub source: Receiver<SourceEvent>,
+    pub source: Receiver<ServerEvent>,
     pub downloads: Receiver<downloads::DownloadEvent>,
 }

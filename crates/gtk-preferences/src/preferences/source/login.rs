@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use adw::prelude::*;
-use slopsonic_core::runtime::source::{EditableSource, SourceHandle, SourceOperation};
+use slopsonic_core::runtime::source::{EditableServer, ServerHandle, ServerOperation};
 
 use sources::{CredentialInput, CredentialPreset, SubsonicAuthentication, SubsonicFlavor};
 
@@ -10,7 +10,7 @@ use crate::Preferences;
 use gtk_widgets::controls::text_button;
 use gtk_widgets::layout::large_popup_content_width;
 use gtk_widgets::popup::present_light_dismiss_dialog;
-use slopsonic_core::runtime::source::source_operation_text;
+use slopsonic_core::runtime::source::server_operation_text;
 
 const ADD_SERVER_CLAMP_WIDTH: i32 = 560;
 const SETUP_FORM_PAGE: &str = "form";
@@ -18,7 +18,7 @@ const SETUP_PROGRESS_PAGE: &str = "progress";
 
 pub fn source_settings_group(
     shell: &Rc<Preferences>,
-    saved: &EditableSource,
+    saved: &EditableServer,
 ) -> Result<gtk::Widget, String> {
     subsonic_settings_group(shell, saved, saved.source.kind)
 }
@@ -214,7 +214,7 @@ impl Preferences {
         let mut handle = self.source.add_server.borrow_mut();
         if !matches!(
             *self.source.operation.borrow(),
-            SourceOperation::Adding { .. }
+            ServerOperation::Adding { .. }
         ) {
             handle.take();
             return;
@@ -296,7 +296,7 @@ impl Preferences {
     }
 
     fn source_connection_progress_text(&self) -> String {
-        source_operation_text(&self.source.operation.borrow())
+        server_operation_text(&self.source.operation.borrow())
             .unwrap_or_else(|| "Preparing library...".to_string())
     }
 }
@@ -310,7 +310,7 @@ fn credential_setup_flow() -> Rc<SetupFlow> {
 
 fn subsonic_settings_group(
     shell: &Rc<Preferences>,
-    saved: &EditableSource,
+    saved: &EditableServer,
     kind: SubsonicFlavor,
 ) -> Result<gtk::Widget, String> {
     let authentication = Some(
@@ -480,7 +480,7 @@ fn setup_scaffold(
     clamp.set_margin_bottom(20);
     content.set_spacing(10);
     content.add_css_class("add-server-compact-content");
-    if let SourceOperation::Failed {
+    if let ServerOperation::Failed {
         message,
         add_form: true,
         ..
@@ -556,19 +556,19 @@ fn restore_setup_focus(context: &SetupViewContext) {
     }
 }
 
-fn setup_surface_state(operation: &SourceOperation) -> SetupSurfaceState<'_> {
+fn setup_surface_state(operation: &ServerOperation) -> SetupSurfaceState<'_> {
     match operation {
-        SourceOperation::Adding { .. } => SetupSurfaceState::Progress,
-        SourceOperation::Failed {
+        ServerOperation::Adding { .. } => SetupSurfaceState::Progress,
+        ServerOperation::Failed {
             message,
             add_form: true,
             ..
         } => SetupSurfaceState::Failed(message),
-        SourceOperation::Idle
-        | SourceOperation::Switching { .. }
-        | SourceOperation::Refreshing { .. }
-        | SourceOperation::Downloading { .. }
-        | SourceOperation::Failed {
+        ServerOperation::Idle
+        | ServerOperation::Switching { .. }
+        | ServerOperation::Refreshing { .. }
+        | ServerOperation::Downloading { .. }
+        | ServerOperation::Failed {
             add_form: false, ..
         } => SetupSurfaceState::Form,
     }
@@ -763,7 +763,7 @@ fn append_credential_connect(
     actions: &gtk::Box,
     status: gtk::Label,
     host: CredentialHost,
-    submit: impl Fn(&SourceHandle, CredentialInput) + 'static,
+    submit: impl Fn(&ServerHandle, CredentialInput) + 'static,
 ) {
     let login = text_button("slopsonic-network-server-symbolic", "Connect");
     login.add_css_class("suggested-action");

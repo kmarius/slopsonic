@@ -309,7 +309,7 @@ impl MediaDragPreviewBinding {
 pub enum MediaDragSource {
     LiveCollection {
         media_uri: String,
-        operations: slopsonic_core::runtime::source::SourceHandle,
+        operations: slopsonic_core::runtime::source::ServerHandle,
     },
     Target {
         target: PlayRequest,
@@ -644,7 +644,7 @@ fn selection_title(selection: Option<&library::MemberSelection>) -> String {
 
 async fn prepare_live_collection(
     database: &library::Database,
-    operations: &slopsonic_core::runtime::source::SourceHandle,
+    operations: &slopsonic_core::runtime::source::ServerHandle,
     media_uri: &str,
 ) -> Result<PlayRequest, String> {
     operations

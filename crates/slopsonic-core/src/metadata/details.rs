@@ -4,7 +4,7 @@ use crate::route::{
     Route,
     detail_links::{DetailLinks, album_artist_links, metadata_links},
 };
-use crate::runtime::SourceHandle;
+use crate::runtime::ServerHandle;
 use crate::settings::LibraryField;
 use crate::settings::presentation::{
     self, display_unix_date, format_duration_units, stored_rating,
@@ -64,7 +64,7 @@ pub struct MediaDetails {
 }
 
 pub async fn media_details(
-    source: SourceHandle,
+    source: ServerHandle,
     playback: Arc<PlaybackOwner>,
     item: MediaDetailsItem,
 ) -> LibraryResult<MediaDetails> {

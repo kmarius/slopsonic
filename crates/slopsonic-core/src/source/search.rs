@@ -2,7 +2,7 @@ use crate::runtime::SelectedLibrary;
 use library::{ReadCancellation, SearchRequest, SearchResults};
 
 pub async fn acquire_search(
-    owner: &super::SourceOwner,
+    owner: &super::ServerOwner,
     database: &library::Database,
     selected: Option<&SelectedLibrary>,
     query: String,

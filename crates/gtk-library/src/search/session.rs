@@ -37,7 +37,7 @@ pub const SEARCH_PREVIEW_LIMIT: usize = 30;
 
 /// One current query shared by the header and the Search route.
 pub struct SearchSession {
-    source: slopsonic_core::runtime::SourceHandle,
+    source: slopsonic_core::runtime::ServerHandle,
     database: Arc<library::Database>,
     runtime: tokio::runtime::Handle,
     selected: RefCell<Option<SelectedLibrary>>,
@@ -54,7 +54,7 @@ pub struct SearchSession {
 
 impl SearchSession {
     pub fn new(
-        source: slopsonic_core::runtime::SourceHandle,
+        source: slopsonic_core::runtime::ServerHandle,
         database: Arc<library::Database>,
         runtime: tokio::runtime::Handle,
     ) -> Self {

@@ -9,7 +9,7 @@ use gtk::gio;
 use super::PreferencesNavigationControls;
 use crate::Preferences;
 use gtk_widgets::source_labels::configured_source_display_name;
-use slopsonic_core::runtime::source::{SourceCacheSummary, SourceSummary};
+use slopsonic_core::runtime::source::{ServerCacheSummary, ServerSummary};
 use slopsonic_core::text::{album_count_text, track_count_text};
 
 const DOWNLOAD_JOB_DRAG_PREFIX: &str = "slopsonic-download-job:";
@@ -793,8 +793,8 @@ fn confirm_remove_all_downloads(shell: &Rc<Preferences>, preferences_dialog: &ad
 }
 
 fn source_summary_subtitle(
-    server: &SourceSummary,
-    summary: Option<&SourceCacheSummary>,
+    server: &ServerSummary,
+    summary: Option<&ServerCacheSummary>,
     address: Option<&str>,
     username: Option<&str>,
 ) -> String {
@@ -832,7 +832,7 @@ fn metadata_line(parts: impl IntoIterator<Item = String>) -> String {
         .join(" - ")
 }
 
-fn source_cache_line(summary: &SourceCacheSummary) -> String {
+fn source_cache_line(summary: &ServerCacheSummary) -> String {
     format!(
         "Cached: {}, {}",
         album_count_text(summary.album_count as u64),

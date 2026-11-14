@@ -167,7 +167,7 @@ mod tests {
             let _ = sender.send(update);
             std::future::ready(())
         });
-        database.reconcile_source("source", "Source").await.unwrap();
+        database.reconcile_server("source", "Source").await.unwrap();
 
         let cancellation = library::ReadCancellation::new();
         for (id, status, empty, identical, expected) in [
@@ -273,7 +273,7 @@ mod tests {
             std::future::ready(())
         });
         let marker = library::Freshness::new(b"catalog".to_vec()).unwrap();
-        database.reconcile_source("source", "Source").await.unwrap();
+        database.reconcile_server("source", "Source").await.unwrap();
         let mut catalog = database.catalog(None).await.unwrap();
         let stamp = Some(catalog.start_observation().await.unwrap());
         (async {

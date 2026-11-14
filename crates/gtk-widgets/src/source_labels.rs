@@ -1,8 +1,8 @@
 pub use slopsonic_core::runtime::source::{source_kind_icon_name, source_kind_title};
 
-use slopsonic_core::runtime::source::SourceSummary;
+use slopsonic_core::runtime::source::ServerSummary;
 
-pub fn configured_source_display_name(source: &SourceSummary) -> String {
+pub fn configured_source_display_name(source: &ServerSummary) -> String {
     let name = source.name.trim();
     if name.is_empty() {
         source_kind_title(source.kind).to_string()

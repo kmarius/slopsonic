@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use adw::prelude::*;
-use slopsonic_core::runtime::source::{SourceOperation, SourceProgressStage, source_download_text};
+use slopsonic_core::runtime::source::{ServerOperation, ServerProgressStage, source_download_text};
 use slopsonic_core::runtime::{CacheKind, CacheUsage, ProductHandles, StorageSummary};
 
 use crate::Preferences;
@@ -179,15 +179,15 @@ impl StorageView {
     }
 
     /// Shows the downloader's own count; the summary is measured again only once it ends.
-    fn show_download(self: &Rc<Self>, operation: &SourceOperation, downloading: bool) -> bool {
-        let SourceOperation::Downloading { progress, .. } = operation else {
+    fn show_download(self: &Rc<Self>, operation: &ServerOperation, downloading: bool) -> bool {
+        let ServerOperation::Downloading { progress, .. } = operation else {
             if downloading && self.page.upgrade().is_some_and(|page| page.is_mapped()) {
                 self.load(None);
             }
             return false;
         };
         let kind = match progress.stage {
-            SourceProgressStage::Artwork => CacheKind::Artwork,
+            ServerProgressStage::Artwork => CacheKind::Artwork,
             _ => return true,
         };
         if let Some(count) = self

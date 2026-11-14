@@ -1,7 +1,7 @@
 use super::*;
 
-impl SourceOwner {
-    pub(super) async fn publish_operation(&self, operation: SourceOperation) {
+impl ServerOwner {
+    pub(super) async fn publish_operation(&self, operation: ServerOperation) {
         self.shared.publish_operation(operation);
     }
 
@@ -17,7 +17,7 @@ impl SourceOwner {
         let publication = match self
             .shared
             .database
-            .cached_source(&ReadCancellation::new())
+            .cached_server(&ReadCancellation::new())
             .await
             .map_err(string_error)?
         {
@@ -25,7 +25,7 @@ impl SourceOwner {
             None => self
                 .shared
                 .database
-                .reconcile_source(
+                .reconcile_server(
                     configured.configuration.kind.kind_name(),
                     &configured.configuration.name,
                 )
@@ -88,10 +88,10 @@ impl SourceOwner {
             owner.shared.present_refresh();
             if refresh && activated && !cached_start {
                 let refresh_owner = owner.clone();
-                let refresh_source = source.clone();
+                let refresh_server = source.clone();
                 owner.shared.runtime.spawn(async move {
                     let _ = refresh_owner
-                        .refresh_now(&refresh_source, false, true)
+                        .refresh_now(&refresh_server, false, true)
                         .await;
                 });
             }
@@ -109,7 +109,7 @@ impl SourceOwner {
 
     pub(super) async fn selected_folders(
         &self,
-        configured: &ConfiguredSource,
+        configured: &ConfiguredServer,
     ) -> Result<(Arc<[FolderChoice]>, Option<FolderKey>), String> {
         let folders = self
             .shared
@@ -131,7 +131,7 @@ impl SourceOwner {
 
     pub(super) async fn install_selected(
         &self,
-        configured: ConfiguredSource,
+        configured: ConfiguredServer,
         source: Option<Arc<Source>>,
         acquisition: Arc<AtomicBool>,
     ) -> Result<(), String> {
@@ -158,8 +158,8 @@ impl SourceOwner {
             return Ok(());
         };
         self.shared
-            .send(SourceEvent::Selected {
-                configured: self.shared.source_status(Some(&selected)),
+            .send(ServerEvent::Selected {
+                configured: self.shared.server_status(Some(&selected)),
                 selected: selected.clone(),
             })
             .await;
@@ -167,7 +167,7 @@ impl SourceOwner {
             self.restate_selection().await;
             return Ok(());
         }
-        self.publish_operation(SourceOperation::Idle).await;
+        self.publish_operation(ServerOperation::Idle).await;
         self.shared.present_refresh();
         if source.is_some() {
             let owner = self.clone();
@@ -202,15 +202,15 @@ impl SourceOwner {
                     self.shared.warn_nonfatal(&error);
                 }
                 self.shared
-                    .send(SourceEvent::Selected {
-                        configured: self.shared.source_status(Some(&selected)),
+                    .send(ServerEvent::Selected {
+                        configured: self.shared.server_status(Some(&selected)),
                         selected,
                     })
                     .await;
             }
             None => {
                 self.shared.downloads.detach();
-                self.shared.send(SourceEvent::ReleaseSelected).await;
+                self.shared.send(ServerEvent::ReleaseSelected).await;
             }
         }
     }
@@ -226,7 +226,7 @@ impl SourceOwner {
             .take()
             .is_some();
         if released {
-            self.shared.send(SourceEvent::ReleaseSelected).await;
+            self.shared.send(ServerEvent::ReleaseSelected).await;
         }
     }
 
@@ -329,11 +329,11 @@ impl SourceOwner {
             .as_ref()
             .map(|_| ())
             .map_err(source_refresh_error_text);
-        self.finish_source_refresh(&token, outcome).await;
+        self.finish_server_refresh(&token, outcome).await;
         result
     }
 
-    pub(crate) async fn finish_source_refresh(
+    pub(crate) async fn finish_server_refresh(
         &self,
         token: &Arc<AtomicBool>,
         result: sources::SourceResult<()>,
@@ -372,7 +372,7 @@ impl SourceOwner {
         }
         let presented = matches!(
             &*self.shared.operation.borrow(),
-            SourceOperation::Refreshing { .. }
+            ServerOperation::Refreshing { .. }
         );
         if presented {
             self.finish_refresh(result).await;
@@ -385,9 +385,9 @@ impl SourceOwner {
 
     pub(crate) async fn finish_refresh(&self, result: sources::SourceResult<()>) {
         let operation = match result {
-            Ok(_) => SourceOperation::Idle,
-            Err(error) if source_error_is_cancelled(&error) => SourceOperation::Idle,
-            Err(error) => SourceOperation::Failed {
+            Ok(_) => ServerOperation::Idle,
+            Err(error) if source_error_is_cancelled(&error) => ServerOperation::Idle,
+            Err(error) => ServerOperation::Failed {
                 message: {
                     warn!(%error, "source refresh failed");
                     source_refresh_error_text(&error)
@@ -400,7 +400,7 @@ impl SourceOwner {
 
     pub(super) async fn install_connected_edit(
         &self,
-        configured: ConfiguredSource,
+        configured: ConfiguredServer,
         connected: Box<sources::ConnectedSource>,
     ) -> Result<(), String> {
         let (configuration, source, credential) = (*connected).into_parts();
@@ -423,15 +423,15 @@ impl SourceOwner {
             {
                 self.shared
                     .database
-                    .invalidate_source_observation()
+                    .invalidate_server_observation()
                     .await
                     .map_err(string_error)?;
             }
-            replacement = self.persist_connected_source(&replacement, credential)?;
+            replacement = self.persist_connected_server(&replacement, credential)?;
             let source = self.cache_connected(&replacement, Arc::new(source));
             self.shared
                 .database
-                .reconcile_source(
+                .reconcile_server(
                     replacement.configuration.kind.kind_name(),
                     &replacement.configuration.name,
                 )
@@ -452,20 +452,20 @@ impl SourceOwner {
                     }
                 });
             } else {
-                self.publish_operation(SourceOperation::Idle).await;
+                self.publish_operation(ServerOperation::Idle).await;
             }
             Ok(())
         }
         .await;
         if result.is_err() {
-            self.publish_operation(SourceOperation::Idle).await;
+            self.publish_operation(ServerOperation::Idle).await;
         }
         result
     }
 
     pub(super) fn cache_connected(
         &self,
-        configured: &ConfiguredSource,
+        configured: &ConfiguredServer,
         source: Arc<Source>,
     ) -> Arc<Source> {
         let mut client = self.shared.client.lock().unwrap_or_else(|p| p.into_inner());
@@ -484,11 +484,11 @@ impl SourceOwner {
         source
     }
 
-    pub(crate) fn persist_connected_source(
+    pub(crate) fn persist_connected_server(
         &self,
-        configured: &ConfiguredSource,
+        configured: &ConfiguredServer,
         credential: Option<String>,
-    ) -> Result<ConfiguredSource, String> {
+    ) -> Result<ConfiguredServer, String> {
         let mut configured = configured.clone();
         if credential.is_some() {
             configured.credential = credential;
@@ -507,7 +507,7 @@ impl SourceOwner {
         Ok(configured)
     }
 
-    pub(super) async fn edit_configured_source(&self, input: SourceSetup) -> Result<(), String> {
+    pub(super) async fn edit_configured_server(&self, input: SourceSetup) -> Result<(), String> {
         let configured = configured_source(&self.shared.settings.load().sources)?;
         let credential = configured.credential.clone();
         let edit = Source::edit(configured.configuration.clone(), credential, input)
@@ -525,7 +525,7 @@ impl SourceOwner {
                 if !same_native_input(&configured.configuration, &configuration) {
                     self.shared
                         .database
-                        .invalidate_source_observation()
+                        .invalidate_server_observation()
                         .await
                         .map_err(string_error)?;
                     self.shared
@@ -542,7 +542,7 @@ impl SourceOwner {
                 })?;
                 self.shared
                     .database
-                    .reconcile_source(configuration.kind.kind_name(), &configuration.name)
+                    .reconcile_server(configuration.kind.kind_name(), &configuration.name)
                     .await
                     .map_err(string_error)?;
                 Ok(())
@@ -552,8 +552,8 @@ impl SourceOwner {
             }
         }?;
         self.shared
-            .send(SourceEvent::Configured(
-                self.shared.source_status(self.shared.selected().as_ref()),
+            .send(ServerEvent::Configured(
+                self.shared.server_status(self.shared.selected().as_ref()),
             ))
             .await;
         self.request_asset_downloads();
@@ -618,13 +618,13 @@ impl SourceOwner {
                 .shared
                 .outputs
                 .events
-                .send(SourceEvent::Configured(
-                    self.shared.source_status(self.shared.selected().as_ref()),
+                .send(ServerEvent::Configured(
+                    self.shared.server_status(self.shared.selected().as_ref()),
                 ))
                 .await;
         }
         self.shared
-            .send(SourceEvent::CatalogPublished(CatalogPublication {
+            .send(ServerEvent::CatalogPublished(CatalogPublication {
                 favorite: None,
                 change,
             }))
@@ -635,7 +635,7 @@ impl SourceOwner {
         match self
             .shared
             .database
-            .cached_source(&ReadCancellation::new())
+            .cached_server(&ReadCancellation::new())
             .await
         {
             Ok(Some(_)) => {}
@@ -646,7 +646,7 @@ impl SourceOwner {
             }
         };
         self.shared
-            .send(SourceEvent::CatalogPublished(CatalogPublication {
+            .send(ServerEvent::CatalogPublished(CatalogPublication {
                 favorite: None,
                 change,
             }))
@@ -665,7 +665,7 @@ impl SourceOwner {
         change: CatalogChange,
     ) {
         self.shared
-            .send(SourceEvent::CatalogPublished(CatalogPublication {
+            .send(ServerEvent::CatalogPublished(CatalogPublication {
                 favorite,
                 change,
             }))

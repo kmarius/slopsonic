@@ -785,7 +785,7 @@ fn general_page(shell: &Rc<Preferences>) -> gtk::Widget {
             {
                 let source = distinct_track_covers_shell.products.source.clone();
                 gtk::glib::spawn_future_local(async move {
-                    let _ = source.refresh_source(false).await;
+                    let _ = source.refresh_server(false).await;
                 });
             }
         }

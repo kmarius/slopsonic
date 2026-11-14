@@ -8,13 +8,13 @@ use std::sync::Arc;
 use sources::CredentialPreset;
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
-pub struct SourceSummary {
+pub struct ServerSummary {
     pub kind: sources::SubsonicFlavor,
     pub name: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
-pub struct SourceCacheSummary {
+pub struct ServerCacheSummary {
     pub selected_music_folder_name: Option<String>,
     pub album_count: usize,
     pub track_count: usize,
@@ -22,20 +22,20 @@ pub struct SourceCacheSummary {
 
 /// The configured source together with its cache health.
 #[derive(Clone, Debug)]
-pub struct SourceStatus {
-    pub source: SourceSummary,
-    pub cache: SourceCacheSummary,
+pub struct ServerStatus {
+    pub source: ServerSummary,
+    pub cache: ServerCacheSummary,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
-pub struct EditableSource {
-    pub source: SourceSummary,
+pub struct EditableServer {
+    pub source: ServerSummary,
     pub credentials: CredentialPreset,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum SourceProgressStage {
+pub enum ServerProgressStage {
     Connecting,
     Albums,
     Tracks,
@@ -48,42 +48,42 @@ pub enum SourceProgressStage {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
-pub struct SourceProgress {
-    pub stage: SourceProgressStage,
+pub struct ServerProgress {
+    pub stage: ServerProgressStage,
     pub completed: usize,
     pub total: Option<usize>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
 #[serde(tag = "state", rename_all = "snake_case")]
-pub enum SourceOperation {
+pub enum ServerOperation {
     Idle,
-    Adding { progress: SourceProgress },
-    Switching { progress: SourceProgress },
-    Refreshing { progress: SourceProgress },
-    Downloading { progress: SourceProgress },
+    Adding { progress: ServerProgress },
+    Switching { progress: ServerProgress },
+    Refreshing { progress: ServerProgress },
+    Downloading { progress: ServerProgress },
     Failed { message: String, add_form: bool },
 }
 
-impl SourceOperation {
+impl ServerOperation {
     pub fn blocks_library(&self) -> bool {
         matches!(self, Self::Adding { .. } | Self::Switching { .. })
     }
 }
 
-pub fn source_progress_text(progress: &SourceProgress) -> String {
+pub fn server_progress_text(progress: &ServerProgress) -> String {
     let stage = match progress.stage {
-        SourceProgressStage::Connecting => {
+        ServerProgressStage::Connecting => {
             return "Connecting to music server...".to_string();
         }
-        SourceProgressStage::Finalizing => return "Preparing library...".to_string(),
-        SourceProgressStage::Albums => "Fetching albums".to_string(),
-        SourceProgressStage::Tracks => "Scanning tracks".to_string(),
-        SourceProgressStage::Artists => "Fetching artists".to_string(),
-        SourceProgressStage::Genres => "Fetching genres".to_string(),
-        SourceProgressStage::Playlists => "Fetching playlists".to_string(),
-        SourceProgressStage::Home => "Fetching Home".to_string(),
-        SourceProgressStage::Artwork => "Fetching artwork".to_string(),
+        ServerProgressStage::Finalizing => return "Preparing library...".to_string(),
+        ServerProgressStage::Albums => "Fetching albums".to_string(),
+        ServerProgressStage::Tracks => "Scanning tracks".to_string(),
+        ServerProgressStage::Artists => "Fetching artists".to_string(),
+        ServerProgressStage::Genres => "Fetching genres".to_string(),
+        ServerProgressStage::Playlists => "Fetching playlists".to_string(),
+        ServerProgressStage::Home => "Fetching Home".to_string(),
+        ServerProgressStage::Artwork => "Fetching artwork".to_string(),
     };
     let completed = progress.completed.to_string();
     match progress.total {
@@ -102,35 +102,35 @@ pub fn source_progress_text(progress: &SourceProgress) -> String {
     }
 }
 
-pub fn source_download_text(progress: &SourceProgress) -> String {
+pub fn source_download_text(progress: &ServerProgress) -> String {
     let message = match progress.stage {
-        SourceProgressStage::Artwork => "Downloading artwork... {count} checked",
-        _ => return source_progress_text(progress),
+        ServerProgressStage::Artwork => "Downloading artwork... {count} checked",
+        _ => return server_progress_text(progress),
     };
     crate::text::fill(message, &[("count", &progress.completed.to_string())])
 }
 
-pub fn source_operation_text(operation: &SourceOperation) -> Option<String> {
+pub fn server_operation_text(operation: &ServerOperation) -> Option<String> {
     match operation {
-        SourceOperation::Idle => None,
-        SourceOperation::Downloading { progress, .. } => Some(source_download_text(progress)),
-        SourceOperation::Adding { progress } | SourceOperation::Refreshing { progress, .. } => {
-            Some(source_progress_text(progress))
+        ServerOperation::Idle => None,
+        ServerOperation::Downloading { progress, .. } => Some(source_download_text(progress)),
+        ServerOperation::Adding { progress } | ServerOperation::Refreshing { progress, .. } => {
+            Some(server_progress_text(progress))
         }
-        SourceOperation::Switching { .. } => Some("Switching library...".to_string()),
-        SourceOperation::Failed { message, .. } => Some(message.clone()),
+        ServerOperation::Switching { .. } => Some("Switching library...".to_string()),
+        ServerOperation::Failed { message, .. } => Some(message.clone()),
     }
 }
 
-pub type SourceHandle = Arc<crate::source::SourceOwner>;
+pub type ServerHandle = Arc<crate::source::ServerOwner>;
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn progress() -> SourceProgress {
-        SourceProgress {
-            stage: SourceProgressStage::Connecting,
+    fn progress() -> ServerProgress {
+        ServerProgress {
+            stage: ServerProgressStage::Connecting,
             completed: 0,
             total: None,
         }
@@ -139,19 +139,19 @@ mod tests {
     #[test]
     fn adding_and_switching_gate_the_selected_library() {
         assert!(
-            SourceOperation::Adding {
+            ServerOperation::Adding {
                 progress: progress()
             }
             .blocks_library()
         );
         assert!(
-            SourceOperation::Switching {
+            ServerOperation::Switching {
                 progress: progress(),
             }
             .blocks_library()
         );
         assert!(
-            !SourceOperation::Refreshing {
+            !ServerOperation::Refreshing {
                 progress: progress(),
             }
             .blocks_library()

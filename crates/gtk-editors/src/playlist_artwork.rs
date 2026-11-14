@@ -5,7 +5,7 @@ use std::{
 };
 
 use gtk::prelude::*;
-use slopsonic_core::source::SourceOwner;
+use slopsonic_core::source::ServerOwner;
 use sources::{ArtworkChange, ImageBytes};
 
 pub struct ArtworkEditor {
@@ -28,13 +28,13 @@ pub struct ArtworkEditor {
 
 impl ArtworkEditor {
     pub fn new(
-        source: &Arc<SourceOwner>,
+        source: &Arc<ServerOwner>,
         artwork: &Rc<gtk_widgets::artwork::ArtworkState>,
         editing: slopsonic_core::playlists::PlaylistArtworkEditing,
         content: &gtk::Box,
         apply: &gtk::Button,
         regenerate: impl Fn(
-            &SourceOwner,
+            &ServerOwner,
         ) -> async_channel::Receiver<Result<Option<Arc<ImageBytes>>, String>>
         + 'static,
     ) -> Rc<Self> {

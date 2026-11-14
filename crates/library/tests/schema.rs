@@ -216,7 +216,7 @@ async fn deleting_or_corrupting_catalog_preserves_exact_durable_records() {
         // Ordinary rescan rejoins effective favorites/ratings by the unchanged media URI.
         let (_, object) = library::entity_parts(uri).unwrap();
         database
-            .reconcile_source("subsonic", "Source")
+            .reconcile_server("subsonic", "Source")
             .await
             .unwrap();
         let mut catalog = database.catalog(None).await.unwrap();
@@ -452,7 +452,7 @@ async fn single_server_migrations_rewrite_local_state_and_drop_the_server_keys()
     // The upgraded library keeps working: the queue restores and a sync writes the catalog again.
     let database = Database::open(&path).await.unwrap();
     database
-        .reconcile_source("subsonic", "Server")
+        .reconcile_server("subsonic", "Server")
         .await
         .unwrap();
     let mut catalog = database.catalog(None).await.unwrap();

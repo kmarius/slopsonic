@@ -124,7 +124,7 @@ pub async fn build(
         products,
         settings: settings_handle,
         receivers,
-        source_status,
+        server_status,
         source_operation,
     } = inputs;
     temporary_storage_banner.set_revealed(temporary_store);
@@ -134,7 +134,7 @@ pub async fn build(
         elapsed_ms = loaded_at.elapsed().as_millis(),
         "loaded music source presentation"
     );
-    let defer_initial_route = source_status.is_some();
+    let defer_initial_route = server_status.is_some();
     let settings_state = Rc::new(SettingsState::new(settings.clone(), settings_handle));
     let navigation = NavigationState::new(
         slopsonic_core::route::sidebar_route_descriptor(settings.application.starting_page)
@@ -142,7 +142,7 @@ pub async fn build(
     );
     let selected_ui = SelectedUiState::new();
     let source = Rc::new(SourceState {
-        configured: RefCell::new(source_status),
+        configured: RefCell::new(server_status),
         operation: RefCell::new(source_operation),
         add_server: RefCell::new(None),
         refresh_feedback_generation: Rc::new(Cell::new(0)),

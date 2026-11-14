@@ -37,7 +37,7 @@ struct ReadyPlaylistTracks {
 
 pub fn populate_context_playlist_picker(
     root: &gtk::Box,
-    source: slopsonic_core::runtime::SourceHandle,
+    source: slopsonic_core::runtime::ServerHandle,
     feedback: Rc<dyn Fn(&OperationFeedback)>,
     popover: &gtk::PopoverMenu,
     new_playlist: Rc<dyn Fn(String, library::MemberSelection)>,
@@ -222,7 +222,7 @@ struct PickerRow {
 
 #[allow(clippy::too_many_arguments)]
 pub fn playlist_picker_dialog(
-    source: slopsonic_core::runtime::SourceHandle,
+    source: slopsonic_core::runtime::ServerHandle,
     artwork: Rc<gtk_widgets::artwork::ArtworkState>,
     create_playlist: Rc<dyn Fn(String, library::MemberSelection)>,
     feedback: Rc<dyn Fn(&OperationFeedback)>,

@@ -47,7 +47,7 @@ impl FolderProjection {
 }
 
 pub async fn resolve_folder(
-    owner: &super::SourceOwner,
+    owner: &super::ServerOwner,
     database: &library::Database,
     selected: &SelectedLibrary,
     folder_object_id: Option<&str>,

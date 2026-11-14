@@ -318,7 +318,7 @@ async fn source_removal_preserves_pending_scrobbles() {
     assert!(
         fixture
             .database
-            .remove_source()
+            .remove_server()
             .await
             .expect("remove source")
     );

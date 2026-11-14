@@ -8,7 +8,7 @@ use std::rc::Rc;
 pub struct CatalogUi {
     pub library: std::sync::Arc<library::Database>,
     pub runtime: tokio::runtime::Handle,
-    pub source: slopsonic_core::runtime::SourceHandle,
+    pub source: slopsonic_core::runtime::ServerHandle,
     pub playback: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
     pub settings: Rc<gtk_widgets::settings::SettingsState>,
     pub artwork: Rc<gtk_widgets::artwork::ArtworkState>,

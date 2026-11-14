@@ -1,14 +1,14 @@
 //! Playlist routing and publication.
 use crate::runtime::CatalogChange;
-use crate::source::{SourceOwner, string_error};
+use crate::source::{ServerOwner, string_error};
 use async_channel::Receiver;
 use futures_util::{StreamExt, TryStreamExt};
 use library::{Database, PlaylistEntryKey, PlaylistKey, ReadCancellation};
 use sources::{Source, SourceError};
 use std::{future::Future, sync::Arc};
 fn run<T, Work>(
-    owner: &SourceOwner,
-    work: impl FnOnce(SourceOwner) -> Work + Send + 'static,
+    owner: &ServerOwner,
+    work: impl FnOnce(ServerOwner) -> Work + Send + 'static,
 ) -> Receiver<Result<T, String>>
 where
     T: Send + 'static,
@@ -33,7 +33,7 @@ pub struct PlaylistCreation {
 }
 
 pub async fn create_playlist(
-    owner: &SourceOwner,
+    owner: &ServerOwner,
     name: String,
     songs: Arc<library::MemberSelection>,
     public: Option<bool>,
@@ -43,7 +43,7 @@ pub async fn create_playlist(
         let database = &owner.shared.database;
         let source = owner.client()?;
         database
-            .cached_source(&ReadCancellation::new())
+            .cached_server(&ReadCancellation::new())
             .await
             .map_err(string_error)?
             .ok_or("Source access is unavailable")?;
@@ -107,7 +107,7 @@ pub async fn create_playlist(
 }
 
 pub fn playlist_public(
-    owner: &SourceOwner,
+    owner: &ServerOwner,
     playlist: PlaylistKey,
 ) -> Receiver<Result<Option<bool>, String>> {
     owner.reply(move |owner, _database| async move {
@@ -128,7 +128,7 @@ pub struct PlaylistArtworkEditing {
 }
 
 pub fn playlist_artwork_editing(
-    owner: &SourceOwner,
+    owner: &ServerOwner,
     playlist: PlaylistKey,
 ) -> Receiver<Result<PlaylistArtworkEditing, String>> {
     owner.reply(move |owner, database| async move {
@@ -162,7 +162,7 @@ pub fn playlist_artwork_editing(
 }
 
 pub fn regenerate_playlist_artwork(
-    owner: &SourceOwner,
+    owner: &ServerOwner,
     playlist: PlaylistKey,
 ) -> Receiver<Result<Option<Arc<sources::ImageBytes>>, String>> {
     owner.reply(move |owner, database| async move {
@@ -175,7 +175,7 @@ pub fn regenerate_playlist_artwork(
 }
 
 async fn generate_artwork(
-    owner: &SourceOwner,
+    owner: &ServerOwner,
     bindings: Vec<Vec<u8>>,
 ) -> Result<Option<Arc<sources::ImageBytes>>, String> {
     let mut images = futures_util::stream::iter(bindings)
@@ -209,7 +209,7 @@ async fn generate_artwork(
 }
 
 pub async fn update_playlist(
-    owner: &SourceOwner,
+    owner: &ServerOwner,
     playlist: PlaylistKey,
     name: Option<String>,
     public: Option<bool>,
@@ -225,7 +225,7 @@ pub async fn update_playlist(
 }
 
 pub(crate) async fn update_playlist_on(
-    owner: &SourceOwner,
+    owner: &ServerOwner,
     playlist: PlaylistKey,
     name: Option<&str>,
     public: Option<bool>,
@@ -311,7 +311,7 @@ pub(crate) async fn update_playlist_on(
 }
 
 pub async fn delete_playlist(
-    owner: &SourceOwner,
+    owner: &ServerOwner,
     playlist: PlaylistKey,
 ) -> sources::SourceResult<bool> {
     playlist_change(
@@ -332,7 +332,7 @@ pub async fn delete_playlist(
 }
 
 pub async fn add_playlist_tracks(
-    owner: &SourceOwner,
+    owner: &ServerOwner,
     playlist: PlaylistKey,
     songs: Arc<library::MemberSelection>,
     skip_duplicates: bool,
@@ -374,7 +374,7 @@ pub async fn add_playlist_tracks(
 }
 
 pub fn remove_playlist_entries(
-    owner: &SourceOwner,
+    owner: &ServerOwner,
     playlist: PlaylistKey,
     selection: library::MemberSelection,
 ) -> Receiver<Result<Vec<library::TrackKey>, String>> {
@@ -418,7 +418,7 @@ pub fn remove_playlist_entries(
 }
 
 pub fn move_playlist_entry(
-    owner: &SourceOwner,
+    owner: &ServerOwner,
     playlist: PlaylistKey,
     entry: PlaylistEntryKey,
     position: usize,
@@ -452,7 +452,7 @@ pub fn move_playlist_entry(
 }
 
 fn playlist_change<F, Work>(
-    owner: &SourceOwner,
+    owner: &ServerOwner,
     playlist: PlaylistKey,
     edit_tracks: bool,
     change: F,
@@ -476,7 +476,7 @@ where
 }
 
 async fn playlist_source(
-    owner: &SourceOwner,
+    owner: &ServerOwner,
     playlist: PlaylistKey,
     edit_tracks: Option<bool>,
 ) -> Result<(Arc<Source>, String), String> {

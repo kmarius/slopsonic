@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 
-use slopsonic_core::runtime::source::source_operation_text;
+use slopsonic_core::runtime::source::server_operation_text;
 
 use super::Shell;
 
@@ -47,25 +47,25 @@ impl Shell {
 }
 
 fn library_loading_status(
-    operation: &slopsonic_core::runtime::source::SourceOperation,
+    operation: &slopsonic_core::runtime::source::ServerOperation,
     initial_launch: bool,
 ) -> Option<String> {
     if initial_launch {
         return Some("Preparing library...".to_string());
     }
-    source_operation_text(operation)
+    server_operation_text(operation)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use slopsonic_core::runtime::source::{SourceOperation, SourceProgress, SourceProgressStage};
+    use slopsonic_core::runtime::source::{ServerOperation, ServerProgress, ServerProgressStage};
 
     #[test]
     fn launch_is_preparing_while_an_explicit_change_is_switching() {
-        let operation = SourceOperation::Switching {
-            progress: SourceProgress {
-                stage: SourceProgressStage::Connecting,
+        let operation = ServerOperation::Switching {
+            progress: ServerProgress {
+                stage: ServerProgressStage::Connecting,
                 completed: 0,
                 total: None,
             },

@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use gtk::{gio, glib};
-use slopsonic_core::runtime::source::SourceSummary;
+use slopsonic_core::runtime::source::ServerSummary;
 
 use super::login::source_settings_group;
 use crate::Preferences;
@@ -19,7 +19,7 @@ struct ManageServerExitSlot {
 
 pub fn manage_server_navigation_page(
     shell: &Rc<Preferences>,
-    server: SourceSummary,
+    server: ServerSummary,
     navigation: &adw::NavigationView,
     preferences_dialog: &adw::Dialog,
     on_close: Rc<dyn Fn()>,
@@ -39,7 +39,7 @@ pub fn manage_server_navigation_page(
 
 fn manage_server_content(
     shell: &Rc<Preferences>,
-    server: SourceSummary,
+    server: ServerSummary,
     exit: ManageServerExitSlot,
     preferences_dialog: &adw::Dialog,
 ) -> gtk::Widget {
@@ -87,7 +87,7 @@ fn close_manage_server(exit: &ManageServerExitSlot) {
 
 fn server_actions_group(
     shell: &Rc<Preferences>,
-    server: &SourceSummary,
+    server: &ServerSummary,
     exit: &ManageServerExitSlot,
     preferences_dialog: &adw::Dialog,
 ) -> adw::PreferencesGroup {
@@ -104,7 +104,7 @@ fn server_actions_group(
     resync.connect_clicked(move |_| {
         let source = source.clone();
         gtk::glib::spawn_future_local(async move {
-            let _ = source.refresh_source(false).await;
+            let _ = source.refresh_server(false).await;
         });
         if let Some(dialog) = preferences_dialog_for_resync.upgrade() {
             dialog.close();
@@ -160,7 +160,7 @@ pub fn confirm_forget_source(
             if response.as_str() == "forget" {
                 let weak_shell = weak_shell.clone();
                 gtk::glib::spawn_future_local(async move {
-                    let _ = source.forget_source().await;
+                    let _ = source.forget_server().await;
                     if let Some(shell) = weak_shell.upgrade() {
                         shell.present_onboarding();
                     }
@@ -171,7 +171,7 @@ pub fn confirm_forget_source(
     );
 }
 
-fn server_display_name(server: &SourceSummary) -> String {
+fn server_display_name(server: &ServerSummary) -> String {
     if server.name.trim().is_empty() {
         source_kind_title(server.kind).to_string()
     } else {

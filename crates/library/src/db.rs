@@ -241,7 +241,7 @@ impl Database {
     }
 
     /// Forgets the server: its user state and undelivered edits go; referenced metadata stays hidden.
-    pub async fn remove_source(&self) -> LibraryResult<bool> {
+    pub async fn remove_server(&self) -> LibraryResult<bool> {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
         let mut transaction = connection.begin().await?;
