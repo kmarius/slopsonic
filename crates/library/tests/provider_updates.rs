@@ -34,7 +34,7 @@ async fn track(
                     },
                     object_id: "track".into(),
                     album_object_id: Some("album".into()),
-                    loudness_analysis_key: [1; 32],
+                    audio_key: [1; 32],
                     ..Default::default()
                 }],
                 ..Default::default()

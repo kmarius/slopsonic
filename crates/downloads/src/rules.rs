@@ -66,49 +66,59 @@ impl Actor {
                     job.state = DownloadQueueState::Queued;
                 }
             }
-            let mut after = (String::new(), String::new());
-            loop {
-                let records = match self
-                    .database
-                    .download_files_page(Some(source_id.as_str()), &after, None)
-                    .await
-                {
-                    Ok(records) if records.is_empty() => break,
-                    Ok(records) => records,
-                    Err(error) => {
-                        warn!(%error, "could not read downloads for a quality change");
-                        break;
-                    }
-                };
-                let last = records.last().unwrap();
-                after = (last.media_uri.clone(), last.encoding.clone());
-                let mut replacements: HashMap<DownloadSubject, Vec<String>> = HashMap::new();
-                for record in records {
-                    let Ok(owners) = download_owners(&record) else {
-                        continue;
-                    };
-                    for owner in owners {
-                        let subject = match owner {
-                            DownloadOwner::Subject(subject) => subject,
-                            DownloadOwner::Retained => DownloadSubject::Prepared {
-                                context_id: "retained-downloads".into(),
-                                title: None,
-                            },
-                        };
-                        replacements
-                            .entry(subject)
-                            .or_default()
-                            .push(record.media_uri.clone());
-                    }
-                }
-                for (subject, uris) in replacements {
-                    self.enqueue(Some(source_id.clone()), subject, quality, uris, true)
-                        .await;
-                }
-            }
+            self.requeue_downloads(&source_id, quality, false).await;
         }
         for source_id in source_ids {
             self.reconcile_all_rules(&source_id);
+        }
+    }
+
+    /// Downloads again every file of the source, or only those whose audio changed on the server.
+    pub(super) async fn requeue_downloads(
+        &mut self,
+        source_id: &SourceId,
+        quality: DownloadQuality,
+        stale: bool,
+    ) {
+        let mut after = (String::new(), String::new());
+        loop {
+            let records = match self
+                .database
+                .download_files_page(Some(source_id.as_str()), &after, None, stale)
+                .await
+            {
+                Ok(records) if records.is_empty() => break,
+                Ok(records) => records,
+                Err(error) => {
+                    warn!(%error, "could not read downloads to replace");
+                    break;
+                }
+            };
+            let last = records.last().unwrap();
+            after = (last.media_uri.clone(), last.encoding.clone());
+            let mut replacements: HashMap<DownloadSubject, Vec<String>> = HashMap::new();
+            for record in records {
+                let Ok(owners) = download_owners(&record) else {
+                    continue;
+                };
+                for owner in owners {
+                    let subject = match owner {
+                        DownloadOwner::Subject(subject) => subject,
+                        DownloadOwner::Retained => DownloadSubject::Prepared {
+                            context_id: "retained-downloads".into(),
+                            title: None,
+                        },
+                    };
+                    replacements
+                        .entry(subject)
+                        .or_default()
+                        .push(record.media_uri.clone());
+                }
+            }
+            for (subject, uris) in replacements {
+                self.enqueue(Some(source_id.clone()), subject, quality, uris, true)
+                    .await;
+            }
         }
     }
 
@@ -222,7 +232,7 @@ impl Actor {
         loop {
             let records = match self
                 .database
-                .download_files_page(Some(source_id.as_str()), &after, Some(&owner_key))
+                .download_files_page(Some(source_id.as_str()), &after, Some(&owner_key), false)
                 .await
             {
                 Ok(records) if records.is_empty() => break,

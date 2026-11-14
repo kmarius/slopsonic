@@ -199,8 +199,6 @@ CREATE TABLE IF NOT EXISTS albums (
     artwork_binding BLOB, artwork_track_key INTEGER, artwork_artist_key INTEGER,
     first_seen_at INTEGER,
     release_lookup_identity TEXT, release_identity TEXT,
-    source_loudness_analysis_key BLOB NOT NULL DEFAULT (zeroblob(32)),
-    loudness_analysis_key BLOB NOT NULL DEFAULT (zeroblob(32)),
     title TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.title')) VIRTUAL,
     display_artist TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.artist')) VIRTUAL,
     sort_text TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.sort_text')) VIRTUAL,
@@ -231,8 +229,7 @@ CREATE TABLE IF NOT EXISTS tracks (
     first_seen_at INTEGER,
     native_artwork BLOB,
     artwork_kind INTEGER NOT NULL DEFAULT 0, artwork_artist_key INTEGER,
-    source_loudness_analysis_key BLOB NOT NULL DEFAULT (zeroblob(32)),
-    loudness_analysis_key BLOB NOT NULL DEFAULT (zeroblob(32)),
+    audio_key BLOB NOT NULL DEFAULT (zeroblob(32)),
     album_title_sort TEXT, album_artist_sort TEXT, album_year_sort INTEGER,
     displayed_play_count INTEGER NOT NULL DEFAULT 0, displayed_last_played INTEGER,
     is_downloaded INTEGER NOT NULL DEFAULT 0,
@@ -270,7 +267,6 @@ CREATE INDEX IF NOT EXISTS tracks_raw_album_year_idx ON tracks(album_key,source_
 CREATE INDEX IF NOT EXISTS tracks_raw_album_release_idx ON tracks(album_key,source_path,disc_number,track_number,object_id) WHERE indexed=1 AND release_date IS NOT NULL;
 CREATE INDEX IF NOT EXISTS tracks_shuffle_idx ON tracks(source_key,((track_key*1103515245)%2147483647),media_uri);
 CREATE INDEX IF NOT EXISTS tracks_global_shuffle_idx ON tracks(((track_key*1103515245)%2147483647),media_uri);
-CREATE INDEX IF NOT EXISTS tracks_album_local_audio_idx ON tracks(album_key) WHERE indexed=1 AND source_loudness_analysis_key<>loudness_analysis_key;
 CREATE INDEX IF NOT EXISTS tracks_indexed_idx ON tracks(indexed,source_key,track_key);
 
 CREATE TABLE IF NOT EXISTS artists (
@@ -452,7 +448,7 @@ CREATE TABLE IF NOT EXISTS artwork_previews(family TEXT PRIMARY KEY,hash TEXT NO
 CREATE TABLE IF NOT EXISTS download_access_metadata (
     access_uri TEXT PRIMARY KEY,
     size_bytes INTEGER NOT NULL, mtime_ns INTEGER NOT NULL, device_id INTEGER, inode INTEGER,
-    parser_version INTEGER NOT NULL, loudness_analysis_key BLOB
+    parser_version INTEGER NOT NULL
 ) STRICT;
 
 CREATE VIEW IF NOT EXISTS download_access_files AS
@@ -460,8 +456,7 @@ CREATE VIEW IF NOT EXISTS download_access_files AS
                  locator.origin,locator.path,locator.root,locator.relative_path,
                  COALESCE(metadata.size_bytes,0) size_bytes,COALESCE(metadata.mtime_ns,0) mtime_ns,
                  metadata.device_id,metadata.inode,COALESCE(metadata.parser_version,1) parser_version,
-                 locator.access_uri,
-                 metadata.loudness_analysis_key
+                 locator.access_uri
           FROM download_locators locator
           LEFT JOIN download_access_metadata metadata USING(access_uri);
 
@@ -555,6 +550,19 @@ const MIGRATIONS: &[&str] = &[
      DELETE FROM user_media_state WHERE favorite IS NULL AND rating IS NULL;
      ALTER TABLE user_media_state DROP COLUMN extra;
      ALTER TABLE favorite_outbox DROP COLUMN previous_favorite;",
+    // 71: a download's revision is the audio key it was fetched from; drop ReplayGain gating keys.
+    "DROP VIEW download_access_files;
+     UPDATE download_files SET revision=coalesce(
+         (SELECT hex(metadata.loudness_analysis_key) FROM download_access_metadata metadata
+             WHERE metadata.access_uri=download_files.path AND metadata.loudness_analysis_key IS NOT NULL),
+         (SELECT hex(track.source_loudness_analysis_key) FROM tracks track WHERE track.media_uri=download_files.media_uri),
+         '');
+     ALTER TABLE download_access_metadata DROP COLUMN loudness_analysis_key;
+     DROP INDEX tracks_album_local_audio_idx;
+     ALTER TABLE tracks DROP COLUMN loudness_analysis_key;
+     ALTER TABLE tracks RENAME COLUMN source_loudness_analysis_key TO audio_key;
+     ALTER TABLE albums DROP COLUMN loudness_analysis_key;
+     ALTER TABLE albums DROP COLUMN source_loudness_analysis_key;",
 ];
 
 pub(crate) const SCHEMA_VERSION: i64 = BASE_VERSION + MIGRATIONS.len() as i64;

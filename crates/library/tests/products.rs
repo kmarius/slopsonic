@@ -1319,7 +1319,6 @@ async fn downloaded_row_facts_require_download_owned_local_access() {
                         "file:///validated/{}.flac",
                         track.object_id.as_deref().expect("indexed track object")
                     ),
-                    loudness_analysis_key: Some(track.access.loudness_analysis_key),
                 }],
             )
             .await

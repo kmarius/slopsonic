@@ -311,6 +311,12 @@ impl Actor {
         let mut file = library::DownloadFile {
             media_uri: media_uri.into(),
             encoding: library::media_encoding_key(quality.encoding()),
+            revision: self
+                .database
+                .audio_revision(media_uri)
+                .await
+                .map_err(|error| DownloadFailure::NeedsAttention(error.to_string()))?
+                .unwrap_or_default(),
             managed: true,
             ..Default::default()
         };
@@ -364,14 +370,9 @@ impl Actor {
             .as_ref()
             .and_then(|id| self.attached.get(id))
             .map(|source| source.source_key);
-        let access = download_access(
-            &self.database,
-            media_uri,
-            &finished.paths,
-            file.completed_size,
-        )
-        .await
-        .map_err(DownloadFailure::NeedsAttention)?;
+        let access = download_access(media_uri, &finished.paths, file.completed_size)
+            .await
+            .map_err(DownloadFailure::NeedsAttention)?;
         file.storage_root = access.root.clone();
         file.relative_path = access.relative_path.clone();
         self.database

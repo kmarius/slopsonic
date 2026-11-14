@@ -75,7 +75,6 @@ mod tests {
             inode: None,
             parser_version: 1,
             access_uri: url::Url::from_file_path(&copy).unwrap().to_string(),
-            loudness_analysis_key: None,
         };
         database
             .write_download_access(None, &[&access])
@@ -201,7 +200,7 @@ impl Database {
                     },
                 )
                 .await?;
-                sqlx::query("INSERT INTO download_access_metadata SELECT ?1,coalesce(?2,size_bytes),0,NULL,NULL,parser_version,loudness_analysis_key FROM download_access_metadata WHERE access_uri=?3 ON CONFLICT(access_uri) DO NOTHING")
+                sqlx::query("INSERT INTO download_access_metadata SELECT ?1,coalesce(?2,size_bytes),0,NULL,NULL,parser_version FROM download_access_metadata WHERE access_uri=?3 ON CONFLICT(access_uri) DO NOTHING")
                     .bind(&next.path).bind(next.completed_size).bind(&file.path).execute(&mut *transaction).await?;
             }
         }
@@ -264,10 +263,11 @@ impl Database {
         source: Option<&str>,
         after: &(String, String),
         owner: Option<&str>,
+        stale: bool,
     ) -> LibraryResult<Vec<DownloadFile>> {
         let mut reader = self.acquire_reader().await?;
-        Ok(sqlx::query_as("SELECT * FROM download_files WHERE source_id IS ?1 AND (media_uri,encoding)>(?2,?3) AND (?4 IS NULL OR EXISTS(SELECT 1 FROM json_each(owners) WHERE value=json_extract(?4,'$'))) ORDER BY media_uri,encoding LIMIT 128")
-            .bind(source).bind(&after.0).bind(&after.1).bind(owner).fetch_all(&mut *reader).await?)
+        Ok(sqlx::query_as("SELECT * FROM download_files WHERE source_id IS ?1 AND (media_uri,encoding)>(?2,?3) AND (?4 IS NULL OR EXISTS(SELECT 1 FROM json_each(owners) WHERE value=json_extract(?4,'$'))) AND (NOT ?5 OR (revision<>'' AND revision<>(SELECT hex(audio_key) FROM tracks WHERE tracks.media_uri=download_files.media_uri))) ORDER BY media_uri,encoding LIMIT 128")
+            .bind(source).bind(&after.0).bind(&after.1).bind(owner).bind(stale).fetch_all(&mut *reader).await?)
     }
 }
 

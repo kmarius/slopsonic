@@ -39,7 +39,6 @@ pub struct DownloadAccessWrite {
     pub inode: Option<i64>,
     pub parser_version: i64,
     pub access_uri: String,
-    pub loudness_analysis_key: Option<[u8; 32]>,
 }
 
 impl Database {
@@ -105,24 +104,6 @@ impl Database {
         transaction.commit().await?;
         Ok(())
     }
-}
-
-async fn refresh_access_audio(
-    connection: &mut sqlx::SqliteConnection,
-    uris: &[&str],
-) -> LibraryResult<()> {
-    let chosen = "coalesce((SELECT access.loudness_analysis_key FROM download_access_files access WHERE access.media_uri=tracks.media_uri ORDER BY access.download_access_file_key LIMIT 1),source_loudness_analysis_key)";
-    let albums = sqlx::query_scalar::<_, Option<crate::AlbumKey>>(sqlx::AssertSqlSafe(format!(
-        "UPDATE tracks SET loudness_analysis_key={chosen} WHERE media_uri IN (SELECT value FROM json_each(?1)) AND loudness_analysis_key IS NOT {chosen} RETURNING album_key"
-    ))).bind(serde_json::to_string(uris)?).fetch_all(&mut *connection).await?;
-    let albums = albums
-        .into_iter()
-        .flatten()
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>();
-    crate::loudness::invalidate_album_audio(connection, &albums, false).await?;
-    Ok(())
 }
 
 fn validate_local_access(access: &DownloadAccessWrite) -> LibraryResult<()> {
@@ -200,21 +181,12 @@ pub(crate) async fn write_download_access_on(
         )
         .await?;
         sqlx::query("INSERT INTO main.download_access_metadata(access_uri,size_bytes,mtime_ns,
-            device_id,inode,parser_version,loudness_analysis_key) VALUES(?1,?2,?3,?4,?5,?6,?7)
+            device_id,inode,parser_version) VALUES(?1,?2,?3,?4,?5,?6)
             ON CONFLICT(access_uri) DO UPDATE SET size_bytes=excluded.size_bytes,mtime_ns=excluded.mtime_ns,
-            device_id=excluded.device_id,inode=excluded.inode,parser_version=excluded.parser_version,
-            loudness_analysis_key=excluded.loudness_analysis_key")
+            device_id=excluded.device_id,inode=excluded.inode,parser_version=excluded.parser_version")
             .bind(&access.access_uri).bind(access.size_bytes).bind(access.mtime_ns).bind(access.device_id).bind(access.inode)
-            .bind(access.parser_version).bind(access.loudness_analysis_key.as_ref().map(|key|key.as_slice()))
+            .bind(access.parser_version)
             .execute(&mut *connection).await?;
     }
-    refresh_access_audio(
-        &mut *connection,
-        &records
-            .iter()
-            .map(|row| row.media_uri.as_str())
-            .collect::<Vec<_>>(),
-    )
-    .await?;
     Ok(())
 }

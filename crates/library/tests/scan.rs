@@ -669,7 +669,7 @@ async fn write_track(
                         .unwrap(),
                     ),
                     first_seen_at: Some(10 + position),
-                    loudness_analysis_key: [position as u8 + 1; 32],
+                    audio_key: [position as u8 + 1; 32],
                     folders: Some(vec!["folder-one".into(), "folder-one".into()]),
                     ..Default::default()
                 }],

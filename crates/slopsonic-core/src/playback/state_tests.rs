@@ -170,7 +170,6 @@ async fn make_playable(
             inode: None,
             parser_version: 1,
             access_uri: url::Url::from_file_path(&path).unwrap().to_string(),
-            loudness_analysis_key: None,
         };
         database
             .write_download_access(None, &[&access])

@@ -33,7 +33,7 @@ async fn download_fixture(
                         source_format: Some("FLAC".into()),
                         ..Default::default()
                     },
-                    loudness_analysis_key: [7; 32],
+                    audio_key: [7; 32],
                     artwork_binding: None,
                     ..Default::default()
                 }],

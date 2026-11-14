@@ -634,7 +634,7 @@ fn track_from_navidrome(
     );
     let source_format = clean_optional(field(track, "suffix"));
     let duration_seconds = duration_seconds(field(track, "duration").unwrap_or_default());
-    let loudness_analysis_key = super::audio_key(
+    let audio_key = super::audio_key(
         &object_id,
         source_path.as_deref(),
         source_format.as_deref(),
@@ -699,7 +699,7 @@ fn track_from_navidrome(
         },
         object_id,
         album_object_id: album_id,
-        loudness_analysis_key,
+        audio_key,
         source_path,
         folders: Some(
             field::<i64>(track, "libraryId")

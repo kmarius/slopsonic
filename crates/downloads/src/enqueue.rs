@@ -95,7 +95,14 @@ impl Actor {
                 .await
                 .map_err(|error| error.to_string())?;
         }
-        let saved = match saved {
+        let current = self
+            .database
+            .audio_revision(media_uri)
+            .await
+            .map_err(|error| error.to_string())?;
+        let saved = match saved.filter(|file| {
+            file.revision.is_empty() || current.is_none_or(|current| file.revision == current)
+        }) {
             Some(file) => {
                 let paths = completed_download_paths(&self.root, &file)?;
                 paths
@@ -130,8 +137,7 @@ impl Actor {
         let source = source_id
             .and_then(|source| self.attached.get(source))
             .map(|source| source.source_key);
-        let access =
-            download_access(&self.database, media_uri, &paths, file.completed_size).await?;
+        let access = download_access(media_uri, &paths, file.completed_size).await?;
         file.storage_root = access.root.clone();
         file.relative_path = access.relative_path.clone();
         file.completed_size = Some(access.size_bytes);

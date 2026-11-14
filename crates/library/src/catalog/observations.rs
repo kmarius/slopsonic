@@ -12,7 +12,7 @@ pub struct TrackObservation {
     pub metadata: TrackMetadata,
     pub source_path: Option<String>,
     pub first_seen_at: Option<i64>,
-    pub loudness_analysis_key: [u8; 32],
+    pub audio_key: [u8; 32],
     pub artwork_binding: Option<Vec<u8>>,
     pub user_data: NativeUserState,
     pub folders: Option<Vec<String>>,

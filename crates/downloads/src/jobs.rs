@@ -193,7 +193,7 @@ impl Actor {
         loop {
             let records = match self
                 .database
-                .download_files_page(Some(source_id.as_str()), &after, Some(&owner_key))
+                .download_files_page(Some(source_id.as_str()), &after, Some(&owner_key), false)
                 .await
             {
                 Ok(records) if records.is_empty() => break,
@@ -304,7 +304,7 @@ impl Actor {
             loop {
                 let records = self
                     .database
-                    .download_files_page(Some(source_id.as_str()), &after, None)
+                    .download_files_page(Some(source_id.as_str()), &after, None, false)
                     .await
                     .map_err(|error| error.to_string())?;
                 let Some(last) = records.last() else {

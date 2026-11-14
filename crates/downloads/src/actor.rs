@@ -212,6 +212,8 @@ impl Actor {
                 }
             }
             Command::LibraryChanged { source_id } => {
+                let quality = self.settings_for(&source_id).quality;
+                self.requeue_downloads(&source_id, quality, true).await;
                 self.reconcile_all_rules(&source_id);
             }
             Command::SettingsChanged(settings) => {

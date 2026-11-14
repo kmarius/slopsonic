@@ -870,7 +870,7 @@ mod tests {
                             source_format: Some("FLAC".into()),
                             ..Default::default()
                         },
-                        loudness_analysis_key: [1; 32],
+                        audio_key: [1; 32],
                         artwork_binding: None,
                         ..Default::default()
                     }],

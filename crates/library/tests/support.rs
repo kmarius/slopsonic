@@ -226,7 +226,7 @@ pub async fn fixture() -> Fixture {
                 rating: (Some(Some(5 + index))).map(|rating| rating.map(|value| value * 10)),
                 ..Default::default()
             },
-            loudness_analysis_key: [index as u8 + 1; 32],
+            audio_key: [index as u8 + 1; 32],
             folders: Some(vec!["folder".into()]),
             ..Default::default()
         });

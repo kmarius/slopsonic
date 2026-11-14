@@ -1459,7 +1459,7 @@ async fn metadata_refresh_publishes_changes_and_leaves_no_ops_unchanged() {
                     },
                     object_id: "track-0".into(),
                     album_object_id: Some("album-a".into()),
-                    loudness_analysis_key: [1; 32],
+                    audio_key: [1; 32],
                     ..Default::default()
                 }],
                 ..Default::default()

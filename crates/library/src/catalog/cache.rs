@@ -479,7 +479,7 @@ pub(super) async fn tracks(
                         &row.object_id,
                         uri,
                         &row.album_object_id,
-                        row.loudness_analysis_key
+                        row.audio_key
                             .iter()
                             .map(|byte| format!("{byte:02X}"))
                             .collect::<String>(),
@@ -487,7 +487,7 @@ pub(super) async fn tracks(
                 })
                 .collect::<Vec<_>>(),
         )?;
-        let audio_changed = "WITH input AS(SELECT json_extract(value,'$[0]') id,json_extract(value,'$[1]') uri,json_extract(value,'$[2]') album_id,unhex(json_extract(value,'$[3]')) audio FROM json_each(?2)),changed AS(SELECT old.album_key old_album,album.album_key new_album FROM input LEFT JOIN tracks old ON old.media_uri=input.uri LEFT JOIN albums album ON album.source_key=?1 AND album.object_id=input.album_id WHERE NOT EXISTS(SELECT 1 FROM tracks known WHERE known.source_key=?1 AND known.object_id=input.id AND(known.observed_stamp>?4 OR(NOT ?5 AND known.native_metadata=1))) AND(old.track_key IS NULL OR((old.source_key IS NOT ?1 OR old.observed_stamp<=?4) AND(?5 OR old.native_metadata=0) AND(old.album_key IS NOT album.album_key OR old.source_loudness_analysis_key IS NOT input.audio OR(?3 AND old.indexed=0))))) SELECT old_album FROM changed WHERE old_album IS NOT NULL UNION SELECT new_album FROM changed WHERE new_album IS NOT NULL";
+        let audio_changed = "WITH input AS(SELECT json_extract(value,'$[0]') id,json_extract(value,'$[1]') uri,json_extract(value,'$[2]') album_id,unhex(json_extract(value,'$[3]')) audio FROM json_each(?2)),changed AS(SELECT old.album_key old_album,album.album_key new_album FROM input LEFT JOIN tracks old ON old.media_uri=input.uri LEFT JOIN albums album ON album.source_key=?1 AND album.object_id=input.album_id WHERE NOT EXISTS(SELECT 1 FROM tracks known WHERE known.source_key=?1 AND known.object_id=input.id AND(known.observed_stamp>?4 OR(NOT ?5 AND known.native_metadata=1))) AND(old.track_key IS NULL OR((old.source_key IS NOT ?1 OR old.observed_stamp<=?4) AND(?5 OR old.native_metadata=0) AND(old.album_key IS NOT album.album_key OR old.audio_key IS NOT input.audio OR(?3 AND old.indexed=0))))) SELECT old_album FROM changed WHERE old_album IS NOT NULL UNION SELECT new_album FROM changed WHERE new_album IS NOT NULL";
         let audio_albums: Vec<i64> = sqlx::query_scalar(audio_changed)
             .bind(source)
             .bind(&identities)
@@ -523,11 +523,11 @@ pub(super) async fn tracks(
                 value
                     .push_bind(&row.source_path)
                     .push_bind(row.first_seen_at)
-                    .push_bind(row.loudness_analysis_key.as_slice())
+                    .push_bind(row.audio_key.as_slice())
                     .push_bind(track_search(&row.metadata));
             },
         );
-        query.push(") INSERT INTO tracks(source_key,object_id,media_uri,album_key,metadata,source_path,first_seen_at,source_loudness_analysis_key,loudness_analysis_key,normalized_search,indexed,native_metadata) SELECT ")
+        query.push(") INSERT INTO tracks(source_key,object_id,media_uri,album_key,metadata,source_path,first_seen_at,audio_key,normalized_search,indexed,native_metadata) SELECT ")
             .push_bind(source).push(",input.object_id,input.media_uri,album.album_key,");
         if authoritative {
             query.push("jsonb(input.metadata)");
@@ -537,11 +537,11 @@ pub(super) async fn tracks(
                 .push_bind(sqlx::types::Json(crate::TrackMetadata::default()))
                 .push(",input.metadata)");
         }
-        query.push(",input.source_path,input.first_seen,input.audio_key,coalesce((SELECT loudness_analysis_key FROM download_access_files WHERE media_uri=input.media_uri ORDER BY download_access_file_key LIMIT 1),input.audio_key),input.normalized_search,")
+        query.push(",input.source_path,input.first_seen,input.audio_key,input.normalized_search,")
             .push_bind(admit).push(",").push_bind(authoritative).push(" FROM input LEFT JOIN albums album ON album.source_key=").push_bind(source)
             .push(" AND album.object_id=input.album_id WHERE NOT EXISTS(SELECT 1 FROM tracks known WHERE known.source_key=").push_bind(source).push(" AND known.object_id=input.object_id AND(known.observed_stamp>").push_bind(observed.unwrap_or(i64::MAX)).push(if authoritative{")"}else{" OR known.native_metadata=1)"}).push(") ON CONFLICT(media_uri) DO UPDATE SET source_key=excluded.source_key,object_id=excluded.object_id,album_key=excluded.album_key,metadata=")
-            .push(&metadata).push(",normalized_search=excluded.normalized_search,native_metadata=max(tracks.native_metadata,excluded.native_metadata),observed_stamp=CASE WHEN tracks.source_key IS excluded.source_key THEN tracks.observed_stamp ELSE 0 END,source_path=excluded.source_path,first_seen_at=coalesce(tracks.first_seen_at,excluded.first_seen_at),source_loudness_analysis_key=excluded.source_loudness_analysis_key,loudness_analysis_key=excluded.loudness_analysis_key,indexed=max(tracks.indexed,excluded.indexed) WHERE ")
-            .push(if authoritative{"1"}else{"tracks.native_metadata=0"}).push(" AND (tracks.source_key IS NOT excluded.source_key OR tracks.observed_stamp<=").push_bind(observed.unwrap_or(i64::MAX)).push(") AND (tracks.source_key,tracks.object_id,tracks.album_key,tracks.metadata,tracks.source_path,tracks.source_loudness_analysis_key,tracks.loudness_analysis_key,tracks.indexed,tracks.native_metadata) IS NOT(excluded.source_key,excluded.object_id,excluded.album_key,").push(&metadata).push(",excluded.source_path,excluded.source_loudness_analysis_key,excluded.loudness_analysis_key,max(tracks.indexed,excluded.indexed),max(tracks.native_metadata,excluded.native_metadata)) RETURNING object_id");
+            .push(&metadata).push(",normalized_search=excluded.normalized_search,native_metadata=max(tracks.native_metadata,excluded.native_metadata),observed_stamp=CASE WHEN tracks.source_key IS excluded.source_key THEN tracks.observed_stamp ELSE 0 END,source_path=excluded.source_path,first_seen_at=coalesce(tracks.first_seen_at,excluded.first_seen_at),audio_key=excluded.audio_key,indexed=max(tracks.indexed,excluded.indexed) WHERE ")
+            .push(if authoritative{"1"}else{"tracks.native_metadata=0"}).push(" AND (tracks.source_key IS NOT excluded.source_key OR tracks.observed_stamp<=").push_bind(observed.unwrap_or(i64::MAX)).push(") AND (tracks.source_key,tracks.object_id,tracks.album_key,tracks.metadata,tracks.source_path,tracks.audio_key,tracks.indexed,tracks.native_metadata) IS NOT(excluded.source_key,excluded.object_id,excluded.album_key,").push(&metadata).push(",excluded.source_path,excluded.audio_key,max(tracks.indexed,excluded.indexed),max(tracks.native_metadata,excluded.native_metadata)) RETURNING object_id");
         let accepted = query
             .build_query_scalar::<String>()
             .fetch_all(&mut *connection)
@@ -573,16 +573,6 @@ pub(super) async fn tracks(
         )
         .await?;
         previous_albums.extend(&audio_albums);
-        crate::loudness::invalidate_album_audio(
-            connection,
-            &audio_albums
-                .iter()
-                .copied()
-                .map(crate::AlbumKey::from_raw)
-                .collect::<Vec<_>>(),
-            true,
-        )
-        .await?;
         stamp(
             connection,
             source,
@@ -948,17 +938,6 @@ impl super::Catalog<'_> {
                     update.playlists = true;
                 } else {
                     update.metadata = true;
-                }
-                if *kind == "track" {
-                    crate::loudness::invalidate_album_audio(
-                        &mut tx,
-                        &albums
-                            .iter()
-                            .map(|key| crate::AlbumKey::from_raw(*key))
-                            .collect::<Vec<_>>(),
-                        true,
-                    )
-                    .await?;
                 }
                 super::index::albums(&mut tx, &albums).await?;
                 super::artwork::refresh_choices(

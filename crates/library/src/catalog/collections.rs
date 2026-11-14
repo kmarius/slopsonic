@@ -98,12 +98,6 @@ pub(crate) async fn remove_items_on(
         update.metadata |= !keys.is_empty();
     }
     if changed {
-        let album_keys = albums
-            .iter()
-            .copied()
-            .map(crate::AlbumKey::from_raw)
-            .collect::<Vec<_>>();
-        crate::loudness::invalidate_album_audio(connection, &album_keys, true).await?;
         super::index::albums(connection, if kind == "album" { &keys } else { &albums }).await?;
         super::artwork::refresh_choices(
             connection,
@@ -387,12 +381,6 @@ impl super::Catalog<'_> {
             }
             let albums:Vec<i64>=sqlx::query_scalar("SELECT DISTINCT album_key FROM tracks WHERE track_key IN(SELECT value FROM json_each(?1)) AND album_key IS NOT NULL").bind(serde_json::to_string(&keys)?).fetch_all(&mut *tx).await?;
             sqlx::query("UPDATE tracks SET album_key=NULL,observed_stamp=?2 WHERE track_key IN(SELECT value FROM json_each(?1))").bind(serde_json::to_string(&keys)?).bind(observed).execute(&mut *tx).await?;
-            let album_keys = albums
-                .iter()
-                .copied()
-                .map(crate::AlbumKey::from_raw)
-                .collect::<Vec<_>>();
-            crate::loudness::invalidate_album_audio(&mut tx, &album_keys, true).await?;
             super::index::albums(&mut tx, &albums).await?;
             super::artwork::refresh_choices(&mut tx, &keys, &albums, &[], false).await?;
             result.metadata = true;

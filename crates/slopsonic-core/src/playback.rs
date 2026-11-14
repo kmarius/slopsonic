@@ -997,7 +997,6 @@ mod tests {
                     inode: None,
                     parser_version: 1,
                     access_uri: uri.clone(),
-                    loudness_analysis_key: None,
                 }],
             )
             .await

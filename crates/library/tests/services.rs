@@ -1,12 +1,11 @@
 use library::{
-    DownloadAccessWrite, ListenDeliveryTarget, ListenWrite, QueueProvenance, QueueRepeatMode,
-    ReadCancellation,
+    ListenDeliveryTarget, ListenWrite, QueueProvenance, QueueRepeatMode, ReadCancellation,
 };
 
 use super::support::{QueueItem, connection, fixture, persist_queue};
 
 #[tokio::test]
-async fn source_replaygain_applies_only_to_the_source_audio() {
+async fn downloads_turn_stale_when_the_server_audio_changes() {
     let fixture = fixture().await;
     let cancel = ReadCancellation::new();
     assert_eq!(
@@ -17,13 +16,7 @@ async fn source_replaygain_applies_only_to_the_source_audio() {
             .unwrap(),
         (None, None)
     );
-    let source_key = fixture
-        .database
-        .audio_analysis_key(&fixture.track_uris[0])
-        .await
-        .unwrap()
-        .unwrap();
-    let input = library::TrackObservation {
+    let observe = |audio_key| library::TrackObservation {
         metadata: library::TrackMetadata {
             title: "Alpha".into(),
             album: "Album A".into(),
@@ -44,68 +37,66 @@ async fn source_replaygain_applies_only_to_the_source_audio() {
         },
         object_id: "track-0".into(),
         album_object_id: Some("album-a".into()),
-        loudness_analysis_key: source_key,
+        audio_key,
         ..Default::default()
     };
-    let mut scan_catalog = fixture.database.catalog("source", None).await.unwrap();
-    scan_catalog
-        .apply_catalog(
-            &library::CatalogBatch {
-                tracks: vec![input],
-                ..Default::default()
-            },
-            true,
-        )
+    let database = &fixture.database;
+    let apply = |audio_key| async move {
+        let mut catalog = database.catalog("source", None).await.unwrap();
+        catalog
+            .apply_catalog(
+                &library::CatalogBatch {
+                    tracks: vec![observe(audio_key)],
+                    ..Default::default()
+                },
+                true,
+            )
+            .await
+            .unwrap();
+        database
+            .publish_catalog_update("source", catalog.into_changes())
+            .await;
+    };
+    apply([1; 32]).await;
+    let stale = || async {
+        fixture
+            .database
+            .download_files_page(Some("source"), &(String::new(), String::new()), None, true)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|file| file.media_uri)
+            .collect::<Vec<_>>()
+    };
+    fixture
+        .database
+        .save_download_file(&library::DownloadFile {
+            media_uri: fixture.track_uris[0].clone(),
+            encoding: "original".into(),
+            revision: fixture
+                .database
+                .audio_revision(&fixture.track_uris[0])
+                .await
+                .unwrap()
+                .unwrap(),
+            path: "file:///generic/track.flac".into(),
+            managed: true,
+            source_id: Some("source".into()),
+            ..Default::default()
+        })
         .await
         .unwrap();
-    let update = scan_catalog.into_changes();
-    (&fixture.database)
-        .publish_catalog_update("source", update)
-        .await;
+    assert!(stale().await.is_empty());
+
+    apply([2; 32]).await;
+    assert_eq!(stale().await, vec![fixture.track_uris[0].clone()]);
     let (track, album) = fixture
         .database
         .playback_loudness(&fixture.track_uris[0], &cancel)
         .await
         .unwrap();
-    assert_eq!(
-        track,
-        Some(library::NativeGain {
-            replay_gain_db: Some(-4.5),
-            replay_gain_peak: Some(0.9),
-        })
-    );
+    assert_eq!(track.unwrap().replay_gain_db, Some(-4.5));
     assert_eq!(album.unwrap().replay_gain_db, Some(-6.0));
-
-    fixture
-        .database
-        .write_download_access(
-            Some(fixture.source),
-            &[&DownloadAccessWrite {
-                media_uri: fixture.track_uris[0].clone(),
-                path: "/generic/local-track.flac".to_string(),
-                root: "/generic".to_string(),
-                relative_path: "local-track.flac".to_string(),
-                size_bytes: 10,
-                mtime_ns: 1,
-                device_id: Some(2),
-                inode: Some(3),
-                parser_version: 1,
-                access_uri: "file:///generic/local-track.flac".to_string(),
-                loudness_analysis_key: Some([77; 32]),
-            }],
-        )
-        .await
-        .unwrap();
-    assert_eq!(
-        fixture
-            .database
-            .playback_loudness(&fixture.track_uris[0], &cancel)
-            .await
-            .unwrap()
-            .0,
-        None,
-        "a different local audio identity must not inherit the source gain"
-    );
 }
 
 #[tokio::test]
@@ -300,7 +291,7 @@ async fn source_removal_preserves_pending_scrobbles() {
                     ..Default::default()
                 },
                 object_id: "track-0".into(),
-                loudness_analysis_key: [1; 32],
+                audio_key: [1; 32],
                 ..Default::default()
             }],
             ..Default::default()

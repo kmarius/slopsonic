@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use audio_processing::ResolvedStream;
-use library::Database;
 use reqwest::header::{
     ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE, DATE, ETAG, IF_RANGE,
     LAST_MODIFIED, RANGE,
@@ -646,15 +645,10 @@ pub(super) async fn finalize_download(paths: &DownloadPaths) -> Result<FinishedD
 }
 
 pub(super) async fn download_access(
-    database: &Database,
     media_uri: &str,
     paths: &DownloadPaths,
     completed_size: Option<i64>,
 ) -> Result<library::DownloadAccessWrite, String> {
-    let loudness_analysis_key = database
-        .audio_analysis_key(media_uri)
-        .await
-        .map_err(|error| error.to_string())?;
     let metadata = paths
         .audio
         .inspect()
@@ -676,7 +670,6 @@ pub(super) async fn download_access(
         inode: None,
         parser_version: PARSER_VERSION,
         access_uri: paths.audio.access_uri()?,
-        loudness_analysis_key,
     })
 }
 

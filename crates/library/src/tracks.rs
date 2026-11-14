@@ -199,7 +199,6 @@ impl<'row> sqlx::Decode<'row, Sqlite> for AudioProperties {
     }
 }
 
-pub type LoudnessAnalysisKey = [u8; 32];
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
 pub struct TrackState {
     pub favorite: bool,
@@ -213,8 +212,6 @@ pub struct TrackAccess {
     pub source_path: Option<String>,
     pub source_name: String,
     pub is_downloaded: bool,
-    #[sqlx(try_from = "Vec<u8>")]
-    pub loudness_analysis_key: LoudnessAnalysisKey,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
@@ -358,7 +355,7 @@ pub(crate) fn track_requested_sql(requested: &crate::query::RequestedKeys) -> St
         "WITH requested AS ({})
         SELECT requested.ordinal __ordinal,track.track_key,track.source_key,source.object_id source_id,track.object_id,track.media_uri,
         json_patch(track.metadata,json_object('title',coalesce(nullif(track.title,''),track.media_uri),'date_added',date(COALESCE(unixepoch(track.date_added),track.first_seen_at),'unixepoch'),'album_display_artist',COALESCE(album.display_artist,json_extract(track.metadata,'$.album_display_artist')),'musicbrainz_album_id',COALESCE(album.musicbrainz_release_id,json_extract(track.metadata,'$.musicbrainz_album_id')),'musicbrainz_release_group_id',COALESCE(album.musicbrainz_release_group_id,json_extract(track.metadata,'$.musicbrainz_release_group_id')),'primary_artist_musicbrainz_id',COALESCE((SELECT artist.musicbrainz_artist_id FROM track_artists credit JOIN artists artist USING(artist_key) WHERE credit.track_key=track.track_key ORDER BY credit.position LIMIT 1),json_extract(track.metadata,'$.primary_artist_musicbrainz_id')))) metadata,COALESCE(source.display_name,'') source_name,
-        track.source_path,track.loudness_analysis_key,
+        track.source_path,
         CASE WHEN album.indexed OR track.indexed OR album.track_count>0 THEN track.album_key END album_key,
         CASE WHEN album.indexed OR track.indexed OR album.track_count>0 THEN album.media_uri END album_media_uri,
         COALESCE(state.favorite,native.favorite,0) favorite,COALESCE(state.rating,native.rating)/10 rating,
