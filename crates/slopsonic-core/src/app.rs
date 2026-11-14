@@ -217,7 +217,7 @@ where
     if let Some(configured) = &stored.sources.configured {
         if let Err(error) = library
             .reconcile_source(
-                configured.configuration.kind.source_id(),
+                configured.configuration.kind.kind_name(),
                 &configured.configuration.name,
             )
             .await

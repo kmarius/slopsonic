@@ -26,7 +26,7 @@ impl SourceOwner {
                 .shared
                 .database
                 .reconcile_source(
-                    configured.configuration.kind.source_id(),
+                    configured.configuration.kind.kind_name(),
                     &configured.configuration.name,
                 )
                 .await
@@ -387,7 +387,7 @@ impl SourceOwner {
             self.shared
                 .database
                 .reconcile_source(
-                    replacement.configuration.kind.source_id(),
+                    replacement.configuration.kind.kind_name(),
                     &replacement.configuration.name,
                 )
                 .await
@@ -497,7 +497,7 @@ impl SourceOwner {
                 })?;
                 self.shared
                     .database
-                    .reconcile_source(configuration.kind.source_id(), &configuration.name)
+                    .reconcile_source(configuration.kind.kind_name(), &configuration.name)
                     .await
                     .map_err(string_error)?;
                 Ok(())

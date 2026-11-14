@@ -277,7 +277,8 @@ impl From<TrackView> for crate::TrackReference {
 }
 
 impl Database {
-    /// Whether the track is cataloged from the server.
+    /// Whether the track is in the configured server's catalog; tracks left from a forgotten
+    /// server and bare media references are not.
     pub async fn is_server_track(
         &self,
         media_uri: &str,

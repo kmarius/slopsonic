@@ -633,7 +633,7 @@ impl SourceOwner {
                 owner
                     .shared
                     .database
-                    .reconcile_source(configuration.kind.source_id(), &configuration.name)
+                    .reconcile_source(configuration.kind.kind_name(), &configuration.name)
                     .await
                     .map_err(string_error)?;
                 let source = Arc::new(source);

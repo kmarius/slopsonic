@@ -1134,12 +1134,8 @@ pub(super) fn favorite(value: &Option<serde_json::Value>) -> Option<bool> {
 }
 
 impl SubsonicSource {
-    fn source_id(&self) -> &str {
-        self.flavor.source_id()
-    }
-
     pub(crate) fn id(&self, kind: &str, raw_id: &str) -> String {
-        format!("{}:{kind}:{raw_id}", self.source_id())
+        format!("{}:{kind}:{raw_id}", self.flavor.kind_name())
     }
 
     pub(super) fn genre_name<'a>(&self, object_id: &'a str) -> &'a str {

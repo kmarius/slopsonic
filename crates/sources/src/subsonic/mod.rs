@@ -217,7 +217,8 @@ pub enum SubsonicFlavor {
     Subsonic,
 }
 impl SubsonicFlavor {
-    pub fn source_id(self) -> &'static str {
+    /// The stable name stored as the cached server's kind.
+    pub fn kind_name(self) -> &'static str {
         match self {
             Self::Navidrome => "navidrome",
             Self::Subsonic => "subsonic",
