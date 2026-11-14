@@ -15,15 +15,10 @@ pub enum MemberSelection {
     },
     Collections(Vec<Collection>),
     Keys {
-        source: Option<SourceKey>,
         keys: Arc<[TrackKey]>,
     },
     Uris(Arc<[String]>),
     Entries(Arc<[PlaylistEntryKey]>),
-    Objects {
-        source: SourceKey,
-        ids: Arc<[String]>,
-    },
     Concat(Vec<MemberSelection>),
 }
 pub(crate) async fn selected_tracks_on(
@@ -173,9 +168,8 @@ fn parent_collection(read: &ListRead, key: i64) -> Collection {
 fn explicit_query(selection: &MemberSelection) -> LibraryResult<crate::query::OrderedQuery> {
     use crate::query::{OrderedQuery, RequestedKeys};
     let (requested,from,predicate,entry_key) = match selection {
-        MemberSelection::Keys { source,keys } => (RequestedKeys::batch(keys.as_ref())?,"tracks track ON track.track_key=requested.value".to_owned(),source.map_or_else(||"1".into(),|source|format!("track.source_key={}",source.raw())),"NULL"),
+        MemberSelection::Keys { keys } => (RequestedKeys::batch(keys.as_ref())?,"tracks track ON track.track_key=requested.value".to_owned(),"1".into(),"NULL"),
         MemberSelection::Uris(uris) => (RequestedKeys::batch(uris.as_ref())?,"tracks track ON track.media_uri=requested.value".into(),"1".into(),"NULL"),
-        MemberSelection::Objects { source,ids } => (RequestedKeys::batch(ids.as_ref())?,format!("tracks track ON track.source_key={} AND track.object_id=requested.value",source.raw()),"1".into(),"NULL"),
         MemberSelection::Entries(keys) => (RequestedKeys::batch(keys.as_ref())?,"playlist_entries entry ON entry.playlist_entry_key=requested.value JOIN tracks track USING(track_key)".into(),"1".into(),"entry.playlist_entry_key"),
         _ => unreachable!(),
     };

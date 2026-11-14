@@ -61,9 +61,8 @@ impl ReadCancellation {
     }
 }
 
-type CatalogObserver = dyn Fn(Option<crate::SourceKey>, crate::CatalogUpdate) -> Pin<Box<dyn Future<Output = ()> + Send>>
-    + Send
-    + Sync;
+type CatalogObserver =
+    dyn Fn(crate::CatalogUpdate) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync;
 
 struct DatabaseInner {
     path: PathBuf,
@@ -126,26 +125,21 @@ impl Database {
 
     pub fn observe_catalog<F, Work>(&self, observer: F)
     where
-        F: Fn(Option<crate::SourceKey>, crate::CatalogUpdate) -> Work + Send + Sync + 'static,
+        F: Fn(crate::CatalogUpdate) -> Work + Send + Sync + 'static,
         Work: Future<Output = ()> + Send + 'static,
     {
-        *self.inner.catalog_observer.lock().unwrap() = Some(Arc::new(move |source, update| {
-            Box::pin(observer(source, update))
-        }));
+        *self.inner.catalog_observer.lock().unwrap() =
+            Some(Arc::new(move |update| Box::pin(observer(update))));
     }
 
-    pub(crate) async fn catalog_updated(
-        &self,
-        source: Option<crate::SourceKey>,
-        update: crate::CatalogUpdate,
-    ) {
+    pub(crate) async fn catalog_updated(&self, update: crate::CatalogUpdate) {
         let changed = update.metadata || update.artwork || update.playlists;
         if changed && let Err(error) = self.refresh_incomplete_playlist_artwork(None).await {
             tracing::warn!(%error, "could not update incomplete playlist artwork");
         }
         let observer = self.inner.catalog_observer.lock().unwrap().clone();
         if let Some(observer) = observer {
-            observer(source, update).await;
+            observer(update).await;
         }
     }
 
@@ -232,7 +226,7 @@ impl Database {
         })
     }
 
-    pub async fn source_identity_key(&self) -> LibraryResult<Option<crate::SourceKey>> {
+    pub(crate) async fn source_identity_key(&self) -> LibraryResult<Option<crate::SourceKey>> {
         let mut connection = self.acquire_reader().await?;
         Ok(sqlx::query_scalar("SELECT source_key FROM sources")
             .fetch_optional(&mut *connection)
@@ -316,6 +310,19 @@ impl Database {
     pub(crate) fn reader_pool(&self) -> &SqlitePool {
         &self.inner.readers
     }
+}
+
+/// The configured server's key as SQL; NULL, so matching nothing, when none is configured.
+pub(crate) const SERVER_KEY: &str = "(SELECT source_key FROM sources)";
+
+/// The configured server's key; key 0 matches nothing when none is configured.
+pub(crate) async fn server_key(
+    connection: &mut SqliteConnection,
+) -> LibraryResult<crate::SourceKey> {
+    Ok(sqlx::query_scalar("SELECT source_key FROM sources")
+        .fetch_optional(connection)
+        .await?
+        .unwrap_or(crate::SourceKey::from_raw(0)))
 }
 
 #[allow(unsafe_code)]

@@ -114,10 +114,10 @@ async fn track_sorts_keep_nulls_last_and_title_ties_in_both_directions() {
     for sort in [CatalogSort::Year, CatalogSort::Genre] {
         for (descending, expected) in [(false, [1, 3, 2, 0]), (true, [3, 2, 1, 0])] {
             let page = (&library::MemberRead {
-                collection: library::Collection::Source(fixture.source),
+                collection: library::Collection::Library,
                 sort: Some(sort),
                 descending: descending,
-                ..library::MemberRead::new(library::Collection::Source(fixture.source))
+                ..library::MemberRead::new(library::Collection::Library)
             })
                 .page(
                     &fixture.database,
@@ -336,7 +336,6 @@ async fn named_collection_lookups_retain_identity_when_selected_folder_is_empty(
     for sort in [CatalogSort::Title, CatalogSort::TrackCount] {
         let (count, _, rows) = library::ListRead {
             kind: library::ListKind::Genres,
-            source: Some(fixture.source),
             sort: sort,
             folder: folder,
             filter: ("").to_string(),
@@ -356,7 +355,6 @@ async fn named_collection_lookups_retain_identity_when_selected_folder_is_empty(
     for sort in [CatalogSort::Title, CatalogSort::TrackCount] {
         let (count, _, rows) = library::ListRead {
             kind: library::ListKind::Moods,
-            source: Some(fixture.source),
             sort: sort,
             folder: folder,
             filter: ("").to_string(),
@@ -493,14 +491,15 @@ async fn collection_play_retains_full_order_with_bounded_queue_projection() {
     for (page, collection) in pages.into_iter().zip(collections) {
         let total = page.count;
         assert!(total > 100);
-        assert!(
-            ((page.rows)
-                .iter()
-                .map(library::MemberRow::track)
-                .collect::<Vec<_>>())
-            .iter()
-            .all(|row| row.source_key == Some(fixture.source))
-        );
+        for row in page.rows.iter().map(library::MemberRow::track) {
+            assert!(
+                fixture
+                    .database
+                    .is_server_track(&row.media_uri, &ReadCancellation::new())
+                    .await
+                    .unwrap()
+            );
+        }
         let order = fixture
             .database
             .selected_track_uris(
@@ -546,7 +545,6 @@ async fn collection_play_retains_full_order_with_bounded_queue_projection() {
                 .database
                 .selected_track_uris(
                     &library::MemberSelection::Keys {
-                        source: None,
                         keys: state
                             .entries
                             .iter()
@@ -622,7 +620,6 @@ async fn favorite_collection_orders_keep_each_favorite_entity_extent() {
     assert_eq!(
         library::ListRead {
             kind: library::ListKind::Albums,
-            source: Some(fixture.source),
             sort: CatalogSort::Title,
             folder: None,
             filter: ("").to_string(),
@@ -646,7 +643,6 @@ async fn favorite_collection_orders_keep_each_favorite_entity_extent() {
             kind: library::ListKind::Artists {
                 album_artist: false
             },
-            source: Some(fixture.source),
             sort: CatalogSort::Title,
             folder: None,
             filter: ("").to_string(),
@@ -669,11 +665,7 @@ async fn favorite_collection_orders_keep_each_favorite_entity_extent() {
     let rows = library::ListRead {
         favorites_only: true,
         activity: true,
-        ..library::ListRead::new(
-            library::ListKind::Albums,
-            Some(fixture.source),
-            CatalogSort::Title,
-        )
+        ..library::ListRead::new(library::ListKind::Albums, CatalogSort::Title)
     }
     .album_detail_index(&fixture.database, &cancellation)
     .await
@@ -712,9 +704,9 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
         .database
         .selected_track_uris(
             &library::MemberRead {
-                collection: library::Collection::Source(fixture.source),
+                collection: library::Collection::Library,
                 sort: Some(CatalogSort::Title),
-                ..library::MemberRead::new(library::Collection::Source(fixture.source))
+                ..library::MemberRead::new(library::Collection::Library)
             }
             .selection(),
             None,
@@ -735,7 +727,7 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
         ),
     ] {
         let selection = library::MemberSelection::Members {
-            read: library::MemberRead::new(library::Collection::Source(fixture.source)),
+            read: library::MemberRead::new(library::Collection::Library),
             ranges,
         };
         assert_eq!(
@@ -750,7 +742,7 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
     let combined = library::MemberSelection::Concat(vec![
         library::MemberSelection::Uris(vec![title[3].clone(), title[3].clone()].into()),
         library::MemberSelection::Members {
-            read: library::MemberRead::new(library::Collection::Source(fixture.source)),
+            read: library::MemberRead::new(library::Collection::Library),
             ranges: Some(vec![1..2, 3..4]),
         },
     ]);
@@ -774,10 +766,10 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
         .database
         .selected_track_uris(
             &library::MemberRead {
-                collection: library::Collection::Source(fixture.source),
+                collection: library::Collection::Library,
                 sort: Some(CatalogSort::TrackNumber),
                 descending: true,
-                ..library::MemberRead::new(library::Collection::Source(fixture.source))
+                ..library::MemberRead::new(library::Collection::Library)
             }
             .selection(),
             None,
@@ -793,10 +785,10 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
         .database
         .selected_track_uris(
             &library::MemberRead {
-                collection: library::Collection::Source(fixture.source),
+                collection: library::Collection::Library,
                 sort: Some(CatalogSort::Title),
                 favorites_only: true,
-                ..library::MemberRead::new(library::Collection::Source(fixture.source))
+                ..library::MemberRead::new(library::Collection::Library)
             }
             .selection(),
             None,
@@ -809,10 +801,10 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
         .database
         .selected_track_uris(
             &library::MemberRead {
-                collection: library::Collection::Source(fixture.source),
+                collection: library::Collection::Library,
                 sort: Some(CatalogSort::Title),
                 folder: Some(fixture.folder),
-                ..library::MemberRead::new(library::Collection::Source(fixture.source))
+                ..library::MemberRead::new(library::Collection::Library)
             }
             .selection(),
             None,
@@ -853,7 +845,6 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
     assert_eq!(
         library::ListRead {
             kind: library::ListKind::Albums,
-            source: Some(fixture.source),
             sort: CatalogSort::Title,
             folder: None,
             filter: ("").to_string(),
@@ -875,7 +866,6 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
     assert_eq!(
         library::ListRead {
             kind: library::ListKind::Albums,
-            source: Some(fixture.source),
             sort: CatalogSort::DateAdded,
             folder: None,
             filter: ("").to_string(),
@@ -897,7 +887,6 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
     assert_eq!(
         library::ListRead {
             kind: library::ListKind::Artists { album_artist: true },
-            source: Some(fixture.source),
             sort: CatalogSort::Title,
             folder: None,
             filter: ("").to_string(),
@@ -921,7 +910,6 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
             kind: library::ListKind::Artists {
                 album_artist: false
             },
-            source: Some(fixture.source),
             sort: CatalogSort::Title,
             folder: None,
             filter: ("").to_string(),
@@ -943,7 +931,6 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
     assert_eq!(
         library::ListRead {
             kind: library::ListKind::Genres,
-            source: Some(fixture.source),
             sort: CatalogSort::Title,
             folder: None,
             filter: ("").to_string(),
@@ -965,7 +952,6 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
     assert_eq!(
         library::ListRead {
             kind: library::ListKind::Genres,
-            source: Some(fixture.source),
             sort: CatalogSort::TrackCount,
             folder: None,
             filter: ("").to_string(),
@@ -987,7 +973,6 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
     assert_eq!(
         library::ListRead {
             kind: library::ListKind::Moods,
-            source: Some(fixture.source),
             sort: CatalogSort::Duration,
             folder: None,
             filter: ("").to_string(),
@@ -1078,7 +1063,6 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
         .expect("resolve an artist credited only on albums")
         .unwrap();
     assert_eq!(resolved.artist_key, fixture.artists[0]);
-    assert_eq!(resolved.source_key, fixture.source);
     let detail = fixture
         .database
         .artists(&[resolved.artist_key], false, true, &cancel)
@@ -1243,7 +1227,6 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
             kind: library::ListKind::Artists {
                 album_artist: false
             },
-            source: Some(fixture.source),
             sort: CatalogSort::Title,
             folder: None,
             filter: ("artist a").to_string(),
@@ -1265,7 +1248,6 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
     assert_eq!(
         library::ListRead {
             kind: library::ListKind::Artists { album_artist: true },
-            source: Some(fixture.source),
             sort: CatalogSort::Title,
             folder: None,
             filter: ("artist a").to_string(),
@@ -1287,13 +1269,7 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
     assert_eq!(
         fixture
             .database
-            .search(
-                fixture.source,
-                None,
-                false,
-                &SearchRequest::new("artist b"),
-                &cancel
-            )
+            .search(None, false, &SearchRequest::new("artist b"), &cancel)
             .await
             .expect("multi-term Artist Search")
             .artists
@@ -1305,13 +1281,7 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
     assert_eq!(
         fixture
             .database
-            .search(
-                fixture.source,
-                None,
-                true,
-                &SearchRequest::new("artist a"),
-                &cancel
-            )
+            .search(None, true, &SearchRequest::new("artist a"), &cancel)
             .await
             .expect("Album Artist Search")
             .artists[0]
@@ -1338,7 +1308,6 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
     assert!(
         library::ListRead {
             kind: library::ListKind::Albums,
-            source: Some(fixture.source),
             sort: CatalogSort::Title,
             folder: Some(empty_folder),
             filter: ("").to_string(),
@@ -1373,12 +1342,10 @@ async fn empty_named_collection_routes_return_empty_pages() {
         sqlx::query(statement).execute(&mut raw).await.unwrap();
     }
     drop(raw);
-    let source = fixture.source;
     let cancellation = ReadCancellation::new();
 
     let genres = library::ListRead {
         kind: library::ListKind::Genres,
-        source: Some(source),
         sort: CatalogSort::TrackCount,
         folder: None,
         filter: ("").to_string(),
@@ -1393,7 +1360,6 @@ async fn empty_named_collection_routes_return_empty_pages() {
     .expect("empty Genre route");
     let moods = library::ListRead {
         kind: library::ListKind::Moods,
-        source: Some(source),
         sort: CatalogSort::Duration,
         folder: None,
         filter: ("").to_string(),
@@ -1521,7 +1487,7 @@ async fn metadata_refresh_publishes_changes_and_leaves_no_ops_unchanged() {
             scan_catalog.apply_catalog(&write, true).await.unwrap();
         };
         let (updates_tx, mut updates) = tokio::sync::mpsc::unbounded_channel();
-        fixture.database.observe_catalog(move |_, update| {
+        fixture.database.observe_catalog(move |update| {
             let _ = updates_tx.send(update);
             std::future::ready(())
         });
@@ -1551,10 +1517,10 @@ async fn metadata_refresh_publishes_changes_and_leaves_no_ops_unchanged() {
     assert_eq!(row.metadata.title, "Edited");
     assert_eq!(row.metadata.comment.as_deref(), Some("Changed"));
     let filtered = (((&library::MemberRead {
-        collection: library::Collection::Source(fixture.source),
+        collection: library::Collection::Library,
         sort: Some(library::CatalogSort::Title),
         filter: ("changed").into(),
-        ..library::MemberRead::new(library::Collection::Source(fixture.source))
+        ..library::MemberRead::new(library::Collection::Library)
     })
         .page(&fixture.database, RouteSeedWindow::top(), &cancel)
         .await
@@ -1569,10 +1535,10 @@ async fn metadata_refresh_publishes_changes_and_leaves_no_ops_unchanged() {
     assert_eq!(filtered, [fixture.track_uris[0].clone()]);
     assert_eq!(
         (((&library::MemberRead {
-            collection: library::Collection::Source(fixture.source),
+            collection: library::Collection::Library,
             sort: Some(library::CatalogSort::Title),
             filter: ("2025").into(),
-            ..library::MemberRead::new(library::Collection::Source(fixture.source))
+            ..library::MemberRead::new(library::Collection::Library)
         })
             .page(&fixture.database, RouteSeedWindow::top(), &cancel)
             .await
@@ -1589,7 +1555,6 @@ async fn metadata_refresh_publishes_changes_and_leaves_no_ops_unchanged() {
     assert_eq!(
         library::ListRead {
             kind: library::ListKind::Albums,
-            source: Some(fixture.source),
             sort: CatalogSort::Title,
             folder: None,
             filter: ("rock").to_string(),
@@ -1611,7 +1576,6 @@ async fn metadata_refresh_publishes_changes_and_leaves_no_ops_unchanged() {
     assert_eq!(
         library::ListRead {
             kind: library::ListKind::Albums,
-            source: Some(fixture.source),
             sort: CatalogSort::Title,
             folder: None,
             filter: ("artist b").to_string(),
@@ -1633,7 +1597,6 @@ async fn metadata_refresh_publishes_changes_and_leaves_no_ops_unchanged() {
     assert_eq!(
         library::ListRead {
             kind: library::ListKind::Albums,
-            source: Some(fixture.source),
             sort: CatalogSort::Title,
             folder: None,
             filter: ("2024").to_string(),
@@ -1753,14 +1716,7 @@ async fn album_genres_supply_browsing_and_playback_without_changing_track_tags()
         assert!(tracks.iter().any(|track| track.links.genres.is_empty()));
         let home = fixture
             .database
-            .home_page(
-                fixture.source,
-                folder,
-                0,
-                0,
-                &[library::HomeBlockKind::Genres],
-                &cancel,
-            )
+            .home_page(folder, 0, 0, &[library::HomeBlockKind::Genres], &cancel)
             .await
             .unwrap();
         assert_eq!(home.genres[0].summary.track_count, 2);

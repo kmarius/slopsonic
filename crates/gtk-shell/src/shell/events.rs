@@ -108,8 +108,7 @@ fn apply_selected_source(
     selected: slopsonic_core::runtime::SelectedLibrary,
 ) {
     let changed = shell.selected_library().as_deref().is_none_or(|previous| {
-        previous.source_key != selected.source_key
-            || previous.music_folder_key != selected.music_folder_key
+        previous.music_folder_key != selected.music_folder_key
             || previous.music_folder_object_id != selected.music_folder_object_id
     });
     *shell.source.configured.borrow_mut() = configured;
@@ -133,10 +132,7 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
         publication.change,
         CatalogChange::Broad | CatalogChange::Scope
     ) && let Some(selected) = shell.products.source.selected_library()
-        && publication.source_key == Some(selected.source_key)
-        && shell
-            .selected_library()
-            .is_some_and(|current| current.source_key == selected.source_key)
+        && shell.selected_library().is_some()
     {
         {
             let mut session = shell.selected_ui.session_mut().unwrap();
@@ -169,11 +165,7 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
         return;
     }
     let current = shell.navigation.routes.borrow().current().clone();
-    let affects_current = publication.source_key.is_none()
-        || shell
-            .selected_library()
-            .as_deref()
-            .is_some_and(|selected| Some(selected.source_key) == publication.source_key);
+    let affects_current = shell.selected_library().is_some();
     let source_scoped =
         current.requires_selected_source() && shell.route_uses_selected_source(&current);
     match publication.change {
@@ -278,11 +270,7 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
 }
 
 fn apply_source_notice(shell: &Rc<Shell>, notice: SourceNotice) {
-    let matches_selected = shell
-        .selected_library()
-        .as_deref()
-        .is_some_and(|selected| selected.source_key == notice.source_key);
-    if !matches_selected {
+    if shell.selected_library().is_none() {
         return;
     }
     shell

@@ -6,7 +6,7 @@ use md5_digest::{Digest, Md5};
 use serde::{Deserialize, Serialize};
 use sqlx::{Connection, QueryBuilder, Sqlite};
 
-use crate::{Database, FolderKey, LibraryError, LibraryResult, ReadCancellation, SourceKey};
+use crate::{Database, FolderKey, LibraryError, LibraryResult, ReadCancellation};
 
 const ARTWORK_PAGE_LIMIT: usize = 128;
 
@@ -649,7 +649,6 @@ impl Database {
 
     pub async fn representative_artwork_page(
         &self,
-        source: SourceKey,
         folder: Option<FolderKey>,
         scope: RepresentativeArtworkScope,
         limit: usize,
@@ -657,6 +656,7 @@ impl Database {
     ) -> LibraryResult<Vec<Vec<u8>>> {
         let limit = limit.clamp(1, ARTWORK_PAGE_LIMIT) as i64;
         let mut connection = self.acquire_general(cancellation).await?;
+        let source = crate::db::server_key(&mut connection).await?;
         let mut query =
             QueryBuilder::<Sqlite>::new(format!("SELECT {} FROM (", preview_sql("binding")));
         query.push(format!(
@@ -686,13 +686,13 @@ impl Database {
 
     pub async fn source_artwork_page(
         &self,
-        source: SourceKey,
         after_binding: Option<&[u8]>,
         limit: usize,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<Vec<u8>>> {
         let limit = limit.clamp(1, ARTWORK_PAGE_LIMIT) as i64;
         let mut connection = self.acquire_general(cancellation).await?;
+        let source = crate::db::server_key(&mut connection).await?;
         let mut transaction = connection.begin().await?;
         let mut query = QueryBuilder::<Sqlite>::new("");
         for (index, table) in [

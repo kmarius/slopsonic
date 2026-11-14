@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use sqlx::{Connection, Row, SqliteConnection};
 
-use crate::{Database, LibraryError, LibraryResult, ReadCancellation, SourceKey, TrackReference};
+use crate::{Database, LibraryError, LibraryResult, ReadCancellation, TrackReference};
 
 pub const QUEUE_CONTEXT_LIMIT: usize = 100;
 
@@ -476,9 +476,9 @@ impl Database {
     pub async fn queue_positions_for_source(
         &self,
         queue: &QueueRestore,
-        source: SourceKey,
     ) -> LibraryResult<Vec<usize>> {
         let mut reader = self.acquire_reader().await?;
+        let source = crate::db::server_key(&mut reader).await?;
         let mut positions = Vec::new();
         for (page, order) in queue.order.chunks(4096).enumerate() {
             let keys = order

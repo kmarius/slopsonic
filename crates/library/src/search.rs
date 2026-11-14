@@ -6,7 +6,7 @@ use sqlx::Connection;
 use crate::query::{OrderedQuery, RequestedKeys};
 use crate::{
     AlbumView, ArtistView, CatalogSort, Collection, Database, FolderKey, LibraryResult, ListKind,
-    ListRead, MemberRead, PlaylistRow, ReadCancellation, SourceKey, TrackView,
+    ListRead, MemberRead, PlaylistRow, ReadCancellation, TrackView,
 };
 
 const SEARCH_LIMIT: usize = 100;
@@ -57,7 +57,6 @@ pub struct SearchResults {
 impl Database {
     pub async fn search_rows_by_objects(
         &self,
-        source: SourceKey,
         _folder: Option<FolderKey>,
         album_artists: bool,
         track_objects: &[String],
@@ -78,6 +77,7 @@ impl Database {
             ));
         }
         let mut connection = self.acquire_general(cancellation).await?;
+        let source = crate::db::server_key(&mut connection).await?;
         let mut transaction = connection.begin().await?;
         let request = |kind: crate::CatalogKind,
                        objects: &[String]|
@@ -120,7 +120,6 @@ impl Database {
 
     pub async fn search_playlists(
         &self,
-        source: SourceKey,
         folder: Option<FolderKey>,
         request: &SearchRequest,
         cancellation: &ReadCancellation,
@@ -129,16 +128,11 @@ impl Database {
             return Ok(Vec::new());
         }
         let mut connection = self.acquire_general(cancellation).await?;
-        Self::load_playlist_requested(
-            &mut connection,
-            playlist_search_keys(source, folder, request)?,
-        )
-        .await
+        Self::load_playlist_requested(&mut connection, playlist_search_keys(folder, request)?).await
     }
 
     pub async fn search(
         &self,
-        source: SourceKey,
         folder: Option<FolderKey>,
         album_artists: bool,
         request: &SearchRequest,
@@ -149,17 +143,16 @@ impl Database {
         }
         let mut connection = self.acquire_general(cancellation).await?;
         let mut transaction = connection.begin().await?;
-        let mut tracks = MemberRead::new(Collection::Source(source));
+        let mut tracks = MemberRead::new(Collection::Library);
         tracks.folder = folder;
         let tracks = crate::query::member_query(&tracks)?;
-        let mut albums = ListRead::new(ListKind::Albums, Some(source), CatalogSort::Title);
+        let mut albums = ListRead::new(ListKind::Albums, CatalogSort::Title);
         albums.folder = folder;
         let albums = crate::collections::collection_query(&albums);
         let mut artists = ListRead::new(
             ListKind::Artists {
                 album_artist: album_artists,
             },
-            Some(source),
             CatalogSort::Title,
         );
         artists.folder = folder;
@@ -197,7 +190,7 @@ impl Database {
             .await?,
             playlists: Self::load_playlist_requested(
                 &mut transaction,
-                playlist_search_keys(source, folder, request)?,
+                playlist_search_keys(folder, request)?,
             )
             .await?,
         };
@@ -207,12 +200,11 @@ impl Database {
 }
 
 fn playlist_search_keys(
-    source: SourceKey,
     folder: Option<FolderKey>,
     request: &SearchRequest,
 ) -> LibraryResult<RequestedKeys> {
     let mut playlists =
-        crate::playlists::playlist_list_query(Some(source), folder, CatalogSort::Title, false, "");
+        crate::playlists::playlist_list_query(folder, CatalogSort::Title, false, "");
     playlists.predicate.push_str(&all_terms_match(
         request,
         &term_match("playlist.normalized_name"),

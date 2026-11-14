@@ -877,14 +877,13 @@ mod tests {
             )
             .await
             .unwrap();
-        let source = database.source_identity_key().await.unwrap().unwrap();
         let cancellation = ReadCancellation::new();
         let track_uri = database
             .selected_track_uris(
                 &library::MemberRead {
-                    collection: library::Collection::Source(source),
+                    collection: library::Collection::Library,
                     sort: Some(CatalogSort::Title),
-                    ..library::MemberRead::new(library::Collection::Source(source))
+                    ..library::MemberRead::new(library::Collection::Library)
                 }
                 .selection(),
                 None,

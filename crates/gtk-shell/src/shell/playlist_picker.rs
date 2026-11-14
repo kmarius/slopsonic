@@ -76,15 +76,11 @@ pub(crate) fn present_playlist_picker_entries(
 }
 
 fn open_full_playlist_picker(shell: &Rc<Shell>, source: MediaDragSource) {
-    let source_key = shell
-        .selected_library()
-        .as_deref()
-        .map(|selected| selected.source_key);
     let database = shell.products.library.clone();
     let task = shell.products.runtime.spawn(async move {
         let (selection, title, preview_uris) = source.playlist_input(&database).await?;
         let playlists = database
-            .playlist_destinations(source_key, &library::ReadCancellation::new())
+            .playlist_destinations(&library::ReadCancellation::new())
             .await
             .map_err(|error| error.to_string())?;
         Ok::<_, String>((playlists, selection, title, preview_uris))
@@ -97,14 +93,7 @@ fn open_full_playlist_picker(shell: &Rc<Shell>, source: MediaDragSource) {
             return;
         };
         if let Some(shell) = shell.upgrade() {
-            present_playlist_picker(
-                &shell,
-                source_key,
-                playlists,
-                selection,
-                title,
-                preview_uris,
-            );
+            present_playlist_picker(&shell, playlists, selection, title, preview_uris);
         }
     });
 }
@@ -154,15 +143,11 @@ fn populate_context_playlist_picker(
             })
         },
     );
-    let source_key = shell
-        .selected_library()
-        .as_deref()
-        .map(|selected| selected.source_key);
     let database = shell.products.library.clone();
     let task = shell.products.runtime.spawn(async move {
         let (selection, title, preview_uris) = source.playlist_input(&database).await?;
         let playlists = database
-            .playlist_destinations(source_key, &library::ReadCancellation::new())
+            .playlist_destinations(&library::ReadCancellation::new())
             .await
             .map_err(|error| error.to_string())?;
         Ok::<_, String>((playlists, selection, title, preview_uris))
@@ -187,7 +172,6 @@ fn picker_feedback(shell: &Rc<Shell>) -> Rc<dyn Fn(&OperationFeedback)> {
 
 fn present_playlist_picker(
     shell: &Rc<Shell>,
-    source_key: Option<library::SourceKey>,
     playlists: Vec<library::PlaylistRow>,
     selection: library::MemberSelection,
     title: String,
@@ -226,7 +210,7 @@ fn present_playlist_picker(
         let database = shell_now.products.library.clone();
         let task = shell_now.products.runtime.spawn(async move {
             database
-                .playlist_destinations(source_key, &library::ReadCancellation::new())
+                .playlist_destinations(&library::ReadCancellation::new())
                 .await
         });
         let shell = refresh_shell.clone();

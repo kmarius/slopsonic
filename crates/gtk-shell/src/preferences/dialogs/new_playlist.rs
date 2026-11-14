@@ -37,7 +37,6 @@ impl Shell {
         self.new_playlist_dialog_with(
             String::new(),
             library::MemberSelection::Keys {
-                source: None,
                 keys: (Vec::new())
                     .into_iter()
                     .map(library::TrackKey::from_raw)

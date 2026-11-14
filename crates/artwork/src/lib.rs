@@ -557,7 +557,7 @@ mod tests {
                 .is_some()
         );
         let (updates, mut received) = tokio::sync::mpsc::unbounded_channel();
-        database.observe_catalog(move |_, change| {
+        database.observe_catalog(move |change| {
             let _ = updates.send(change);
             std::future::ready(())
         });

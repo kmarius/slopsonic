@@ -15,15 +15,8 @@ impl SourceOwner {
             if !pending {
                 return Ok(false);
             }
-            let Some(source) = database
-                .source_identity_key()
-                .await
-                .map_err(|error| error.to_string())?
-            else {
-                return Ok(false);
-            };
             let ids = database
-                .source_playlist_object_ids(source, &ReadCancellation::new())
+                .source_playlist_object_ids(&ReadCancellation::new())
                 .await
                 .map_err(|error| error.to_string())?;
             if ids.is_empty() {

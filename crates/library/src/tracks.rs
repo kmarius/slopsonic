@@ -5,7 +5,7 @@ use sqlx::{FromRow, Sqlite, SqliteConnection};
 
 use crate::{
     AlbumKey, ArtistKey, Database, FolderKey, GenreKey, LibraryError, LibraryResult,
-    ReadCancellation, SourceKey, TrackKey,
+    ReadCancellation, TrackKey,
 };
 
 // Provider dates take precedence over the preserved first-seen timestamp.
@@ -229,7 +229,6 @@ pub struct TrackLinks {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
 pub struct TrackView {
     pub track_key: TrackKey,
-    pub source_key: Option<SourceKey>,
     pub object_id: Option<String>,
     pub media_uri: String,
     #[sqlx(json)]
@@ -351,7 +350,7 @@ pub(crate) async fn load_track_requested(
 pub(crate) fn track_requested_sql(requested: &crate::query::RequestedKeys) -> String {
     format!(
         "WITH requested AS ({})
-        SELECT requested.ordinal __ordinal,track.track_key,track.source_key,track.object_id,track.media_uri,
+        SELECT requested.ordinal __ordinal,track.track_key,track.object_id,track.media_uri,
         json_patch(track.metadata,json_object('title',coalesce(nullif(track.title,''),track.media_uri),'date_added',date(COALESCE(unixepoch(track.date_added),track.first_seen_at),'unixepoch'),'album_display_artist',COALESCE(album.display_artist,json_extract(track.metadata,'$.album_display_artist')),'musicbrainz_album_id',COALESCE(album.musicbrainz_release_id,json_extract(track.metadata,'$.musicbrainz_album_id')),'musicbrainz_release_group_id',COALESCE(album.musicbrainz_release_group_id,json_extract(track.metadata,'$.musicbrainz_release_group_id')),'primary_artist_musicbrainz_id',COALESCE((SELECT artist.musicbrainz_artist_id FROM track_artists credit JOIN artists artist USING(artist_key) WHERE credit.track_key=track.track_key ORDER BY credit.position LIMIT 1),json_extract(track.metadata,'$.primary_artist_musicbrainz_id')))) metadata,COALESCE((SELECT display_name FROM sources WHERE source_key=track.source_key),'') source_name,
         track.source_path,
         CASE WHEN album.indexed OR track.indexed OR album.track_count>0 THEN track.album_key END album_key,
@@ -387,7 +386,7 @@ mod tests {
         schema::initialize_durable(&mut connection)
             .await
             .expect("initialize durable Store");
-        let source = sqlx::query_scalar::<_, SourceKey>(
+        let source = sqlx::query_scalar::<_, crate::SourceKey>(
             "INSERT INTO sources(object_id,display_name,normalized_name,artwork_digest) VALUES ('source','Source','source',zeroblob(32)) RETURNING source_key",
         )
         .fetch_one(&mut connection)
@@ -451,7 +450,7 @@ mod tests {
                 let query = crate::query::member_query(&crate::MemberRead {
                     sort: Some(sort),
                     descending,
-                    ..crate::MemberRead::new(crate::Collection::Source(source))
+                    ..crate::MemberRead::new(crate::Collection::Library)
                 })
                 .unwrap();
                 let plan =
@@ -473,7 +472,7 @@ mod tests {
                     let sections = crate::MemberRead {
                         sort: Some(sort),
                         descending,
-                        ..crate::MemberRead::new(crate::Collection::Source(source))
+                        ..crate::MemberRead::new(crate::Collection::Library)
                     }
                     .sections(&database, &ReadCancellation::new())
                     .await
@@ -499,7 +498,7 @@ mod tests {
         schema::initialize_durable(&mut connection)
             .await
             .expect("initialize durable Store");
-        let source = sqlx::query_scalar::<_, SourceKey>(
+        let source = sqlx::query_scalar::<_, crate::SourceKey>(
             "INSERT INTO sources(object_id,display_name,normalized_name,artwork_digest) VALUES ('source','Source','source',zeroblob(32)) RETURNING source_key",
         )
         .fetch_one(&mut connection)
@@ -518,12 +517,7 @@ mod tests {
         let cancel = ReadCancellation::new();
         assert_eq!(
             database
-                .catalog_keys(
-                    crate::CatalogKind::Track,
-                    Some(source),
-                    &object_ids,
-                    &cancel
-                )
+                .catalog_keys(crate::CatalogKind::Track, &object_ids, &cancel)
                 .await
                 .map(|rows| rows.len() as i64)
                 .unwrap(),
@@ -532,15 +526,14 @@ mod tests {
         let query = crate::MemberRead {
             filter: "track".into(),
             sort: Some(CatalogSort::Title),
-            ..crate::MemberRead::new(crate::Collection::Objects {
-                source,
-                ids: object_ids
+            ..crate::MemberRead::new(crate::Collection::Objects(
+                object_ids
                     .clone()
                     .into_iter()
                     .rev()
                     .collect::<Vec<_>>()
                     .into(),
-            })
+            ))
         };
         assert_eq!((&query).count(&database, &cancel).await.unwrap(), 300);
         let mut ordered = Vec::new();

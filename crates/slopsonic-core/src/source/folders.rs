@@ -13,13 +13,10 @@ pub enum FolderProjection {
 }
 
 impl FolderProjection {
-    pub fn members(&self, source: library::SourceKey) -> library::MemberRead {
+    pub fn members(&self) -> library::MemberRead {
         let mut query = library::MemberRead::new(match self {
-            Self::Live { objects, .. } => library::Collection::Objects {
-                source,
-                ids: Arc::clone(objects),
-            },
-            Self::Cached(_) => library::Collection::Source(source),
+            Self::Live { objects, .. } => library::Collection::Objects(Arc::clone(objects)),
+            Self::Cached(_) => library::Collection::Library,
         });
         if let Self::Cached(folder) = self {
             query.folder = *folder;
@@ -74,12 +71,10 @@ pub async fn resolve_folder(
     };
     match live {
         Ok(page) => {
-            let known = library::MemberRead::new(library::Collection::Objects {
-                source: selected.source_key,
-                ids: page.tracks.clone().into(),
-            })
-            .count(database, cancellation)
-            .await?;
+            let known =
+                library::MemberRead::new(library::Collection::Objects(page.tracks.clone().into()))
+                    .count(database, cancellation)
+                    .await?;
             if known as usize == page.tracks.len() {
                 let mut folders = page.folders;
                 folders.sort_by_cached_key(|folder| folder.name.to_lowercase());
@@ -98,7 +93,6 @@ pub async fn resolve_folder(
         Some(object) => database
             .catalog_keys(
                 library::CatalogKind::Folder,
-                Some(selected.source_key),
                 &[(object).to_owned()],
                 cancellation,
             )

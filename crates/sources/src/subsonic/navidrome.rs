@@ -1512,15 +1512,8 @@ mod tests {
         }
         .expect("publish Navidrome Inventory");
         let cancellation = library::ReadCancellation::new();
-        let source_key = database
-            .cached_source(&cancellation)
-            .await
-            .expect("cached source")
-            .expect("published source")
-            .source;
         let albums = library::ListRead {
             kind: library::ListKind::Albums,
-            source: Some(source_key),
             sort: library::CatalogSort::Title,
             folder: None,
             filter: ("AAA Rich Album").to_string(),
@@ -1554,7 +1547,7 @@ mod tests {
             },
             Some("2026-08-27T00:00:00Z")
         );
-        let tracks = (&library::MemberRead::new(library::Collection::Source(source_key)))
+        let tracks = (&library::MemberRead::new(library::Collection::Library))
             .page(&database, library::RouteSeedWindow::top(), &cancellation)
             .await
             .expect("Track page");
@@ -1579,7 +1572,6 @@ mod tests {
             kind: library::ListKind::Artists {
                 album_artist: false,
             },
-            source: Some(source_key),
             sort: library::CatalogSort::Title,
             folder: None,
             filter: ("Track Artist").to_string(),

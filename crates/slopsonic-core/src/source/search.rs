@@ -19,7 +19,6 @@ pub async fn acquire_search(
         if let Ok(mut rows) = result {
             rows.playlists = database
                 .search_playlists(
-                    selected.source_key,
                     selected.music_folder_key,
                     &SearchRequest::with_limit(query, limit),
                     &cancellation,
@@ -31,7 +30,6 @@ pub async fn acquire_search(
     }
     database
         .search(
-            selected.source_key,
             selected.music_folder_key,
             false,
             &SearchRequest::with_limit(query, limit),

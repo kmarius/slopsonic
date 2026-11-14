@@ -137,13 +137,13 @@ async fn source_artwork_pages_distinct_bindings() {
     let cancel = ReadCancellation::new();
     let first = fixture
         .database
-        .source_artwork_page(fixture.source, None, 1, &cancel)
+        .source_artwork_page(None, 1, &cancel)
         .await
         .expect("first artwork page");
     assert_eq!(first.len(), 1);
     let second = fixture
         .database
-        .source_artwork_page(fixture.source, Some(&first[0]), 128, &cancel)
+        .source_artwork_page(Some(&first[0]), 128, &cancel)
         .await
         .expect("resume artwork page");
     let mut expected_first = [binding("binding-a"), binding("binding-b")];
@@ -197,12 +197,7 @@ async fn source_artwork_pages_distinct_bindings() {
     loop {
         let page = fixture
             .database
-            .source_artwork_page(
-                fixture.source,
-                actual.last().map(Vec::as_slice),
-                128,
-                &cancel,
-            )
+            .source_artwork_page(actual.last().map(Vec::as_slice), 128, &cancel)
             .await
             .unwrap();
         assert!(page.len() <= 128);

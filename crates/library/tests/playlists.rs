@@ -3,32 +3,18 @@ use library::{CatalogSort, FavoriteTarget, ReadCancellation};
 use super::support::{connection, fixture};
 
 #[tokio::test]
-async fn playlist_pin_import_reads_only_the_owning_sources_identities() {
+async fn playlist_pin_import_reads_the_server_playlist_identities() {
     let fixture = fixture().await;
     let database = &fixture.database;
     let (_, authored) = super::support::server_playlist(database, "Z saved", &[]).await;
     let mut raw = connection(&fixture.path).await;
     sqlx::query("INSERT INTO playlists(source_key,position,object_id,name,normalized_name,sort_text) VALUES(?1,(SELECT COALESCE(max(position)+1,0) FROM playlists),'native','A native','a native','a native')")
         .bind(fixture.source).execute(&mut raw).await.unwrap();
-    let other: library::SourceKey = sqlx::query_scalar("INSERT INTO sources(object_id,display_name,normalized_name,artwork_digest) VALUES ('emby','Emby','emby',zeroblob(32)) RETURNING source_key")
-        .fetch_one(&mut raw).await.unwrap();
-    sqlx::query("INSERT INTO playlists(source_key,position,object_id,name,normalized_name,sort_text) VALUES(?1,(SELECT COALESCE(max(position)+1,0) FROM playlists),'other','Other','other','other')")
-        .bind(other).execute(&mut raw).await.unwrap();
     drop(raw);
     let cancel = ReadCancellation::new();
     assert_eq!(
-        database
-            .source_playlist_object_ids(fixture.source, &cancel)
-            .await
-            .unwrap(),
+        database.source_playlist_object_ids(&cancel).await.unwrap(),
         ["native".to_string(), authored]
-    );
-    assert_eq!(
-        database
-            .source_playlist_object_ids(other, &cancel)
-            .await
-            .unwrap(),
-        ["other"]
     );
 }
 
@@ -66,7 +52,6 @@ async fn playlist_order_is_title_ordered_and_folder_scoped() {
     let cancellation = ReadCancellation::new();
     let all = library::ListRead {
         kind: library::ListKind::Playlists,
-        source: Some(fixture.source),
         sort: CatalogSort::Title,
         folder: None,
         filter: ("").into(),
@@ -86,7 +71,6 @@ async fn playlist_order_is_title_ordered_and_folder_scoped() {
     assert_eq!(all, [alpha, zulu]);
     let scoped = library::ListRead {
         kind: library::ListKind::Playlists,
-        source: Some(fixture.source),
         sort: CatalogSort::Title,
         folder: Some(folder),
         filter: ("").into(),
@@ -106,7 +90,7 @@ async fn playlist_order_is_title_ordered_and_folder_scoped() {
     assert_eq!(scoped, [zulu]);
     let destinations = fixture
         .database
-        .playlist_destinations(Some(fixture.source), &cancellation)
+        .playlist_destinations(&cancellation)
         .await
         .unwrap();
     assert_eq!(
@@ -597,12 +581,7 @@ async fn search_matches_playlists_by_every_name_term() {
     let search = async |query: &str| {
         fixture
             .database
-            .search_playlists(
-                fixture.source,
-                None,
-                &library::SearchRequest::new(query),
-                &cancel,
-            )
+            .search_playlists(None, &library::SearchRequest::new(query), &cancel)
             .await
             .unwrap()
     };
@@ -611,13 +590,7 @@ async fn search_matches_playlists_by_every_name_term() {
     assert!(search("jazz").await.is_empty());
     let cached = fixture
         .database
-        .search(
-            fixture.source,
-            None,
-            false,
-            &library::SearchRequest::new("road"),
-            &cancel,
-        )
+        .search(None, false, &library::SearchRequest::new("road"), &cancel)
         .await
         .unwrap();
     assert_eq!(
@@ -642,7 +615,7 @@ async fn played_only_member_reads_skip_unplayed_tracks() {
     drop(raw);
     let read = library::MemberRead {
         played_only: true,
-        ..library::MemberRead::new(library::Collection::Source(fixture.source))
+        ..library::MemberRead::new(library::Collection::Library)
     };
     let rows = read
         .page(

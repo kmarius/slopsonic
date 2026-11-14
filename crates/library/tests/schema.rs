@@ -11,9 +11,9 @@ async fn reopening_without_statistics_preserves_library_order() {
         .database
         .selected_track_uris(
             &library::MemberRead {
-                collection: library::Collection::Source(fixture.source),
+                collection: library::Collection::Library,
                 sort: Some(library::CatalogSort::Title),
-                ..library::MemberRead::new(library::Collection::Source(fixture.source))
+                ..library::MemberRead::new(library::Collection::Library)
             }
             .selection(),
             None,
@@ -34,9 +34,9 @@ async fn reopening_without_statistics_preserves_library_order() {
     let after = database
         .selected_track_uris(
             &library::MemberRead {
-                collection: library::Collection::Source(fixture.source),
+                collection: library::Collection::Library,
                 sort: Some(library::CatalogSort::Title),
-                ..library::MemberRead::new(library::Collection::Source(fixture.source))
+                ..library::MemberRead::new(library::Collection::Library)
             }
             .selection(),
             None,

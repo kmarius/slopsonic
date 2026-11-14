@@ -163,7 +163,7 @@ mod tests {
             .await
             .unwrap();
         let (sender, mut updates) = tokio::sync::mpsc::unbounded_channel();
-        database.observe_catalog(move |_, update| {
+        database.observe_catalog(move |update| {
             let _ = sender.send(update);
             std::future::ready(())
         });
@@ -219,7 +219,6 @@ mod tests {
             }
             let home = database
                 .home_page(
-                    database.source_identity_key().await.unwrap().unwrap(),
                     None,
                     0,
                     0,
@@ -269,7 +268,7 @@ mod tests {
             .await
             .unwrap();
         let (sender, mut updates) = tokio::sync::mpsc::unbounded_channel();
-        database.observe_catalog(move |_, update| {
+        database.observe_catalog(move |update| {
             let _ = sender.send(update);
             std::future::ready(())
         });

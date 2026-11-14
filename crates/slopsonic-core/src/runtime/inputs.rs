@@ -1,5 +1,5 @@
 use crate::SettingsHandle;
-use library::{FolderChoice, FolderKey, PlaylistKey, SourceKey};
+use library::{FolderChoice, FolderKey, PlaylistKey};
 use std::sync::Arc;
 
 use super::source::{SourceOperation, SourceStatus};
@@ -7,7 +7,6 @@ use super::{DiagnosticsHandle, ProductHandles, ProductReceivers};
 
 #[derive(Clone)]
 pub struct SelectedLibrary {
-    pub source_key: SourceKey,
     pub music_folder_key: Option<FolderKey>,
     pub music_folder_object_id: Option<String>,
     pub music_folders: Arc<[FolderChoice]>,
@@ -27,7 +26,6 @@ pub enum SourceEvent {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CatalogPublication {
-    pub source_key: Option<SourceKey>,
     pub favorite: Option<FavoriteSettlement>,
     pub change: CatalogChange,
 }
@@ -58,7 +56,6 @@ pub struct FavoriteSettlement {
 
 #[derive(Clone, Debug)]
 pub struct SourceNotice {
-    pub source_key: SourceKey,
     pub kind: SourceNoticeKind,
 }
 

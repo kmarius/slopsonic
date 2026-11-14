@@ -972,8 +972,7 @@ mod playback_refresh_tests {
 
     #[test]
     fn fullscreen_refresh_ignores_position_ticks_but_replaces_current_media() {
-        let source = library::SourceKey::from_raw(1);
-        let previous = playback_view(source, Some(current_media("Current", source)), 1_000);
+        let previous = playback_view(Some(current_media("Current")), 1_000);
 
         let mut position_tick = previous.clone();
         position_tick.transport.position_millis = 1_500;
@@ -991,7 +990,7 @@ mod playback_refresh_tests {
         );
 
         let mut current_change = previous.clone();
-        current_change.transport.current = Some(current_media("Next", source));
+        current_change.transport.current = Some(current_media("Next"));
         assert_eq!(
             fullscreen_playback_refresh(Some(&previous), &current_change),
             FullscreenPlaybackRefresh::Static
@@ -1057,7 +1056,7 @@ mod playback_refresh_tests {
         );
     }
 
-    fn current_media(title: &str, _source: library::SourceKey) -> CurrentMedia {
+    fn current_media(title: &str) -> CurrentMedia {
         let media_uri = library::entity_uri("track", title);
         CurrentMedia {
             stream: Some(playback::CurrentStream {
@@ -1104,7 +1103,6 @@ mod playback_refresh_tests {
                     };
                     library::TrackView {
                         track_key: library::TrackKey::from_raw(1),
-                        source_key: None,
                         object_id: None,
                         media_uri: reference.media_uri,
                         metadata: reference.metadata,
@@ -1118,11 +1116,7 @@ mod playback_refresh_tests {
         }
     }
 
-    fn playback_view(
-        _source: library::SourceKey,
-        current: Option<CurrentMedia>,
-        position_millis: u64,
-    ) -> PlaybackView {
+    fn playback_view(current: Option<CurrentMedia>, position_millis: u64) -> PlaybackView {
         PlaybackView {
             queue_loading: false,
             queue_window: Vec::new(),

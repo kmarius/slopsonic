@@ -244,11 +244,11 @@ async fn source_membership_matches_track_view_sort_filter_and_null_order() {
         for descending in [false, true] {
             for filter in ["", "a"] {
                 let view = (&library::MemberRead {
-                    collection: library::Collection::Source(fixture.source),
+                    collection: library::Collection::Library,
                     sort: Some(sort),
                     filter: (filter).into(),
                     descending: descending,
-                    ..library::MemberRead::new(library::Collection::Source(fixture.source))
+                    ..library::MemberRead::new(library::Collection::Library)
                 })
                     .page(
                         &fixture.database,
@@ -259,11 +259,11 @@ async fn source_membership_matches_track_view_sort_filter_and_null_order() {
                     .unwrap();
                 let input = library::QueueLoad::Tracks(vec![(
                     library::MemberRead {
-                        collection: library::Collection::Source(fixture.source),
+                        collection: library::Collection::Library,
                         sort: Some(sort),
                         filter: filter.into(),
                         descending: descending,
-                        ..library::MemberRead::new(library::Collection::Source(fixture.source))
+                        ..library::MemberRead::new(library::Collection::Library)
                     }
                     .selection(),
                     library::QueueProvenance::Context {
@@ -435,7 +435,7 @@ async fn saved_membership_keeps_provenance_metadata_and_source_identity_across_f
         }
         let mut source_members = fixture
             .database
-            .queue_positions_for_source(&state, fixture.source)
+            .queue_positions_for_source(&state)
             .await
             .unwrap();
         source_members.sort();
@@ -557,7 +557,6 @@ async fn rewritten_queue_keeps_member_order_and_known_song_facts() {
             .database
             .selected_track_uris(
                 &library::MemberSelection::Keys {
-                    source: None,
                     keys: ((&restored
                         .entries
                         .iter()
@@ -718,10 +717,10 @@ async fn large_source_membership_keeps_metadata_reads_bounded() {
             .queue_entries(
                 library::QueueLoad::Tracks(vec![(
                     library::MemberRead {
-                        collection: library::Collection::Source(fixture.source),
+                        collection: library::Collection::Library,
                         sort: Some(CatalogSort::Title),
                         filter: "bulk".into(),
-                        ..library::MemberRead::new(library::Collection::Source(fixture.source))
+                        ..library::MemberRead::new(library::Collection::Library)
                     }
                     .selection(),
                     library::QueueProvenance::Context {

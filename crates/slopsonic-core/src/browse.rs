@@ -68,7 +68,6 @@ impl crate::source::folders::FolderProjection {
     pub async fn child_page(
         &self,
         database: &Database,
-        source: library::SourceKey,
         query: &MemberRead,
         range: std::ops::Range<usize>,
         cancel: &ReadCancellation,
@@ -89,7 +88,6 @@ impl crate::source::folders::FolderProjection {
             Self::Cached(folder) => {
                 let (count, rows) = database
                     .filtered_folder_page(
-                        source,
                         *folder,
                         &query.filter,
                         query.descending,
@@ -115,7 +113,6 @@ impl crate::source::folders::FolderProjection {
     pub async fn sections(
         &self,
         database: &Database,
-        source: library::SourceKey,
         query: &MemberRead,
         cancel: &ReadCancellation,
     ) -> library::LibraryResult<Vec<library::ScrollSection>> {
@@ -131,20 +128,11 @@ impl crate::source::folders::FolderProjection {
             }
             Self::Cached(folder) => {
                 database
-                    .folder_section_positions(
-                        source,
-                        *folder,
-                        &query.filter,
-                        query.descending,
-                        cancel,
-                    )
+                    .folder_section_positions(*folder, &query.filter, query.descending, cancel)
                     .await?
             }
         };
-        let folders = self
-            .child_page(database, source, query, 0..0, cancel)
-            .await?
-            .0;
+        let folders = self.child_page(database, query, 0..0, cancel).await?.0;
         for mut section in query.sections(database, cancel).await? {
             section.index += folders as u64;
             if let Some(existing) = sections
@@ -287,21 +275,20 @@ pub struct FolderPage {
 impl FolderPage {
     pub async fn load(
         database: &Database,
-        source: library::SourceKey,
         projection: crate::source::folders::FolderProjection,
         read: MemberRead,
         window: library::RouteSeedWindow,
         cancel: &ReadCancellation,
     ) -> library::LibraryResult<Self> {
         let folder_count = projection
-            .child_page(database, source, &read, 0..0, cancel)
+            .child_page(database, &read, 0..0, cancel)
             .await?
             .0;
         let track_count = read.count(database, cancel).await?;
         let range = window.range(folder_count + track_count);
         let folders = if range.start < folder_count {
             projection
-                .child_page(database, source, &read, range.clone(), cancel)
+                .child_page(database, &read, range.clone(), cancel)
                 .await?
                 .1
         } else {
@@ -484,16 +471,20 @@ fn list_plan(
 ) -> library::LibraryResult<Option<ListPlan>> {
     let display = ui.library_list(library_list_key(route, options.category));
     let folder = selected.and_then(|selected| selected.music_folder_key);
-    let source = selected.map(|selected| selected.source_key);
-    let require_source =
-        || source.ok_or_else(|| library::LibraryError::InvalidRequest("No source selected".into()));
+    let require_source = || {
+        selected.ok_or_else(|| library::LibraryError::InvalidRequest("No source selected".into()))
+    };
     let member = |collection| member_read(route, options, &display, folder, collection);
-    let list = |kind| list_read(route, options, &display, folder, source, kind);
+    let list = |kind| list_read(route, options, &display, folder, kind);
     let favorites_tab = |tab| *route == Route::Favorites && options.category == tab;
     Ok(Some(match route {
-        Route::Tracks => ListPlan::Members(member(Collection::Source(require_source()?))),
+        Route::Tracks => {
+            require_source()?;
+            ListPlan::Members(member(Collection::Library))
+        }
         Route::Favorites if favorites_tab(CollectionCategory::Tracks) => {
-            ListPlan::Members(member(Collection::Source(require_source()?)))
+            require_source()?;
+            ListPlan::Members(member(Collection::Library))
         }
         Route::Albums => {
             require_source()?;
@@ -608,11 +599,10 @@ fn list_read(
     options: &OpenOptions,
     display: &LibraryListSettings,
     folder: Option<library::FolderKey>,
-    source: Option<library::SourceKey>,
     kind: ListKind,
 ) -> ListRead {
     let flags = read_flags(route, options, display);
-    let mut read = ListRead::new(kind, source, flags.sort);
+    let mut read = ListRead::new(kind, flags.sort);
     read.folder = folder;
     read.filter.clone_from(&options.filter);
     read.descending = flags.descending;
@@ -727,15 +717,15 @@ impl crate::source::SourceOwner {
         let descending = options.descending.unwrap_or(display.descending);
         let activity = uses_activity(route, &display) || sort.activity_sensitive();
         let folder = selected.and_then(|selected| selected.music_folder_key);
-        let source = selected.map(|selected| selected.source_key);
         let require_source = || {
-            source.ok_or_else(|| library::LibraryError::InvalidRequest("No source selected".into()))
+            selected
+                .ok_or_else(|| library::LibraryError::InvalidRequest("No source selected".into()))
         };
         if let Some(plan) = list_plan(route, selected, options, &settings.ui)? {
             return plan.load(self, window, cancel).await;
         }
         let member = |collection| member_read(route, options, &display, folder, collection);
-        let list = |kind| list_read(route, options, &display, folder, source, kind);
+        let list = |kind| list_read(route, options, &display, folder, kind);
         let summary_and_members = match route {
             Route::AlbumDetail(uri) => database
                 .album(uri, activity, cancel)
@@ -782,7 +772,6 @@ impl crate::source::SourceOwner {
                             Arc::new(std::array::from_fn(|index| filters[index].clone()))
                         }),
                     });
-                    query.source = Some(row.source_key);
                     if options.sort.is_none() {
                         let albums = settings.ui.library_list(LibraryListKey::ArtistAlbums);
                         query.sort = albums.sort_key.catalog_sort();
@@ -853,8 +842,7 @@ impl crate::source::SourceOwner {
                 && !read.favorites_only
                 && !read.downloaded_only
                 && !read.played_only
-                && (read.folder.is_none()
-                    || matches!(&summary, DetailSummary::Playlist(row) if row.source_key.is_none()))
+                && read.folder.is_none()
             {
                 let count = match &summary {
                     DetailSummary::Album(row) => row.summary.track_count,
@@ -907,29 +895,21 @@ impl crate::source::SourceOwner {
                     cancel,
                 )
                 .await?;
-                let mut read = projection.members(selected.source_key);
+                let mut read = projection.members();
                 read.sort = Some(sort);
                 read.descending = descending;
                 read.filter.clone_from(&options.filter);
                 read.activity = activity;
                 OpenedCollection::Folders(
-                    FolderPage::load(
-                        database,
-                        selected.source_key,
-                        projection,
-                        read,
-                        window,
-                        cancel,
-                    )
-                    .await?,
+                    FolderPage::load(database, projection, read, window, cancel).await?,
                 )
             }
             Route::Home => {
+                require_source()?;
                 let (showcase, explore) = self.home_variations();
                 OpenedCollection::Home(Box::new(
                     database
                         .home_page(
-                            require_source()?,
                             folder,
                             showcase,
                             explore,
@@ -964,7 +944,6 @@ mod list_plan_tests {
 
     fn selected() -> SelectedLibrary {
         SelectedLibrary {
-            source_key: library::SourceKey::from_raw(1),
             music_folder_key: None,
             music_folder_object_id: None,
             music_folders: Arc::from([]),

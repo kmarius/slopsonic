@@ -305,11 +305,6 @@ fn add_download_rules(
             &shell.artwork,
             &shell.products.library,
             &shell.products.runtime,
-            shell
-                .products
-                .source
-                .selected_library()
-                .map(|selected| selected.source_key),
             rule,
             48,
         );

@@ -123,7 +123,6 @@ pub struct HomePage {
 impl Database {
     pub async fn home_page(
         &self,
-        source: SourceKey,
         folder: Option<FolderKey>,
         showcase_variation: i64,
         explore_variation: i64,
@@ -131,6 +130,7 @@ impl Database {
         cancellation: &ReadCancellation,
     ) -> LibraryResult<HomePage> {
         let mut connection = self.acquire_general(cancellation).await?;
+        let source = crate::db::server_key(&mut connection).await?;
         let mut transaction = connection.begin().await?;
 
         let showcase = if blocks.contains(&HomeBlockKind::Showcase) {
@@ -295,11 +295,8 @@ impl Database {
         };
 
         let genres = if blocks.contains(&HomeBlockKind::Genres) {
-            let mut input = crate::ListRead::new(
-                crate::ListKind::Genres,
-                Some(source),
-                crate::CatalogSort::TrackCount,
-            );
+            let mut input =
+                crate::ListRead::new(crate::ListKind::Genres, crate::CatalogSort::TrackCount);
             input.folder = folder;
             input.descending = true;
             let query = crate::collections::collection_query(&input);

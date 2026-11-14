@@ -10,7 +10,7 @@ use std::task::Poll;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_channel::{Receiver, Sender};
-use library::{Database, FolderKey, SourceKey};
+use library::{Database, FolderKey};
 use serde::{Deserialize, Serialize};
 use sources::{DownloadQuality, ResolvedDownload};
 use sources::{Source, SourceError};
@@ -56,7 +56,6 @@ enum Command {
     },
     SourceResolver(Arc<SourceResolver>),
     Attach {
-        source_key: SourceKey,
         folder: Option<FolderKey>,
         response: Sender<Result<(), String>>,
     },
@@ -93,7 +92,6 @@ enum Command {
 
 #[derive(Clone)]
 struct AttachedSource {
-    source_key: SourceKey,
     folder: Option<FolderKey>,
     directory: Option<PathBuf>,
 }
@@ -101,7 +99,6 @@ struct AttachedSource {
 #[derive(Clone)]
 struct RuleIntent {
     database: Database,
-    source_key: SourceKey,
     folder: Option<FolderKey>,
     rules: DownloadRules,
 }
@@ -208,7 +205,6 @@ impl DownloadSettings {
 
 async fn rule_media_uris(
     database: &Database,
-    source: SourceKey,
     folder: Option<FolderKey>,
     rule: DownloadRule,
 ) -> library::LibraryResult<Vec<String>> {
@@ -216,14 +212,14 @@ async fn rule_media_uris(
     match rule {
         DownloadRule::EntireLibrary | DownloadRule::Favorites => {
             let favorites = matches!(rule, DownloadRule::Favorites);
-            let mut query = library::MemberRead::new(library::Collection::Source(source));
+            let mut query = library::MemberRead::new(library::Collection::Library);
             query.folder = folder;
             query.favorites_only = favorites;
             let favorite = |kind| library::MemberSelection::Parents {
                 read: library::ListRead {
                     folder,
                     favorites_only: true,
-                    ..library::ListRead::new(kind, Some(source), library::CatalogSort::Title)
+                    ..library::ListRead::new(kind, library::CatalogSort::Title)
                 },
                 ranges: None,
             };
@@ -244,12 +240,12 @@ async fn rule_media_uris(
         }
         DownloadRule::AllPlaylists => {
             database
-                .all_playlist_track_order(source, folder, &cancellation)
+                .all_playlist_track_order(folder, &cancellation)
                 .await
         }
         DownloadRule::LatestFiveAlbums => {
             database
-                .latest_album_track_order(source, folder, 5, &cancellation)
+                .latest_album_track_order(folder, 5, &cancellation)
                 .await
         }
     }
@@ -261,13 +257,12 @@ fn prepare_rules(intent: RuleIntent, prepared: Sender<PreparedRules>) {
     tokio::spawn(async move {
         let RuleIntent {
             database,
-            source_key,
             folder,
             rules,
         } = intent;
         let mut result = Vec::new();
         for rule in rules.active() {
-            match rule_media_uris(&database, source_key, folder, rule).await {
+            match rule_media_uris(&database, folder, rule).await {
                 Ok(media_uris) => result.push((rule, media_uris)),
                 Err(error) => {
                     drop(prepared.try_send(Err(error.to_string())));
@@ -430,18 +425,10 @@ impl Downloads {
         self.send(Command::SourceResolver(Arc::new(resolve)));
     }
 
-    pub async fn attach(
-        &self,
-        source_key: SourceKey,
-        folder: Option<FolderKey>,
-    ) -> Result<(), String> {
+    pub async fn attach(&self, folder: Option<FolderKey>) -> Result<(), String> {
         let (response, result) = async_channel::bounded(1);
         self.commands
-            .send(Command::Attach {
-                source_key,
-                folder,
-                response,
-            })
+            .send(Command::Attach { folder, response })
             .await
             .map_err(|_| "download operation lane is unavailable".to_string())?;
         result

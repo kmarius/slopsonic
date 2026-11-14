@@ -5,7 +5,7 @@ use sqlx::{QueryBuilder, Sqlite};
 
 use crate::{
     AlbumKey, ArtistKey, Database, FolderKey, GenreKey, LibraryError, LibraryResult, PlaylistKey,
-    ReadCancellation, SourceKey, TrackKey,
+    ReadCancellation, TrackKey,
 };
 
 const RADIO_LIMIT: usize = 500;
@@ -49,15 +49,14 @@ pub struct RandomCriteria {
 }
 
 impl Database {
-    /// Resolve the seed's catalog owner independently of the selected browse source.
+    /// The seed's server object id, outer `None` when the seed is not a server item.
     pub async fn radio_source(
         &self,
         seed: &RadioSeed,
         cancellation: &ReadCancellation,
-    ) -> LibraryResult<Option<(SourceKey, Option<String>)>> {
+    ) -> LibraryResult<Option<Option<String>>> {
         let mut connection = self.acquire_general(cancellation).await?;
-        let mut query =
-            QueryBuilder::<Sqlite>::new("SELECT sources.source_key,seed.object_id FROM (");
+        let mut query = QueryBuilder::<Sqlite>::new("SELECT seed.object_id FROM (");
         match seed {
             RadioSeed::Track(uri) => {
                 query
@@ -85,7 +84,7 @@ impl Database {
         }
         query.push(") seed JOIN sources ON sources.source_key=seed.source_key");
         let result = query
-            .build_query_as::<(SourceKey, Option<String>)>()
+            .build_query_scalar::<Option<String>>()
             .persistent(false)
             .fetch_optional(&mut *connection)
             .await?;
@@ -95,7 +94,6 @@ impl Database {
     /// Resolve provider recommendations in order, using the same queue and seed exclusions.
     pub async fn recommended_track_keys(
         &self,
-        source: SourceKey,
         seed: &RadioSeed,
         object_ids: &[String],
         cancellation: &ReadCancellation,
@@ -105,6 +103,7 @@ impl Database {
         }
         require_radio_bounds(0, object_ids.len())?;
         let mut connection = self.acquire_general(cancellation).await?;
+        let source = crate::db::server_key(&mut connection).await?;
         let mut query = QueryBuilder::<Sqlite>::new("WITH requested(object_id,position) AS (");
         query.push_values(object_ids.iter().enumerate(), |mut row, (position, id)| {
             row.push_bind(id).push_bind(position as i64);
@@ -137,7 +136,6 @@ impl Database {
 
     pub async fn radio_candidates(
         &self,
-        source: SourceKey,
         seed: RadioSeed,
         extra_excluded: &[TrackKey],
         requested: usize,
@@ -146,6 +144,7 @@ impl Database {
     ) -> LibraryResult<Vec<TrackKey>> {
         require_radio_bounds(extra_excluded.len(), requested)?;
         let mut connection = self.acquire_general(cancellation).await?;
+        let source = crate::db::server_key(&mut connection).await?;
         let (seed_kind, seed_raw) = if let RadioSeed::Playlist(playlist) = seed {
             let first = sqlx::query_scalar::<_, TrackKey>("SELECT track.track_key FROM playlist_entries entry JOIN tracks track ON track.track_key=entry.track_key AND track.source_key=?1 WHERE entry.playlist_key=?2 ORDER BY entry.position LIMIT 1")
                 .bind(source).bind(playlist).fetch_optional(&mut *connection).await?;
@@ -301,7 +300,6 @@ impl Database {
 
     pub async fn random_candidates(
         &self,
-        source: SourceKey,
         folder: Option<FolderKey>,
         criteria: &RandomCriteria,
         extra_excluded: &[TrackKey],
@@ -310,6 +308,7 @@ impl Database {
     ) -> LibraryResult<Vec<TrackKey>> {
         require_radio_bounds(extra_excluded.len(), requested)?;
         let mut connection = self.acquire_general(cancellation).await?;
+        let source = crate::db::server_key(&mut connection).await?;
         let max_key = sqlx::query_scalar::<_, i64>(
             "SELECT COALESCE(max(track_key),0) FROM tracks WHERE indexed=1 AND source_key=?1",
         )

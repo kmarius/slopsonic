@@ -648,7 +648,6 @@ mod tests {
             assert_eq!(reads.load(Ordering::Relaxed), expected_reads);
             let rows = library::ListRead {
                 kind: library::ListKind::Playlists,
-                source: (Some(database.source_identity_key().await.unwrap().unwrap())).into(),
                 sort: library::CatalogSort::Position,
                 folder: None,
                 filter: ("").to_string(),
@@ -753,7 +752,7 @@ mod tests {
             .await
             .unwrap();
         let (sender, mut updates) = tokio::sync::mpsc::unbounded_channel();
-        database.observe_catalog(move |_, update| {
+        database.observe_catalog(move |update| {
             let _ = sender.send(update);
             std::future::ready(())
         });
@@ -873,7 +872,6 @@ mod tests {
             assert_eq!(
                 library::ListRead {
                     kind: library::ListKind::Playlists,
-                    source: (Some(database.source_identity_key().await.unwrap().unwrap())).into(),
                     sort: library::CatalogSort::Title,
                     folder: None,
                     filter: ("").to_string(),
@@ -890,7 +888,7 @@ mod tests {
             );
         }
         let (sender, mut updates) = tokio::sync::mpsc::unbounded_channel();
-        database.observe_catalog(move |_, update| {
+        database.observe_catalog(move |update| {
             let _ = sender.send(update);
             std::future::ready(())
         });
@@ -982,7 +980,7 @@ mod tests {
                 .await
                 .unwrap();
             let (sender, mut updates) = tokio::sync::mpsc::unbounded_channel();
-            database.observe_catalog(move |_, update| {
+            database.observe_catalog(move |update| {
                 let _ = sender.send(update);
                 std::future::ready(())
             });
@@ -1074,14 +1072,7 @@ mod tests {
             assert!(publication.metadata);
             let cancellation = library::ReadCancellation::new();
             let home = database
-                .home_page(
-                    database.source_identity_key().await.unwrap().unwrap(),
-                    None,
-                    0,
-                    0,
-                    &library::HomeBlockKind::all(),
-                    &cancellation,
-                )
+                .home_page(None, 0, 0, &library::HomeBlockKind::all(), &cancellation)
                 .await
                 .unwrap();
             assert_eq!(home.newly_added.albums.len(), 1);
@@ -1117,10 +1108,7 @@ mod tests {
                 assert!(
                     !database
                         .selected_track_uris(
-                            &library::MemberRead::new(library::Collection::Source(
-                                database.source_identity_key().await.unwrap().unwrap()
-                            ))
-                            .selection(),
+                            &library::MemberRead::new(library::Collection::Library).selection(),
                             None,
                             &cancellation
                         )
@@ -1132,7 +1120,6 @@ mod tests {
                     database
                         .catalog_keys(
                             library::CatalogKind::Genre,
-                            Some(database.source_identity_key().await.unwrap().unwrap()),
                             &[("cached-genre").to_owned()],
                             &cancellation
                         )
@@ -1142,11 +1129,7 @@ mod tests {
                         .is_some()
                 );
                 let playlist = database
-                    .playlist_key_by_object(
-                        database.source_identity_key().await.unwrap().unwrap(),
-                        "cached-playlist",
-                        &cancellation,
-                    )
+                    .playlist_key_by_object("cached-playlist", &cancellation)
                     .await
                     .unwrap()
                     .unwrap();
@@ -1167,7 +1150,6 @@ mod tests {
                     let folder = database
                         .catalog_keys(
                             library::CatalogKind::Folder,
-                            Some(database.source_identity_key().await.unwrap().unwrap()),
                             &[(&source.id("music-folder", id)).to_string()],
                             &cancellation,
                         )
@@ -1178,7 +1160,6 @@ mod tests {
                     assert_eq!(
                         database
                             .home_page(
-                                database.source_identity_key().await.unwrap().unwrap(),
                                 Some(folder),
                                 0,
                                 0,

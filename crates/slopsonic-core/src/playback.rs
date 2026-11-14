@@ -220,14 +220,14 @@ impl PlaybackOwner {
         Ok(projection)
     }
 
-    pub(crate) async fn forget_source(&self, source: library::SourceKey) -> Result<(), String> {
+    pub(crate) async fn forget_source(&self) -> Result<(), String> {
         let Some(active) = self.active() else {
             return Ok(());
         };
         let queue = active.handoff_snapshot().map_err(string_error)?.0;
         let positions = self
             .database
-            .queue_positions_for_source(&queue, source)
+            .queue_positions_for_source(&queue)
             .await
             .map_err(string_error)?;
         if !positions.is_empty() {
@@ -920,7 +920,6 @@ mod tests {
                 let reference = test_media(source_format);
                 library::TrackView {
                     track_key: library::TrackKey::from_raw(1),
-                    source_key: None,
                     object_id: None,
                     media_uri: reference.media_uri,
                     metadata: reference.metadata,
@@ -977,21 +976,18 @@ mod tests {
         std::fs::write(&path, b"downloaded audio").unwrap();
         let uri = url::Url::from_file_path(&path).unwrap().to_string();
         database
-            .write_download_access(
-                None,
-                &[&library::DownloadAccessWrite {
-                    media_uri: occurrence.track.media_uri.clone(),
-                    path: path.to_string_lossy().into_owned(),
-                    root: folder.path().to_string_lossy().into_owned(),
-                    relative_path: "track.opus".into(),
-                    size_bytes: 0,
-                    mtime_ns: 0,
-                    device_id: None,
-                    inode: None,
-                    parser_version: 1,
-                    access_uri: uri.clone(),
-                }],
-            )
+            .write_download_access(&[&library::DownloadAccessWrite {
+                media_uri: occurrence.track.media_uri.clone(),
+                path: path.to_string_lossy().into_owned(),
+                root: folder.path().to_string_lossy().into_owned(),
+                relative_path: "track.opus".into(),
+                size_bytes: 0,
+                mtime_ns: 0,
+                device_id: None,
+                inode: None,
+                parser_version: 1,
+                access_uri: uri.clone(),
+            }])
             .await
             .unwrap();
         let stream = super::prepare_stream(
@@ -1041,7 +1037,6 @@ impl PlaybackOwner {
             .spawn_blocking(move || {
                 let queue = self.snapshot().map_err(PlaybackError::Message)?;
                 Ok(Arc::new(library::MemberSelection::Keys {
-                    source: None,
                     keys: queue
                         .order
                         .iter()

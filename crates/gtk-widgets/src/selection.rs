@@ -342,8 +342,8 @@ pub fn collection_play_request(
     scope: library::Collection,
 ) -> slopsonic_core::playback::PlayRequest {
     let context = match &scope {
-        library::Collection::Source(key) => format!("tracks:{key}"),
-        library::Collection::Objects { source, .. } => format!("objects:{source}"),
+        library::Collection::Library => "tracks".to_owned(),
+        library::Collection::Objects(_) => "objects".to_owned(),
         library::Collection::Album(key) => format!("album:{key}"),
         library::Collection::Artist { key, album_artist } => format!(
             "{}:{key}",
@@ -369,7 +369,6 @@ pub fn collection_play_request(
 pub fn track_play_request(key: library::TrackKey) -> slopsonic_core::playback::PlayRequest {
     slopsonic_core::playback::PlayRequest::ordered(
         library::MemberSelection::Keys {
-            source: None,
             keys: (vec![key.raw()])
                 .into_iter()
                 .map(library::TrackKey::from_raw)

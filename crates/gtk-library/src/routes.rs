@@ -262,11 +262,7 @@ impl CatalogUi {
                 let Route::Folders { path } = route else {
                     unreachable!("folder renderer")
                 };
-                self.folders_route(
-                    path,
-                    selected.as_ref().expect("folder source"),
-                    Some(Ok(page)),
-                )
+                self.folders_route(path, Some(Ok(page)))
             }
             OpenedCollection::Home(page) => self.home_route(selected.expect("home source"), *page),
             OpenedCollection::Search(_) => self.search_route(),

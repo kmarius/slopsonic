@@ -100,11 +100,7 @@ impl SelectedFeed {
         }
     }
 
-    pub async fn apply_pending(
-        &self,
-        database: &Database,
-        _source_key: library::SourceKey,
-    ) -> SourceResult<bool> {
+    pub async fn apply_pending(&self, database: &Database) -> SourceResult<bool> {
         if self.cancelled.load(Ordering::Acquire) {
             return Err(SourceError::Cancelled);
         }
@@ -567,10 +563,8 @@ impl Source {
                 return Err(SourceError::Cancelled);
             }
             changes.apply_catalog(&(batch), true).await?;
-            let source = changes.source;
             Ok(database
                 .search_rows_by_objects(
-                    source,
                     None,
                     false,
                     &tracks,

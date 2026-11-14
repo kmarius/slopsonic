@@ -23,9 +23,7 @@ use crate::runtime::{
 use artwork::Artwork;
 use async_channel::{Receiver, Sender};
 use downloads::Downloads;
-use library::{
-    CatalogUpdate, Database, FavoriteTarget, FolderChoice, FolderKey, ReadCancellation, SourceKey,
-};
+use library::{CatalogUpdate, Database, FavoriteTarget, FolderChoice, FolderKey, ReadCancellation};
 use sources::{
     LiveFolderPage, SelectedFeed, Source, SourceConfiguration, SourceEntityKind, SourceError,
     SourceReadProgress, SourceReadStage, SourceSetup,
@@ -119,10 +117,10 @@ impl Shared {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    async fn refresh_source_counts(&self, source: SourceKey) -> Result<(usize, usize), String> {
+    async fn refresh_source_counts(&self) -> Result<(usize, usize), String> {
         let counts = self
             .database
-            .source_counts(source, &ReadCancellation::new())
+            .source_counts(&ReadCancellation::new())
             .await
             .map_err(string_error)?;
         self.catalog_counts
@@ -135,13 +133,13 @@ impl Shared {
     async fn load_source_counts(&self) -> Result<(), String> {
         let counts = match self
             .database
-            .source_identity_key()
+            .cached_source(&ReadCancellation::new())
             .await
             .map_err(string_error)?
         {
-            Some(source) if self.settings.load().sources.configured.is_some() => Some(
+            Some(_) if self.settings.load().sources.configured.is_some() => Some(
                 self.database
-                    .source_counts(source, &ReadCancellation::new())
+                    .source_counts(&ReadCancellation::new())
                     .await
                     .map_err(string_error)?,
             ),
@@ -394,21 +392,11 @@ impl SourceOwner {
             let shared = clients.upgrade()?;
             Self { shared }.client().ok()
         });
-        shared.database.observe_catalog(move |source, update| {
+        shared.database.observe_catalog(move |update| {
             let shared = weak.upgrade();
             async move {
                 if let Some(shared) = shared {
-                    if let Some(key) = source {
-                        SourceOwner { shared }.catalog_updated(key, update).await;
-                    } else if update.activity {
-                        shared
-                            .send(SourceEvent::CatalogPublished(CatalogPublication {
-                                source_key: None,
-                                favorite: None,
-                                change: CatalogChange::Activity,
-                            }))
-                            .await;
-                    }
+                    SourceOwner { shared }.catalog_updated(update).await;
                 }
             }
         });
@@ -497,15 +485,11 @@ impl SourceOwner {
             Ok(())
         }));
         let database = &self.shared.database;
-        let source_key = database.source_identity_key().await.map_err(string_error);
-        if let Ok(Some(source_key)) = source_key {
-            if let Ok(playback) = self.shared.playback() {
-                note(playback.forget_source(source_key).await);
-            }
-            // Clearing downloads needs the server attached, even when it never connected.
-            note(self.shared.downloads.attach(source_key, None).await);
+        if let Ok(playback) = self.shared.playback() {
+            note(playback.forget_source().await);
         }
-        note(source_key.map(|_| ()));
+        // Clearing downloads needs the server attached, even when it never connected.
+        note(self.shared.downloads.attach(None).await);
         self.shared.downloads.clear(false);
         self.shared.downloads.detach();
         note(
@@ -646,7 +630,7 @@ impl SourceOwner {
                     music_folder_id: None,
                 };
                 let configured = owner.persist_connected_source(&configured, credential)?;
-                let source_state = owner
+                owner
                     .shared
                     .database
                     .reconcile_source(configuration.kind.source_id(), &configuration.name)
@@ -657,7 +641,6 @@ impl SourceOwner {
                     .install_selected(
                         configured,
                         Some(Arc::clone(&source)),
-                        source_state,
                         Arc::clone(&cancelled),
                     )
                     .await?;
@@ -678,10 +661,10 @@ impl SourceOwner {
                     let _ = owner.refresh_now(&source, false, true).await;
                 }
                 Err(error) => {
-                    if let Some(selected) = owner.shared.selected()
+                    if owner.shared.selected().is_some()
                         && let Some(source) = owner.cached_client()
                     {
-                        owner.start_observer(selected, source, false);
+                        owner.start_observer(source, false);
                     }
                     owner
                         .publish_operation(SourceOperation::Failed {
@@ -729,10 +712,10 @@ impl SourceOwner {
                     return Err(SourceError::Cancelled.to_string());
                 }
                 if let Err(error) = &result {
-                    if let Some(selected) = owner.shared.selected()
+                    if owner.shared.selected().is_some()
                         && let Some(source) = owner.cached_client()
                     {
-                        owner.start_observer(selected, source, false);
+                        owner.start_observer(source, false);
                     }
                     owner.shared.publish_operation(SourceOperation::Failed {
                         message: error.clone(),
@@ -823,13 +806,8 @@ impl SourceOwner {
                     .cached_source(&ReadCancellation::new())
                     .await
                 {
-                    Ok(Some(publication)) => {
-                        if let Err(error) = owner
-                            .shared
-                            .downloads
-                            .attach(publication.source, None)
-                            .await
-                        {
+                    Ok(Some(_)) => {
+                        if let Err(error) = owner.shared.downloads.attach(None).await {
                             owner.shared.warn_nonfatal(&error);
                         }
                     }
@@ -898,9 +876,9 @@ impl SourceOwner {
                     .shared
                     .home_explore_variation
                     .fetch_add(1, Ordering::Relaxed);
-                if let Some(selected) = owner.selected_library() {
+                if owner.selected_library().is_some() {
                     owner
-                        .publish_catalog(&selected, None, CatalogChange::Home)
+                        .publish_current_catalog(None, CatalogChange::Home)
                         .await;
                 }
                 return Ok(());
@@ -921,7 +899,8 @@ impl SourceOwner {
 }
 
 impl SourceOwner {
-    async fn favorite_source(&self, target: &FavoriteTarget) -> Option<SourceKey> {
+    /// Whether the target is a server item while a server is configured.
+    async fn favorite_source(&self, target: &FavoriteTarget) -> bool {
         let server = match library::entity_parts(target.media_uri()) {
             Some((kind, _)) => kind == target.kind(),
             None => match target {
@@ -930,26 +909,21 @@ impl SourceOwner {
                     .database
                     .is_server_track(media_uri, &ReadCancellation::new())
                     .await
-                    .ok()?,
+                    .unwrap_or(false),
                 FavoriteTarget::Album(_) | FavoriteTarget::Artist(_) => false,
             },
         };
-        if !server {
-            return None;
-        }
-        let source_key = self
-            .shared
-            .database
-            .cached_source(&ReadCancellation::new())
-            .await
-            .ok()
-            .flatten()?
-            .source;
-        Some(source_key)
+        server
+            && self
+                .shared
+                .database
+                .cached_source(&ReadCancellation::new())
+                .await
+                .is_ok_and(|cached| cached.is_some())
     }
 
     async fn apply_favorite(&self, target: FavoriteTarget, favorite: bool) -> Result<(), String> {
-        if self.favorite_source(&target).await.is_none() {
+        if !self.favorite_source(&target).await {
             return Err("this item does not belong to a server".to_string());
         }
         let changed = self
@@ -976,7 +950,7 @@ impl SourceOwner {
 
     async fn apply_rating(&self, target: FavoriteTarget, rating: Option<u8>) {
         let lane = self.shared.lane.lock().await;
-        if self.favorite_source(&target).await.is_none()
+        if !self.favorite_source(&target).await
             || !self
                 .shared
                 .database
@@ -1099,12 +1073,7 @@ impl SourceOwner {
             .map(|configured| configured.configuration)
     }
 
-    async fn deliver_favorite(
-        &self,
-        source_key: SourceKey,
-        target: FavoriteTarget,
-        favorite: bool,
-    ) -> bool {
+    async fn deliver_favorite(&self, target: FavoriteTarget, favorite: bool) -> bool {
         let Ok(source) = self.open_client().await else {
             return true;
         };
@@ -1159,10 +1128,6 @@ impl SourceOwner {
                     .await;
                     self.shared
                         .send(SourceEvent::Notice(SourceNotice {
-                            source_key: self
-                                .shared
-                                .selected()
-                                .map_or(source_key, |selected| selected.source_key),
                             kind: SourceNoticeKind::FavoriteRejected,
                         }))
                         .await;
@@ -1203,11 +1168,11 @@ impl SourceOwner {
                 completed = false;
                 continue;
             }
-            let Some(source_key) = self.favorite_source(&target).await else {
+            if !self.favorite_source(&target).await {
                 completed = false;
                 continue;
-            };
-            if self.deliver_favorite(source_key, target, favorite).await {
+            }
+            if self.deliver_favorite(target, favorite).await {
                 unavailable = true;
                 completed = false;
             }

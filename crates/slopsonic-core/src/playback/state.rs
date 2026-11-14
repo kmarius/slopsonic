@@ -456,7 +456,6 @@ impl Player {
         self.start_candidates(request.placement, Provenance::Random, async move {
             database
                 .random_candidates(
-                    selected.source_key,
                     selected.music_folder_key,
                     &request.criteria,
                     &excluded,

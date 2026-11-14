@@ -5,12 +5,11 @@ use sqlx::{Connection, FromRow, SqliteConnection};
 
 use crate::{
     CatalogSort, Database, FolderKey, LibraryError, LibraryResult, MemberSelection,
-    PlaylistEntryKey, PlaylistKey, ReadCancellation, SourceKey, TrackKey,
+    PlaylistEntryKey, PlaylistKey, ReadCancellation, TrackKey,
 };
 
 #[derive(Clone, Debug, PartialEq, FromRow)]
 pub struct PlaylistAccess {
-    pub source_key: Option<SourceKey>,
     pub object_id: String,
     pub writable: bool,
     pub metadata_writable: bool,
@@ -21,7 +20,6 @@ pub(crate) const PLAYLIST_ROW_LIMIT: usize = 128;
 #[derive(Clone, Debug, PartialEq, FromRow)]
 pub struct PlaylistRow {
     pub playlist_key: PlaylistKey,
-    pub source_key: Option<SourceKey>,
     pub object_id: String,
     pub name: String,
     pub writable: bool,
@@ -72,7 +70,7 @@ impl Database {
     ) -> LibraryResult<Option<PlaylistAccess>> {
         let mut connection = self.acquire_general(cancellation).await?;
         Ok(sqlx::query_as(
-            "SELECT playlist.source_key,playlist.object_id,
+            "SELECT playlist.object_id,
             playlist.writable,playlist.metadata_writable
             FROM playlists playlist WHERE playlist_key=?1",
         )
@@ -83,11 +81,11 @@ impl Database {
 
     pub async fn playlist_key_by_object(
         &self,
-        source: SourceKey,
         object_id: &str,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Option<PlaylistKey>> {
         let mut connection = self.acquire_general(cancellation).await?;
+        let source = crate::db::server_key(&mut connection).await?;
         Ok(sqlx::query_scalar(
             "SELECT playlist_key FROM playlists WHERE source_key=?1 AND object_id=?2",
         )
@@ -114,11 +112,11 @@ impl Database {
 
     pub async fn all_playlist_track_order(
         &self,
-        source: SourceKey,
         folder: Option<FolderKey>,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<String>> {
         let mut connection = self.acquire_general(cancellation).await?;
+        let source = crate::db::server_key(&mut connection).await?;
         Ok(sqlx::query_scalar::<_, String>(
             "SELECT track.media_uri FROM tracks track
              WHERE track.source_key=?1
@@ -134,12 +132,11 @@ impl Database {
 
     pub async fn playlist_destinations(
         &self,
-        source: Option<SourceKey>,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<PlaylistRow>> {
         let mut connection = self.acquire_general(cancellation).await?;
         let mut transaction = connection.begin().await?;
-        let query = playlist_list_query(source, None, CatalogSort::Position, false, "");
+        let query = playlist_list_query(None, CatalogSort::Position, false, "");
         let order: Vec<PlaylistKey> = sqlx::query_scalar_with(
             sqlx::AssertSqlSafe(query.select(&query.key)),
             query.arguments,
@@ -193,10 +190,10 @@ impl Database {
 
     pub async fn source_playlist_object_ids(
         &self,
-        source: SourceKey,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<String>> {
         let mut connection = self.acquire_general(cancellation).await?;
+        let source = crate::db::server_key(&mut connection).await?;
         Ok(sqlx::query_scalar(
             "SELECT object_id FROM playlists WHERE source_key=?1 AND name IS NOT NULL AND indexed ORDER BY sort_text,playlist_key",
         )
@@ -339,7 +336,7 @@ impl Database {
     ) -> LibraryResult<Vec<PlaylistRow>> {
         let sql = format!(
             "WITH requested AS ({})
-         SELECT playlist.playlist_key,playlist.source_key,
+         SELECT playlist.playlist_key,
                 playlist.object_id,
                 playlist.name,playlist.writable,playlist.metadata_writable,{} artwork_binding,
                 COALESCE(totals.track_count,0) track_count,COALESCE(totals.duration_millis,0) duration_millis,COALESCE(totals.downloaded_count,0) downloaded_count,
@@ -434,18 +431,15 @@ pub(crate) fn playlist_query(
 }
 
 pub(crate) fn playlist_list_query(
-    source: Option<SourceKey>,
     folder: Option<FolderKey>,
     sort: CatalogSort,
     descending: bool,
     filter: &str,
 ) -> crate::query::OrderedQuery {
-    let source_scope = source.map_or_else(
-        || "playlist.source_key IS NULL".into(),
-        |source| format!("playlist.source_key={}", source.raw()),
+    let mut predicate = format!(
+        "playlist.name IS NOT NULL AND playlist.indexed AND playlist.source_key={}",
+        crate::db::SERVER_KEY
     );
-    let mut predicate =
-        format!("playlist.name IS NOT NULL AND playlist.indexed AND {source_scope}");
     if !filter.trim().is_empty() {
         predicate.push_str(&format!(
             " AND instr(playlist.normalized_name,{})>0",
@@ -465,11 +459,10 @@ pub(crate) fn playlist_list_query(
         text: (sort == CatalogSort::Title).then(|| "playlist.sort_text".into()),
         from: format!(
             "{} {}",
-            if let (Some(source), Some(folder)) = (source, folder) {
+            if let Some(folder) = folder {
                 format!(
-                    "(SELECT scope.entity_key playlist_key FROM collection_totals scope CROSS JOIN playlists parent ON parent.playlist_key=scope.entity_key WHERE scope.kind='playlist' AND scope.role=0 AND coalesce(scope.folder_key,'')={} AND scope.track_count>0 AND parent.source_key={} UNION ALL SELECT playlist_key FROM playlists WHERE source_key IS NULL) candidate CROSS JOIN playlists playlist USING(playlist_key)",
-                    folder.raw(),
-                    source.raw()
+                    "(SELECT scope.entity_key playlist_key FROM collection_totals scope WHERE scope.kind='playlist' AND scope.role=0 AND coalesce(scope.folder_key,'')={} AND scope.track_count>0) candidate CROSS JOIN playlists playlist USING(playlist_key)",
+                    folder.raw()
                 )
             } else {
                 "playlists playlist".into()

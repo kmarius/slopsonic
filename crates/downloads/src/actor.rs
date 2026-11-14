@@ -119,18 +119,16 @@ impl Actor {
                 let _ = response.send(self.queue_page(offset, limit).await).await;
             }
             Command::SourceResolver(resolve) => self.sources = resolve,
-            Command::Attach {
-                source_key,
-                folder,
-                response,
-            } => {
+            Command::Attach { folder, response } => {
                 let directory = self.settings.directory.clone();
-                if self.attached.as_ref().is_some_and(|attached| {
-                    attached.directory != directory || attached.source_key != source_key
-                }) {
+                if self
+                    .attached
+                    .as_ref()
+                    .is_some_and(|attached| attached.directory != directory)
+                {
                     self.discard_matching(active, false, |_| true).await;
                 }
-                let result = self.attach(source_key, folder, directory).await;
+                let result = self.attach(folder, directory).await;
                 let ready = result.is_ok();
                 self.pending_rules = None;
                 let _ = response.send(result).await;

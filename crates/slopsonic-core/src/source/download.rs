@@ -47,13 +47,6 @@ impl SourceOwner {
 
     async fn download_source_assets(&self) -> Result<(), String> {
         let database = &self.shared.database;
-        let Some(source_key) = database
-            .source_identity_key()
-            .await
-            .map_err(super::string_error)?
-        else {
-            return Ok(());
-        };
         let cancel_read = library::ReadCancellation::new();
         let mut reported_at = std::time::Instant::now();
         let mut report = |completed| {
@@ -72,7 +65,7 @@ impl SourceOwner {
         let mut after = None;
         loop {
             let page = database
-                .source_artwork_page(source_key, after.as_deref(), 128, &cancel_read)
+                .source_artwork_page(after.as_deref(), 128, &cancel_read)
                 .await
                 .map_err(super::string_error)?;
             if page.is_empty() {

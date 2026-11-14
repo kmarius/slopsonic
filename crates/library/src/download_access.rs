@@ -1,8 +1,6 @@
 use sqlx::{Connection, FromRow};
 
-use crate::{
-    Database, DownloadAccessFileKey, LibraryError, LibraryResult, ReadCancellation, SourceKey,
-};
+use crate::{Database, DownloadAccessFileKey, LibraryError, LibraryResult, ReadCancellation};
 
 #[derive(Debug, FromRow)]
 pub struct DownloadMetadata {
@@ -18,7 +16,6 @@ pub struct DownloadMetadata {
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, FromRow)]
 pub(crate) struct DownloadLocatorWrite {
-    pub source: Option<SourceKey>,
     pub media_uri: String,
     pub origin: String,
     pub path: String,
@@ -79,7 +76,6 @@ impl Database {
 
     pub async fn write_download_access(
         &self,
-        source: Option<SourceKey>,
         records: &[&DownloadAccessWrite],
     ) -> LibraryResult<()> {
         if records.is_empty() {
@@ -88,7 +84,7 @@ impl Database {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
         let mut transaction = connection.begin().await?;
-        write_download_access_on(&mut transaction, source, records).await?;
+        write_download_access_on(&mut transaction, records).await?;
         transaction.commit().await?;
         Ok(())
     }
@@ -121,14 +117,12 @@ pub(crate) async fn write_download_locator(
         },
     )
     .await?;
-    let source = locator.source;
-    Ok(sqlx::query_scalar("INSERT INTO main.download_locators(source_key,media_uri,origin,path,root,relative_path,access_uri) VALUES(?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(media_uri,origin) DO UPDATE SET source_key=excluded.source_key,path=excluded.path,root=excluded.root,relative_path=excluded.relative_path,access_uri=excluded.access_uri RETURNING download_access_file_key")
-        .bind(source).bind(&locator.media_uri).bind(&locator.origin).bind(&locator.path).bind(&locator.root).bind(&locator.relative_path).bind(&locator.access_uri).fetch_one(connection).await?)
+    Ok(sqlx::query_scalar("INSERT INTO main.download_locators(source_key,media_uri,origin,path,root,relative_path,access_uri) VALUES((SELECT source_key FROM main.sources),?1,?2,?3,?4,?5,?6) ON CONFLICT(media_uri,origin) DO UPDATE SET source_key=excluded.source_key,path=excluded.path,root=excluded.root,relative_path=excluded.relative_path,access_uri=excluded.access_uri RETURNING download_access_file_key")
+        .bind(&locator.media_uri).bind(&locator.origin).bind(&locator.path).bind(&locator.root).bind(&locator.relative_path).bind(&locator.access_uri).fetch_one(connection).await?)
 }
 
 pub(crate) async fn write_download_access_on(
     connection: &mut sqlx::SqliteConnection,
-    source: Option<SourceKey>,
     records: &[&DownloadAccessWrite],
 ) -> LibraryResult<()> {
     for access in records {
@@ -147,7 +141,6 @@ pub(crate) async fn write_download_access_on(
         write_download_locator(
             &mut *connection,
             &DownloadLocatorWrite {
-                source,
                 media_uri: access.media_uri.clone(),
                 origin: "download".to_owned(),
                 path: access.path.clone(),

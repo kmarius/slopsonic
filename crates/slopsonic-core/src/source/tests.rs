@@ -91,11 +91,6 @@ async fn acquisition_progress_belongs_to_its_source() {
             .unwrap(),
     );
     database.reconcile_source("subsonic", "Test").await.unwrap();
-    let cached = database
-        .cached_source(&ReadCancellation::new())
-        .await
-        .unwrap()
-        .unwrap();
     let runtime = tokio::runtime::Handle::current();
     let (events, receiver) = async_channel::unbounded();
     let owner = SourceOwner::open_dormant(
@@ -203,13 +198,12 @@ async fn acquisition_progress_belongs_to_its_source() {
     ));
 
     let selected_library = SelectedLibrary {
-        source_key: cached.source,
         music_folder_key: None,
         music_folder_object_id: None,
         music_folders: Arc::from([]),
     };
     let client = owner.client().unwrap();
-    assert!(owner.start_observer(selected_library.clone(), client.clone(), false));
+    assert!(owner.start_observer(client.clone(), false));
     let observer = owner
         .shared
         .client
@@ -225,7 +219,7 @@ async fn acquisition_progress_belongs_to_its_source() {
     *owner.shared.selected.lock().unwrap() = Some(selected_library.clone());
     owner.release_selected().await;
     assert!(!observer.cancellation().load(Ordering::Acquire));
-    assert!(!owner.start_observer(selected_library.clone(), client, false));
+    assert!(!owner.start_observer(client, false));
     for (metadata, activity, artwork, selected, visible) in [
         (false, false, false, true, false),
         (false, false, true, true, false),
@@ -240,17 +234,14 @@ async fn acquisition_progress_belongs_to_its_source() {
         let configuration = owner.configuration_changes();
         let catalog = owner.catalog_changes();
         owner
-            .catalog_updated(
-                cached.source,
-                CatalogUpdate {
-                    metadata,
-                    activity,
-                    playlists: false,
-                    artwork,
-                    home: false,
-                    track_rekeys: Arc::from([]),
-                },
-            )
+            .catalog_updated(CatalogUpdate {
+                metadata,
+                activity,
+                playlists: false,
+                artwork,
+                home: false,
+                track_rekeys: Arc::from([]),
+            })
             .await;
         assert!(
             !configuration.has_changed().unwrap(),
@@ -276,14 +267,11 @@ async fn acquisition_progress_belongs_to_its_source() {
     let before = changes.borrow().clone();
     for (metadata, activity) in [(true, false), (false, true)] {
         owner
-            .catalog_updated(
-                cached.source,
-                CatalogUpdate {
-                    metadata,
-                    activity,
-                    ..Default::default()
-                },
-            )
+            .catalog_updated(CatalogUpdate {
+                metadata,
+                activity,
+                ..Default::default()
+            })
             .await;
     }
     let revision = changes.borrow_and_update().clone();
@@ -297,17 +285,14 @@ async fn acquisition_progress_belongs_to_its_source() {
         (false, false, CatalogChange::Playlists(None)),
     ] {
         owner
-            .catalog_updated(
-                cached.source,
-                CatalogUpdate {
-                    metadata: false,
-                    activity: false,
-                    playlists: true,
-                    artwork,
-                    home,
-                    track_rekeys: Arc::from([]),
-                },
-            )
+            .catalog_updated(CatalogUpdate {
+                metadata: false,
+                activity: false,
+                playlists: true,
+                artwork,
+                home,
+                track_rekeys: Arc::from([]),
+            })
             .await;
         let SourceEvent::CatalogPublished(publication) = receiver.recv().await.unwrap() else {
             panic!("scan changes publish catalog content");
@@ -329,7 +314,6 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
             .reconcile_source("subsonic", "Music")
             .await
             .unwrap();
-        let source_key = database.source_identity_key().await.unwrap().unwrap();
         let update = {
             let mut catalog = database.catalog(None).await.unwrap();
             catalog
@@ -421,7 +405,6 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
         })
         .await
         .expect("cached selection must not wait for the server");
-        assert_eq!(published.source_key, source_key);
         assert_eq!(published.music_folders[0].name, "New Folder");
         let connection = owner
             .shared
@@ -528,14 +511,12 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
             owner.selected_library().unwrap().music_folders[0].object_id,
             "new-folder"
         );
-        assert_eq!(
+        assert!(
             database
                 .cached_source(&ReadCancellation::new())
                 .await
                 .unwrap()
-                .unwrap()
-                .source,
-            source_key
+                .is_some()
         );
         assert_eq!(
             (
@@ -625,13 +606,19 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
             .unwrap();
         assert!(owner.source_status().is_none());
         assert!(owner.shared.selected().is_none());
-        assert!(database.source_identity_key().await.unwrap().is_none());
+        assert!(
+            database
+                .cached_source(&ReadCancellation::new())
+                .await
+                .unwrap()
+                .is_none()
+        );
         if let Some(receiver) = receiver {
             let mut assignments = Vec::new();
             while let Ok(event) = receiver.try_recv() {
                 match event {
                     SourceEvent::Selected { selected, .. } => {
-                        assignments.push(Some(selected.source_key))
+                        assignments.push(Some(selected.music_folder_key))
                     }
                     SourceEvent::ReleaseSelected => assignments.push(None),
                     _ => {}
@@ -717,7 +704,13 @@ async fn server_reset_drops_its_local_state_and_keeps_the_configuration() {
 
     owner.reset_server_state().await.unwrap();
 
-    assert!(database.source_identity_key().await.unwrap().is_none());
+    assert!(
+        database
+            .cached_source(&ReadCancellation::new())
+            .await
+            .unwrap()
+            .is_none()
+    );
     assert!(
         database
             .due_remote_favorites(unix_seconds() + 60, 64, &ReadCancellation::new())

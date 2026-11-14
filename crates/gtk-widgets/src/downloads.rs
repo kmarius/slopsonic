@@ -189,7 +189,6 @@ pub fn download_rule_artwork(
     artwork: &Rc<crate::artwork::ArtworkState>,
     database: &Arc<library::Database>,
     runtime: &tokio::runtime::Handle,
-    source: Option<library::SourceKey>,
     rule: downloads::DownloadRule,
     size: i32,
 ) -> gtk::Widget {
@@ -198,9 +197,6 @@ pub fn download_rule_artwork(
     let database = Arc::clone(database);
     let task = runtime.spawn(async move {
         let cancellation = library::ReadCancellation::new();
-        let Some(source) = source else {
-            return Ok::<_, library::LibraryError>(Vec::new());
-        };
         let scope = match rule {
             downloads::DownloadRule::EntireLibrary => {
                 library::RepresentativeArtworkScope::AllTracks
@@ -216,7 +212,7 @@ pub fn download_rule_artwork(
             }
         };
         database
-            .representative_artwork_page(source, None, scope, 4, &cancellation)
+            .representative_artwork_page(None, scope, 4, &cancellation)
             .await
     });
     let shell = Rc::downgrade(artwork);

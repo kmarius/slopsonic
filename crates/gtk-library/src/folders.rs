@@ -39,7 +39,6 @@ impl CatalogUi {
     pub fn folders_route(
         self: &Rc<Self>,
         path: Vec<FolderPathItem>,
-        selected: &slopsonic_core::runtime::SelectedLibrary,
         prepared: Option<Result<slopsonic_core::browse::FolderPage, String>>,
     ) -> MountedRoute {
         let wrapper = FoldersRouteView::new();
@@ -61,9 +60,7 @@ impl CatalogUi {
             search.set_visible(true);
         }
         let parts = Rc::new(RefCell::new(match prepared {
-            Some(prepared) => {
-                folder_parts(self, &wrapper, selected, path.clone(), &search, prepared)
-            }
+            Some(prepared) => folder_parts(self, &wrapper, path.clone(), &search, prepared),
             None => FolderParts {
                 resume: Rc::new(|| {}),
                 refresh: Rc::new(|| {}),
@@ -92,15 +89,13 @@ impl CatalogUi {
             let shell = Rc::downgrade(self);
             let parts = Rc::clone(&parts);
             let wrapper = wrapper.clone();
-            let selected = selected.clone();
             let search = search.clone();
             Rc::new(move |opened| {
                 let (Some(shell), OpenedCollection::Folders(page)) = (shell.upgrade(), opened)
                 else {
                     return;
                 };
-                let filled =
-                    folder_parts(&shell, &wrapper, &selected, path.clone(), &search, Ok(page));
+                let filled = folder_parts(&shell, &wrapper, path.clone(), &search, Ok(page));
                 parts.replace(filled);
             }) as gtk_widgets::mounted_route::MountedPendingApply
         });
@@ -139,7 +134,6 @@ struct FolderParts {
 fn folder_parts(
     shell: &Rc<CatalogUi>,
     wrapper: &FoldersRouteView,
-    selected: &slopsonic_core::runtime::SelectedLibrary,
     path: Vec<FolderPathItem>,
     search: &gtk::SearchEntry,
     prepared: Result<slopsonic_core::browse::FolderPage, String>,
@@ -147,7 +141,7 @@ fn folder_parts(
     match prepared {
         Ok(prepared) => {
             let (content, resume, refresh, download_change, initial_demand) =
-                folder_page(shell, selected, path, search.clone(), prepared);
+                folder_page(shell, path, search.clone(), prepared);
             wrapper.append(&content);
             FolderParts {
                 resume,
@@ -181,7 +175,6 @@ enum FolderTableRow {
 
 fn folder_page(
     shell: &Rc<CatalogUi>,
-    selected: &slopsonic_core::runtime::SelectedLibrary,
     path: Vec<FolderPathItem>,
     search: gtk::SearchEntry,
     prepared: slopsonic_core::browse::FolderPage,
@@ -210,7 +203,6 @@ fn folder_page(
         .collect::<Vec<_>>();
     let applied_query = Rc::new(RefCell::new(query.clone()));
     let database = Arc::clone(&shell.library);
-    let source_key = selected.source_key;
     let folder_source = source.clone();
     let folder_query = Rc::clone(&applied_query);
     let folder_load = Rc::new(
@@ -220,7 +212,7 @@ fn folder_page(
             let query = folder_query.borrow().clone();
             Box::pin(async move {
                 Ok(source
-                    .child_page(&database, source_key, &query, range, &cancellation)
+                    .child_page(&database, &query, range, &cancellation)
                     .await
                     .map_err(|error| error.to_string())?
                     .1
@@ -388,7 +380,6 @@ fn folder_page(
             Box::pin(async move {
                 slopsonic_core::browse::FolderPage::load(
                     &database,
-                    source_key,
                     source,
                     query,
                     window,

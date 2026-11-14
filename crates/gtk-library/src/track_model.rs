@@ -26,7 +26,6 @@ impl TrackRead {
                 ranges,
             },
             Self::Keys(keys) => library::MemberSelection::Keys {
-                source: None,
                 keys: ranges.map_or_else(
                     || keys.clone(),
                     |ranges| {
@@ -329,7 +328,6 @@ mod tests {
         let runtime = tokio::runtime::Runtime::new().unwrap();
         let row = library::TrackView {
             track_key: TrackKey::from_raw(1),
-            source_key: None,
             object_id: None,
             media_uri: "test:track".into(),
             artwork_binding: None,
@@ -350,7 +348,7 @@ mod tests {
         let query = library::MemberRead {
             sort: Some(settings.sort_key.catalog_sort()),
             descending: settings.descending,
-            ..library::MemberRead::new(library::Collection::Source(library::SourceKey::from_raw(1)))
+            ..library::MemberRead::new(library::Collection::Library)
         };
         let directory = tempfile::tempdir().unwrap();
         let database = runtime

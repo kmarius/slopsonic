@@ -598,7 +598,6 @@ pub fn remove_playlist_entry_selection(
         };
         let item_count = tracks.len();
         let songs = library::MemberSelection::Keys {
-            source: None,
             keys: ((tracks).iter().map(|key| key.raw()).collect::<Vec<i64>>())
                 .into_iter()
                 .map(library::TrackKey::from_raw)

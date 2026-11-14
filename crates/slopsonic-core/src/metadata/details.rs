@@ -247,7 +247,7 @@ pub async fn media_details(
                 );
                 (
                     details,
-                    track.source_key.is_some(),
+                    db.is_server_track(uri, &cancel).await?,
                     track.object_id,
                     track.state,
                 )

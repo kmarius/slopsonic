@@ -1633,7 +1633,7 @@ mod tests {
             .unwrap();
         database.reconcile_source("search", "Search").await.unwrap();
         let (sender, mut updates) = tokio::sync::mpsc::unbounded_channel();
-        database.observe_catalog(move |_, update| {
+        database.observe_catalog(move |update| {
             let _ = sender.send(update);
             std::future::ready(())
         });
@@ -1760,7 +1760,7 @@ mod tests {
             }
             .unwrap();
             let (sender, mut updates) = tokio::sync::mpsc::unbounded_channel();
-            database.observe_catalog(move |_, update| {
+            database.observe_catalog(move |update| {
                 let _ = sender.send(update);
                 std::future::ready(())
             });

@@ -171,10 +171,7 @@ async fn make_playable(
             parser_version: 1,
             access_uri: url::Url::from_file_path(&path).unwrap().to_string(),
         };
-        database
-            .write_download_access(None, &[&access])
-            .await
-            .unwrap();
+        database.write_download_access(&[&access]).await.unwrap();
     }
 }
 
@@ -955,7 +952,6 @@ async fn collection_starts_and_selected_rows_keep_distinct_shuffle_anchors() {
             let (_directory, database, mut sequence, owner, commands, playback, inbox) =
                 seeded(items.clone()).await;
             let input = library::MemberSelection::Keys {
-                source: None,
                 keys: sequence
                     .snapshot()
                     .entries
@@ -1367,9 +1363,8 @@ async fn repeat_wraps_when_source_exhaustion_is_discovered_after_a_full_page() {
         .await
         .unwrap();
     drop(catalog);
-    let source = db.source_identity_key().await.unwrap().unwrap();
     let key = db
-        .playlist_key_by_object(source, "playlist", &library::ReadCancellation::new())
+        .playlist_key_by_object("playlist", &library::ReadCancellation::new())
         .await
         .unwrap()
         .unwrap();

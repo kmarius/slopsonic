@@ -3,20 +3,19 @@ use super::*;
 impl Actor {
     pub(super) async fn attach(
         &mut self,
-        source_key: SourceKey,
         folder: Option<FolderKey>,
         directory: Option<PathBuf>,
     ) -> Result<(), String> {
         let same_source = self.attached.is_some();
         let unchanged = same_source
-            && self.attached.as_ref().is_some_and(|attached| {
-                attached.directory == directory && attached.source_key == source_key
-            });
+            && self
+                .attached
+                .as_ref()
+                .is_some_and(|attached| attached.directory == directory);
         if same_source {
             self.discard_previous_directory(&directory).await;
         }
         self.attached = Some(AttachedSource {
-            source_key,
             folder,
             directory: directory.clone(),
         });
@@ -123,13 +122,12 @@ impl Actor {
             return Ok(true);
         }
         file.owners = serde_json::to_string(&owners).map_err(|error| error.to_string())?;
-        let source = self.attached.as_ref().map(|source| source.source_key);
         let access = download_access(media_uri, &paths, file.completed_size).await?;
         file.storage_root = access.root.clone();
         file.relative_path = access.relative_path.clone();
         file.completed_size = Some(access.size_bytes);
         self.database
-            .commit_download(&file, source, &access)
+            .commit_download(&file, &access)
             .await
             .map_err(|error| error.to_string())?;
         if let Some(previous) =

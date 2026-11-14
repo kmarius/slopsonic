@@ -3,7 +3,7 @@
 use std::sync::Weak;
 
 use crate::playback::RandomPlayRequest;
-use library::{Database, RadioSeed, ReadCancellation, SourceKey};
+use library::{Database, RadioSeed, ReadCancellation};
 use playback::Provenance;
 use sources::{Source, SourceRadioSeed};
 
@@ -33,7 +33,6 @@ pub fn random_play_request(
 
 pub async fn queue_random(
     database: &Database,
-    source: SourceKey,
     folder: Option<library::FolderKey>,
     request: RandomPlayRequest,
     queue: &crate::playback::PlaybackOwner,
@@ -41,7 +40,6 @@ pub async fn queue_random(
     let cancellation = ReadCancellation::new();
     let order = database
         .random_candidates(
-            source,
             folder,
             &request.criteria,
             &[],
@@ -75,9 +73,8 @@ pub(crate) async fn radio_candidates(
         .await
         .map_err(|error| error.to_string())?;
     let mut candidates = Vec::new();
-    let seed_source_key = seed_source.as_ref().map(|(key, _)| *key);
-    let mut fallback_sources = Vec::new();
-    if let Some((source_key, object_id)) = seed_source {
+    let server_scope = seed_source.is_some() || selected.is_some();
+    if let Some(object_id) = seed_source {
         let seed_owner = owner.clone();
         let source = tokio::task::spawn_blocking(move || seed_owner?.client().ok())
             .await
@@ -89,25 +86,15 @@ pub(crate) async fn radio_candidates(
                 .await
         {
             candidates = database
-                .recommended_track_keys(source_key, &seed, &ids, cancellation)
+                .recommended_track_keys(&seed, &ids, cancellation)
                 .await
                 .map_err(|error| error.to_string())?;
         }
-        fallback_sources.push(source_key);
-    }
-    if let Some(selected) = selected
-        && Some(selected.source_key) != seed_source_key
-    {
-        fallback_sources.push(selected.source_key);
     }
     candidates.truncate(requested);
-    for source_key in fallback_sources {
-        if candidates.len() == requested {
-            break;
-        }
+    if server_scope && candidates.len() < requested {
         let fallback = database
             .radio_candidates(
-                source_key,
                 seed.clone(),
                 &candidates,
                 requested - candidates.len(),

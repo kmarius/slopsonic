@@ -162,8 +162,7 @@ mod tests {
     use super::*;
 
     use library::{
-        AlbumArtistLink, AlbumKey, AlbumView, ArtistKey, SourceKey, TrackArtistLink, TrackKey,
-        TrackView,
+        AlbumArtistLink, AlbumKey, AlbumView, ArtistKey, TrackArtistLink, TrackKey, TrackView,
     };
 
     #[test]
@@ -286,7 +285,6 @@ mod tests {
     fn track(display_artist: &str) -> TrackView {
         TrackView {
             track_key: TrackKey::from_raw(1),
-            source_key: Some(SourceKey::from_raw(1)),
             object_id: Some("track".to_string()),
             media_uri: library::entity_uri("track", "track"),
             artwork_binding: None,
@@ -339,7 +337,6 @@ mod tests {
     fn album() -> AlbumView {
         AlbumView {
             album_key: AlbumKey::from_raw(1),
-            source_key: SourceKey::from_raw(1),
             object_id: "album".to_string(),
             media_uri: library::entity_uri("album", "album"),
             release_lookup_identity: None,

@@ -85,7 +85,6 @@ impl Actor {
         let rules = self.settings.rules;
         self.pending_rules = Some(RuleIntent {
             database: self.database.clone(),
-            source_key: attached.source_key,
             folder: attached.folder,
             rules,
         });
@@ -115,11 +114,7 @@ impl Actor {
         let Some(intent) = self.running_rules.take() else {
             return;
         };
-        let Some(attached) = self
-            .attached
-            .as_ref()
-            .filter(|attached| attached.source_key == intent.source_key)
-        else {
+        let Some(attached) = self.attached.as_ref() else {
             self.start_rule_preparation();
             return;
         };

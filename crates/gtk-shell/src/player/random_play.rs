@@ -34,12 +34,10 @@ pub(super) fn present_random_play_dialog(shell: &Rc<Shell>) {
         return;
     };
     let database = Arc::clone(&shell.products.library);
-    let source = selected.source_key;
     let folder = selected.music_folder_key;
     let cancellation = ReadCancellation::new();
     let runtime = shell.products.runtime.clone();
-    let task =
-        runtime.spawn(async move { database.genre_choices(source, folder, &cancellation).await });
+    let task = runtime.spawn(async move { database.genre_choices(folder, &cancellation).await });
     let shell = Rc::downgrade(shell);
     glib::spawn_future_local(async move {
         let Some(shell) = shell.upgrade() else {
@@ -297,7 +295,6 @@ pub(crate) fn play_saved_random(shell: &Rc<Shell>, placement: QueuePlacement) {
     };
     let settings = shell.settings.current.borrow().random_play.clone();
     let database = Arc::clone(&shell.products.library);
-    let source = selected.source_key;
     let genre_object_id = settings
         .selected_genre_id(selected.music_folder_object_id.as_deref())
         .map(str::to_owned);
@@ -309,7 +306,6 @@ pub(crate) fn play_saved_random(shell: &Rc<Shell>, placement: QueuePlacement) {
             Some(object_id) => database
                 .catalog_keys(
                     library::CatalogKind::Genre,
-                    Some(source),
                     &[(&object_id).to_string()],
                     &cancellation,
                 )
@@ -375,14 +371,8 @@ async fn execute_random_task(
     request: RandomPlayRequest,
     queue: std::sync::Arc<slopsonic_core::playback::PlaybackOwner>,
 ) -> bool {
-    match slopsonic_core::radio::queue_random(
-        &database,
-        selected.source_key,
-        selected.music_folder_key,
-        request,
-        &queue,
-    )
-    .await
+    match slopsonic_core::radio::queue_random(&database, selected.music_folder_key, request, &queue)
+        .await
     {
         Ok(empty) => empty,
         Err(error) => {

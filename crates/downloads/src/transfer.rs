@@ -311,14 +311,13 @@ impl Actor {
         }
         file.retired_documents = serde_json::to_string(&retired)
             .map_err(|error| DownloadFailure::NeedsAttention(error.to_string()))?;
-        let source = self.attached.as_ref().map(|source| source.source_key);
         let access = download_access(media_uri, &finished.paths, file.completed_size)
             .await
             .map_err(DownloadFailure::NeedsAttention)?;
         file.storage_root = access.root.clone();
         file.relative_path = access.relative_path.clone();
         self.database
-            .commit_download(&file, source, &access)
+            .commit_download(&file, &access)
             .await
             .map_err(|error| DownloadFailure::NeedsAttention(error.to_string()))?;
         self.events.counts_dirty.store(true, Ordering::Release);

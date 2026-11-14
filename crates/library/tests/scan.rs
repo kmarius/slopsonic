@@ -10,7 +10,11 @@ async fn publication_keeps_tracks_and_known_credits_beside_missing_related_objec
     let database = Database::open(&path).await.unwrap();
 
     let mut scan_catalog = async {
-        if (&database).source_identity_key().await?.is_none() {
+        if database
+            .cached_source(&library::ReadCancellation::new())
+            .await?
+            .is_none()
+        {
             (&database).reconcile_source("subsonic", "Source").await?;
         }
         database.catalog(None).await
@@ -82,7 +86,7 @@ async fn publication_keeps_tracks_and_known_credits_beside_missing_related_objec
         scan_catalog.apply_catalog(&write, true).await.unwrap();
     };
     let (updates_tx, mut updates) = tokio::sync::mpsc::unbounded_channel();
-    database.observe_catalog(move |_, update| {
+    database.observe_catalog(move |update| {
         let _ = updates_tx.send(update);
         std::future::ready(())
     });
@@ -154,7 +158,7 @@ async fn reopening_preserves_accepted_source_rows_and_noop_refresh() {
     let reopened = Database::open(&path).await.unwrap();
     assert_eq!(
         reopened
-            .source_counts(publication.0, &ReadCancellation::default())
+            .source_counts(&ReadCancellation::default())
             .await
             .unwrap(),
         (1, 2)
@@ -425,16 +429,19 @@ async fn write_small_catalog(
     title: &str,
     reverse: bool,
     genre_artwork: &[u8],
-) -> (library::SourceKey, library::CatalogUpdate) {
+) -> (i64, library::CatalogUpdate) {
     let (updates_tx, mut updates) = tokio::sync::mpsc::unbounded_channel();
-    database.observe_catalog(move |identity, update| {
-        let source = identity.unwrap();
-        let _ = updates_tx.send((source, update));
+    database.observe_catalog(move |update| {
+        let _ = updates_tx.send(update);
         std::future::ready(())
     });
 
     let mut scan_catalog = async {
-        if (database).source_identity_key().await?.is_none() {
+        if database
+            .cached_source(&library::ReadCancellation::new())
+            .await?
+            .is_none()
+        {
             (database)
                 .reconcile_source("subsonic", "Source One")
                 .await?;
@@ -568,16 +575,15 @@ async fn write_small_catalog(
         update
     };
     if update.changed() || !update.track_rekeys.is_empty() {
-        let (source, published) = updates.try_recv().expect("catalog update");
-        assert_eq!(published, update);
-        (source, update)
+        assert_eq!(updates.try_recv().expect("catalog update"), update);
     } else {
         assert!(updates.try_recv().is_err());
-        (
-            database.source_identity_key().await.unwrap().unwrap(),
-            update,
-        )
     }
+    let source = sqlx::query_scalar("SELECT source_key FROM sources")
+        .fetch_one(&mut connection(database.path()).await)
+        .await
+        .unwrap();
+    (source, update)
 }
 
 async fn write_track(
@@ -676,8 +682,8 @@ async fn canonical_publication_preserves_identity_and_user_overrides() {
             .cached_source(&ReadCancellation::new())
             .await
             .expect("read saved source without provider contact")
-            .map(|source| source.source),
-        Some(first.0)
+            .is_some(),
+        true
     );
     let mut outside = connection(&path).await;
     let original_keys = sqlx::query_as::<_, (i64, i64, i64)>(
@@ -999,7 +1005,7 @@ let write = library::CatalogBatch { albums: vec![library::AlbumObservation{user_
         point_catalog.apply_catalog(&write, true).await.unwrap();
         };
             let (updates_tx, mut updates) = tokio::sync::mpsc::unbounded_channel();
-            database.observe_catalog(move |_, update| {
+            database.observe_catalog(move |update| {
                 let _ = updates_tx.send(update);
                 std::future::ready(())
             });
@@ -1069,7 +1075,7 @@ async fn incomplete_collection_publishes_valid_pages_without_removal_authority()
         .await
         .unwrap();
     let (updates_tx, mut updates) = tokio::sync::mpsc::unbounded_channel();
-    database.observe_catalog(move |_, update| {
+    database.observe_catalog(move |update| {
         let _ = updates_tx.send(update);
         std::future::ready(())
     });
@@ -1126,7 +1132,11 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
         (["a"].as_slice(), true, 1),
     ] {
         let mut scan_catalog = async {
-            if (&database).source_identity_key().await?.is_none() {
+            if database
+                .cached_source(&library::ReadCancellation::new())
+                .await?
+                .is_none()
+            {
                 (&database).reconcile_source("subsonic", "Source").await?;
             }
             database.catalog(None).await
@@ -1153,7 +1163,7 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
             };
         }
         let (updates_tx, mut updates) = tokio::sync::mpsc::unbounded_channel();
-        database.observe_catalog(move |_, update| {
+        database.observe_catalog(move |update| {
             let _ = updates_tx.send(update);
             std::future::ready(())
         });
@@ -1223,7 +1233,11 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
     };
 
     let mut complete_catalog = async {
-        if (&database).source_identity_key().await?.is_none() {
+        if database
+            .cached_source(&library::ReadCancellation::new())
+            .await?
+            .is_none()
+        {
             (&database).reconcile_source("subsonic", "Source").await?;
         }
         database.catalog(None).await
@@ -1248,7 +1262,7 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
         complete_catalog.apply_catalog(&write, true).await.unwrap();
     };
     let (updates_tx, mut updates) = tokio::sync::mpsc::unbounded_channel();
-    database.observe_catalog(move |_, update| {
+    database.observe_catalog(move |update| {
         let _ = updates_tx.send(update);
         std::future::ready(())
     });
@@ -1303,12 +1317,11 @@ async fn saved_source_opens_from_cache_without_starting_a_scan() {
         .expect("resolve configured source from SQLite")
         .expect("cached source");
 
-    assert_eq!(cached.source, publication.0);
     assert!(cached.catalog_complete);
     assert_eq!(cached.display_name, "Source One");
     assert_eq!(
         reopened
-            .source_counts(cached.source, &ReadCancellation::new())
+            .source_counts(&ReadCancellation::new())
             .await
             .unwrap(),
         (1, 2)
@@ -1707,7 +1720,7 @@ async fn identical_playlist_point_update_is_not_a_catalog_change() {
         .unwrap();
 
     let (updates_tx, mut updates) = tokio::sync::mpsc::unbounded_channel();
-    database.observe_catalog(move |_, update| {
+    database.observe_catalog(move |update| {
         let _ = updates_tx.send(update);
         std::future::ready(())
     });
@@ -1780,7 +1793,7 @@ async fn repeated_source_playlist_and_folder_observations_coalesce() {
     }
 
     let (updates_tx, mut updates) = tokio::sync::mpsc::unbounded_channel();
-    database.observe_catalog(move |_, update| {
+    database.observe_catalog(move |update| {
         let _ = updates_tx.send(update);
         std::future::ready(())
     });
@@ -1895,7 +1908,7 @@ async fn playlist_point_update_preserves_playlist_scope() {
         .unwrap();
 
     let (updates_tx, mut updates) = tokio::sync::mpsc::unbounded_channel();
-    database.observe_catalog(move |_, update| {
+    database.observe_catalog(move |update| {
         let _ = updates_tx.send(update);
         std::future::ready(())
     });

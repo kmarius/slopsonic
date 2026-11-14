@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use library::{
     AlbumKey, ArtistKey, Database, FolderKey, GenreKey, HomeEntryInput, HomeEntryKind, MoodKey,
-    QueueProvenance, QueueRepeatMode, SourceKey, TrackKey, TrackReference,
+    QueueProvenance, QueueRepeatMode, TrackKey, TrackReference,
 };
 use sqlx::Connection;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteConnection};
@@ -17,7 +17,8 @@ pub struct Fixture {
     pub _directory: tempfile::TempDir,
     pub path: PathBuf,
     pub database: Database,
-    pub source: SourceKey,
+    /// The server's raw `sources.source_key`, for SQL fixtures.
+    pub source: i64,
     pub tracks: Vec<TrackKey>,
     pub track_uris: Vec<String>,
     pub albums: Vec<AlbumKey>,
@@ -73,11 +74,14 @@ pub async fn fixture() -> Fixture {
     let directory = tempfile::tempdir().expect("temporary Library directory");
     let path = directory.path().join("library.sqlite3");
     let database = Database::open(&path).await.expect("open Library");
-    let source = database
+    database
         .reconcile_source("subsonic", "Source")
         .await
-        .unwrap()
-        .source;
+        .unwrap();
+    let source = sqlx::query_scalar("SELECT source_key FROM sources")
+        .fetch_one(&mut connection(&path).await)
+        .await
+        .unwrap();
     let mut catalog = database.catalog(None).await.unwrap();
     let observed = catalog.start_observation().await.unwrap();
     let mut batch = library::CatalogBatch::default();
@@ -394,9 +398,8 @@ pub async fn server_playlist(
         .write_source_playlist_page(&object_id, 0, &entries, true)
         .await
         .unwrap();
-    let source = database.source_identity_key().await.unwrap().unwrap();
     let key = database
-        .playlist_key_by_object(source, &object_id, &library::ReadCancellation::new())
+        .playlist_key_by_object(&object_id, &library::ReadCancellation::new())
         .await
         .unwrap()
         .unwrap();

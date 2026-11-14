@@ -1451,7 +1451,6 @@ mod tests {
             position,
             track: library::TrackView {
                 track_key: library::TrackKey::from_raw(position as i64 + 1),
-                source_key: None,
                 object_id: None,
                 media_uri: format!("https://example.test/{position}"),
                 metadata: library::TrackMetadata {

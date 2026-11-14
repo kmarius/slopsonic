@@ -1,18 +1,12 @@
 use super::*;
 use library::TrackKey;
 
-async fn download_fixture(
-    track_object_id: &str,
-) -> (tempfile::TempDir, Database, SourceKey, TrackKey) {
+async fn download_fixture(track_object_id: &str) -> (tempfile::TempDir, Database, TrackKey) {
     let directory = tempfile::tempdir().expect("temporary download fixture");
     let database = Database::open(&directory.path().join("library.sqlite3"))
         .await
         .expect("open Library");
-    let source = database
-        .reconcile_source("server", "Source")
-        .await
-        .unwrap()
-        .source;
+    database.reconcile_source("server", "Source").await.unwrap();
     database
         .catalog(None)
         .await
@@ -45,7 +39,6 @@ async fn download_fixture(
     let track = database
         .catalog_keys(
             library::CatalogKind::Track,
-            Some(source),
             &[(track_object_id).to_string()],
             &library::ReadCancellation::new(),
         )
@@ -53,12 +46,12 @@ async fn download_fixture(
         .map(|keys| keys.into_iter().next().map(library::TrackKey::from_raw))
         .expect("read Track key")
         .expect("Track exists");
-    (directory, database, source, track)
+    (directory, database, track)
 }
 
 #[tokio::test]
 async fn queued_media_survives_restart_serialization() {
-    let (root, database, source, _) = download_fixture("track").await;
+    let (root, database, _) = download_fixture("track").await;
     let media_uri = library::entity_uri("track", "track");
     database
         .catalog(None)
@@ -116,23 +109,23 @@ async fn queued_media_survives_restart_serialization() {
     }
     assert!(!root.path().join("0123abcd").exists());
     assert!(!root.path().join("direct").exists());
-    let mut actor = actor_for_test(root.path(), database, source);
+    let mut actor = actor_for_test(root.path(), database);
     actor.attached = None;
     actor.settings.quality = DownloadQuality::Transcoded(library::AudioEncoding {
         codec: library::AudioCodec::Opus,
         bitrate_kbps: Some(64),
         channels: library::AudioChannels::Preserve,
     });
-    actor.attach(source, None, None).await.unwrap();
+    actor.attach(None, None).await.unwrap();
     assert_eq!(actor.jobs[0].quality, actor.settings.quality);
 }
 
 #[tokio::test]
 async fn collection_completion_follows_its_download_jobs() {
     for fail_first in [false, true] {
-        let (_directory, database, source_key, _) = download_fixture("track").await;
+        let (_directory, database, _) = download_fixture("track").await;
         let root = tempfile::tempdir().unwrap();
-        let mut actor = actor_for_test(root.path(), database, source_key);
+        let mut actor = actor_for_test(root.path(), database);
         let (events, received) = async_channel::unbounded();
         actor.events.sender = events;
         let subject = DownloadSubject::Prepared {
@@ -198,7 +191,7 @@ async fn collection_completion_follows_its_download_jobs() {
     }
 }
 
-fn actor_for_test(root: &Path, database: Database, source_key: SourceKey) -> Actor {
+fn actor_for_test(root: &Path, database: Database) -> Actor {
     let (events, _) = async_channel::unbounded();
     let (prepared_rules, _) = async_channel::unbounded();
     Actor {
@@ -215,7 +208,6 @@ fn actor_for_test(root: &Path, database: Database, source_key: SourceKey) -> Act
         prepared_rules,
         sources: Arc::new(|| None),
         attached: Some(AttachedSource {
-            source_key,
             folder: None,
             directory: None,
         }),
@@ -228,7 +220,7 @@ fn actor_for_test(root: &Path, database: Database, source_key: SourceKey) -> Act
     }
 }
 
-fn test_media(_source_key: SourceKey, _track: TrackKey) -> String {
+fn test_media(_track: TrackKey) -> String {
     library::entity_uri("track", "track")
 }
 
@@ -251,10 +243,10 @@ fn test_job(media_uri: String) -> DownloadJob {
 
 #[tokio::test]
 async fn pausing_cancels_active_work_and_keeps_the_job_queued() {
-    let (_library, database, source_key, track) = download_fixture("track").await;
+    let (_library, database, track) = download_fixture("track").await;
     let root = tempfile::tempdir().expect("Downloads root");
-    let mut actor = actor_for_test(root.path(), database, source_key);
-    let media_uri = test_media(source_key, track);
+    let mut actor = actor_for_test(root.path(), database);
+    let media_uri = test_media(track);
     actor.jobs = vec![test_job(media_uri.clone())];
     let paths = download_paths(root.path(), &media_uri);
     let (cancel, cancelled) = tokio::sync::oneshot::channel();
@@ -285,10 +277,10 @@ async fn pausing_cancels_active_work_and_keeps_the_job_queued() {
 
 #[tokio::test]
 async fn cancelling_removes_the_job_and_reconciles_its_staging_file() {
-    let (_library, database, source_key, track) = download_fixture("track").await;
+    let (_library, database, track) = download_fixture("track").await;
     let root = tempfile::tempdir().expect("Downloads root");
-    let mut actor = actor_for_test(root.path(), database, source_key);
-    let media_uri = test_media(source_key, track);
+    let mut actor = actor_for_test(root.path(), database);
+    let media_uri = test_media(track);
     actor.jobs = vec![test_job(media_uri.clone())];
     let paths = download_paths(root.path(), &media_uri);
     std::fs::create_dir_all(paths.audio_part.parent().expect("staging parent"))
@@ -322,10 +314,10 @@ async fn cancelling_removes_the_job_and_reconciles_its_staging_file() {
 
 #[tokio::test]
 async fn stale_completed_transfer_cannot_commit_after_its_job_was_removed() {
-    let (_library, database, source_key, track) = download_fixture("track").await;
+    let (_library, database, track) = download_fixture("track").await;
     let root = tempfile::tempdir().expect("Downloads root");
-    let mut actor = actor_for_test(root.path(), database, source_key);
-    let media_uri = test_media(source_key, track);
+    let mut actor = actor_for_test(root.path(), database);
+    let media_uri = test_media(track);
     let paths = download_paths(root.path(), &media_uri);
     std::fs::create_dir_all(paths.audio_part.parent().expect("staging parent"))
         .expect("create staging");
@@ -352,9 +344,9 @@ async fn stale_completed_transfer_cannot_commit_after_its_job_was_removed() {
 
 #[tokio::test]
 async fn authoritative_rule_change_is_retained_while_prior_rules_prepare() {
-    let (_library, database, source_key, _) = download_fixture("track").await;
+    let (_library, database, _) = download_fixture("track").await;
     let root = tempfile::tempdir().expect("Downloads root");
-    let mut actor = actor_for_test(root.path(), database, source_key);
+    let mut actor = actor_for_test(root.path(), database);
     let mut first = DownloadRules::default();
     first.set(DownloadRule::Favorites, true);
     actor.settings.rules = first;

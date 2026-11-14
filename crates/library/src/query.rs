@@ -5,16 +5,10 @@ use std::{ops::Range, sync::Arc};
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Collection {
-    Source(SourceKey),
-    Objects {
-        source: SourceKey,
-        ids: Arc<[String]>,
-    },
+    Library,
+    Objects(Arc<[String]>),
     Album(AlbumKey),
-    Artist {
-        key: ArtistKey,
-        album_artist: bool,
-    },
+    Artist { key: ArtistKey, album_artist: bool },
     Genre(GenreKey),
     Mood(MoodKey),
     Playlist(PlaylistKey),
@@ -54,7 +48,6 @@ pub enum ListKind {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ListRead {
     pub kind: ListKind,
-    pub source: Option<SourceKey>,
     pub folder: Option<FolderKey>,
     pub filter: String,
     pub sort: CatalogSort,
@@ -126,7 +119,6 @@ impl CatalogKind {
 #[derive(Clone, Debug, sqlx::FromRow)]
 pub struct CatalogIdentity {
     pub key: i64,
-    pub source_key: Option<SourceKey>,
     pub object_id: Option<String>,
     pub media_uri: String,
 }
@@ -141,7 +133,7 @@ impl Database {
         let mut connection = self.acquire_general(cancellation).await?;
         let (table, kind) = kind.sql();
         Ok(sqlx::query_as(sqlx::AssertSqlSafe(format!(
-            "SELECT {kind}_key key,source_key,object_id,media_uri FROM {table} WHERE media_uri=?1"
+            "SELECT {kind}_key key,object_id,media_uri FROM {table} WHERE media_uri=?1"
         )))
         .bind(uri)
         .fetch_optional(&mut *connection)
@@ -150,13 +142,12 @@ impl Database {
     pub async fn catalog_keys(
         &self,
         kind: CatalogKind,
-        source: Option<SourceKey>,
         objects: &[String],
         cancellation: &ReadCancellation,
     ) -> LibraryResult<Vec<i64>> {
         let mut connection = self.acquire_general(cancellation).await?;
         let (table, kind) = kind.sql();
-        Ok(sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT entity.{kind}_key FROM json_each(?1) requested JOIN {table} entity ON entity.object_id=requested.value WHERE entity.source_key IS ?2 ORDER BY CAST(requested.key AS INTEGER)"))).bind(serde_json::to_string(objects)?).bind(source).fetch_all(&mut *connection).await?)
+        Ok(sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT entity.{kind}_key FROM json_each(?1) requested JOIN {table} entity ON entity.object_id=requested.value WHERE entity.source_key={} ORDER BY CAST(requested.key AS INTEGER)",crate::db::SERVER_KEY))).bind(serde_json::to_string(objects)?).fetch_all(&mut *connection).await?)
     }
 }
 
@@ -261,10 +252,9 @@ impl MemberRead {
 }
 
 impl ListRead {
-    pub fn new(kind: ListKind, source: Option<SourceKey>, sort: CatalogSort) -> Self {
+    pub fn new(kind: ListKind, sort: CatalogSort) -> Self {
         Self {
             kind,
-            source,
             sort,
             folder: None,
             filter: String::new(),
@@ -415,18 +405,15 @@ async fn member_count(
         && !read.played_only
     {
         let stored = match read.collection {
-            Collection::Source(source) => Some(if let Some(folder) = read.folder {
+            Collection::Library => Some(if let Some(folder) = read.folder {
                 format!(
                     "SELECT COALESCE(totals.track_count,0) FROM folders folder {} WHERE folder.source_key={} AND folder.folder_key={}",
                     crate::collections::global_totals_join("folder", false),
-                    source.raw(),
+                    crate::db::SERVER_KEY,
                     folder.raw()
                 )
             } else {
-                format!(
-                    "SELECT track_count FROM sources WHERE source_key={}",
-                    source.raw()
-                )
+                "SELECT track_count FROM sources".into()
             }),
             Collection::Album(key) => Some(if let Some(folder) = read.folder {
                 format!(
@@ -491,16 +478,14 @@ async fn list_count(
         && read.filter.trim().is_empty()
         && !read.favorites_only
         && !read.downloaded_only
-        && let Some(source) = read.source
     {
-        return Ok(sqlx::query_scalar::<_, i64>(
-            "SELECT album_count FROM sources WHERE source_key=?1",
-        )
-        .bind(source)
-        .fetch_optional(connection)
-        .await?
-        .unwrap_or(0)
-        .max(0) as usize);
+        return Ok(
+            sqlx::query_scalar::<_, i64>("SELECT album_count FROM sources")
+                .fetch_optional(connection)
+                .await?
+                .unwrap_or(0)
+                .max(0) as usize,
+        );
     }
     Ok(query.count(connection).await?.max(0) as usize)
 }
@@ -533,7 +518,6 @@ async fn member_rows(
 pub(crate) fn list_query(read: &ListRead) -> OrderedQuery {
     match read.kind {
         ListKind::Playlists => crate::playlists::playlist_list_query(
-            read.source,
             read.folder,
             read.sort,
             read.descending,
@@ -553,15 +537,15 @@ pub(crate) fn member_query(read: &MemberRead) -> LibraryResult<OrderedQuery> {
             let mut arguments = SqliteArguments::default();
             // Bounded collections drive their key relation before track ordering.
             let (from, predicate) = match collection {
-                Collection::Source(source) => {
+                Collection::Library => {
                     let from = if let Some(folder) = read.folder {
                         format!("track_folders membership CROSS JOIN tracks track ON track.track_key=membership.track_key AND membership.folder_key={}", folder.raw())
                     } else { "tracks track".into() };
-                    (from, format!("track.source_key={}", source.raw()))
+                    (from, format!("track.source_key={}", crate::db::SERVER_KEY))
                 }
-                Collection::Objects { source, ids } => {
+                Collection::Objects(ids) => {
                     arguments.add(serde_json::to_string(ids)?).map_err(sqlx::Error::Encode)?;
-                    (format!("(SELECT DISTINCT value FROM json_each(?1)) requested CROSS JOIN tracks track ON track.source_key={} AND track.object_id=requested.value",source.raw()), "1".into())
+                    (format!("(SELECT DISTINCT value FROM json_each(?1)) requested CROSS JOIN tracks track ON track.source_key={} AND track.object_id=requested.value",crate::db::SERVER_KEY), "1".into())
                 }
                 Collection::Album(key) => ("tracks track INDEXED BY tracks_album_order_idx".into(), format!("track.album_key={}",key.raw())),
                 Collection::Artist { key, album_artist: false } => ("track_artists membership CROSS JOIN tracks track ON track.track_key=membership.track_key".into(),format!("membership.artist_key={}",key.raw())),

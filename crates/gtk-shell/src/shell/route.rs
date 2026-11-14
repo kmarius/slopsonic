@@ -11,7 +11,6 @@ use std::time::Instant;
 
 use adw::prelude::*;
 use gtk::glib;
-use library::SourceKey;
 use tracing::{debug, warn};
 
 use super::Shell;
@@ -75,14 +74,6 @@ mod route_stack_tests {
         assert_eq!(routes.back(), Some(&root));
         assert_eq!(routes.forward(), Some(&child));
     }
-}
-
-fn route_is_current(shell: &Shell, route: &Route, source: SourceKey) -> bool {
-    shell.navigation.routes.borrow().current() == route
-        && shell
-            .selected_library()
-            .as_deref()
-            .is_some_and(|selected| selected.source_key == source)
 }
 
 pub(crate) struct RouteViewport {
@@ -233,10 +224,7 @@ impl Shell {
             let Some(shell) = shell.upgrade() else { return };
             if !shell.finish_root_order_read(generation)
                 || shell.navigation.routes.borrow().current() != &route
-                || source_scoped
-                    && selected.as_ref().is_some_and(|selected| {
-                        !route_is_current(&shell, &route, selected.source_key)
-                    })
+                || source_scoped && selected.is_some() && shell.selected_library().is_none()
             {
                 return;
             }
@@ -526,9 +514,7 @@ impl Shell {
                 (Some(opened), route) => {
                     catalog.opened_collection_view(route, opened, selected, true)
                 }
-                (None, Route::Folders { path }) => {
-                    catalog.folders_route(path, selected.as_ref().expect("folder source"), None)
-                }
+                (None, Route::Folders { path }) => catalog.folders_route(path, None),
                 (None, _) => unreachable!("only Folders mount without a pending page"),
             },
         );
@@ -812,9 +798,7 @@ impl Shell {
     }
 
     fn mounted_catalog_is_current(&self) -> bool {
-        let scope = |selected: &slopsonic_core::runtime::SelectedLibrary| {
-            (selected.source_key, selected.music_folder_key)
-        };
+        let scope = |selected: &slopsonic_core::runtime::SelectedLibrary| selected.music_folder_key;
         let source_scoped =
             self.route_uses_selected_source(self.navigation.routes.borrow().current());
         let selected_scope = self.selected_library().as_deref().map(scope);

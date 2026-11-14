@@ -61,7 +61,7 @@ impl CatalogUpdate {
 pub struct Catalog<'a> {
     pub database: &'a Database,
     pub observed: Option<i64>,
-    pub source: SourceKey,
+    pub(crate) source: SourceKey,
     pub(crate) changes: CatalogUpdate,
 }
 
@@ -77,7 +77,6 @@ impl Catalog<'_> {
 
 #[derive(Clone, Debug, FromRow, Eq, PartialEq)]
 pub struct CachedSource {
-    pub source: SourceKey,
     pub display_name: String,
     pub catalog_complete: bool,
 }
@@ -101,7 +100,7 @@ impl Database {
             return;
         }
         match self.source_identity_key().await {
-            Ok(Some(source)) => self.catalog_updated(Some(source), update).await,
+            Ok(Some(_)) => self.catalog_updated(update).await,
             Ok(None) => {
                 tracing::warn!("could not publish catalog update for removed source")
             }
@@ -116,8 +115,11 @@ impl Database {
         let source = crate::db::write_source_identity(&mut transaction).await?;
         sqlx::query("UPDATE sources SET kind=?2,display_name=?3,normalized_name=?4,distinct_track_covers=?5 WHERE source_key=?1 AND (kind,display_name,normalized_name,distinct_track_covers) IS NOT (?2,?3,?4,?5)")
             .bind(source).bind(kind).bind(name).bind(name.to_lowercase()).bind(self.distinct_track_covers()).execute(&mut *transaction).await?;
-        let row = sqlx::query_as("SELECT source_key source,display_name,catalog_complete FROM sources WHERE source_key=?1")
-            .bind(source).fetch_one(&mut *transaction).await?;
+        let row =
+            sqlx::query_as("SELECT display_name,catalog_complete FROM sources WHERE source_key=?1")
+                .bind(source)
+                .fetch_one(&mut *transaction)
+                .await?;
         transaction.commit().await?;
         Ok(row)
     }
@@ -132,7 +134,7 @@ impl Database {
             connection = self.acquire_reader() => connection?,
         };
         Ok(
-            sqlx::query_as("SELECT source_key source,display_name,catalog_complete FROM sources")
+            sqlx::query_as("SELECT display_name,catalog_complete FROM sources")
                 .fetch_optional(&mut *connection)
                 .await?,
         )
@@ -172,10 +174,10 @@ impl Database {
 
     pub async fn source_counts(
         &self,
-        source: SourceKey,
         cancellation: &ReadCancellation,
     ) -> LibraryResult<(usize, usize)> {
         let mut connection = self.acquire_general(cancellation).await?;
+        let source = crate::db::server_key(&mut connection).await?;
         let(album,track)=sqlx::query_as::<_,(i64,i64)>("SELECT (SELECT count(*) FROM albums album WHERE source_key=?1 AND (album.indexed=1 OR EXISTS(SELECT 1 FROM tracks admitted WHERE admitted.album_key=album.album_key AND admitted.indexed=1))),(SELECT count(*) FROM tracks WHERE source_key=?1 AND indexed=1)").bind(source).fetch_one(&mut *connection).await?;
         Ok((
             usize::try_from(album).unwrap_or_default(),

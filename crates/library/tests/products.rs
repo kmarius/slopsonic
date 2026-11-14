@@ -28,7 +28,6 @@ async fn artist_genre_and_sidebar_pins_keep_existing_membership_and_order() {
                             kind: library::ListKind::Artists {
                                 album_artist: albums,
                             },
-                            source: Some(fixture.source),
                             sort: sort,
                             folder: folder,
                             filter: (filter).to_string(),
@@ -50,7 +49,6 @@ async fn artist_genre_and_sidebar_pins_keep_existing_membership_and_order() {
                                     kind: library::ListKind::Artists {
                                         album_artist: albums,
                                     },
-                                    source: Some(fixture.source),
                                     sort: sort,
                                     folder: folder,
                                     filter: (filter).to_string(),
@@ -80,7 +78,6 @@ async fn artist_genre_and_sidebar_pins_keep_existing_membership_and_order() {
         for folder in [None, Some(fixture.folder)] {
             let (count, _, rows) = library::ListRead {
                 kind: library::ListKind::Genres,
-                source: Some(fixture.source),
                 sort: sort,
                 folder: folder,
                 filter: ("").to_string(),
@@ -100,7 +97,6 @@ async fn artist_genre_and_sidebar_pins_keep_existing_membership_and_order() {
                 actual.extend(
                     library::ListRead {
                         kind: library::ListKind::Genres,
-                        source: Some(fixture.source),
                         sort: sort,
                         folder: folder,
                         filter: ("").to_string(),
@@ -243,7 +239,6 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
                 for filter in ["", "album"] {
                     let (count, _, rows) = library::ListRead {
                         kind: library::ListKind::Albums,
-                        source: Some(fixture.source),
                         sort: sort,
                         folder: folder,
                         filter: (filter).to_string(),
@@ -276,7 +271,6 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
                                     filters: None,
                                     release_class: None
                                 },
-                                source: Some(fixture.source),
                                 folder: folder,
                                 filter: (filter).to_string(),
                                 sort: sort,
@@ -296,7 +290,6 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
                         assert_eq!(
                             library::ListRead {
                                 kind: library::ListKind::Albums,
-                                source: Some(fixture.source),
                                 sort: sort,
                                 folder: folder,
                                 filter: (filter).to_string(),
@@ -329,7 +322,6 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
                     for offset in 0..=order.len() {
                         let page = library::ListRead {
                             kind: library::ListKind::Albums,
-                            source: Some(fixture.source),
                             sort: sort,
                             folder: folder,
                             filter: (filter).to_string(),
@@ -403,7 +395,7 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
         .await
         .0;
     super::support::server_playlist(&database, "Source", &uris).await;
-    for source in [None, Some(fixture.source)] {
+    {
         for sort in [
             CatalogSort::Position,
             CatalogSort::Title,
@@ -414,7 +406,6 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
                 for filter in ["", "global"] {
                     let (count, _, rows) = library::ListRead {
                         kind: library::ListKind::Playlists,
-                        source: (source).into(),
                         sort: sort,
                         folder: None,
                         filter: (filter).to_string(),
@@ -434,7 +425,6 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
                         paged.extend(
                             library::ListRead {
                                 kind: library::ListKind::Playlists,
-                                source: (source).into(),
                                 sort: sort,
                                 folder: None,
                                 filter: (filter).to_string(),
@@ -540,7 +530,7 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
         for offset in 0..=order.len() {
             paged.extend(
                 database
-                    .folder_page(fixture.source, parent, offset, 1, &cancel)
+                    .folder_page(parent, offset, 1, &cancel)
                     .await
                     .unwrap()
                     .into_iter()
@@ -592,11 +582,11 @@ async fn track_pages_preserve_sort_filter_and_source_scope() {
                     .database
                     .selected_track_uris(
                         &library::MemberRead {
-                            collection: library::Collection::Source(fixture.source),
+                            collection: library::Collection::Library,
                             sort: Some(sort),
                             folder: folder,
                             descending: descending,
-                            ..library::MemberRead::new(library::Collection::Source(fixture.source))
+                            ..library::MemberRead::new(library::Collection::Library)
                         }
                         .selection(),
                         None,
@@ -625,11 +615,11 @@ async fn track_pages_preserve_sort_filter_and_source_scope() {
                 let mut pages = Vec::new();
                 for offset in (0..order.len()).step_by(2) {
                     let page = (&library::MemberRead {
-                        collection: library::Collection::Source(fixture.source),
+                        collection: library::Collection::Library,
                         sort: Some(sort),
                         folder: folder,
                         descending: descending,
-                        ..library::MemberRead::new(library::Collection::Source(fixture.source))
+                        ..library::MemberRead::new(library::Collection::Library)
                     })
                         .rows(&fixture.database, offset, 2, &cancel)
                         .await
@@ -647,10 +637,10 @@ async fn track_pages_preserve_sort_filter_and_source_scope() {
         }
     }
     let rows = (&library::MemberRead {
-        collection: library::Collection::Source(fixture.source),
+        collection: library::Collection::Library,
         sort: Some(library::CatalogSort::Title),
         filter: ("beta").into(),
-        ..library::MemberRead::new(library::Collection::Source(fixture.source))
+        ..library::MemberRead::new(library::Collection::Library)
     })
         .rows(&fixture.database, 0, 10, &cancel)
         .await
@@ -664,9 +654,9 @@ async fn track_pages_preserve_sort_filter_and_source_scope() {
     assert_eq!(rows[0].metadata.title, "Beta");
     assert!(
         (&library::MemberRead {
-            collection: library::Collection::Source(fixture.source),
+            collection: library::Collection::Library,
             sort: Some(library::CatalogSort::Title),
-            ..library::MemberRead::new(library::Collection::Source(fixture.source))
+            ..library::MemberRead::new(library::Collection::Library)
         })
             .rows(&fixture.database, usize::MAX, 10, &cancel)
             .await
@@ -679,9 +669,9 @@ async fn track_pages_preserve_sort_filter_and_source_scope() {
     );
     assert!(
         (&library::MemberRead {
-            collection: library::Collection::Source(fixture.source),
+            collection: library::Collection::Library,
             sort: Some(library::CatalogSort::Title),
-            ..library::MemberRead::new(library::Collection::Source(fixture.source))
+            ..library::MemberRead::new(library::Collection::Library)
         })
             .rows(&fixture.database, 0, 0, &cancel)
             .await
@@ -697,9 +687,9 @@ async fn track_pages_preserve_sort_filter_and_source_scope() {
     sqlx::query("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<300) INSERT INTO tracks(source_key,object_id,media_uri,metadata,normalized_search,indexed) SELECT ?1,'extra-'||x,'test:extra-'||x,jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),lower(COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.comment'),'')),1 FROM n")
         .bind(fixture.source).execute(&mut raw).await.unwrap();
     let rows = (&library::MemberRead {
-        collection: library::Collection::Source(fixture.source),
+        collection: library::Collection::Library,
         sort: Some(library::CatalogSort::Title),
-        ..library::MemberRead::new(library::Collection::Source(fixture.source))
+        ..library::MemberRead::new(library::Collection::Library)
     })
         .rows(&fixture.database, 0, usize::MAX, &cancel)
         .await
@@ -728,7 +718,7 @@ async fn radio_fills_short_album_and_track_seeds_from_the_selected_source() {
         ] {
             let mut candidates = fixture
                 .database
-                .radio_candidates(fixture.source, seed.clone(), &[], 20, variation, &cancel)
+                .radio_candidates(seed.clone(), &[], 20, variation, &cancel)
                 .await
                 .unwrap();
             if matches!(seed, RadioSeed::Track(_)) {
@@ -759,7 +749,7 @@ async fn radio_fills_short_album_and_track_seeds_from_the_selected_source() {
         assert_eq!(
             fixture
                 .database
-                .radio_candidates(fixture.source, seed, &[fixture.tracks[2]], 20, 3, &cancel,)
+                .radio_candidates(seed, &[fixture.tracks[2]], 20, 3, &cancel,)
                 .await
                 .unwrap(),
             vec![fixture.tracks[3]]
@@ -772,17 +762,13 @@ async fn radio_resolves_playlist_ownership_and_filters_native_recommendations() 
     let fixture = fixture().await;
     let cancel = ReadCancellation::new();
     let mut raw = connection(&fixture.path).await;
-    sqlx::query("INSERT INTO sources(object_id,display_name,normalized_name,artwork_digest) VALUES ('other','Other','other',zeroblob(32))")
-        .execute(&mut raw).await.unwrap();
-    sqlx::query("INSERT INTO tracks(source_key,object_id,media_uri,metadata,normalized_search,indexed) SELECT source_key,'track-2','test:other',jsonb(json_object('title',COALESCE('Other',''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('other',''),'duration_millis',COALESCE(1000,0))),lower(COALESCE(json_extract(jsonb(json_object('title',COALESCE('Other',''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('other',''),'duration_millis',COALESCE(1000,0))),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Other',''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('other',''),'duration_millis',COALESCE(1000,0))),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Other',''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('other',''),'duration_millis',COALESCE(1000,0))),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Other',''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('other',''),'duration_millis',COALESCE(1000,0))),'$.comment'),'')),1 FROM sources WHERE object_id='other'")
-        .execute(&mut raw).await.unwrap();
     sqlx::query("INSERT INTO playlists(source_key,object_id,name,normalized_name,sort_text,writable,position) VALUES(?1,'native','Native','native','native',0,0)")
         .bind(fixture.source).execute(&mut raw).await.unwrap();
     sqlx::query("INSERT INTO playlist_entries(playlist_key,object_id,track_key,position) SELECT playlist_key,'entry',(SELECT track_key FROM tracks WHERE media_uri=?1),0 FROM playlists WHERE object_id='native'")
         .bind(&fixture.track_uris[0]).execute(&mut raw).await.unwrap();
     let native = fixture
         .database
-        .playlist_key_by_object(fixture.source, "native", &cancel)
+        .playlist_key_by_object("native", &cancel)
         .await
         .unwrap()
         .unwrap();
@@ -803,13 +789,13 @@ async fn radio_resolves_playlist_ownership_and_filters_native_recommendations() 
     ] {
         assert_eq!(
             fixture.database.radio_source(&seed, &cancel).await.unwrap(),
-            Some((fixture.source, object_id.map(String::from)))
+            Some(object_id.map(String::from))
         );
         let ids = ["track-2", "track-1", "track-2", "missing", "track-3"].map(String::from);
         assert_eq!(
             fixture
                 .database
-                .recommended_track_keys(fixture.source, &seed, &ids, &cancel)
+                .recommended_track_keys(&seed, &ids, &cancel)
                 .await
                 .unwrap(),
             fixture.tracks[2..]
@@ -823,14 +809,14 @@ async fn radio_resolves_playlist_ownership_and_filters_native_recommendations() 
         assert!(
             fixture
                 .database
-                .recommended_track_keys(fixture.source, &seed, &["track-0".into()], &cancel)
+                .recommended_track_keys(&seed, &["track-0".into()], &cancel)
                 .await
                 .unwrap()
                 .is_empty()
         );
         let result = fixture
             .database
-            .radio_candidates(fixture.source, seed, &[], 20, 0, &cancel)
+            .radio_candidates(seed, &[], 20, 0, &cancel)
             .await
             .unwrap();
         assert_eq!(result, fixture.tracks[2..]);
@@ -860,7 +846,6 @@ async fn radio_prefers_related_album_and_track_metadata_before_source_fill() {
         fixture
             .database
             .radio_candidates(
-                fixture.source,
                 RadioSeed::Track(fixture.track_uris[0].clone()),
                 &[],
                 1,
@@ -875,14 +860,7 @@ async fn radio_prefers_related_album_and_track_metadata_before_source_fill() {
     assert_eq!(
         fixture
             .database
-            .radio_candidates(
-                fixture.source,
-                RadioSeed::Album(fixture.albums[1]),
-                &[],
-                1,
-                2,
-                &cancel
-            )
+            .radio_candidates(RadioSeed::Album(fixture.albums[1]), &[], 1, 2, &cancel)
             .await
             .unwrap(),
         vec![fixture.tracks[0]]
@@ -948,7 +926,6 @@ async fn playlist_rows_retain_exact_metadata_links_and_unavailable_entries() {
     assert_eq!(queued.len(), 3);
     for index in [0, 2] {
         assert_eq!(entries[index].track.media_uri, uris[index]);
-        assert_eq!(entries[index].track.source_key, Some(fixture.source));
         assert_eq!(
             entries[index].track.links.album_media_uri.as_ref(),
             Some(&fixture.album_uris[0])
@@ -1070,10 +1047,7 @@ async fn uri_artwork_is_identical_across_owner_projections_and_current_scopes() 
             view.artwork_binding
         };
         let expected_sample: Vec<Vec<u8>> = expected_binding.clone().into_iter().collect();
-        for (source, folder) in [
-            (Some(fixture.source), None),
-            (Some(fixture.source), Some(fixture.folder)),
-        ] {
+        for folder in [None, Some(fixture.folder)] {
             for sort in [
                 library::CatalogSort::Position,
                 library::CatalogSort::Title,
@@ -1082,7 +1056,6 @@ async fn uri_artwork_is_identical_across_owner_projections_and_current_scopes() 
             ] {
                 let (count, _, rows) = library::ListRead {
                     kind: library::ListKind::Playlists,
-                    source: (source).into(),
                     sort: sort,
                     folder: folder,
                     filter: ("").to_string(),
@@ -1196,7 +1169,6 @@ async fn uri_artwork_is_identical_across_owner_projections_and_current_scopes() 
         assert_eq!(restored.rows[0].track.artwork_binding, expected_binding);
         let scoped_samples = database
             .representative_artwork_page(
-                fixture.source,
                 Some(fixture.folder),
                 library::RepresentativeArtworkScope::PlaylistTracks,
                 4,
@@ -1275,30 +1247,27 @@ async fn downloaded_row_facts_require_download_owned_local_access() {
         let track = &rows[index];
         fixture
             .database
-            .write_download_access(
-                Some(fixture.source),
-                &[&DownloadAccessWrite {
-                    media_uri: track.media_uri.clone(),
-                    path: format!(
-                        "/validated/{}.flac",
-                        track.object_id.as_deref().expect("indexed track object")
-                    ),
-                    root: "/validated".to_string(),
-                    relative_path: format!(
-                        "{}.flac",
-                        track.object_id.as_deref().expect("indexed track object")
-                    ),
-                    size_bytes: 10,
-                    mtime_ns: 1,
-                    device_id: Some(1),
-                    inode: Some(index as i64 + 1),
-                    parser_version: 1,
-                    access_uri: format!(
-                        "file:///validated/{}.flac",
-                        track.object_id.as_deref().expect("indexed track object")
-                    ),
-                }],
-            )
+            .write_download_access(&[&DownloadAccessWrite {
+                media_uri: track.media_uri.clone(),
+                path: format!(
+                    "/validated/{}.flac",
+                    track.object_id.as_deref().expect("indexed track object")
+                ),
+                root: "/validated".to_string(),
+                relative_path: format!(
+                    "{}.flac",
+                    track.object_id.as_deref().expect("indexed track object")
+                ),
+                size_bytes: 10,
+                mtime_ns: 1,
+                device_id: Some(1),
+                inode: Some(index as i64 + 1),
+                parser_version: 1,
+                access_uri: format!(
+                    "file:///validated/{}.flac",
+                    track.object_id.as_deref().expect("indexed track object")
+                ),
+            }])
             .await
             .expect("write accepted Local access provenance");
     }
@@ -1352,26 +1321,26 @@ async fn downloaded_row_facts_require_download_owned_local_access() {
 }
 
 #[tokio::test]
-async fn collection_rows_carry_their_own_stable_source_identity() {
+async fn collection_rows_keep_their_server_identity() {
     let fixture = fixture().await;
     let cancel = ReadCancellation::new();
     let authored = super::support::server_playlist(&fixture.database, "Authored", &[])
         .await
         .0;
     let mut raw = connection(&fixture.path).await;
-    sqlx::raw_sql("INSERT INTO sources(source_key,object_id,display_name,normalized_name,artwork_digest) VALUES (55,'other-source','Other','other',zeroblob(32)),(56,'absent-source','','',zeroblob(32));\n        INSERT INTO genres(genre_key,source_key,object_id,metadata,media_uri,normalized_name) VALUES (55,55,'genre',jsonb(json_object('name','Other genre','sort_text','other genre')),'genre:'||COALESCE(55,0)||':'||'genre',lower(COALESCE(json_extract(jsonb(json_object('name','Other genre','sort_text','other genre')),'$.name'),'')));\n        INSERT INTO playlists(playlist_key,source_key,object_id,name,position) VALUES(55,55,'native','Native',55),(56,56,'offline-authored','Offline authored',56);")
+    sqlx::raw_sql("INSERT INTO genres(genre_key,source_key,object_id,metadata,media_uri,normalized_name) VALUES (55,(SELECT source_key FROM sources),'genre-55',jsonb(json_object('name','Other genre','sort_text','other genre')),'genre:'||COALESCE(55,0)||':'||'genre',lower(COALESCE(json_extract(jsonb(json_object('name','Other genre','sort_text','other genre')),'$.name'),'')));\n        INSERT INTO playlists(playlist_key,source_key,object_id,name,position) VALUES(55,(SELECT source_key FROM sources),'native','Native',55),(56,(SELECT source_key FROM sources),'offline-authored','Offline authored',56);")
         .execute(&mut raw).await.unwrap();
 
-    let other = library::SourceKey::from_raw(55);
     let genre = library::GenreKey::from_raw(55);
-    let row = fixture
-        .database
-        .genres(&[genre], None, &cancel)
-        .await
-        .unwrap()
-        .pop()
-        .unwrap();
-    assert_eq!(row.source_key, other);
+    assert!(
+        fixture
+            .database
+            .genres(&[genre], None, &cancel)
+            .await
+            .unwrap()
+            .pop()
+            .is_some()
+    );
 
     let keys = [
         library::PlaylistKey::from_raw(55),
@@ -1383,9 +1352,6 @@ async fn collection_rows_carry_their_own_stable_source_identity() {
         rows.iter().map(|row| row.playlist_key).collect::<Vec<_>>(),
         keys
     );
-    assert_eq!(rows[0].source_key, Some(other));
-    assert_eq!(rows[1].source_key, Some(library::SourceKey::from_raw(56)));
-    assert_eq!(rows[2].source_key, Some(fixture.source));
     for row in &rows {
         assert_eq!(
             fixture
@@ -1540,7 +1506,6 @@ async fn genre_routes_reject_an_artwork_only_identity_without_track_membership()
     for sort in [CatalogSort::Title, CatalogSort::TrackCount] {
         let (count, _, rows) = library::ListRead {
             kind: library::ListKind::Genres,
-            source: Some(fixture.source),
             sort: sort,
             folder: None,
             filter: String::new(),
@@ -1811,7 +1776,6 @@ async fn track_artist_and_album_artist_roles_keep_exact_membership_and_own_artwo
                 filters: None,
                 release_class: None
             },
-            source: Some(fixture.source),
             folder: None,
             filter: ("").to_string(),
             sort: library::CatalogSort::Title,
@@ -1836,7 +1800,6 @@ async fn track_artist_and_album_artist_roles_keep_exact_membership_and_own_artwo
                 filters: None,
                 release_class: None
             },
-            source: Some(fixture.source),
             folder: None,
             filter: ("").to_string(),
             sort: library::CatalogSort::Title,
@@ -1969,7 +1932,6 @@ async fn artist_orders_filter_roles_but_known_artists_remain_addressable() {
                         kind: library::ListKind::Artists {
                             album_artist: false,
                         },
-                        source: Some(fixture.source),
                         sort: sort,
                         folder: folder,
                         filter: ("").to_string(),
@@ -1992,7 +1954,6 @@ async fn artist_orders_filter_roles_but_known_artists_remain_addressable() {
 
                     let album_artists = library::ListRead {
                         kind: library::ListKind::Artists { album_artist: true },
-                        source: Some(fixture.source),
                         sort: sort,
                         folder: folder,
                         filter: ("").to_string(),
@@ -2096,7 +2057,6 @@ async fn artist_orders_filter_roles_but_known_artists_remain_addressable() {
                 filters: None,
                 release_class: None
             },
-            source: Some(fixture.source),
             folder: None,
             filter: ("").to_string(),
             sort: library::CatalogSort::Title,
@@ -2144,7 +2104,6 @@ async fn artist_and_home_activity_follow_membership() {
     let home = fixture
         .database
         .home_page(
-            fixture.source,
             Some(fixture.folder),
             0,
             0,
@@ -2185,7 +2144,7 @@ async fn home_reads_only_enabled_blocks_and_preserves_provider_sections() {
     let cancel = ReadCancellation::new();
     let all = fixture
         .database
-        .home_page(fixture.source, None, 0, 0, &HomeBlockKind::all(), &cancel)
+        .home_page(None, 0, 0, &HomeBlockKind::all(), &cancel)
         .await
         .unwrap();
     assert!(!all.provider_sections.is_empty());
@@ -2200,7 +2159,7 @@ async fn home_reads_only_enabled_blocks_and_preserves_provider_sections() {
     for block in HomeBlockKind::all() {
         let selected = fixture
             .database
-            .home_page(fixture.source, None, 0, 0, &[block], &cancel)
+            .home_page(None, 0, 0, &[block], &cancel)
             .await
             .unwrap();
         let mut expected = HomePage {
@@ -2225,7 +2184,7 @@ async fn home_reads_only_enabled_blocks_and_preserves_provider_sections() {
     }
     let disabled = fixture
         .database
-        .home_page(fixture.source, None, 0, 0, &[], &cancel)
+        .home_page(None, 0, 0, &[], &cancel)
         .await
         .unwrap();
     assert_eq!(
@@ -2237,7 +2196,7 @@ async fn home_reads_only_enabled_blocks_and_preserves_provider_sections() {
     );
     let enabled_again = fixture
         .database
-        .home_page(fixture.source, None, 0, 0, &HomeBlockKind::all(), &cancel)
+        .home_page(None, 0, 0, &HomeBlockKind::all(), &cancel)
         .await
         .unwrap();
     assert_eq!(
@@ -2252,13 +2211,7 @@ async fn home_search_and_radio_results_stay_bounded() {
     let cancel = ReadCancellation::new();
     let search = fixture
         .database
-        .search(
-            fixture.source,
-            None,
-            false,
-            &SearchRequest::with_limit("note", 2),
-            &cancel,
-        )
+        .search(None, false, &SearchRequest::with_limit("note", 2), &cancel)
         .await
         .expect("cached Search");
     assert_eq!(search.tracks.len(), 2);
@@ -2272,7 +2225,7 @@ async fn home_search_and_radio_results_stay_bounded() {
         .collect::<Vec<_>>();
     let resolved = fixture
         .database
-        .search_rows_by_objects(fixture.source, None, false, &object_ids, &[], &[], &cancel)
+        .search_rows_by_objects(None, false, &object_ids, &[], &[], &cancel)
         .await
         .expect("live Search identity rows");
     assert_eq!(
@@ -2285,10 +2238,10 @@ async fn home_search_and_radio_results_stay_bounded() {
     );
     assert!(
         (&library::MemberRead {
-            collection: library::Collection::Source(fixture.source),
+            collection: library::Collection::Library,
             sort: Some(library::CatalogSort::Title),
             filter: ("artist a").into(),
-            ..library::MemberRead::new(library::Collection::Source(fixture.source))
+            ..library::MemberRead::new(library::Collection::Library)
         })
             .page(&fixture.database, RouteSeedWindow::top(), &cancel)
             .await
@@ -2298,14 +2251,7 @@ async fn home_search_and_radio_results_stay_bounded() {
     );
     let initial_home = fixture
         .database
-        .home_page(
-            fixture.source,
-            None,
-            0,
-            0,
-            &library::HomeBlockKind::all(),
-            &cancel,
-        )
+        .home_page(None, 0, 0, &library::HomeBlockKind::all(), &cancel)
         .await
         .expect("initial bounded Home page");
     assert!(initial_home.most_played.tracks.is_empty());
@@ -2322,14 +2268,7 @@ async fn home_search_and_radio_results_stay_bounded() {
     );
     let alternate_showcase_home = fixture
         .database
-        .home_page(
-            fixture.source,
-            None,
-            1,
-            0,
-            &library::HomeBlockKind::all(),
-            &cancel,
-        )
+        .home_page(None, 1, 0, &library::HomeBlockKind::all(), &cancel)
         .await
         .expect("alternate Showcase Home page");
     assert_eq!(initial_home.explore, alternate_showcase_home.explore);
@@ -2348,14 +2287,7 @@ async fn home_search_and_radio_results_stay_bounded() {
     assert_eq!(alternate_showcase.album.album_key, fixture.albums[1]);
     let alternate_explore_home = fixture
         .database
-        .home_page(
-            fixture.source,
-            None,
-            0,
-            2,
-            &library::HomeBlockKind::all(),
-            &cancel,
-        )
+        .home_page(None, 0, 2, &library::HomeBlockKind::all(), &cancel)
         .await
         .expect("alternate Explore Home page");
     assert_eq!(initial_home.showcase, alternate_explore_home.showcase);
@@ -2381,7 +2313,6 @@ async fn home_search_and_radio_results_stay_bounded() {
     for descending in [false, true] {
         let sorted = library::ListRead {
             kind: library::ListKind::Albums,
-            source: Some(fixture.source),
             sort: library::CatalogSort::DateAdded,
             folder: None,
             filter: ("").to_string(),
@@ -2408,14 +2339,7 @@ async fn home_search_and_radio_results_stay_bounded() {
     }
     let newly_added = fixture
         .database
-        .home_page(
-            fixture.source,
-            None,
-            0,
-            0,
-            &library::HomeBlockKind::all(),
-            &cancel,
-        )
+        .home_page(None, 0, 0, &library::HomeBlockKind::all(), &cancel)
         .await
         .expect("bounded Home Albums")
         .newly_added
@@ -2435,14 +2359,7 @@ async fn home_search_and_radio_results_stay_bounded() {
     assert_eq!(
         fixture
             .database
-            .home_page(
-                fixture.source,
-                None,
-                0,
-                0,
-                &library::HomeBlockKind::all(),
-                &cancel
-            )
+            .home_page(None, 0, 0, &library::HomeBlockKind::all(), &cancel)
             .await
             .expect("released Albums require a release fact")
             .recently_released
@@ -2455,14 +2372,7 @@ async fn home_search_and_radio_results_stay_bounded() {
     assert_eq!(
         fixture
             .database
-            .home_page(
-                fixture.source,
-                None,
-                0,
-                0,
-                &library::HomeBlockKind::all(),
-                &cancel
-            )
+            .home_page(None, 0, 0, &library::HomeBlockKind::all(), &cancel)
             .await
             .expect("bounded Home Genres")
             .genres
@@ -2473,7 +2383,6 @@ async fn home_search_and_radio_results_stay_bounded() {
     let random = fixture
         .database
         .random_candidates(
-            fixture.source,
             None,
             &RandomCriteria {
                 min_year: Some(2020),
@@ -2492,14 +2401,7 @@ async fn home_search_and_radio_results_stay_bounded() {
     assert!(!random.contains(&fixture.tracks[0]));
     let radio = fixture
         .database
-        .radio_candidates(
-            fixture.source,
-            RadioSeed::Genre(fixture.genre),
-            &[],
-            3,
-            9,
-            &cancel,
-        )
+        .radio_candidates(RadioSeed::Genre(fixture.genre), &[], 3, 9, &cancel)
         .await
         .expect("bounded Radio candidates");
     assert_eq!(radio.len(), 3);
@@ -2513,14 +2415,7 @@ async fn home_search_and_radio_results_stay_bounded() {
     assert_eq!(
         fixture
             .database
-            .radio_candidates(
-                fixture.source,
-                RadioSeed::Genre(fixture.genre),
-                &[],
-                2,
-                9,
-                &cancel
-            )
+            .radio_candidates(RadioSeed::Genre(fixture.genre), &[], 2, 9, &cancel)
             .await
             .expect("complete queue exclusion")
             .len(),
@@ -2530,7 +2425,6 @@ async fn home_search_and_radio_results_stay_bounded() {
         fixture
             .database
             .radio_candidates(
-                fixture.source,
                 RadioSeed::Genre(fixture.genre),
                 &vec![fixture.tracks[1]; 501],
                 2,
@@ -2543,14 +2437,7 @@ async fn home_search_and_radio_results_stay_bounded() {
 
     let album_radio = fixture
         .database
-        .radio_candidates(
-            fixture.source,
-            RadioSeed::Album(fixture.albums[0]),
-            &[],
-            2,
-            0,
-            &cancel,
-        )
+        .radio_candidates(RadioSeed::Album(fixture.albums[0]), &[], 2, 0, &cancel)
         .await
         .expect("Album Radio context");
     assert!(
@@ -2567,14 +2454,7 @@ async fn home_search_and_radio_results_stay_bounded() {
     .0;
     let playlist_radio = fixture
         .database
-        .radio_candidates(
-            fixture.source,
-            RadioSeed::Playlist(playlist),
-            &[],
-            2,
-            0,
-            &cancel,
-        )
+        .radio_candidates(RadioSeed::Playlist(playlist), &[], 2, 0, &cancel)
         .await
         .expect("Playlist first-Track Radio context");
     assert!(!playlist_radio.contains(&fixture.tracks[0]));

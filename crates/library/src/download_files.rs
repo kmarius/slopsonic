@@ -71,10 +71,7 @@ mod tests {
             parser_version: 1,
             access_uri: url::Url::from_file_path(&copy).unwrap().to_string(),
         };
-        database
-            .write_download_access(None, &[&access])
-            .await
-            .unwrap();
+        database.write_download_access(&[&access]).await.unwrap();
         let receipt = DownloadFile {
             media_uri: uri.clone(),
             encoding: "mp3".into(),
@@ -117,7 +114,7 @@ mod tests {
         alternate_access.relative_path = "download.opus".into();
         alternate_access.size_bytes = 11;
         database
-            .commit_download(&alternate, None, &alternate_access)
+            .commit_download(&alternate, &alternate_access)
             .await
             .unwrap();
         database.forget_download_file(&alternate).await.unwrap();
@@ -180,13 +177,9 @@ impl Database {
                 } else {
                     next.storage_root.clone()
                 };
-                let source = sqlx::query_scalar("SELECT source_key FROM sources")
-                    .fetch_optional(&mut *transaction)
-                    .await?;
                 crate::download_access::write_download_locator(
                     &mut transaction,
                     &crate::download_access::DownloadLocatorWrite {
-                        source,
                         media_uri: next.media_uri.clone(),
                         origin: "download".into(),
                         path: path
@@ -240,7 +233,6 @@ impl Database {
     pub async fn commit_download(
         &self,
         file: &DownloadFile,
-        source: Option<crate::SourceKey>,
         access: &crate::DownloadAccessWrite,
     ) -> LibraryResult<()> {
         let mut writer = self.writer().await?;
@@ -249,8 +241,7 @@ impl Database {
             .ok_or(LibraryError::WriterUnavailable)?
             .begin()
             .await?;
-        crate::download_access::write_download_access_on(&mut transaction, source, &[access])
-            .await?;
+        crate::download_access::write_download_access_on(&mut transaction, &[access]).await?;
         save_download_on(&mut transaction, file).await?;
         transaction.commit().await?;
         Ok(())

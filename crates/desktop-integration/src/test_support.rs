@@ -50,7 +50,6 @@ pub(crate) fn test_view(
                 };
                 library::TrackView {
                     track_key: library::TrackKey::from_raw(1),
-                    source_key: None,
                     object_id: None,
                     media_uri: reference.media_uri,
                     metadata: reference.metadata,

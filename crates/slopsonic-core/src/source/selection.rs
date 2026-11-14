@@ -33,13 +33,8 @@ impl SourceOwner {
                 .map_err(string_error)?,
         };
         let cached_start = publication.catalog_complete;
-        self.install_selected(
-            configured.clone(),
-            None,
-            publication,
-            Arc::clone(&cancelled),
-        )
-        .await?;
+        self.install_selected(configured.clone(), None, Arc::clone(&cancelled))
+            .await?;
         if !self.shared.selection_is_current(&cancelled) {
             return Ok(());
         }
@@ -53,25 +48,22 @@ impl SourceOwner {
         {
             return Ok(());
         }
-        let Some(selected) = self.selected_library() else {
+        if self.selected_library().is_none() {
             return Ok(());
-        };
+        }
         let owner = self.clone();
         let task = self.shared.runtime.spawn(async move {
             let source = owner.open_client().await;
             if !owner.shared.selection_is_current(&cancelled) {
                 return;
             }
-            let Some(selected) = owner
-                .selected_library()
-                .filter(|current| current.source_key == selected.source_key)
-            else {
+            let Some(selected) = owner.selected_library() else {
                 return;
             };
             if let Err(error) = owner
                 .shared
                 .downloads
-                .attach(selected.source_key, selected.music_folder_key)
+                .attach(selected.music_folder_key)
                 .await
             {
                 owner.shared.warn_nonfatal(&error);
@@ -86,8 +78,7 @@ impl SourceOwner {
                     return;
                 }
             };
-            let activated =
-                owner.start_observer(selected.clone(), source.clone(), refresh && !cached_start);
+            let activated = owner.start_observer(source.clone(), refresh && !cached_start);
             owner.shared.present_refresh();
             if refresh && activated && !cached_start {
                 let refresh_owner = owner.clone();
@@ -113,19 +104,18 @@ impl SourceOwner {
     pub(super) async fn selected_folders(
         &self,
         configured: &ConfiguredSource,
-        source_key: SourceKey,
     ) -> Result<(Arc<[FolderChoice]>, Option<FolderKey>), String> {
         let folders = self
             .shared
             .database
-            .music_folders(source_key)
+            .music_folders()
             .await
             .map_err(string_error)?;
         let selected = match configured.music_folder_id.as_deref() {
             Some(object_id) => self
                 .shared
                 .database
-                .folder_identity_key(source_key, object_id)
+                .folder_identity_key(object_id)
                 .await
                 .map_err(string_error)?,
             None => None,
@@ -137,14 +127,10 @@ impl SourceOwner {
         &self,
         configured: ConfiguredSource,
         mut source: Option<Arc<Source>>,
-        source_state: library::CachedSource,
         acquisition: Arc<AtomicBool>,
     ) -> Result<(), String> {
-        let (music_folders, music_folder_key) = self
-            .selected_folders(&configured, source_state.source)
-            .await?;
+        let (music_folders, music_folder_key) = self.selected_folders(&configured).await?;
         let selected = SelectedLibrary {
-            source_key: source_state.source,
             music_folder_key,
             music_folder_object_id: configured.music_folder_id.clone(),
             music_folders,
@@ -168,13 +154,13 @@ impl SourceOwner {
         self.publish_operation(SourceOperation::Idle).await;
         self.shared.present_refresh();
         if let Some(source) = source {
-            self.start_observer(selected.clone(), source.clone(), true);
+            self.start_observer(source.clone(), true);
             let owner = self.clone();
             self.shared.runtime.spawn(async move {
                 if let Err(error) = owner
                     .shared
                     .downloads
-                    .attach(selected.source_key, selected.music_folder_key)
+                    .attach(selected.music_folder_key)
                     .await
                 {
                     owner.shared.warn_nonfatal(&error);
@@ -211,12 +197,7 @@ impl SourceOwner {
         }
     }
 
-    pub(super) fn start_observer(
-        &self,
-        selected: SelectedLibrary,
-        source: Arc<Source>,
-        initial_scan_pending: bool,
-    ) -> bool {
+    pub(super) fn start_observer(&self, source: Arc<Source>, initial_scan_pending: bool) -> bool {
         let mut client = self.shared.client.lock().unwrap_or_else(|p| p.into_inner());
         let Some(cached) = client.as_mut() else {
             return false;
@@ -228,7 +209,6 @@ impl SourceOwner {
         let shared = Arc::downgrade(&self.shared);
         let task = self.shared.runtime.spawn(Self::consume_selected_feed(
             shared,
-            selected.source_key,
             source,
             observer.clone(),
         ));
@@ -238,7 +218,6 @@ impl SourceOwner {
 
     pub(super) async fn consume_selected_feed(
         shared: Weak<Shared>,
-        source_key: SourceKey,
         source: Arc<Source>,
         observer: Arc<SelectedFeed>,
     ) {
@@ -265,10 +244,7 @@ impl SourceOwner {
                 owner.check_remote_freshness(&source).await;
                 continue;
             }
-            match observer
-                .apply_pending(&owner.shared.database, source_key)
-                .await
-            {
+            match observer.apply_pending(&owner.shared.database).await {
                 Ok(true) => continue,
                 Ok(false) => {}
                 Err(error) => {
@@ -408,8 +384,7 @@ impl SourceOwner {
             }
             replacement = self.persist_connected_source(&replacement, credential)?;
             let source = self.cache_connected(&replacement, Arc::new(source));
-            let publication = self
-                .shared
+            self.shared
                 .database
                 .reconcile_source(
                     replacement.configuration.kind.source_id(),
@@ -421,7 +396,7 @@ impl SourceOwner {
             let refresh = selected;
             if selected && !self.shared.operation.borrow().blocks_library() {
                 let intent = self.shared.begin_selection();
-                self.install_selected(replacement, Some(Arc::clone(&source)), publication, intent)
+                self.install_selected(replacement, Some(Arc::clone(&source)), intent)
                     .await?;
             }
             if refresh {
@@ -540,7 +515,7 @@ impl SourceOwner {
         Ok(())
     }
 
-    pub(super) async fn catalog_updated(&self, source: library::SourceKey, update: CatalogUpdate) {
+    pub(super) async fn catalog_updated(&self, update: CatalogUpdate) {
         if !update.track_rekeys.is_empty()
             && let Ok(playback) = self.shared.playback()
         {
@@ -563,11 +538,10 @@ impl SourceOwner {
         };
         {
             if update.metadata
-                && let Some(selected) = self.shared.selected()
-                && selected.source_key == source
+                && self.shared.selected().is_some()
                 && let Ok(configured) = configured_source(&self.shared.settings.load().sources)
             {
-                match self.selected_folders(&configured, source).await {
+                match self.selected_folders(&configured).await {
                     Ok((folders, folder_key)) => {
                         if let Some(current) = self
                             .shared
@@ -575,7 +549,6 @@ impl SourceOwner {
                             .lock()
                             .unwrap_or_else(|p| p.into_inner())
                             .as_mut()
-                            .filter(|current| current.source_key == source)
                         {
                             current.music_folders = folders;
                             current.music_folder_key = folder_key;
@@ -593,7 +566,7 @@ impl SourceOwner {
             self.shared.downloads.library_changed();
         }
         if update.metadata {
-            if let Err(error) = self.shared.refresh_source_counts(source).await {
+            if let Err(error) = self.shared.refresh_source_counts().await {
                 self.shared.warn_nonfatal(&error);
             }
             let _ = self
@@ -607,7 +580,6 @@ impl SourceOwner {
         }
         self.shared
             .send(SourceEvent::CatalogPublished(CatalogPublication {
-                source_key: Some(source),
                 favorite: None,
                 change,
             }))
@@ -615,13 +587,13 @@ impl SourceOwner {
     }
 
     pub(crate) async fn artwork_invalidated(&self, change: CatalogChange) {
-        let source = match self
+        match self
             .shared
             .database
             .cached_source(&ReadCancellation::new())
             .await
         {
-            Ok(Some(source)) => source.source,
+            Ok(Some(_)) => {}
             Ok(None) => return,
             Err(error) => {
                 self.shared.warn_nonfatal(&error.to_string());
@@ -630,7 +602,6 @@ impl SourceOwner {
         };
         self.shared
             .send(SourceEvent::CatalogPublished(CatalogPublication {
-                source_key: Some(source),
                 favorite: None,
                 change,
             }))
@@ -643,21 +614,6 @@ impl SourceOwner {
         }
     }
 
-    pub(super) async fn publish_catalog(
-        &self,
-        selected: &SelectedLibrary,
-        favorite: Option<FavoriteSettlement>,
-        change: CatalogChange,
-    ) {
-        self.shared
-            .send(SourceEvent::CatalogPublished(CatalogPublication {
-                source_key: Some(selected.source_key),
-                favorite,
-                change,
-            }))
-            .await;
-    }
-
     pub(crate) async fn publish_current_catalog(
         &self,
         favorite: Option<FavoriteSettlement>,
@@ -665,7 +621,6 @@ impl SourceOwner {
     ) {
         self.shared
             .send(SourceEvent::CatalogPublished(CatalogPublication {
-                source_key: self.shared.selected().map(|selected| selected.source_key),
                 favorite,
                 change,
             }))
