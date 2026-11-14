@@ -83,11 +83,16 @@ pub(crate) fn require_payload_version(actual: u32, expected: u32) -> SourceResul
 impl CredentialPreset {
     /// Whether saving `input` may count as a server switch, which resets local server state.
     /// The server canonicalizes the username on connect, so this can warn where `same_server` then
-    /// matches; it never misses a switch on the address or a different username.
-    pub fn switches_server(&self, input: &CredentialInput) -> bool {
+    /// matches. A new API key names its account itself (`tokenInfo`), so entering one always may.
+    pub fn switches_server(
+        &self,
+        input: &CredentialInput,
+        authentication: crate::SubsonicAuthentication,
+    ) -> bool {
         crate::source::comparable_address(&self.server_url)
             != crate::source::comparable_address(&input.server_url)
             || self.username.trim() != input.username.trim()
+            || authentication == crate::SubsonicAuthentication::ApiKey && !input.secret.is_empty()
     }
 }
 
@@ -152,6 +157,8 @@ mod tests {
         assert!(saved.same_server(&source("https://music.example/", "listener", true)));
         assert!(!saved.same_server(&source("https://other.example", "listener", false)));
         assert!(!saved.same_server(&source("https://music.example", "someone", false)));
+        // Case-sensitive on purpose: the edit dialog warns first, so a case change never wipes silently.
+        assert!(!saved.same_server(&source("https://music.example", "Listener", false)));
     }
 
     #[test]
@@ -170,9 +177,16 @@ mod tests {
             secret: "new secret".into(),
             trust_invalid_cert: true,
         };
-        assert!(!saved.switches_server(&input(" https://music.example/ ", "listener ")));
-        assert!(saved.switches_server(&input("https://proxy.example/music", "listener")));
-        assert!(saved.switches_server(&input("https://music.example", "someone")));
+        let password = crate::SubsonicAuthentication::Password;
+        let api_key = crate::SubsonicAuthentication::ApiKey;
+        assert!(!saved.switches_server(&input(" https://music.example/ ", "listener "), password));
+        assert!(saved.switches_server(&input("https://proxy.example/music", "listener"), password));
+        assert!(saved.switches_server(&input("https://music.example", "someone"), password));
+        // The key decides the account, whatever the hidden username field still holds.
+        assert!(saved.switches_server(&input("https://music.example", "listener"), api_key));
+        let mut keep_key = input("https://music.example", "listener");
+        keep_key.secret.clear();
+        assert!(!saved.switches_server(&keep_key, api_key));
     }
 
     #[test]

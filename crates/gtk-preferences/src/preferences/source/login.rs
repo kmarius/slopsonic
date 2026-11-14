@@ -332,7 +332,6 @@ fn subsonic_settings_group(
     save.set_visible(true);
 
     let source = shell.products.source.clone();
-    let saved = saved.credentials.clone();
     let name = host.name.clone();
     let url = host.url.clone();
     let username = host.username.clone();
@@ -356,7 +355,12 @@ fn subsonic_settings_group(
             secret: password.text().to_string(),
             trust_invalid_cert: !cert_verify.is_active(),
         };
-        let switches = saved.switches_server(&credentials);
+        // The saved server changes with every save, so compare with what is saved now.
+        let switches = source.editable().ok().flatten().is_none_or(|saved| {
+            saved
+                .credentials
+                .switches_server(&credentials, authentication)
+        });
         let source = source.clone();
         let save = {
             let shell = Rc::downgrade(&shell);
