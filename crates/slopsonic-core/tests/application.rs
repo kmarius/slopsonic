@@ -83,7 +83,12 @@ fn application_starts_on_a_worker_and_reopens_saved_settings_without_a_ui() {
             let settings = inputs.settings.clone();
             runtime
                 .block_on(runtime.spawn_blocking(move || {
-                    settings.set_download_artwork_automatically(true).unwrap();
+                    settings
+                        .update_preferences(|ui| {
+                            ui.application.download_artwork_automatically = true;
+                            Ok(())
+                        })
+                        .unwrap();
                     settings.flush().unwrap();
                 }))
                 .unwrap();

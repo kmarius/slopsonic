@@ -75,54 +75,46 @@ fn perceptual_gain_floor() -> f64 {
     10_f64.powf(-PERCEPTUAL_DB_RANGE / 20.0)
 }
 
-#[macro_export]
-macro_rules! playback_preference_fields {
-    ($callback:ident $(, $args:tt)*) => {
-        $callback! { [$($args)*]
-            direct {
-                #[serde(default)]
-                transition_mode: PlaybackTransitionMode = PlaybackTransitionMode::Gapless => set_transition_mode;
-                #[serde(default = "default_crossfade_seconds")]
-                crossfade_seconds: u8 = default_crossfade_seconds() => set_crossfade_seconds;
-                #[serde(default)]
-                skip_same_album_crossfade: bool = false => set_skip_same_album_crossfade;
-                #[serde(default = "default_true")]
-                audio_fade_on_status_change: bool = true => set_audio_fade_on_status_change;
-                #[serde(default = "default_true")]
-                skip_unplayable_tracks: bool = true => set_skip_unplayable_tracks;
-                #[serde(default)]
-                stream_quality: StreamQuality = StreamQuality::Original => set_stream_quality;
-                #[serde(default)]
-                muted: bool = false;
-            }
-            migrated {
-                loudness_normalization: LoudnessNormalization = LoudnessNormalization::ReplayGain => set_loudness_normalization;
-                loudness_normalization_scope: LoudnessNormalizationScope = LoudnessNormalizationScope::Album => set_loudness_normalization_scope;
-                volume: f64 = default_volume();
-                volume_scale: VolumeScale = VolumeScale::Perceptual;
-            }
-        }
-    };
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PlaybackSettings {
+    #[serde(default)]
+    pub transition_mode: PlaybackTransitionMode,
+    #[serde(default = "default_crossfade_seconds")]
+    pub crossfade_seconds: u8,
+    #[serde(default)]
+    pub skip_same_album_crossfade: bool,
+    #[serde(default = "default_true")]
+    pub audio_fade_on_status_change: bool,
+    #[serde(default = "default_true")]
+    pub skip_unplayable_tracks: bool,
+    #[serde(default)]
+    pub stream_quality: StreamQuality,
+    #[serde(default)]
+    pub muted: bool,
+    pub loudness_normalization: LoudnessNormalization,
+    pub loudness_normalization_scope: LoudnessNormalizationScope,
+    pub volume: f64,
+    pub volume_scale: VolumeScale,
 }
 
-macro_rules! define_playback_preferences {
-    ([] direct { $( $(#[$attribute:meta])* $field:ident: $ty:ty = $default:expr $(=> $setter:ident)?; )* }
-        migrated { $( $legacy:ident: $legacy_ty:ty = $legacy_default:expr $(=> $legacy_setter:ident)?; )* }) => {
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        #[serde(default)]
-        pub struct PlaybackSettings {
-            $($(#[$attribute])* pub $field: $ty,)*
-            $(pub $legacy: $legacy_ty,)*
+impl Default for PlaybackSettings {
+    fn default() -> Self {
+        Self {
+            transition_mode: PlaybackTransitionMode::Gapless,
+            crossfade_seconds: default_crossfade_seconds(),
+            skip_same_album_crossfade: false,
+            audio_fade_on_status_change: true,
+            skip_unplayable_tracks: true,
+            stream_quality: StreamQuality::Original,
+            muted: false,
+            loudness_normalization: LoudnessNormalization::ReplayGain,
+            loudness_normalization_scope: LoudnessNormalizationScope::Album,
+            volume: default_volume(),
+            volume_scale: VolumeScale::Perceptual,
         }
-
-        impl Default for PlaybackSettings {
-            fn default() -> Self {
-                Self { $($field: $default,)* $($legacy: $legacy_default,)* }
-            }
-        }
-    };
+    }
 }
-playback_preference_fields!(define_playback_preferences);
 
 impl PlaybackSettings {
     pub fn set_volume_scale_preserving_gain(&mut self, volume_scale: VolumeScale) {

@@ -12,8 +12,8 @@ use sources::SourceId;
 
 use super::{
     AccentPreference, ContextMenuSettings, LayoutSettings, LibraryListKey, LibraryListSettings,
-    LibraryListSettingsEntry, SettingsError, SettingsOwner, SidebarRouteItem, SidebarSettings,
-    ThemePreference, default_library_list_settings, sanitized_window_size,
+    LibraryListSettingsEntry, SidebarRouteItem, SidebarSettings, ThemePreference,
+    default_library_list_settings, sanitized_window_size,
 };
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -120,62 +120,54 @@ pub struct RecentSearchResult {
 }
 
 macro_rules! preference_group {
-    ($(#[$record_attribute:meta])* $name:ident, $group:ident, { $( $(#[$attribute:meta])* $field:ident: $ty:ty = $default:expr $(=> $setter:ident)?; )* }) => {
+    ($(#[$record_attribute:meta])* $name:ident, { $( $(#[$attribute:meta])* $field:ident: $ty:ty = $default:expr; )* }) => {
         #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
         $(#[$record_attribute])*
         pub struct $name { $( $(#[$attribute])* pub $field: $ty, )* }
         impl Default for $name {
             fn default() -> Self { Self { $( $field: $default, )* } }
         }
-        impl SettingsOwner {
-            $( $(pub fn $setter(&self, value: $ty) -> Result<(), SettingsError> {
-                self.update_preferences(move |ui| {
-                    ui.$group.$field = value;
-                    Ok(())
-                }).map_err(Into::into)
-            })? )*
-        }
     };
 }
 
-preference_group!(ApplicationPreferences, application, {
+preference_group!(ApplicationPreferences, {
     #[serde(default = "default_starting_page")]
-    starting_page: SidebarRouteItem = default_starting_page() => set_starting_page;
+    starting_page: SidebarRouteItem = default_starting_page();
     #[serde(default)]
-    prefer_distinct_track_covers: bool = false => set_prefer_distinct_track_covers;
+    prefer_distinct_track_covers: bool = false;
     #[serde(default)]
-    download_artwork_automatically: bool = false => set_download_artwork_automatically;
+    download_artwork_automatically: bool = false;
     #[serde(default = "default_true")]
-    control_notifications_enabled: bool = true => set_control_notifications_enabled;
+    control_notifications_enabled: bool = true;
     #[serde(default)]
-    reduce_motion: bool = false => set_reduce_motion;
+    reduce_motion: bool = false;
     #[serde(default = "default_true")]
-    show_downloaded_badges: bool = true => set_show_downloaded_badges;
+    show_downloaded_badges: bool = true;
     #[serde(default = "default_true")]
-    new_playlist_current: bool = true => set_new_playlist_current;
+    new_playlist_current: bool = true;
     #[serde(default = "default_auto_dj_refill_threshold")]
-    auto_dj_refill_threshold: u8 = DEFAULT_AUTO_DJ_REFILL_THRESHOLD => set_auto_dj_refill_threshold;
+    auto_dj_refill_threshold: u8 = DEFAULT_AUTO_DJ_REFILL_THRESHOLD;
     #[serde(default)]
-    external_site_links: ExternalSiteLinkSettings = ExternalSiteLinkSettings::default() => set_external_site_links;
+    external_site_links: ExternalSiteLinkSettings = ExternalSiteLinkSettings::default();
     #[serde(default)]
-    home_blocks: Vec<HomeBlockKind> = default_home_blocks() => set_home_blocks;
+    home_blocks: Vec<HomeBlockKind> = default_home_blocks();
     #[serde(default)]
-    context_menu: ContextMenuSettings = ContextMenuSettings::default() => set_context_menu;
+    context_menu: ContextMenuSettings = ContextMenuSettings::default();
 });
 
-preference_group!(PlayerDisplayPreferences, player_display, {
+preference_group!(PlayerDisplayPreferences, {
     #[serde(default)]
-    clear_queue_includes_current: bool = false => set_clear_queue_includes_current;
+    clear_queue_includes_current: bool = false;
     #[serde(default = "default_true")]
-    fullscreen_dynamic_background: bool = true => set_fullscreen_dynamic_background;
+    fullscreen_dynamic_background: bool = true;
     #[serde(default = "default_true")]
-    fullscreen_background_image: bool = true => set_fullscreen_background_image;
+    fullscreen_background_image: bool = true;
 });
 
-preference_group!(#[derive(Eq)] AppearancePreferences, appearance, {
-    theme_preference: ThemePreference = ThemePreference::System => set_theme;
+preference_group!(#[derive(Eq)] AppearancePreferences, {
+    theme_preference: ThemePreference = ThemePreference::System;
     #[serde(default)]
-    accent_preference: AccentPreference = AccentPreference::System => set_accent;
+    accent_preference: AccentPreference = AccentPreference::System;
 });
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
