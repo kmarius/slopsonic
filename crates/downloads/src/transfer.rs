@@ -24,12 +24,15 @@ impl Actor {
                 self.publish().await;
                 continue;
             };
-            let custom_directory = attached.directory.as_deref();
+            let custom_directory = attached.directory;
             let owner = DownloadOwner::Subject(subject.clone());
             match self.add_download_owner(&media_uri, &owner, quality).await {
                 Ok(true) => {
-                    self.remove_job_track(&job_id, &media_uri, true);
-                    self.persist_and_publish().await;
+                    if self.remove_job_track(&job_id, &media_uri, true) {
+                        self.persist_and_publish().await;
+                    } else {
+                        self.publish().await;
+                    }
                     continue;
                 }
                 Ok(false) => {}
@@ -42,38 +45,46 @@ impl Actor {
                     continue;
                 }
             }
-            let resolved = source.resolve_download(&media_uri, quality).await;
-            let transcoded_extension = match &resolved {
-                Ok(ResolvedDownload::Ready { codec, .. }) => codec.map(|codec| codec.extension()),
-                Ok(ResolvedDownload::Encode { encoding, .. }) => Some(encoding.codec.extension()),
-                Err(_) => None,
-            };
-            let metadata = self
-                .database
-                .download_metadata(&media_uri)
-                .await
-                .ok()
-                .flatten();
-            let paths = new_download_paths(
-                &self.root,
-                &media_uri,
-                metadata.as_ref(),
-                custom_directory,
-                transcoded_extension,
-            );
             if let Some(job) = self.find_job_mut(&job_id) {
                 job.state = DownloadQueueState::Downloading;
             }
             self.publish().await;
-            let task_paths = paths.clone();
+            let paths = staging_paths(&self.root, &media_uri, custom_directory.as_deref());
+            let root = self.root.clone();
             let transfers = Arc::clone(&self.transfers);
             let (cancellation, cancelled) = tokio::sync::oneshot::channel();
             let uri = media_uri.clone();
             let database = self.database.clone();
             let artwork = self.artwork.clone();
+            // The transfer resolves its stream, so commands never wait for a server.
             let task = tokio::spawn(async move {
                 let mut cancelled = cancelled;
-                match resolved.map_err(download_source_failure)? {
+                let resolved = tokio::select! {
+                    resolved = source.resolve_download(&uri, quality) => {
+                        resolved.map_err(download_source_failure)?
+                    }
+                    _ = &mut cancelled => {
+                        return Err(download_source_failure(SourceError::Cancelled));
+                    }
+                };
+                let transcoded_extension = match &resolved {
+                    ResolvedDownload::Ready { codec, .. } => codec.map(|codec| codec.extension()),
+                    ResolvedDownload::Encode { encoding, .. } => Some(encoding.codec.extension()),
+                };
+                let metadata = database.download_metadata(&uri).await.ok().flatten();
+                let task_paths = new_download_paths(
+                    &root,
+                    &uri,
+                    metadata.as_ref(),
+                    custom_directory.as_deref(),
+                    transcoded_extension,
+                );
+                task_paths
+                    .audio
+                    .check_place()
+                    .await
+                    .map_err(DownloadFailure::Item)?;
+                match resolved {
                     ResolvedDownload::Encode { stream, encoding } => {
                         encode_download(stream, encoding, &task_paths, &mut cancelled)
                             .await
@@ -134,7 +145,7 @@ impl Actor {
                     _ = &mut cancelled => {},
                     _ = cache_track_artwork(&database, &artwork, &uri) => {},
                 }
-                Ok(())
+                Ok(task_paths.audio)
             });
             return Some(ActiveDownload {
                 job_id,
@@ -179,7 +190,7 @@ impl Actor {
     pub(super) async fn finish(
         &mut self,
         active: ActiveDownload,
-        joined: Result<Result<(), DownloadFailure>, tokio::task::JoinError>,
+        joined: Result<Result<DownloadAudio, DownloadFailure>, tokio::task::JoinError>,
         remaining_active: &mut Vec<ActiveDownload>,
     ) {
         if self.find_job_mut(&active.job_id).is_none() {
@@ -189,25 +200,25 @@ impl Actor {
             job_id,
             media_uri,
             subject,
-            paths,
+            mut paths,
             quality,
             ..
         } = active;
         let result = match joined {
-            Ok(Ok(())) => self
-                .commit_transfer(&media_uri, &subject, &paths, quality)
-                .await
-                .map(|_| ()),
+            Ok(Ok(audio)) => {
+                paths.audio = audio;
+                self.commit_transfer(&media_uri, &subject, &paths, quality)
+                    .await
+                    .map(|_| ())
+            }
             Ok(Err(error)) => Err(error),
             Err(error) => Err(DownloadFailure::NeedsAttention(format!(
                 "download task failed: {error}"
             ))),
         };
         let persist = match result {
-            Ok(()) => {
-                self.remove_job_track(&job_id, &media_uri, true);
-                true
-            }
+            // The queue file keeps jobs; a restart finds their finished tracks by receipt.
+            Ok(()) => self.remove_job_track(&job_id, &media_uri, true),
             Err(DownloadFailure::Item(error)) => {
                 warn!(%error, %media_uri, "could not download track");
                 self.mark_subject_incomplete(&subject).await;

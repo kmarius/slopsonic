@@ -18,10 +18,16 @@ impl Actor {
         self.jobs.iter_mut().find(|job| job.id == job_id)
     }
 
-    pub(super) fn remove_job_track(&mut self, job_id: &str, media_uri: &str, completed: bool) {
+    /// Takes `media_uri` from its job; true when that ended the job.
+    pub(super) fn remove_job_track(
+        &mut self,
+        job_id: &str,
+        media_uri: &str,
+        completed: bool,
+    ) -> bool {
         let jobs = &mut self.jobs;
         let Some(job_index) = jobs.iter().position(|job| job.id == job_id) else {
-            return;
+            return false;
         };
         let job = &mut jobs[job_index];
         if let Some(position) = job
@@ -39,9 +45,10 @@ impl Actor {
             if completed && !job.failed {
                 self.publish_subject_complete(&job.subject);
             }
-        } else {
-            job.state = DownloadQueueState::Downloading;
+            return true;
         }
+        job.state = DownloadQueueState::Downloading;
+        false
     }
 
     pub(super) fn publish_subject_complete(&self, subject: &DownloadSubject) {
@@ -239,6 +246,9 @@ impl Actor {
             cleanup_staging(&self.root, staging_directory.as_deref(), &HashSet::new())
                 .await
                 .map_err(|error| error.to_string())?;
+            // The cancelled jobs stay gone however many files remain.
+            remove_file_if_present(&directory.join(QUEUE_FILE)).await?;
+            remove_file_if_present(&directory.join(QUEUE_PART_FILE)).await?;
             let mut after = (String::new(), String::new());
             loop {
                 let records = self
@@ -254,8 +264,6 @@ impl Actor {
                     self.retire_receipt(&record).await?;
                 }
             }
-            remove_file_if_present(&directory.join(QUEUE_FILE)).await?;
-            remove_file_if_present(&directory.join(QUEUE_PART_FILE)).await?;
             match tokio::fs::remove_dir(&directory).await {
                 Ok(()) => Ok(()),
                 Err(error)
@@ -270,9 +278,9 @@ impl Actor {
             }
         }
         .await;
+        self.publish().await;
         match result {
             Ok(()) => {
-                self.publish().await;
                 if notify {
                     let _ = self
                         .events

@@ -42,10 +42,11 @@ impl Actor {
 
         let mut affected = HashSet::new();
         let mut completed_tracks = Vec::new();
-        for download in settling {
-            let joined = download.task.await;
-            let completed = matches!(joined, Ok(Ok(())));
-            if completed && commit_completed {
+        for mut download in settling {
+            if let Ok(Ok(audio)) = (&mut download.task).await
+                && commit_completed
+            {
+                download.paths.audio = audio;
                 match self
                     .commit_transfer(
                         &download.media_uri,

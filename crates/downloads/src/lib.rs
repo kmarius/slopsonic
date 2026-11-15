@@ -35,6 +35,7 @@ pub type SourceResolver = dyn Fn() -> Option<Arc<Source>> + Send + Sync;
 
 use actor::*;
 use queue::*;
+use storage::DownloadAudio;
 use track_download::*;
 
 const RETRY_INTERVAL: Duration = Duration::from_secs(30);

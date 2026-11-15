@@ -47,6 +47,20 @@ impl DownloadAudio {
         ))
     }
 
+    /// Errs when a folder holds the copy's path, where the finished file could never land.
+    pub async fn check_place(&self) -> Result<(), String> {
+        if tokio::fs::symlink_metadata(&self.path)
+            .await
+            .is_ok_and(|metadata| metadata.is_dir())
+        {
+            return Err(format!(
+                "A folder is in the download's place: {}",
+                self.path.display()
+            ));
+        }
+        Ok(())
+    }
+
     pub async fn publish(&self, partial: &Path) -> Result<Self, String> {
         tokio::fs::rename(partial, &self.path)
             .await
@@ -57,7 +71,16 @@ impl DownloadAudio {
     pub async fn remove(&self) -> Result<bool, String> {
         match tokio::fs::remove_file(&self.path).await {
             Ok(()) => Ok(true),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+                ) =>
+            {
+                Ok(false)
+            }
+            // A folder in the copy's place is not the copy, so there is nothing to remove.
+            Err(_) if self.path.is_dir() => Ok(false),
             Err(error) => Err(error.to_string()),
         }
     }

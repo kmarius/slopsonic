@@ -13,7 +13,8 @@ pub(super) struct ActiveDownload {
     pub(super) paths: DownloadPaths,
     pub(super) quality: DownloadQuality,
     pub(super) cancellation: Option<tokio::sync::oneshot::Sender<()>>,
-    pub(super) task: tokio::task::JoinHandle<Result<(), DownloadFailure>>,
+    /// The transfer, which returns where the audio goes.
+    pub(super) task: tokio::task::JoinHandle<Result<DownloadAudio, DownloadFailure>>,
 }
 
 pub(super) async fn run(
@@ -84,7 +85,7 @@ pub(super) async fn wait_for_finished(
     active: &mut [ActiveDownload],
 ) -> (
     usize,
-    Result<Result<(), DownloadFailure>, tokio::task::JoinError>,
+    Result<Result<DownloadAudio, DownloadFailure>, tokio::task::JoinError>,
 ) {
     std::future::poll_fn(|context| {
         for (index, download) in active.iter_mut().enumerate() {

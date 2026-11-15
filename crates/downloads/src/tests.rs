@@ -220,6 +220,8 @@ async fn collection_completion_follows_its_download_jobs() {
             let paths = download_paths(root.path(), &uri);
             std::fs::create_dir_all(&paths.directory).unwrap();
             std::fs::write(&paths.audio_part, b"completed transfer").unwrap();
+            let audio = paths.audio.clone();
+            let task_audio = audio.clone();
             let active = ActiveDownload {
                 job_id: job.id,
                 media_uri: uri,
@@ -227,12 +229,12 @@ async fn collection_completion_follows_its_download_jobs() {
                 paths,
                 quality: DownloadQuality::Original,
                 cancellation: None,
-                task: tokio::spawn(async { Ok(()) }),
+                task: tokio::spawn(async move { Ok(task_audio) }),
             };
             let result = if index == 0 && fail_first {
                 Err(DownloadFailure::Item("unavailable track".into()))
             } else {
-                Ok(())
+                Ok(audio)
             };
             actor.finish(active, Ok(result), &mut Vec::new()).await;
             let mut completed = 0;
@@ -402,10 +404,15 @@ async fn stale_completed_transfer_cannot_commit_after_its_job_was_removed() {
         paths: paths.clone(),
         quality: DownloadQuality::Original,
         cancellation: None,
-        task: tokio::spawn(async { Ok(()) }),
+        task: tokio::spawn({
+            let audio = paths.audio.clone();
+            async move { Ok(audio) }
+        }),
     };
 
-    actor.finish(active, Ok(Ok(())), &mut Vec::new()).await;
+    actor
+        .finish(active, Ok(Ok(paths.audio.clone())), &mut Vec::new())
+        .await;
 
     assert!(!paths.audio.path.exists());
     assert!(paths.audio_part.exists());
@@ -480,4 +487,20 @@ async fn a_finished_download_replaces_the_other_encodings_of_its_track() {
     );
     assert!(!original_path.exists(), "the replaced original is deleted");
     assert!(paths.audio.path.exists());
+}
+
+#[tokio::test]
+async fn a_folder_in_a_downloads_place_fails_the_place_check_and_is_not_removed() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("track.flac");
+    std::fs::create_dir(&path).unwrap();
+    let audio = storage::DownloadAudio { root: None, path };
+    assert!(audio.check_place().await.is_err());
+    assert_eq!(audio.remove().await, Ok(false));
+    assert!(audio.path.is_dir());
+    let file = storage::DownloadAudio {
+        root: None,
+        path: root.path().join("other.flac"),
+    };
+    assert_eq!(file.check_place().await, Ok(()));
 }
