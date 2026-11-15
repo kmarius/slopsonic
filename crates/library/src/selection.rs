@@ -131,10 +131,10 @@ fn parent_members(
 ) -> crate::query::OrderedQuery {
     let (from,sort,entry,predicate)=match kind {
         ListKind::Albums|ListKind::ArtistAlbums { .. }=>("tracks track INDEXED BY tracks_album_order_idx ON track.album_key=parent.value".to_string(),CatalogSort::TrackNumber,"NULL","track.indexed=1"),
-        ListKind::Artists { album_artist:false }=>("track_artists membership ON membership.artist_key=parent.value CROSS JOIN tracks track USING(track_key)".into(),CatalogSort::Title,"NULL","track.indexed=1"),
-        ListKind::Artists { album_artist:true }=>(format!("tracks track ON track.track_key IN ({})",crate::collections::album_artist_keys("parent.value")),CatalogSort::Title,"NULL","track.indexed=1"),
-        ListKind::Genres=>(format!("tracks track ON track.track_key IN ({})",crate::collections::genre_keys("parent.value")),CatalogSort::Title,"NULL","track.indexed=1"),
-        ListKind::Moods=>("track_moods membership ON membership.mood_key=parent.value CROSS JOIN tracks track USING(track_key)".into(),CatalogSort::Title,"NULL","track.indexed=1"),
+        ListKind::Artists { album_artist:false }=>("track_artists membership ON membership.artist_key=parent.value CROSS JOIN tracks track USING(track_key)".into(),CatalogSort::TrackNumber,"NULL","track.indexed=1"),
+        ListKind::Artists { album_artist:true }=>(format!("tracks track ON track.track_key IN ({})",crate::collections::album_artist_keys("parent.value")),CatalogSort::TrackNumber,"NULL","track.indexed=1"),
+        ListKind::Genres=>(format!("tracks track ON track.track_key IN ({})",crate::collections::genre_keys("parent.value")),CatalogSort::TrackNumber,"NULL","track.indexed=1"),
+        ListKind::Moods=>("track_moods membership ON membership.mood_key=parent.value CROSS JOIN tracks track USING(track_key)".into(),CatalogSort::TrackNumber,"NULL","track.indexed=1"),
         ListKind::Playlists=>("playlist_entries entry ON entry.playlist_key=parent.value CROSS JOIN tracks track USING(track_key)".into(),CatalogSort::Position,"entry.playlist_entry_key","1"),
     };
     let mut order = vec!["parent.ordinal".into()];

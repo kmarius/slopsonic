@@ -500,13 +500,17 @@ async fn collection_play_retains_full_order_with_bounded_queue_projection() {
                     .unwrap()
             );
         }
+        let read = library::MemberRead {
+            sort: Some(if matches!(collection, library::Collection::Album(_)) {
+                CatalogSort::TrackNumber
+            } else {
+                CatalogSort::Title
+            }),
+            ..library::MemberRead::new(collection)
+        };
         let order = fixture
             .database
-            .selected_track_uris(
-                &library::MemberRead::new(collection.clone()).selection(),
-                None,
-                &cancel,
-            )
+            .selected_track_uris(&read.clone().selection(), None, &cancel)
             .await
             .unwrap();
         assert_eq!(order.len(), total);
@@ -529,7 +533,7 @@ async fn collection_play_retains_full_order_with_bounded_queue_projection() {
         let state = super::support::resolve_queue(
             &fixture.database,
             library::QueueLoad::Tracks(vec![(
-                library::MemberRead::new(collection).selection(),
+                read.selection(),
                 library::QueueProvenance::Context {
                     context_id: "collection".into(),
                     context_title: None,
@@ -779,7 +783,7 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
         .expect("numbered Track order");
     assert_eq!(
         numbered,
-        fixture.track_uris.iter().cloned().rev().collect::<Vec<_>>()
+        [1, 0, 3, 2].map(|index| fixture.track_uris[index].clone())
     );
     let favorites = fixture
         .database

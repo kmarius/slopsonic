@@ -167,7 +167,10 @@ impl MemberRead {
     }
     pub fn effective_sort(&self) -> CatalogSort {
         self.sort.unwrap_or(match self.collection {
-            Collection::Album(_) => CatalogSort::TrackNumber,
+            Collection::Album(_)
+            | Collection::Artist { .. }
+            | Collection::Genre(_)
+            | Collection::Mood(_) => CatalogSort::TrackNumber,
             Collection::Playlist(_) => CatalogSort::Position,
             _ => CatalogSort::Title,
         })

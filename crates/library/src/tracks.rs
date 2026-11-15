@@ -89,7 +89,7 @@ impl CatalogSort {
         let field = match self {
             Self::Position => unreachable!(),
             Self::Title => "sort_text",
-            Self::TrackNumber => "disc_number",
+            Self::TrackNumber => "album_year",
             Self::Artist => "artist_sort",
             Self::AlbumArtist => "album_artist_sort",
             Self::Album => "album_sort",
@@ -117,7 +117,9 @@ impl CatalogSort {
                 ]);
             }
             Self::Album => fields.extend(["album_key", "disc_number", "track_number"]),
-            Self::TrackNumber => fields.push("track_number"),
+            Self::TrackNumber => {
+                fields.extend(["album_sort", "album_key", "disc_number", "track_number"]);
+            }
             _ => {}
         }
         if self != Self::Title {
@@ -128,12 +130,16 @@ impl CatalogSort {
             .into_iter()
             .enumerate()
             .flat_map(|(index, field)| {
-                let direction =
-                    if descending && (index == 0 || (self == Self::TrackNumber && index == 1)) {
-                        "DESC"
-                    } else {
-                        "ASC"
-                    };
+                let reversed = if self == Self::TrackNumber {
+                    matches!(field, "disc_number" | "track_number")
+                } else {
+                    index == 0
+                };
+                let direction = if descending && reversed {
+                    "DESC"
+                } else {
+                    "ASC"
+                };
                 let column = column(field);
                 if matches!(
                     field,
