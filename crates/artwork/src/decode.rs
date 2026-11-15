@@ -157,11 +157,7 @@ pub fn decode_rgba(bytes: &[u8], render_size: u32) -> Result<RgbaImage, ArtworkE
             .with_guessed_format()
             .map_err(decode_error)?,
     )?;
-    rgba_image(scale_to_fit(
-        image,
-        render_size.max(1),
-        FilterType::Lanczos3,
-    )?)
+    rgba_image(scale_to_cover(&image, render_size, FilterType::Lanczos3)?)
 }
 
 pub fn square_thumbnail_png(bytes: &[u8], size: u32) -> Result<Vec<u8>, ArtworkError> {
@@ -220,16 +216,40 @@ fn square_thumbnail(bytes: &[u8], size: u32) -> Result<DynamicImage, ArtworkErro
     Ok(thumbnail)
 }
 
-// Playback tiles fill a square. Size the shorter edge for that tile while
-// keeping the full image available to the playback background.
-fn cover_poster(image: &DynamicImage, size: u32) -> Result<DynamicImage, ArtworkError> {
-    let shortest = image.width().min(image.height()).max(1);
-    let size = size.max(1).min(shortest);
-    let width = ((u64::from(image.width()) * u64::from(size) + u64::from(shortest / 2))
-        / u64::from(shortest)) as u32;
-    let height = ((u64::from(image.height()) * u64::from(size) + u64::from(shortest / 2))
-        / u64::from(shortest)) as u32;
-    resize_exact(image, width, height, FilterType::Lanczos3)
+// Covers fill square frames, so the shortest side reaches the target and the
+// rest is cropped where it is drawn. Smaller images are never upscaled, and the
+// longest side is capped so banner-shaped art stays bounded.
+fn cover_dimensions(width: u32, height: u32, target: u32) -> Option<(u32, u32)> {
+    let target = u64::from(target.max(1));
+    let (shortest, longest) = (u64::from(width.min(height)), u64::from(width.max(height)));
+    let (to, from) = if longest > shortest * COVER_MAX_ASPECT {
+        (target * COVER_MAX_ASPECT, longest)
+    } else {
+        (target, shortest)
+    };
+    if shortest == 0 || from <= to {
+        return None;
+    }
+    let scale = |side: u32| ((u64::from(side) * to + from / 2) / from).max(1) as u32;
+    Some((scale(width), scale(height)))
+}
+
+const COVER_MAX_ASPECT: u64 = 4;
+
+pub(crate) fn scale_to_cover(
+    image: &DynamicImage,
+    target: u32,
+    filter: FilterType,
+) -> Result<DynamicImage, ArtworkError> {
+    if image.width().min(image.height()) == 0 {
+        return Err(ArtworkError::Decode(
+            "artwork dimensions were empty".to_string(),
+        ));
+    }
+    match cover_dimensions(image.width(), image.height(), target) {
+        Some((width, height)) => resize_exact(image, width, height, filter),
+        None => Ok(image.clone()),
+    }
 }
 
 fn decode_reader<R>(reader: ImageReader<R>) -> Result<DynamicImage, ArtworkError>
@@ -248,31 +268,6 @@ fn decode_image(mut decoder: impl ImageDecoder) -> Result<DynamicImage, ArtworkE
     } else {
         Ok(DynamicImage::ImageRgb8(image.into_rgb8()))
     }
-}
-
-pub(crate) fn scale_to_fit(
-    image: DynamicImage,
-    target: u32,
-    filter: FilterType,
-) -> Result<DynamicImage, ArtworkError> {
-    let width = image.width();
-    let height = image.height();
-    if width == 0 || height == 0 {
-        return Err(ArtworkError::Decode(
-            "artwork dimensions were empty".to_string(),
-        ));
-    }
-    let longest = width.max(height);
-    if longest <= target {
-        return Ok(image);
-    }
-    let scaled_width = (u64::from(width) * u64::from(target) / u64::from(longest)).max(1);
-    let scaled_height = (u64::from(height) * u64::from(target) / u64::from(longest)).max(1);
-    let scaled_width = u32::try_from(scaled_width)
-        .map_err(|_| ArtworkError::Decode("scaled artwork width was invalid".to_string()))?;
-    let scaled_height = u32::try_from(scaled_height)
-        .map_err(|_| ArtworkError::Decode("scaled artwork height was invalid".to_string()))?;
-    resize_exact(&image, scaled_width, scaled_height, filter)
 }
 
 fn resize_exact(
@@ -347,8 +342,8 @@ mod tests {
     #[test]
     fn decoding_preserves_aspect_ratio_and_preview_colors() {
         let decoded = decode_rgba(&wide_png(), 100).expect("decode image");
-        assert_eq!((decoded.width(), decoded.height()), (100, 50));
-        assert_eq!(decoded.row_stride(), 400);
+        assert_eq!((decoded.width(), decoded.height()), (200, 100));
+        assert_eq!(decoded.row_stride(), 800);
         let preview = RgbaImage::from_blur_hash(&decoded.blur_hash().unwrap()).unwrap();
         assert_eq!(
             (preview.width(), preview.height(), preview.row_stride()),
@@ -357,6 +352,15 @@ mod tests {
         let encoded = preview.encode_png().unwrap();
         assert_eq!(decode_rgba(&encoded, 32).unwrap().rgba(), preview.rgba());
         assert!(RgbaImage::from_blur_hash("invalid").is_err());
+    }
+
+    #[test]
+    fn cover_scaling_fills_the_short_side_and_caps_banners() {
+        assert_eq!(cover_dimensions(400, 200, 100), Some((200, 100)));
+        assert_eq!(cover_dimensions(200, 100, 100), None);
+        assert_eq!(cover_dimensions(6000, 200, 256), Some((1024, 34)));
+        assert_eq!(cover_dimensions(800, 200, 256), None);
+        assert_eq!(cover_dimensions(0, 200, 256), None);
     }
 
     #[test]
@@ -392,13 +396,13 @@ pub(crate) fn decode_display<R: BufRead + Seek>(
         .into_decoder()
         .map_err(decode_error)?;
     let (width, height) = decoder.dimensions();
-    let normalize = cache_size.filter(|size| width.max(height) > *size);
+    let normalize = cache_size.filter(|size| cover_dimensions(width, height, *size).is_some());
     if !decode && normalize.is_none() {
         return Ok((None, None));
     }
     let source = decode_image(decoder)?;
     let source = if let Some(size) = normalize {
-        scale_to_fit(source, size, FilterType::Bilinear)?
+        scale_to_cover(&source, size, FilterType::Bilinear)?
     } else {
         source
     };
@@ -406,7 +410,7 @@ pub(crate) fn decode_display<R: BufRead + Seek>(
     let image = if decode {
         Some(DecodedImage {
             key,
-            pixels: rgba_image(scale_to_fit(source, render_size, FilterType::Lanczos3)?)?,
+            pixels: rgba_image(scale_to_cover(&source, render_size, FilterType::Lanczos3)?)?,
             animation_bytes: None,
         })
     } else {
@@ -430,7 +434,12 @@ pub(crate) fn cached_poster(
     if width.min(height) < render_size {
         return Ok(None);
     }
-    rgba_image(cover_poster(&decode_image(decoder)?, render_size)?).map(Some)
+    rgba_image(scale_to_cover(
+        &decode_image(decoder)?,
+        render_size,
+        FilterType::Lanczos3,
+    )?)
+    .map(Some)
 }
 
 pub(crate) fn decode_original(
@@ -449,10 +458,10 @@ pub(crate) fn decode_original(
                 .with_guessed_format()
                 .map_err(decode_error)?,
         )?;
-        let pixels = rgba_image(cover_poster(&source, render_size)?)?;
+        let pixels = rgba_image(scale_to_cover(&source, render_size, FilterType::Lanczos3)?)?;
         let display = display_size
-            .filter(|size| source.width().max(source.height()) > *size)
-            .map(|size| encode_png(&scale_to_fit(source, size, FilterType::Bilinear)?))
+            .filter(|size| cover_dimensions(source.width(), source.height(), *size).is_some())
+            .map(|size| encode_png(&scale_to_cover(&source, size, FilterType::Bilinear)?))
             .transpose()?;
         (pixels, display)
     };
