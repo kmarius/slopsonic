@@ -1,4 +1,4 @@
-use crate::{AccentPreference, Preferences, ThemePreference};
+use crate::{AccentPreference, ThemePreference, preferences::Preferences};
 use adw::prelude::*;
 use std::rc::Rc;
 

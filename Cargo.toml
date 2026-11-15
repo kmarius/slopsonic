@@ -20,11 +20,9 @@ artwork = { path = "crates/artwork" }
 audio-processing = { path = "crates/audio-processing" }
 desktop-integration = { path = "crates/desktop-integration" }
 downloads = { path = "crates/downloads" }
-gtk-editors = { path = "crates/gtk-editors" }
 gtk-library = { path = "crates/gtk-library" }
 gtk-media-menus = { path = "crates/gtk-media-menus" }
 gtk-player = { path = "crates/gtk-player" }
-gtk-preferences = { path = "crates/gtk-preferences" }
 gtk-shell = { path = "crates/gtk-shell" }
 gtk-widgets = { path = "crates/gtk-widgets" }
 library = { path = "crates/library" }

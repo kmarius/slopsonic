@@ -49,7 +49,6 @@ pub fn route_current_track(player: Option<&playback::PlaybackView>) -> Option<Ro
     })
 }
 pub type RouteCurrentTrackSelection = Rc<dyn Fn(Option<&RouteCurrentTrack>) -> bool>;
-pub type MountedRouteResume = Rc<dyn Fn()>;
 pub type MountedDownloadChange = Rc<dyn Fn(&downloads::DownloadEvent)>;
 pub type MountedRouteCommand = Rc<dyn Fn()>;
 pub type MountedRouteSearchProvider = Rc<dyn Fn() -> Option<MountedRouteSearchTarget>>;
@@ -403,14 +402,14 @@ impl NativeListScroll {
 #[derive(Clone)]
 pub struct MountedRoute {
     pub widget: gtk::Widget,
-    pub resume: MountedRouteResume,
-    pub catalog_refresh: MountedRouteResume,
+    pub resume: MountedRouteCommand,
+    pub catalog_refresh: MountedRouteCommand,
     pub item_navigation: Option<MountedRouteItemNavigation>,
     pub item_scroll: Option<Rc<dyn Fn() -> Option<NativeListScroll>>>,
     pub search: Option<MountedRouteSearchProvider>,
     pub layout_cycle: Option<MountedRouteCommand>,
     pub tab_cycle: Option<MountedRouteCommand>,
-    pub initial_demand: MountedRouteResume,
+    pub initial_demand: MountedRouteCommand,
     pub favorite_settlement: Option<MountedFavoriteSettlement>,
     pub download_change: Option<MountedDownloadChange>,
     pub home_page_apply: Option<MountedHomePageApply>,
@@ -419,7 +418,7 @@ pub struct MountedRoute {
 }
 
 impl MountedRoute {
-    pub fn new(widget: gtk::Widget, resume: MountedRouteResume) -> Self {
+    pub fn new(widget: gtk::Widget, resume: MountedRouteCommand) -> Self {
         Self {
             widget,
             catalog_refresh: Rc::clone(&resume),
@@ -441,7 +440,7 @@ impl MountedRoute {
         Self::new(widget, Rc::new(|| {})).with_catalog_refresh(Rc::new(|| {}))
     }
 
-    pub fn with_catalog_refresh(mut self, refresh: MountedRouteResume) -> Self {
+    pub fn with_catalog_refresh(mut self, refresh: MountedRouteCommand) -> Self {
         self.catalog_refresh = refresh;
         self
     }
@@ -485,7 +484,7 @@ impl MountedRoute {
         self
     }
 
-    pub fn with_initial_demand(mut self, resume: MountedRouteResume) -> Self {
+    pub fn with_initial_demand(mut self, resume: MountedRouteCommand) -> Self {
         self.initial_demand = resume;
         self
     }

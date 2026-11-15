@@ -4,7 +4,7 @@ use adw::prelude::*;
 use slopsonic_core::runtime::source::{ServerOperation, ServerProgressStage, source_download_text};
 use slopsonic_core::runtime::{CacheKind, CacheUsage, ProductHandles, StorageSummary};
 
-use crate::Preferences;
+use crate::preferences::Preferences;
 
 struct CacheRow {
     kind: CacheKind,

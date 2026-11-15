@@ -22,8 +22,6 @@ use item::*;
 
 use crate::NativeImageRef as ImageRef;
 
-type PlaylistId = String;
-
 #[derive(Clone, Debug, PartialEq)]
 struct Playlist {
     header: library::PlaylistObservation,

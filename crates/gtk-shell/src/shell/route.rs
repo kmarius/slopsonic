@@ -25,8 +25,6 @@ use gtk_widgets::selection::{PlaylistEntrySelectionSnapshot, TrackSelectionSnaps
 
 const SLOW_ROUTE_LOAD_MS: u64 = 250;
 
-type RouteTiming = Option<Instant>;
-
 #[cfg(test)]
 mod route_stack_tests {
     use super::*;
@@ -165,10 +163,6 @@ impl RouteStack {
 }
 
 impl Shell {
-    pub(super) fn route_uses_selected_source(&self, route: &Route) -> bool {
-        route.uses_selected_source()
-    }
-
     fn route_seed_window(&self, route: &Route) -> library::RouteSeedWindow {
         let mounted = self.route_viewport.mounted_route.borrow();
         let current = mounted
@@ -195,10 +189,10 @@ impl Shell {
         selected: Option<slopsonic_core::runtime::SelectedLibrary>,
         options: OpenOptions,
         refresh_home: bool,
-        render_started: RouteTiming,
+        render_started: Option<Instant>,
     ) {
         let source = self.products.source.clone();
-        let source_scoped = self.route_uses_selected_source(&route);
+        let source_scoped = route.uses_selected_source();
         let window = if refresh_home {
             library::RouteSeedWindow::top()
         } else {
@@ -439,7 +433,7 @@ impl Shell {
         self.cancel_route_loading();
         self.show_route_loading();
         let render_started = tracing::enabled!(tracing::Level::WARN).then(Instant::now);
-        let source_scoped = self.route_uses_selected_source(&route);
+        let source_scoped = route.uses_selected_source();
         let selected = self.selected_library().as_deref().cloned();
         if source_scoped && route.requires_selected_source() && selected.is_none() {
             self.cancel_root_order_read();
@@ -503,7 +497,7 @@ impl Shell {
         route: Route,
         opened: Option<OpenedCollection>,
         selected: Option<slopsonic_core::runtime::SelectedLibrary>,
-        render_started: RouteTiming,
+        render_started: Option<Instant>,
     ) {
         let render_route = route.clone();
         self.replace_mounted_route(
@@ -621,7 +615,7 @@ impl Shell {
         self: &Rc<Self>,
         route: Route,
         scoped: bool,
-        render_started: RouteTiming,
+        render_started: Option<Instant>,
         build: impl FnOnce(Rc<gtk_library::CatalogUi>) -> MountedRoute,
     ) {
         let teardown_started = render_started.as_ref().map(|_| Instant::now());
@@ -708,7 +702,7 @@ impl Shell {
         self: &Rc<Self>,
         route: Route,
         scoped: bool,
-        render_started: RouteTiming,
+        render_started: Option<Instant>,
     ) {
         let resource = crate::ui_resource::ROUTE_ERROR_RESOURCE;
         let builder = gtk_widgets::ui_resource::builder(resource);
@@ -731,7 +725,7 @@ impl Shell {
             return;
         }
         let shell = Rc::downgrade(self);
-        let reload: MountedRouteResume = Rc::new(move || {
+        let reload: MountedRouteCommand = Rc::new(move || {
             if let Some(shell) = shell.upgrade() {
                 shell.replace_current_route_when_ready();
             }
@@ -799,8 +793,12 @@ impl Shell {
 
     fn mounted_catalog_is_current(&self) -> bool {
         let scope = |selected: &slopsonic_core::runtime::SelectedLibrary| selected.music_folder_key;
-        let source_scoped =
-            self.route_uses_selected_source(self.navigation.routes.borrow().current());
+        let source_scoped = self
+            .navigation
+            .routes
+            .borrow()
+            .current()
+            .uses_selected_source();
         let selected_scope = self.selected_library().as_deref().map(scope);
         self.route_viewport
             .catalog

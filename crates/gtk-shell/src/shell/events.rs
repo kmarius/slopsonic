@@ -87,7 +87,7 @@ fn release_selected_source(shell: &Rc<Shell>) {
     let released = shell.selected_ui.take();
     drop(released);
     let route = shell.navigation.routes.borrow().current().clone();
-    if shell.route_uses_selected_source(&route) {
+    if route.uses_selected_source() {
         shell.replace_current_route_when_ready();
     }
     shell.player_ui.update_bottom_player();
@@ -118,7 +118,7 @@ fn apply_selected_source(
     shell.search_session.set_selected(Some(selected));
     refresh_context_playlist_picker(shell);
     let route = shell.navigation.routes.borrow().current().clone();
-    if changed && shell.route_uses_selected_source(&route) {
+    if changed && route.uses_selected_source() {
         shell.replace_current_route_when_ready();
     }
     if !shell.startup.route_revealed.get() && !shell.source.operation.borrow().blocks_library() {
@@ -166,8 +166,7 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
     }
     let current = shell.navigation.routes.borrow().current().clone();
     let affects_current = shell.selected_library().is_some();
-    let source_scoped =
-        current.requires_selected_source() && shell.route_uses_selected_source(&current);
+    let source_scoped = current.requires_selected_source() && current.uses_selected_source();
     match publication.change {
         CatalogChange::Broad => {
             refresh_context_playlist_picker(shell);
@@ -175,7 +174,7 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
             if !affects_current && source_scoped {
                 return;
             }
-            if scope_changed && shell.route_uses_selected_source(&current) {
+            if scope_changed && current.uses_selected_source() {
                 shell.replace_current_route_when_ready();
             } else if current == Route::Home {
                 shell.refresh_mounted_home();
@@ -233,7 +232,7 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
         CatalogChange::Scope => {
             if affects_current {
                 refresh_context_playlist_picker(shell);
-                if shell.route_uses_selected_source(&current) {
+                if current.uses_selected_source() {
                     shell.replace_current_route_when_ready();
                 }
             }

@@ -1,5 +1,5 @@
 use super::{PreferencesPageKind as Page, PreferencesSearchItem};
-use crate::{Preferences, ui_resource::*};
+use crate::{preferences::Preferences, ui_resource::*};
 
 fn property(node: roxmltree::Node<'_, '_>, name: &str) -> String {
     node.children()

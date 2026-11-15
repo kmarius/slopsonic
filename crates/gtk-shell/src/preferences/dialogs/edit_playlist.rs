@@ -49,7 +49,7 @@ impl Shell {
                 editor_content: gtk::Box, editor_layout: adw::WrapBox,
                 playlist_options: gtk::Box,
             });
-            let artwork = gtk_editors::playlist_artwork::ArtworkEditor::new(
+            let artwork = super::playlist_artwork::ArtworkEditor::new(
                 &shell.products.source,
                 &shell.artwork,
                 editing,

@@ -1446,19 +1446,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gtk-editors"
-version = "0.0.1"
-dependencies = [
- "artwork",
- "async-channel",
- "glib-build-tools",
- "gtk-widgets",
- "gtk4",
- "slopsonic-core",
- "sources",
-]
-
-[[package]]
 name = "gtk-library"
 version = "0.0.1"
 dependencies = [
@@ -1509,11 +1496,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "gtk-preferences"
+name = "gtk-shell"
 version = "0.0.1"
 dependencies = [
+ "app-identity",
+ "artwork",
+ "async-channel",
+ "desktop-integration",
  "downloads",
  "glib-build-tools",
+ "gtk-library",
+ "gtk-media-menus",
  "gtk-player",
  "gtk-widgets",
  "gtk4",
@@ -1521,32 +1514,9 @@ dependencies = [
  "library",
  "playback",
  "roxmltree",
- "slopsonic-core",
- "sources",
- "tracing",
-]
-
-[[package]]
-name = "gtk-shell"
-version = "0.0.1"
-dependencies = [
- "app-identity",
- "artwork",
- "desktop-integration",
- "downloads",
- "glib-build-tools",
- "gtk-editors",
- "gtk-library",
- "gtk-media-menus",
- "gtk-player",
- "gtk-preferences",
- "gtk-widgets",
- "gtk4",
- "libadwaita",
- "library",
- "playback",
  "serde_json",
  "slopsonic-core",
+ "sources",
  "tokio",
  "tracing",
 ]

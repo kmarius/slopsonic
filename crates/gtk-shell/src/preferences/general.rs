@@ -12,7 +12,7 @@ use super::{
     context_menu::configure_context_menus, layout::populate_home_block_rows, populate_layout_group,
 };
 
-use crate::Preferences;
+use crate::preferences::Preferences;
 use adw::prelude::*;
 use playback::StreamQuality;
 use playback::{
@@ -108,7 +108,7 @@ pub fn scrobbling_page(
                 })
                 .is_some()
             {
-                (external_links_shell.effects)(crate::Effect::CatalogChanged);
+                external_links_shell.with_shell(|shell| shell.reconcile_mounted_route());
             }
         });
         let lastfm_links_shell = Rc::clone(shell);
@@ -120,7 +120,7 @@ pub fn scrobbling_page(
                 })
                 .is_some()
             {
-                (lastfm_links_shell.effects)(crate::Effect::CatalogChanged);
+                lastfm_links_shell.with_shell(|shell| shell.reconcile_mounted_route());
             }
         });
         let musicbrainz_links_shell = Rc::clone(shell);
@@ -134,7 +134,7 @@ pub fn scrobbling_page(
                 )
                 .is_some()
             {
-                (musicbrainz_links_shell.effects)(crate::Effect::CatalogChanged);
+                musicbrainz_links_shell.with_shell(|shell| shell.reconcile_mounted_route());
             }
         });
         let server_links_shell = Rc::clone(shell);
@@ -146,7 +146,7 @@ pub fn scrobbling_page(
                 })
                 .is_some()
             {
-                (server_links_shell.effects)(crate::Effect::CatalogChanged);
+                server_links_shell.with_shell(|shell| shell.reconcile_mounted_route());
             }
         });
     }

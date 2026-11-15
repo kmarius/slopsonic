@@ -7,7 +7,7 @@ use downloads::{DownloadQueueState, DownloadRule};
 use gtk::gio;
 
 use super::PreferencesNavigationControls;
-use crate::Preferences;
+use crate::preferences::Preferences;
 use gtk_widgets::source_labels::configured_source_display_name;
 use slopsonic_core::runtime::source::{ServerCacheSummary, ServerSummary};
 use slopsonic_core::text::{album_count_text, track_count_text};
@@ -246,7 +246,7 @@ fn source_downloads_group(shell: &Rc<Preferences>, dialog: &adw::Dialog) -> adw:
     downloads_group.add(&download_folder_row);
 
     let quality_shell = Rc::clone(shell);
-    for row in crate::download_quality::rows(download_settings.quality, move |quality, _| {
+    for row in super::download_quality::rows(download_settings.quality, move |quality, _| {
         quality_shell
             .settings
             .update_app_settings("download quality", |settings| {
@@ -752,7 +752,7 @@ fn download_queue_item_subtitle(job: &downloads::DownloadQueueItem) -> String {
         DownloadQueueState::WaitingForConnection => "Waiting for connection".to_string(),
         DownloadQueueState::NeedsAttention => "Needs attention".to_string(),
     };
-    let quality = crate::download_quality::label(job.quality);
+    let quality = super::download_quality::label(job.quality);
     format!("{state} · {progress} · {quality}")
 }
 

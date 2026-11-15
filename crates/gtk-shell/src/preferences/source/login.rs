@@ -6,7 +6,7 @@ use slopsonic_core::runtime::source::{EditableServer, ServerHandle, ServerOperat
 
 use sources::{CredentialInput, CredentialPreset, SubsonicAuthentication, SubsonicFlavor};
 
-use crate::Preferences;
+use crate::preferences::Preferences;
 use gtk_widgets::controls::text_button;
 use gtk_widgets::layout::large_popup_content_width;
 use gtk_widgets::popup::present_light_dismiss_dialog;

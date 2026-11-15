@@ -8,7 +8,7 @@ use gtk::prelude::*;
 use slopsonic_core::source::ServerOwner;
 use sources::{ArtworkChange, ImageBytes};
 
-pub struct ArtworkEditor {
+pub(crate) struct ArtworkEditor {
     pub frame: gtk::AspectFrame,
     pub status: gtk::Label,
     preview: gtk::Picture,
@@ -39,7 +39,7 @@ impl ArtworkEditor {
         + 'static,
     ) -> Rc<Self> {
         let resource = crate::ui_resource::PLAYLIST_ARTWORK_RESOURCE;
-        let builder = crate::ui_resource::builder(resource);
+        let builder = gtk_widgets::ui_resource::builder(resource);
         gtk_widgets::objects!(builder, resource, {
             artwork_preview: gtk::Picture, artwork_status: gtk::Label,
             artwork_display: gtk::Stack, artwork_current: gtk::Box,

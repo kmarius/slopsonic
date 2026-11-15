@@ -43,7 +43,7 @@ pub(crate) struct Shell {
     startup: StartupState,
     pub(crate) media_menus: Rc<gtk_media_menus::media_menus::MediaMenus>,
     pub(crate) player_ui: Rc<gtk_player::PlayerUi>,
-    pub(crate) preferences: Rc<gtk_preferences::Preferences>,
+    pub(crate) preferences: Rc<crate::preferences::Preferences>,
     pub(crate) downloads: Rc<DownloadsState>,
     pub(crate) download_feedback: crate::downloads::DownloadFeedbackState,
     pub(crate) control_feedback: Rc<ControlFeedbackState>,

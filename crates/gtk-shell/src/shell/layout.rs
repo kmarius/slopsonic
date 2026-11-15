@@ -20,7 +20,6 @@ pub(super) const MIN_APP_WINDOW_HEIGHT: i32 = 400;
 
 const LEFT_SIDEBAR_COLLAPSE_DETENT: i32 = crate::MIN_LEFT_SIDEBAR_WIDTH - 40;
 const LEFT_SIDEBAR_EXPAND_DETENT: i32 = crate::MIN_LEFT_SIDEBAR_WIDTH;
-type ShellAllocationCallback = Rc<dyn Fn(i32, i32)>;
 
 mod shell_allocation_owner_imp {
     use std::{cell::RefCell, rc::Rc};
@@ -114,7 +113,7 @@ impl ShellAllocationOwner {
 
         self.imp()
             .before_allocate
-            .replace(Some(Rc::new(before_allocate) as ShellAllocationCallback));
+            .replace(Some(Rc::new(before_allocate) as Rc<_>));
     }
 
     fn set_after_allocate(&self, after_allocate: impl Fn(i32, i32) + 'static) {
@@ -122,7 +121,7 @@ impl ShellAllocationOwner {
 
         self.imp()
             .after_allocate
-            .replace(Some(Rc::new(after_allocate) as ShellAllocationCallback));
+            .replace(Some(Rc::new(after_allocate) as Rc<_>));
     }
 }
 

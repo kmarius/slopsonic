@@ -1,4 +1,4 @@
-use crate::Preferences;
+use crate::preferences::Preferences;
 use slopsonic_core::runtime::ScrobblingPreferences;
 use slopsonic_core::settings::HomeBlockKind;
 use std::rc::Rc;
@@ -50,9 +50,9 @@ impl Preferences {
         {
             return;
         }
-        (self.effects)(crate::Effect::CatalogChanged);
+        self.with_shell(|shell| shell.reconcile_mounted_route());
         if added {
-            (self.effects)(crate::Effect::RefreshHome);
+            self.with_shell(|shell| shell.refresh_mounted_home());
         }
     }
 }

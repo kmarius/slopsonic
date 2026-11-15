@@ -20,7 +20,7 @@ use gtk_widgets::layout::{
     configure_fill_width_clip, large_popup_content_height, large_popup_content_width,
     width_allocation_owner,
 };
-use gtk_widgets::mounted_route::{MountedRoute, MountedRouteCommand, MountedRouteResume};
+use gtk_widgets::mounted_route::{MountedRoute, MountedRouteCommand};
 use gtk_widgets::popup::present_light_dismiss_dialog;
 
 use gtk_widgets::library_fields::{
@@ -94,7 +94,7 @@ impl LibraryPageShell {
         self.widget.imp().category_host.append(widget);
         self.widget.imp().category_host.set_visible(true);
     }
-    pub fn mounted_route(&self, resume: MountedRouteResume) -> MountedRoute {
+    pub fn mounted_route(&self, resume: MountedRouteCommand) -> MountedRoute {
         let route = MountedRoute::new(self.widget(), resume)
             .with_search(self.search.clone())
             .with_layout_cycle(self.toolbar.layout_cycle());

@@ -19,9 +19,9 @@ use crate::player::desktop::DesktopState;
 use crate::player::desktop::lifecycle::install_application_quit;
 use crate::player::install_desktop_lifecycle;
 use crate::player::right_panel::RightPanelWidgets;
+use crate::preferences::PreferencesState;
 use crate::preferences::source::SourceState;
 use gtk_player::state::PlaybackState;
-use gtk_preferences::preferences::PreferencesState;
 use gtk_widgets::settings::SettingsState;
 use slopsonic_core::runtime::RuntimeInputs;
 
@@ -51,7 +51,7 @@ pub async fn build(
     bootstrap: impl std::future::Future<Output = Result<RuntimeInputs, String>>,
     quitting: Rc<Cell<bool>>,
 ) -> Result<(), String> {
-    let appearance = Rc::new(gtk_preferences::appearance::ApplicationAppearance::install());
+    let appearance = Rc::new(crate::preferences::appearance::ApplicationAppearance::install());
 
     appearance.apply(&settings);
     let (window_width, window_height) =
@@ -374,7 +374,7 @@ pub async fn build(
             },
             &chrome.app_content_stack,
         ));
-        let preferences = Rc::new(gtk_preferences::Preferences {
+        let preferences = Rc::new(crate::preferences::Preferences {
             state: preferences,
             settings: Rc::clone(&settings_state),
             source: Rc::clone(&source),
@@ -385,14 +385,7 @@ pub async fn build(
             appearance: Rc::clone(&appearance),
             control_feedback: Rc::clone(&control_feedback),
             window: chrome.window.clone(),
-            effects: {
-                let weak = weak.clone();
-                Box::new(move |effect| {
-                    if let Some(shell) = weak.upgrade() {
-                        shell.apply_preferences_effect(effect);
-                    }
-                })
-            },
+            shell: weak.clone(),
         });
 
         Shell {

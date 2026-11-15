@@ -2,15 +2,12 @@ use crate::{Settings, ThemePreference};
 
 pub struct ApplicationAppearance {
     override_provider: gtk::CssProvider,
-    pub system_style: adw::StyleManager,
 }
 
 impl ApplicationAppearance {
     pub fn install() -> Self {
         let appearance = Self {
             override_provider: gtk::CssProvider::new(),
-            // A manager without a display observes the OS without forcing its scheme on the app.
-            system_style: gtk::glib::Object::new(),
         };
         let override_provider = &appearance.override_provider;
         let Some(display) = gtk::gdk::Display::default() else {

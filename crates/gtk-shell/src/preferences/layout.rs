@@ -258,7 +258,7 @@ pub fn right_sidebar_mode_from_index(index: u32) -> RightSidebarMode {
 }
 use std::rc::Rc;
 
-use crate::Preferences;
+use crate::preferences::Preferences;
 use crate::{LeftSidebarMode, RightSidebarMode};
 use adw::prelude::*;
 use adw::subclass::prelude::*;

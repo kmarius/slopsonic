@@ -8,12 +8,10 @@ use slopsonic_core::playback::QueuePlacement;
 use crate::{CatalogUi, LibraryField, LibraryListKey};
 use gtk_widgets::interactions::install_context_menu_openers;
 use gtk_widgets::mounted_route::{LatestMountedRouteRead, MountedRoute};
-use slopsonic_core::browse::OpenedCollection;
+use slopsonic_core::browse::{FolderEntry, OpenedCollection};
 
 use gtk_widgets::route::{FolderPathItem, Route};
 use gtk_widgets::sparse_model::{SparseSource, connect_sparse_bind};
-
-type FolderLink = slopsonic_core::browse::FolderEntry;
 
 type FolderResume = Rc<dyn Fn()>;
 
@@ -169,7 +167,7 @@ fn folder_parts(
     reason = "folder table rows are supplied through the bounded sparse-model window"
 )]
 enum FolderTableRow {
-    Folder(FolderLink),
+    Folder(FolderEntry),
     Track(library::TrackView),
 }
 
@@ -206,7 +204,9 @@ fn folder_page(
     let folder_source = source.clone();
     let folder_query = Rc::clone(&applied_query);
     let folder_load = Rc::new(
-        move |_: Vec<FolderLink>, range: std::ops::Range<usize>, cancellation: ReadCancellation| {
+        move |_: Vec<FolderEntry>,
+              range: std::ops::Range<usize>,
+              cancellation: ReadCancellation| {
             let database = Arc::clone(&database);
             let source = folder_source.clone();
             let query = folder_query.borrow().clone();
@@ -495,7 +495,7 @@ fn folder_page(
 fn folder_table(
     shell: &Rc<CatalogUi>,
     rows: gtk::FlattenListModel,
-    folders: Rc<gtk_widgets::sparse_model::SparseRouteModel<FolderLink, FolderTableRow>>,
+    folders: Rc<gtk_widgets::sparse_model::SparseRouteModel<FolderEntry, FolderTableRow>>,
     tracks: Rc<gtk_widgets::sparse_model::SparseRouteModel<library::TrackKey, FolderTableRow>>,
     path: Vec<FolderPathItem>,
     initial_width: i32,
@@ -585,7 +585,7 @@ fn folder_table(
 }
 
 fn folder_index_column(
-    folders: Rc<gtk_widgets::sparse_model::SparseRouteModel<FolderLink, FolderTableRow>>,
+    folders: Rc<gtk_widgets::sparse_model::SparseRouteModel<FolderEntry, FolderTableRow>>,
     playing: super::columns::TrackRowPlayingIndicator,
 ) -> gtk::ColumnViewColumn {
     let factory = gtk::SignalListItemFactory::new();
@@ -764,7 +764,7 @@ fn folder_merged_column(shell: &Rc<CatalogUi>, path: Vec<FolderPathItem>) -> gtk
 fn folder_column(
     shell: &Rc<CatalogUi>,
     path: Vec<FolderPathItem>,
-    folders: Rc<gtk_widgets::sparse_model::SparseRouteModel<FolderLink, FolderTableRow>>,
+    folders: Rc<gtk_widgets::sparse_model::SparseRouteModel<FolderEntry, FolderTableRow>>,
     playing: &super::columns::TrackRowPlayingIndicator,
     field: LibraryField,
 ) -> gtk::ColumnViewColumn {
@@ -1076,8 +1076,8 @@ mod tests {
     fn folder_keys_use_shared_ready_row_extraction() {
         use gtk::prelude::*;
         use gtk_widgets::sparse_model::{SparseObjectModel, item_at};
-        let model = SparseObjectModel::new::<super::FolderLink, String>(
-            vec![super::FolderLink {
+        let model = SparseObjectModel::new::<FolderEntry, String>(
+            vec![FolderEntry {
                 object_id: "folder:music".into(),
                 name: "Music".into(),
                 artwork_binding: None,
@@ -1086,9 +1086,9 @@ mod tests {
         );
         let placeholder = model.item(0).expect("folder placeholder");
         let page = model
-            .hydrate::<super::FolderLink, String>(0..1)
+            .hydrate::<FolderEntry, String>(0..1)
             .expect("folder hydration");
-        assert!(model.accept::<super::FolderLink, String>(&page, vec!["Music".into()]));
+        assert!(model.accept::<FolderEntry, String>(&page, vec!["Music".into()]));
         assert_eq!(model.item(0).as_ref(), Some(&placeholder));
         assert_eq!(item_at::<String>(&model, 0).as_deref(), Some("Music"));
     }

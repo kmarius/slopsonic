@@ -6,7 +6,7 @@ use gtk::{gio, glib};
 use slopsonic_core::runtime::source::ServerSummary;
 
 use super::login::source_settings_group;
-use crate::Preferences;
+use crate::preferences::Preferences;
 use gtk_widgets::layout::large_popup_content_width;
 
 const MANAGE_SERVER_CLAMP_WIDTH: i32 = 560;

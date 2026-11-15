@@ -67,12 +67,10 @@ Do not implement or expand. If you find leftover code for a non-feature, remove 
   - `app-identity` — app id and display name, release vs. devel
   - `process-memory` — glibc allocator tuning and memory reclaim
   - `desktop-integration` — MPRIS media controls
-  - `gtk-shell` — window, navigation and native actions; composes the other `gtk-*` crates
+  - `gtk-shell` — window, navigation, native actions, preferences and server setup; composes the other `gtk-*` crates
   - `gtk-library` — catalog pages: albums, artists, playlists, search, home
   - `gtk-player` — bottom bar, queue, fullscreen player, equalizer UI
-  - `gtk-preferences` — preferences, server setup, appearance
   - `gtk-media-menus` — context menus, playlist picker, media details
-  - `gtk-editors` — playlist artwork editing
   - `gtk-widgets` — shared GTK primitives
 - Single server: the app talks to exactly one Navidrome or OpenSubsonic server. Both share the one Subsonic client in `crates/sources/src/subsonic/`; Navidrome-only features are gated on the flavor. Do not add provider abstractions, multi-server selection or per-source UI
 - Settings store the single configured server

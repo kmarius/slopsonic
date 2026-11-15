@@ -180,9 +180,7 @@ fn configure_app_icon() {
 
 fn register_resources() -> Result<(), String> {
     gtk_widgets::register_resources()?;
-    gtk_editors::register_resources()?;
     gtk_media_menus::register_resources()?;
-    gtk_preferences::register_resources()?;
     gtk_player::register_resources()?;
     gtk_library::register_resources()?;
     static REGISTERED: OnceLock<Result<(), String>> = OnceLock::new();
@@ -201,9 +199,7 @@ fn verify_interface_resources() -> Result<(), String> {
     for path in crate::ui_resource::INTERFACE_RESOURCE_PATHS
         .iter()
         .chain(gtk_widgets::ui_resource::INTERFACE_RESOURCE_PATHS)
-        .chain(gtk_editors::ui_resource::INTERFACE_RESOURCE_PATHS)
         .chain(gtk_media_menus::ui_resource::INTERFACE_RESOURCE_PATHS)
-        .chain(gtk_preferences::ui_resource::INTERFACE_RESOURCE_PATHS)
         .chain(gtk_player::ui_resource::INTERFACE_RESOURCE_PATHS)
         .chain(gtk_library::ui_resource::INTERFACE_RESOURCE_PATHS)
     {

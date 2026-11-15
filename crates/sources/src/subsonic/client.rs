@@ -526,7 +526,7 @@ impl SubsonicSource {
         name: &str,
         track_ids: &[String],
         public: Option<bool>,
-    ) -> SourceResult<PlaylistId> {
+    ) -> SourceResult<String> {
         let mut extra = vec![("name", name.trim().to_string())];
         extra.extend(
             track_ids

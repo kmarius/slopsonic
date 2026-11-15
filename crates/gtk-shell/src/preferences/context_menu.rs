@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::Preferences;
+use crate::preferences::Preferences;
 use slopsonic_core::settings::ContextMenuItem;
 
 pub fn configure_context_menus(shell: &Rc<Preferences>, builder: &gtk::Builder) {
