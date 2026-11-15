@@ -13,55 +13,88 @@ use slopsonic_core::settings::layout::{
 use slopsonic_core::text::{album_count_text, track_count_text};
 
 pub trait TrackPresentation: Clone + PartialEq + Send + Sync + 'static {
-    fn track_key(&self) -> Option<library::TrackKey>;
-    fn media_uri(&self) -> &str;
-    fn title(&self) -> &str;
-    fn artist(&self) -> &str;
-    fn artwork(&self) -> Option<&[u8]>;
-    fn favorite(&self) -> bool;
-    fn rating(&self) -> Option<u8>;
-    fn set_favorite(&mut self, value: bool);
-    fn downloaded(&self) -> bool;
+    fn track(&self) -> &TrackView;
+    fn track_mut(&mut self) -> &mut TrackView;
+    fn track_key(&self) -> Option<library::TrackKey> {
+        Some(self.track().track_key)
+    }
+    fn media_uri(&self) -> &str {
+        &self.track().media_uri
+    }
+    fn title(&self) -> &str {
+        &self.track().metadata.title
+    }
+    fn artist(&self) -> &str {
+        &self.track().metadata.artist
+    }
+    fn artwork(&self) -> Option<&[u8]> {
+        self.track().artwork_binding.as_deref()
+    }
+    fn favorite(&self) -> bool {
+        self.track().state.favorite
+    }
+    fn rating(&self) -> Option<u8> {
+        self.track()
+            .state
+            .rating
+            .and_then(|value| u8::try_from(value).ok())
+    }
+    fn set_favorite(&mut self, value: bool) {
+        self.track_mut().state.favorite = value;
+    }
+    fn downloaded(&self) -> bool {
+        self.track().access.is_downloaded
+    }
     fn download_badge(&self) -> bool {
         crate::downloads::media_download_badge(self.media_uri(), self.downloaded())
     }
-    fn set_downloaded(&mut self, value: bool);
-    fn field(&self, field: LibraryField) -> String;
-    fn track_number(&self) -> Option<i64>;
+    fn set_downloaded(&mut self, value: bool) {
+        self.track_mut().access.is_downloaded = value;
+    }
+    fn field(&self, field: LibraryField) -> String {
+        track_field(self.track(), field)
+    }
+    fn track_number(&self) -> Option<i64> {
+        Some(self.track().metadata.track_number)
+    }
     fn links(&self, field: LibraryField) -> crate::detail_links::DetailLinks {
-        crate::detail_links::DetailLinks::text(&self.field(field))
+        let track = self.track();
+        crate::detail_links::metadata_links(
+            field,
+            &self.field(field),
+            track.links.album_media_uri.as_deref(),
+            &track.links.artists,
+            &track.links.album_artists,
+        )
     }
 }
 
-macro_rules! song_presentation {
-    ($ty:ty, $this:ident, $song:expr, $song_mut:expr) => {
-        impl TrackPresentation for $ty {
-            fn track_key(&$this) -> Option<library::TrackKey> { Some($song.track_key) }
-            fn media_uri(&$this) -> &str { &$song.media_uri }
-            fn title(&$this) -> &str { &$song.metadata.title }
-            fn artist(&$this) -> &str { &$song.metadata.artist }
-            fn artwork(&$this) -> Option<&[u8]> { $song.artwork_binding.as_deref() }
-            fn favorite(&$this) -> bool { $song.state.favorite }
-            fn rating(&$this) -> Option<u8> { $song.state.rating.and_then(|value| u8::try_from(value).ok()) }
-            fn set_favorite(&mut $this, value: bool) { $song_mut.state.favorite = value; }
-            fn downloaded(&$this) -> bool { $song.access.is_downloaded }
-            fn set_downloaded(&mut $this, value: bool) { $song_mut.access.is_downloaded = value; }
-            fn track_number(&$this) -> Option<i64> { Some($song.metadata.track_number) }
-            fn field(&$this, field: LibraryField) -> String { track_field(&$song, field) }
-            fn links(&$this, field: LibraryField) -> crate::detail_links::DetailLinks {
-                crate::detail_links::metadata_links(field, &$this.field(field), $song.links.album_media_uri.as_deref(), &$song.links.artists, &$song.links.album_artists)
-            }
-        }
-    };
+impl TrackPresentation for TrackView {
+    fn track(&self) -> &TrackView {
+        self
+    }
+    fn track_mut(&mut self) -> &mut TrackView {
+        self
+    }
 }
-song_presentation!(TrackView, self, self, self);
-song_presentation!(PlaylistEntryView, self, self.track, self.track);
-song_presentation!(
-    std::sync::Arc<QueueRow>,
-    self,
-    self.track,
-    std::sync::Arc::make_mut(self).track
-);
+
+impl TrackPresentation for PlaylistEntryView {
+    fn track(&self) -> &TrackView {
+        &self.track
+    }
+    fn track_mut(&mut self) -> &mut TrackView {
+        &mut self.track
+    }
+}
+
+impl TrackPresentation for std::sync::Arc<QueueRow> {
+    fn track(&self) -> &TrackView {
+        &self.track
+    }
+    fn track_mut(&mut self) -> &mut TrackView {
+        &mut std::sync::Arc::make_mut(self).track
+    }
+}
 
 pub fn add_field_skeleton_class(widget: &impl IsA<gtk::Widget>, field: LibraryField) {
     if field == LibraryField::Duration {
