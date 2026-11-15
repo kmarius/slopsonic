@@ -74,6 +74,9 @@ impl SubsonicSource {
         if let Err(error) = self.acquire_favorites(catalog, cancelled).await {
             crate::source::optional_collection_error(error)?;
         }
+        if let Err(error) = self.acquire_played_albums(catalog, cancelled).await {
+            crate::source::optional_collection_error(error)?;
+        }
         check_cancelled(cancelled)?;
         progress(stage(SourceReadStage::Playlists, 0));
         match self.acquire_playlists(catalog, progress, cancelled).await {
@@ -92,6 +95,31 @@ impl SubsonicSource {
         crate::source::acquire_home(catalog, cancelled, |section| self.home_section(section))
             .await?;
         check_cancelled(cancelled)?;
+        Ok(())
+    }
+
+    /// Plays elsewhere leave the scan marker alone: the recently played albums whose server
+    /// play is newer than their tracks' stored ones are read again.
+    async fn acquire_played_albums(
+        &self,
+        catalog: &mut library::Catalog<'_>,
+        cancelled: &(dyn Fn() -> bool + Send + Sync),
+    ) -> SourceResult<()> {
+        let query = [("type", "recent".to_string()), ("size", "24".to_string())];
+        let body: Value = self.get_json("getAlbumList2", &query).await?;
+        let played = json::items(&body["albumList2"]["album"])
+            .iter()
+            .filter_map(|album| {
+                let played = crate::policy::unix_seconds(json::field(album, "played"))?;
+                Some((self.id("album", &json::id(&album["id"])?), played))
+            })
+            .collect::<Vec<_>>();
+        for album in catalog.database.albums_played_since(&played).await? {
+            check_cancelled(cancelled)?;
+            let album = crate::SourceCollection::Album(album);
+            self.acquire_collection(catalog, &album, false, cancelled)
+                .await?;
+        }
         Ok(())
     }
 
@@ -691,6 +719,58 @@ mod tests {
                 if next == 4 { 0 } else { 1 }
             );
         }
+    }
+
+    #[tokio::test]
+    async fn only_albums_played_after_their_stored_plays_are_read_again() {
+        let source = SubsonicSource::open(
+            SubsonicFlavor::Subsonic,
+            SubsonicSourceConfig {
+                base_url: "http://127.0.0.1:9".into(),
+                username: "listener".into(),
+                trust_invalid_cert: false,
+                navidrome_library_version: 0,
+                authentication: SubsonicAuthentication::LegacyPassword,
+            },
+            super::SubsonicCredential::LegacyPassword("password".into()).serialize(),
+        )
+        .unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let database = library::Database::open(directory.path().join("library.sqlite"))
+            .await
+            .unwrap();
+        database.reconcile_server("Source").await.unwrap();
+        let mut catalog = database.catalog(None).await.unwrap();
+        let mut batch = library::CatalogBatch::default();
+        batch.albums.push(
+            super::album_from_json(&source, &serde_json::json!({"id":"album","name":"Album"}))
+                .unwrap()
+                .unwrap(),
+        );
+        batch.tracks.push(
+            super::track_from_json(
+                &source,
+                &serde_json::json!({"id":"track","title":"Track","albumId":"album",
+                    "played":"2026-11-10T12:00:00Z"}),
+            )
+            .unwrap()
+            .unwrap(),
+        );
+        catalog.apply_catalog(&batch, true).await.unwrap();
+        let stored = crate::policy::unix_seconds(Some("2026-11-10T12:00:00Z".into())).unwrap();
+        let album = source.id("album", "album");
+        let unknown = source.id("album", "unknown");
+
+        let behind = database
+            .albums_played_since(&[(album.clone(), stored), (unknown.clone(), stored)])
+            .await
+            .unwrap();
+        assert_eq!(behind, [unknown]);
+        let behind = database
+            .albums_played_since(&[(album.clone(), stored + 60)])
+            .await
+            .unwrap();
+        assert_eq!(behind, [album]);
     }
 
     #[tokio::test]

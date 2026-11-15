@@ -149,6 +149,17 @@ pub(crate) async fn write_home_on(
 }
 
 impl Database {
+    /// The albums among `played` (object id, the server's last play) whose tracks' stored
+    /// plays are all older, so their tracks' play state is behind the server's.
+    pub async fn albums_played_since(
+        &self,
+        played: &[(String, i64)],
+    ) -> LibraryResult<Vec<String>> {
+        let mut connection = self.acquire_reader().await?;
+        Ok(sqlx::query_scalar("SELECT json_extract(requested.value,'$[0]') FROM json_each(?1) requested WHERE NOT EXISTS(SELECT 1 FROM albums album JOIN tracks track USING(album_key) JOIN native_media_state state ON state.media_uri=track.media_uri WHERE album.object_id=json_extract(requested.value,'$[0]') AND state.last_played>=json_extract(requested.value,'$[1]'))")
+            .bind(serde_json::to_string(played)?).fetch_all(&mut *connection).await?)
+    }
+
     pub async fn source_contains_entity(
         &self,
         kind: &str,
