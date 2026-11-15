@@ -33,7 +33,7 @@ use super::chrome::{WindowChrome, build_content_chrome};
 use super::events::install_product_event_receivers;
 use super::layout::{
     COMPACT_RAIL_WIDTH, MIN_APP_WINDOW_HEIGHT, MIN_APP_WINDOW_WIDTH, NORMAL_SIDEBAR_WIDTH,
-    ShellLayoutState,
+    SHELL_GUTTER_WIDTH, ShellLayoutState,
 };
 use super::navigation::{
     NavigationState, NavigationWidgets, build_compact_navigation, build_normal_navigation,
@@ -67,6 +67,7 @@ pub async fn build(
         temporary_storage_banner: adw::Banner,
         app_content_overlay: gtk::Overlay,
         app_content_stack: gtk::Stack,
+        upper: gtk::Box,
         split_view: adw::OverlaySplitView,
         content_row: gtk::Box,
         left_resize_handle: gtk::Box,
@@ -87,6 +88,8 @@ pub async fn build(
         (MIN_APP_WINDOW_HEIGHT - topbar.header.measure(gtk::Orientation::Vertical, -1).0).max(1),
     );
     left_resize_handle.set_cursor_from_name(Some("col-resize"));
+    upper.set_margin_start(SHELL_GUTTER_WIDTH);
+    upper.set_margin_end(SHELL_GUTTER_WIDTH);
 
     let layout_state = ShellLayoutState::new(&root_stack);
     let toast_overlay = adw::ToastOverlay::new();

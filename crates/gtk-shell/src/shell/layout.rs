@@ -13,6 +13,8 @@ use super::Shell;
 pub(super) const COMPACT_RAIL_WIDTH: i32 = 68;
 pub(super) const LEFT_PANE_SEPARATOR_WIDTH: i32 = 1;
 pub(super) const RIGHT_PANE_SEPARATOR_WIDTH: i32 = 8;
+/// The margin between each window edge and the panes.
+pub(super) const SHELL_GUTTER_WIDTH: i32 = 8;
 pub(super) const NORMAL_SIDEBAR_WIDTH: i32 = crate::DEFAULT_LEFT_SIDEBAR_WIDTH;
 pub(crate) const MIN_APP_WINDOW_WIDTH: i32 = 450;
 pub(crate) const MIN_USEFUL_MAIN_WIDTH: i32 = MIN_APP_WINDOW_WIDTH;
@@ -192,8 +194,8 @@ fn fitted_left_sidebar_drag_width(
     window_width: i32,
     requested: i32,
 ) -> Option<(i32, bool)> {
-    let window_width = window_width.max(MIN_APP_WINDOW_WIDTH);
     let resolved = resolve_layout(settings, window_width);
+    let window_width = panes_width(window_width);
     let right_reservation = if resolved.right_sidebar.is_visible() {
         MIN_RIGHT_SIDEBAR_WIDTH + RIGHT_PANE_SEPARATOR_WIDTH
     } else {
@@ -231,7 +233,11 @@ pub(crate) fn resolve_layout(settings: &LayoutSettings, window_width: i32) -> Re
         } else {
             (ActiveLayoutProfile::Default, &settings.default_profile)
         };
-    resolve_layout_for_profile(profile, configured, settings, window_width)
+    resolve_layout_for_profile(profile, configured, settings, panes_width(window_width))
+}
+
+fn panes_width(window_width: i32) -> i32 {
+    (window_width - 2 * SHELL_GUTTER_WIDTH).max(MIN_USEFUL_MAIN_WIDTH)
 }
 
 fn resolve_layout_for_profile(
@@ -965,11 +971,15 @@ mod tests {
                 + LEFT_PANE_SEPARATOR_WIDTH
                 + MIN_USEFUL_MAIN_WIDTH
                 + 400
-                + RIGHT_PANE_SEPARATOR_WIDTH,
+                + RIGHT_PANE_SEPARATOR_WIDTH
+                + 2 * SHELL_GUTTER_WIDTH,
         );
         let compact = resolve_layout(
             &settings,
-            settings.preferred_left_sidebar_width + MIN_USEFUL_MAIN_WIDTH + 249,
+            settings.preferred_left_sidebar_width
+                + MIN_USEFUL_MAIN_WIDTH
+                + 249
+                + 2 * SHELL_GUTTER_WIDTH,
         );
         let hidden = resolve_layout(
             &settings,
@@ -978,6 +988,7 @@ mod tests {
                 + MIN_USEFUL_MAIN_WIDTH
                 + MIN_RIGHT_SIDEBAR_WIDTH
                 + RIGHT_PANE_SEPARATOR_WIDTH
+                + 2 * SHELL_GUTTER_WIDTH
                 - 1,
         );
 
@@ -1052,11 +1063,11 @@ mod tests {
         settings.default_profile.right_sidebar = RightSidebarMode::Visible;
 
         let expanded =
-            right_sidebar_width_after_drag_update(&settings, 957, None, 300.0, 0.0, -200.0);
+            right_sidebar_width_after_drag_update(&settings, 973, None, 300.0, 0.0, -200.0);
         assert_eq!(expanded, 430.0);
 
         let reversed =
-            right_sidebar_width_after_drag_update(&settings, 957, None, expanded, -200.0, -199.0);
+            right_sidebar_width_after_drag_update(&settings, 973, None, expanded, -200.0, -199.0);
         assert_eq!(reversed, 429.0);
     }
 
@@ -1115,7 +1126,7 @@ mod tests {
         settings.default_profile.right_sidebar = RightSidebarMode::Visible;
 
         assert_eq!(
-            right_sidebar_width_after_drag_update(&settings, 957, None, 500.0, 0.0, 1.0),
+            right_sidebar_width_after_drag_update(&settings, 973, None, 500.0, 0.0, 1.0),
             429.0
         );
     }
@@ -1129,24 +1140,24 @@ mod tests {
         };
         settings.default_profile.left_sidebar = LeftSidebarMode::Full;
         settings.default_profile.right_sidebar = RightSidebarMode::Visible;
-        let automatic = resolve_layout(&settings, 941);
+        let automatic = resolve_layout(&settings, 957);
         assert_eq!(automatic.left_sidebar, ResolvedLeftSidebarMode::Compact);
         assert_eq!(automatic.right_sidebar, RightSidebarMode::Visible);
 
         let compact = resolve_left_sidebar_drag_preview(
             &settings,
-            941,
+            957,
             LeftSidebarMode::Compact,
             COMPACT_RAIL_WIDTH,
             false,
         );
         let fitted =
-            resolve_left_sidebar_drag_preview(&settings, 941, LeftSidebarMode::Full, 232, false);
-        let (overshot_width, hide_right) = fitted_left_sidebar_drag_width(&settings, 941, 400)
+            resolve_left_sidebar_drag_preview(&settings, 957, LeftSidebarMode::Full, 232, false);
+        let (overshot_width, hide_right) = fitted_left_sidebar_drag_width(&settings, 957, 400)
             .expect("a full left sidebar fits beside both usable panes");
         let overshot = resolve_left_sidebar_drag_preview(
             &settings,
-            941,
+            957,
             LeftSidebarMode::Full,
             overshot_width,
             hide_right,
@@ -1165,11 +1176,11 @@ mod tests {
         assert_eq!(overshot.right_sidebar, RightSidebarMode::Visible);
         assert_eq!(overshot.right_sidebar_width, MIN_RIGHT_SIDEBAR_WIDTH);
 
-        let (width, hide_right) = fitted_left_sidebar_drag_width(&settings, 893, 400)
+        let (width, hide_right) = fitted_left_sidebar_drag_width(&settings, 909, 400)
             .expect("the left sidebar fits after closing the right sidebar");
         let left_priority = resolve_left_sidebar_drag_preview(
             &settings,
-            893,
+            909,
             LeftSidebarMode::Full,
             width,
             hide_right,
@@ -1210,13 +1221,13 @@ mod tests {
         settings.default_profile.left_sidebar = LeftSidebarMode::Hidden;
 
         settings.preferred_right_sidebar_width = 334;
-        let preferred = resolve_layout(&settings, 1_144);
+        let preferred = resolve_layout(&settings, 1_160);
         assert_eq!(preferred.main_width, 802);
         assert_eq!(preferred.right_sidebar_width, 334);
         assert_eq!(right_sidebar_allocation_position(1_144, 334), Some(802));
 
         settings.preferred_right_sidebar_width = 500;
-        let constrained = resolve_layout(&settings, 900);
+        let constrained = resolve_layout(&settings, 916);
         assert_eq!(constrained.main_width, MIN_USEFUL_MAIN_WIDTH);
         assert_eq!(constrained.right_sidebar_width, 442);
         assert_eq!(
@@ -1260,7 +1271,7 @@ mod tests {
 
         let resolved = resolve_layout_with_drag_previews(
             &settings,
-            1_013,
+            1_029,
             Some(LeftSidebarDragPreview {
                 mode: LeftSidebarMode::Compact,
                 width: COMPACT_RAIL_WIDTH,
@@ -1306,8 +1317,10 @@ mod tests {
         };
         settings.default_profile.right_sidebar = RightSidebarMode::Hidden;
 
-        let minimum_full_window_width =
-            MIN_APP_WINDOW_WIDTH + LEFT_PANE_SEPARATOR_WIDTH + MIN_LEFT_SIDEBAR_WIDTH;
+        let minimum_full_window_width = MIN_APP_WINDOW_WIDTH
+            + LEFT_PANE_SEPARATOR_WIDTH
+            + MIN_LEFT_SIDEBAR_WIDTH
+            + 2 * SHELL_GUTTER_WIDTH;
         let shrunk = resolve_layout(&settings, minimum_full_window_width);
         let compact = resolve_layout(&settings, minimum_full_window_width - 1);
         let hidden = resolve_layout(&settings, 505);
@@ -1335,7 +1348,10 @@ mod tests {
         assert_eq!(resolved.right_sidebar, RightSidebarMode::Visible);
         assert_eq!(
             resolved.main_width,
-            1_500 - crate::DEFAULT_RIGHT_SIDEBAR_WIDTH - RIGHT_PANE_SEPARATOR_WIDTH
+            1_500
+                - crate::DEFAULT_RIGHT_SIDEBAR_WIDTH
+                - RIGHT_PANE_SEPARATOR_WIDTH
+                - 2 * SHELL_GUTTER_WIDTH
         );
     }
 
@@ -1358,6 +1374,7 @@ mod tests {
                 - LEFT_PANE_SEPARATOR_WIDTH
                 - crate::DEFAULT_RIGHT_SIDEBAR_WIDTH
                 - RIGHT_PANE_SEPARATOR_WIDTH
+                - 2 * SHELL_GUTTER_WIDTH
         );
     }
 
@@ -1393,6 +1410,7 @@ mod tests {
                 - LEFT_PANE_SEPARATOR_WIDTH
                 - MAX_RIGHT_SIDEBAR_WIDTH
                 - RIGHT_PANE_SEPARATOR_WIDTH
+                - 2 * SHELL_GUTTER_WIDTH
         );
     }
 }
