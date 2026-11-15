@@ -30,7 +30,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn download_receipt_removal_preserves_original_and_borrowed_access() {
+    async fn forgetting_a_download_falls_back_to_the_remaining_one() {
         let root = tempfile::tempdir().unwrap();
         let database = Database::open(root.path().join("library.sqlite"))
             .await
@@ -59,28 +59,17 @@ mod tests {
             .unwrap();
         let copy = root.path().join("download.mp3");
         std::fs::write(&copy, b"download").unwrap();
-        let access = crate::DownloadAccessWrite {
-            media_uri: uri.clone(),
-            path: copy.to_string_lossy().into_owned(),
-            root: root.path().to_string_lossy().into_owned(),
-            relative_path: "download.mp3".into(),
-            size_bytes: 8,
-            mtime_ns: 0,
-            device_id: None,
-            inode: None,
-            parser_version: 1,
-            access_uri: url::Url::from_file_path(&copy).unwrap().to_string(),
-        };
-        database.write_download_access(&[&access]).await.unwrap();
         let receipt = DownloadFile {
             media_uri: uri.clone(),
             encoding: "mp3".into(),
             revision: "1".into(),
             path: url::Url::from_file_path(&copy).unwrap().to_string(),
             managed: true,
+            storage_root: root.path().to_string_lossy().into_owned(),
+            relative_path: "download.mp3".into(),
             ..Default::default()
         };
-        database.save_download_file(&receipt).await.unwrap();
+        database.commit_download(&receipt).await.unwrap();
         assert_eq!(
             database.playback_access(&uri).await.unwrap().unwrap(),
             receipt.path
@@ -108,15 +97,11 @@ mod tests {
             relative_path: "download.opus".into(),
             ..receipt.clone()
         };
-        let mut alternate_access = access.clone();
-        alternate_access.path = alternative.to_string_lossy().into_owned();
-        alternate_access.access_uri = alternate.path.clone();
-        alternate_access.relative_path = "download.opus".into();
-        alternate_access.size_bytes = 11;
-        database
-            .commit_download(&alternate, &alternate_access)
-            .await
-            .unwrap();
+        database.commit_download(&alternate).await.unwrap();
+        assert_eq!(
+            database.playback_access(&uri).await.unwrap().unwrap(),
+            alternate.path
+        );
         database.forget_download_file(&alternate).await.unwrap();
         assert_eq!(
             database.playback_access(&uri).await.unwrap().unwrap(),
@@ -155,46 +140,8 @@ impl Database {
             .ok_or(LibraryError::WriterUnavailable)?
             .begin()
             .await?;
-        let removed = sqlx::query("DELETE FROM download_files WHERE media_uri=?1 AND encoding=?2 AND path=?3 AND revision=?4")
-            .bind(&file.media_uri).bind(&file.encoding).bind(&file.path).bind(&file.revision).execute(&mut *transaction).await?.rows_affected()>0;
-        if removed {
-            let access = sqlx::query("DELETE FROM download_locators WHERE media_uri=?1 AND access_uri=?2 AND origin='download' AND NOT EXISTS(SELECT 1 FROM download_files WHERE media_uri=?1 AND path=?2)")
-                .bind(&file.media_uri).bind(&file.path).execute(&mut *transaction).await?.rows_affected()>0;
-            if access
-                && let Some(next) = sqlx::query_as::<_, DownloadFile>(
-                    "SELECT * FROM download_files WHERE media_uri=?1 ORDER BY rowid DESC LIMIT 1",
-                )
-                .bind(&file.media_uri)
-                .fetch_optional(&mut *transaction)
-                .await?
-            {
-                let path = crate::file_media_path(&next.path);
-                let root = if next.storage_root.is_empty() {
-                    path.as_deref()
-                        .and_then(std::path::Path::parent)
-                        .map(|path| path.to_string_lossy().into_owned())
-                        .unwrap_or_else(|| next.path.clone())
-                } else {
-                    next.storage_root.clone()
-                };
-                crate::download_access::write_download_locator(
-                    &mut transaction,
-                    &crate::download_access::DownloadLocatorWrite {
-                        media_uri: next.media_uri.clone(),
-                        origin: "download".into(),
-                        path: path
-                            .map(|path| path.to_string_lossy().into_owned())
-                            .unwrap_or_else(|| next.path.clone()),
-                        root,
-                        relative_path: next.relative_path.clone(),
-                        access_uri: next.path.clone(),
-                    },
-                )
-                .await?;
-                sqlx::query("INSERT INTO download_access_metadata SELECT ?1,coalesce(?2,size_bytes),0,NULL,NULL,parser_version FROM download_access_metadata WHERE access_uri=?3 ON CONFLICT(access_uri) DO NOTHING")
-                    .bind(&next.path).bind(next.completed_size).bind(&file.path).execute(&mut *transaction).await?;
-            }
-        }
+        sqlx::query("DELETE FROM download_files WHERE media_uri=?1 AND encoding=?2 AND path=?3 AND revision=?4")
+            .bind(&file.media_uri).bind(&file.encoding).bind(&file.path).bind(&file.revision).execute(&mut *transaction).await?;
         transaction.commit().await?;
         Ok(())
     }
@@ -229,14 +176,18 @@ impl Database {
         .await?)
     }
 
-    /// Whether a download record or locator still uses the file at `path`.
+    /// Whether a download record still uses the file at `path`.
     pub async fn download_path_in_use(&self, path: &std::path::Path) -> LibraryResult<bool> {
         let Ok(uri) = url::Url::from_file_path(path) else {
             return Ok(true);
         };
         let mut reader = self.acquire_reader().await?;
-        Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM download_files WHERE path=?1) OR EXISTS(SELECT 1 FROM download_locators WHERE path=?2)")
-            .bind(uri.as_str()).bind(path.to_string_lossy()).fetch_one(&mut *reader).await?)
+        Ok(
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM download_files WHERE path=?1)")
+                .bind(uri.as_str())
+                .fetch_one(&mut *reader)
+                .await?,
+        )
     }
 
     pub async fn download_file_shared(&self, file: &DownloadFile) -> LibraryResult<bool> {
@@ -255,18 +206,27 @@ impl Database {
         .await
     }
 
-    pub async fn commit_download(
-        &self,
-        file: &DownloadFile,
-        access: &crate::DownloadAccessWrite,
-    ) -> LibraryResult<()> {
+    /// Records a finished download; its track row is created when the catalog has none yet.
+    pub async fn commit_download(&self, file: &DownloadFile) -> LibraryResult<()> {
+        if file.media_uri.is_empty() || file.path.is_empty() || file.storage_root.is_empty() {
+            return Err(LibraryError::InvalidRequest(
+                "invalid download record".to_string(),
+            ));
+        }
         let mut writer = self.writer().await?;
         let mut transaction = writer
             .as_mut()
             .ok_or(LibraryError::WriterUnavailable)?
             .begin()
             .await?;
-        crate::download_access::write_download_access_on(&mut transaction, &[access]).await?;
+        crate::catalog::remember_track(
+            &mut transaction,
+            &crate::TrackReference {
+                media_uri: file.media_uri.clone(),
+                ..Default::default()
+            },
+        )
+        .await?;
         save_download_on(&mut transaction, file).await?;
         transaction.commit().await?;
         Ok(())

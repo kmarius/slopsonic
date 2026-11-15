@@ -55,16 +55,15 @@ pub use collections::{
     GenreChoice, GenreView, MoodView,
 };
 pub use db::{Database, ReadCancellation};
-pub use download_access::{DownloadAccessWrite, DownloadMetadata};
+pub use download_access::DownloadMetadata;
 pub use favorites::{FavoriteTarget, NativeUserState};
 pub use home::{
     HomeAlbumRow, HomeBlockKind, HomeEntryInput, HomeEntryKind, HomePage, HomeProviderSection,
     HomeSectionKind, HomeSectionRows, HomeTrackRow,
 };
 pub use keys::{
-    AlbumKey, ArtistKey, DownloadAccessFileKey, FolderKey, GenreKey, ListenOutboxKey, MoodKey,
-    PlaylistEntryKey, PlaylistKey, TrackKey, entity_parts, entity_uri, file_media_path,
-    single_server_uri,
+    AlbumKey, ArtistKey, FolderKey, GenreKey, ListenOutboxKey, MoodKey, PlaylistEntryKey,
+    PlaylistKey, TrackKey, entity_parts, entity_uri, file_media_path, single_server_uri,
 };
 pub use playlists::{
     PlaylistAccess, PlaylistEditEntry, PlaylistEntryView, PlaylistEntryWrite, PlaylistGenreLink,

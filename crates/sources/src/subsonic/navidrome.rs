@@ -536,7 +536,7 @@ fn album_from_navidrome(
             ..Default::default()
         },
         user_data: library::NativeUserState {
-            rating: Some(rating(field(album, "rating")).map(|rating| i64::from(rating) * 10)),
+            rating: Some(rating(field(album, "rating")).map(i64::from)),
             favorite: Some(boolean(&album["starred"]).unwrap_or(false)),
             ..Default::default()
         },
@@ -667,7 +667,7 @@ fn track_from_navidrome(
         user_data: library::NativeUserState {
             last_played: crate::policy::unix_seconds(field(track, "playDate")),
             play_count: capped_u32(field(track, "playCount")).map(i64::from),
-            rating: Some(rating(field(track, "rating")).map(|rating| i64::from(rating) * 10)),
+            rating: Some(rating(field(track, "rating")).map(i64::from)),
             favorite: Some(boolean(&track["starred"]).unwrap_or(false)),
             ..Default::default()
         },
@@ -706,7 +706,7 @@ fn artist_from_navidrome(
         },
         user_data: library::NativeUserState {
             favorite: Some(boolean(&artist["starred"]).unwrap_or(false)),
-            rating: Some(rating(field(artist, "rating")).map(|rating| i64::from(rating) * 10)),
+            rating: Some(rating(field(artist, "rating")).map(i64::from)),
             ..Default::default()
         },
         object_id: source.id("artist", raw_id),
@@ -822,7 +822,7 @@ fn capped_u32(value: Option<u64>) -> Option<u32> {
 
 fn rating(value: Option<f64>) -> Option<u8> {
     value.and_then(|value| {
-        (value.is_finite() && value > 0.0).then(|| (value * 2.0).round().clamp(1.0, 10.0) as u8)
+        (value.is_finite() && value > 0.0).then(|| value.round().clamp(1.0, 5.0) as u8)
     })
 }
 

@@ -976,18 +976,14 @@ mod tests {
         std::fs::write(&path, b"downloaded audio").unwrap();
         let uri = url::Url::from_file_path(&path).unwrap().to_string();
         database
-            .write_download_access(&[&library::DownloadAccessWrite {
+            .commit_download(&library::DownloadFile {
                 media_uri: occurrence.track.media_uri.clone(),
-                path: path.to_string_lossy().into_owned(),
-                root: folder.path().to_string_lossy().into_owned(),
+                encoding: "original".into(),
+                path: uri.clone(),
+                storage_root: folder.path().to_string_lossy().into_owned(),
                 relative_path: "track.opus".into(),
-                size_bytes: 0,
-                mtime_ns: 0,
-                device_id: None,
-                inode: None,
-                parser_version: 1,
-                access_uri: uri.clone(),
-            }])
+                ..Default::default()
+            })
             .await
             .unwrap();
         let stream = super::prepare_stream(

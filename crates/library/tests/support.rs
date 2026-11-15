@@ -221,7 +221,7 @@ pub async fn fixture() -> Fixture {
             },
             user_data: library::NativeUserState {
                 favorite: Some(favorite),
-                rating: (Some(Some(5 + index))).map(|rating| rating.map(|value| value * 10)),
+                rating: Some(Some(1 + index)),
                 ..Default::default()
             },
             audio_key: [index as u8 + 1; 32],

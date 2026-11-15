@@ -84,7 +84,7 @@ CREATE INDEX IF NOT EXISTS favorite_outbox_due_idx ON favorite_outbox(next_attem
 CREATE TABLE IF NOT EXISTS rating_outbox (
     outbox_key INTEGER PRIMARY KEY,
     media_uri TEXT NOT NULL UNIQUE CHECK (media_uri <> ''),
-    rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 0 AND 10),
+    rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 0 AND 5),
     attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
     next_attempt_at INTEGER NOT NULL CHECK (next_attempt_at >= 0)
 ) STRICT;
@@ -94,7 +94,7 @@ CREATE INDEX IF NOT EXISTS rating_outbox_due_idx ON rating_outbox(next_attempt_a
 CREATE TABLE IF NOT EXISTS user_media_state (
     media_uri TEXT PRIMARY KEY CHECK (media_uri <> ''),
     favorite INTEGER CHECK (favorite IS NULL OR favorite IN (0,1)),
-    rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 0 AND 100)
+    rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 0 AND 5)
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS user_media_favorite_idx ON user_media_state(favorite,media_uri) WHERE favorite=1;
@@ -141,18 +141,6 @@ CREATE TABLE IF NOT EXISTS download_files (
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS download_files_path_idx ON download_files(path,encoding,revision);
-
-CREATE TABLE IF NOT EXISTS download_locators (
-    download_access_file_key INTEGER PRIMARY KEY,
-    media_uri TEXT NOT NULL CHECK(media_uri<>''),
-    origin TEXT NOT NULL CHECK(origin='download'),
-    path TEXT NOT NULL CHECK(path<>''), root TEXT NOT NULL, relative_path TEXT NOT NULL,
-    access_uri TEXT NOT NULL CHECK(access_uri<>''),
-    UNIQUE(media_uri,origin)
-) STRICT;
-CREATE INDEX IF NOT EXISTS download_locators_path_idx ON download_locators(path);
-CREATE INDEX IF NOT EXISTS download_locators_access_idx ON download_locators(media_uri,origin,download_access_file_key);
-
 
 CREATE TABLE IF NOT EXISTS sources (
     source_key INTEGER PRIMARY KEY,
@@ -430,22 +418,6 @@ CREATE TABLE IF NOT EXISTS home_entries (
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS artwork_previews(family TEXT PRIMARY KEY,hash TEXT NOT NULL) WITHOUT ROWID;
-
-CREATE TABLE IF NOT EXISTS download_access_metadata (
-    access_uri TEXT PRIMARY KEY,
-    size_bytes INTEGER NOT NULL, mtime_ns INTEGER NOT NULL, device_id INTEGER, inode INTEGER,
-    parser_version INTEGER NOT NULL
-) STRICT;
-
-CREATE VIEW IF NOT EXISTS download_access_files AS
-          SELECT locator.download_access_file_key,locator.media_uri,
-                 locator.origin,locator.path,locator.root,locator.relative_path,
-                 COALESCE(metadata.size_bytes,0) size_bytes,COALESCE(metadata.mtime_ns,0) mtime_ns,
-                 metadata.device_id,metadata.inode,COALESCE(metadata.parser_version,1) parser_version,
-                 locator.access_uri
-          FROM download_locators locator
-          LEFT JOIN download_access_metadata metadata USING(access_uri);
-
 
 CREATE TABLE IF NOT EXISTS native_playlist_pending (
     playlist_key INTEGER NOT NULL REFERENCES playlists ON DELETE CASCADE,
@@ -766,6 +738,30 @@ const MIGRATIONS: &[&str] = &[
          observation_stamp=observation_stamp+1;",
     // 74: drop the locator index on `origin`, which always holds 'download'.
     "DROP INDEX IF EXISTS download_locators_source_idx;",
+    // 75: playback reads download_files directly; the locators and write-only file metadata go.
+    // Ratings count whole stars, 0 to 5.
+    "DROP VIEW IF EXISTS download_access_files;
+     DROP TABLE download_access_metadata;
+     DROP TABLE download_locators;
+     UPDATE native_media_state SET rating=(rating+10)/20 WHERE rating IS NOT NULL;
+     CREATE TABLE user_media_state_new (
+         media_uri TEXT PRIMARY KEY CHECK (media_uri <> ''),
+         favorite INTEGER CHECK (favorite IS NULL OR favorite IN (0,1)),
+         rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 0 AND 5)
+     ) STRICT;
+     INSERT INTO user_media_state_new SELECT media_uri,favorite,(rating+10)/20 FROM user_media_state;
+     DROP TABLE user_media_state;
+     ALTER TABLE user_media_state_new RENAME TO user_media_state;
+     CREATE TABLE rating_outbox_new (
+         outbox_key INTEGER PRIMARY KEY,
+         media_uri TEXT NOT NULL UNIQUE CHECK (media_uri <> ''),
+         rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 0 AND 5),
+         attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+         next_attempt_at INTEGER NOT NULL CHECK (next_attempt_at >= 0)
+     ) STRICT;
+     INSERT INTO rating_outbox_new SELECT outbox_key,media_uri,(rating+1)/2,attempts,next_attempt_at FROM rating_outbox;
+     DROP TABLE rating_outbox;
+     ALTER TABLE rating_outbox_new RENAME TO rating_outbox;",
 ];
 
 pub(crate) const SCHEMA_VERSION: i64 = BASE_VERSION + MIGRATIONS.len() as i64;

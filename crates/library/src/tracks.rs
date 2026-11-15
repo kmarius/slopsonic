@@ -356,7 +356,7 @@ pub(crate) fn track_requested_sql(requested: &crate::query::RequestedKeys) -> St
         track.source_path,
         CASE WHEN album.indexed OR track.indexed OR album.track_count>0 THEN track.album_key END album_key,
         CASE WHEN album.indexed OR track.indexed OR album.track_count>0 THEN album.media_uri END album_media_uri,
-        COALESCE(state.favorite,native.favorite,0) favorite,COALESCE(state.rating,native.rating)/10 rating,
+        COALESCE(state.favorite,native.favorite,0) favorite,COALESCE(state.rating,native.rating) rating,
         {} last_played,{} play_count,
         track.is_downloaded,
         {} artists,{} album_artists,

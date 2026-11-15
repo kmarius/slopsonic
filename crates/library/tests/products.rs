@@ -1,5 +1,5 @@
 use library::{
-    CatalogSort, DownloadAccessWrite, PlayedFilter, RadioSeed, RandomCriteria, ReadCancellation,
+    CatalogSort, DownloadFile, PlayedFilter, RadioSeed, RandomCriteria, ReadCancellation,
     RouteSeedWindow, SearchRequest,
 };
 
@@ -1247,27 +1247,16 @@ async fn downloaded_row_facts_require_download_owned_local_access() {
         let track = &rows[index];
         fixture
             .database
-            .write_download_access(&[&DownloadAccessWrite {
+            .commit_download(&DownloadFile {
                 media_uri: track.media_uri.clone(),
+                encoding: "original".into(),
                 path: format!(
-                    "/validated/{}.flac",
-                    track.object_id.as_deref().expect("indexed track object")
-                ),
-                root: "/validated".to_string(),
-                relative_path: format!(
-                    "{}.flac",
-                    track.object_id.as_deref().expect("indexed track object")
-                ),
-                size_bytes: 10,
-                mtime_ns: 1,
-                device_id: Some(1),
-                inode: Some(index as i64 + 1),
-                parser_version: 1,
-                access_uri: format!(
                     "file:///validated/{}.flac",
                     track.object_id.as_deref().expect("indexed track object")
                 ),
-            }])
+                storage_root: "/validated".to_string(),
+                ..Default::default()
+            })
             .await
             .expect("write accepted Local access provenance");
     }
@@ -1880,7 +1869,7 @@ async fn artist_orders_filter_roles_but_known_artists_remain_addressable() {
                     object_id.to_string(),
                     library::NativeUserState {
                         favorite: Some(true),
-                        rating: Some(Some(rating * 10)),
+                        rating: Some(Some(rating / 10)),
                         ..Default::default()
                     },
                 )],

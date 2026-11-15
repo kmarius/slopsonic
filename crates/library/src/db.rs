@@ -250,13 +250,12 @@ impl Database {
              DELETE FROM native_media_state;
              DELETE FROM favorite_outbox;
              DELETE FROM rating_outbox;
-             DELETE FROM download_access_metadata WHERE access_uri IN (SELECT access_uri FROM download_locators);
              UPDATE tracks SET indexed=0,artwork_kind=CASE WHEN native_artwork IS NULL THEN 0 ELSE 1 END,artwork_artist_key=NULL;
              UPDATE albums SET indexed=0;
              UPDATE artists SET indexed=0;
              DELETE FROM home_entries;
              DELETE FROM playlists;
-             DELETE FROM download_locators;
+             DELETE FROM download_files;
              UPDATE tracks SET object_id=NULL WHERE object_id IS NOT NULL;
              DELETE FROM albums;
              DELETE FROM artists;

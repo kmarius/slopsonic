@@ -8,14 +8,9 @@ pub(super) struct DownloadAudio {
 
 pub(super) struct DownloadFileMetadata {
     pub size: Option<u64>,
-    pub mtime_ns: i64,
 }
 
 impl DownloadAudio {
-    pub fn location(&self) -> Result<String, String> {
-        Ok(self.path.to_string_lossy().into_owned())
-    }
-
     pub fn access_uri(&self) -> Result<String, String> {
         reqwest::Url::from_file_path(&self.path)
             .map(String::from)
@@ -26,13 +21,6 @@ impl DownloadAudio {
         match std::fs::metadata(&self.path) {
             Ok(metadata) if metadata.is_file() => Ok(Some(DownloadFileMetadata {
                 size: Some(metadata.len()),
-                mtime_ns: metadata
-                    .modified()
-                    .ok()
-                    .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
-                    .map_or(0, |value| {
-                        i64::try_from(value.as_nanos()).unwrap_or(i64::MAX)
-                    }),
             })),
             Ok(_) => Ok(None),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),

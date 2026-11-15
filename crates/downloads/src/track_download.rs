@@ -16,7 +16,6 @@ use tokio::sync::oneshot;
 use crate::DownloadOwner;
 use crate::storage::DownloadAudio;
 
-const PARSER_VERSION: i64 = 5;
 pub(super) const AUDIO_EXTENSION: &str = "audio";
 pub(super) const PART_EXTENSION: &str = "part";
 const CHECKPOINT_EXTENSION: &str = "resume";
@@ -669,33 +668,25 @@ pub(super) async fn finalize_download(paths: &DownloadPaths) -> Result<FinishedD
     })
 }
 
-pub(super) async fn download_access(
-    media_uri: &str,
+/// Fills in where a finished download lives and its size, after checking the file is there.
+pub(super) async fn record_location(
+    file: &mut library::DownloadFile,
     paths: &DownloadPaths,
-    completed_size: Option<i64>,
-) -> Result<library::DownloadAccessWrite, String> {
+) -> Result<(), String> {
     let metadata = paths
         .audio
         .inspect()
         .await?
         .ok_or("The downloaded file is unavailable")?;
-    let (root, relative_path) = local_access_projection(paths)?;
-    Ok(library::DownloadAccessWrite {
-        media_uri: media_uri.into(),
-        path: paths.audio.location()?,
-        root,
-        relative_path,
-        size_bytes: metadata
+    (file.storage_root, file.relative_path) = local_access_projection(paths)?;
+    file.completed_size = Some(
+        metadata
             .size
             .and_then(|size| i64::try_from(size).ok())
-            .or(completed_size)
+            .or(file.completed_size)
             .ok_or("The download has no completed size")?,
-        mtime_ns: metadata.mtime_ns,
-        device_id: None,
-        inode: None,
-        parser_version: PARSER_VERSION,
-        access_uri: paths.audio.access_uri()?,
-    })
+    );
+    Ok(())
 }
 
 pub(super) async fn remove_download_files(paths: &DownloadPaths) -> Result<bool, String> {

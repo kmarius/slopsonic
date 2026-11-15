@@ -12,7 +12,6 @@ publish.workspace = true
 
 [dependencies]
 process-memory.workspace = true
-app-identity.workspace = true
 async-channel.workspace = true
 downloads.workspace = true
 sources.workspace = true

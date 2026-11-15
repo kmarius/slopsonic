@@ -158,7 +158,7 @@ async fn deleting_or_corrupting_catalog_preserves_exact_durable_records() {
     )
     .await;
     let mut raw = connection(&path, false).await;
-    sqlx::query("INSERT INTO user_media_state(media_uri,favorite,rating) VALUES(?1,1,87)")
+    sqlx::query("INSERT INTO user_media_state(media_uri,favorite,rating) VALUES(?1,1,4)")
         .bind(uri)
         .execute(&mut raw)
         .await
@@ -253,7 +253,7 @@ async fn deleting_or_corrupting_catalog_preserves_exact_durable_records() {
             .await
             .unwrap();
         let mut raw = connection(&path, false).await;
-        assert_eq!(sqlx::query_as::<_,(bool,i64)>("SELECT state.favorite,state.rating FROM tracks track JOIN user_media_state state USING(media_uri) WHERE track.media_uri=?1").bind(uri).fetch_one(&mut raw).await.unwrap(),(true,87));
+        assert_eq!(sqlx::query_as::<_,(bool,i64)>("SELECT state.favorite,state.rating FROM tracks track JOIN user_media_state state USING(media_uri) WHERE track.media_uri=?1").bind(uri).fetch_one(&mut raw).await.unwrap(),(true,4));
         assert_eq!(
             sqlx::query_scalar::<_, String>("SELECT title FROM tracks WHERE media_uri=?1")
                 .bind(uri)
@@ -342,7 +342,17 @@ async fn single_server_migrations_rewrite_local_state_and_drop_the_server_keys()
          ALTER TABLE tracks ADD COLUMN source_key INTEGER;
          ALTER TABLE albums ADD COLUMN source_key INTEGER;
          ALTER TABLE artists ADD COLUMN source_key INTEGER;
-         ALTER TABLE download_locators ADD COLUMN source_key INTEGER;
+         CREATE TABLE download_locators (
+             download_access_file_key INTEGER PRIMARY KEY,
+             media_uri TEXT NOT NULL CHECK(media_uri<>''),
+             origin TEXT NOT NULL CHECK(origin='download'),
+             path TEXT NOT NULL CHECK(path<>''), root TEXT NOT NULL, relative_path TEXT NOT NULL,
+             access_uri TEXT NOT NULL CHECK(access_uri<>''),
+             source_key INTEGER,
+             UNIQUE(media_uri,origin)
+         ) STRICT;
+         CREATE TABLE download_access_metadata(access_uri TEXT PRIMARY KEY) STRICT;
+         CREATE VIEW download_access_files AS SELECT * FROM download_locators;
          CREATE INDEX download_source_idx ON download_files(source_id,media_uri,encoding);
          INSERT INTO sources(source_key,object_id) VALUES(6,'slopsonic-source-old'),(7,'slopsonic-source-abc');
          INSERT INTO albums(album_key,source_key,object_id,media_uri,indexed) VALUES(1,7,'a','{album}',1);
@@ -409,7 +419,15 @@ async fn single_server_migrations_rewrite_local_state_and_drop_the_server_keys()
         ["slopsonic:track/t1"]
     );
     assert_eq!(
-        uris(&mut raw, "SELECT media_uri FROM download_locators").await,
+        sqlx::query_scalar::<_, i64>("SELECT rating FROM rating_outbox")
+            .fetch_one(&mut raw)
+            .await
+            .unwrap(),
+        2,
+        "two old half-star units are one whole star"
+    );
+    assert_eq!(
+        uris(&mut raw, "SELECT media_uri FROM download_files").await,
         ["slopsonic:track/t1"]
     );
     let count = |table: &str| format!("SELECT count(*) FROM {table}");

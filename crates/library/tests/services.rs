@@ -208,7 +208,7 @@ async fn source_artwork_pages_distinct_bindings() {
         assert!(actual.len() <= expected.len());
     }
     assert_eq!(actual, expected);
-    sqlx::query("INSERT INTO download_locators(media_uri,origin,path,root,relative_path,access_uri) SELECT media_uri,'download',media_uri,'','',media_uri FROM tracks WHERE object_id LIKE 'artwork-%' AND CAST(substr(object_id,9) AS INTEGER)%2=0")
+    sqlx::query("INSERT INTO download_files(media_uri,encoding,revision,path,managed) SELECT media_uri,'original','',media_uri,1 FROM tracks WHERE object_id LIKE 'artwork-%' AND CAST(substr(object_id,9) AS INTEGER)%2=0")
         .execute(&mut raw).await.unwrap();
     let mut retention = fixture
         .database

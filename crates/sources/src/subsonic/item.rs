@@ -161,7 +161,7 @@ pub(super) fn album_from_json(
             rating: Some(
                 json::field::<u32>(album, "userRating")
                     .filter(|value| *value > 0)
-                    .map(|value| i64::from(value.min(5).saturating_mul(20))),
+                    .map(|value| i64::from(value.min(5))),
             ),
             favorite: favorite(&json::field(album, "starred")),
             ..Default::default()
@@ -259,7 +259,7 @@ pub(super) fn track_from_json(
             rating: Some(
                 json::field::<u32>(song, "userRating")
                     .filter(|value| *value > 0)
-                    .map(|value| i64::from(value.min(5).saturating_mul(20))),
+                    .map(|value| i64::from(value.min(5))),
             ),
             favorite: favorite(&json::field(song, "starred")),
             ..Default::default()
@@ -334,7 +334,7 @@ pub(super) fn artist_from_json(
             rating: Some(
                 json::field::<u32>(artist, "userRating")
                     .filter(|value| *value > 0)
-                    .map(|value| i64::from(value.min(5).saturating_mul(20))),
+                    .map(|value| i64::from(value.min(5))),
             ),
             ..Default::default()
         },

@@ -122,12 +122,9 @@ impl Actor {
             return Ok(true);
         }
         file.owners = serde_json::to_string(&owners).map_err(|error| error.to_string())?;
-        let access = download_access(media_uri, &paths, file.completed_size).await?;
-        file.storage_root = access.root.clone();
-        file.relative_path = access.relative_path.clone();
-        file.completed_size = Some(access.size_bytes);
+        record_location(&mut file, &paths).await?;
         self.database
-            .commit_download(&file, &access)
+            .commit_download(&file)
             .await
             .map_err(|error| error.to_string())?;
         if let Some(previous) =

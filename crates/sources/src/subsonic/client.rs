@@ -493,7 +493,7 @@ impl SubsonicSource {
             .await
     }
     pub(crate) async fn set_rating(&self, object_id: &str, rating: Option<u8>) -> SourceResult<()> {
-        let whole = rating.unwrap_or(0).div_ceil(2).min(5);
+        let whole = rating.unwrap_or(0).min(5);
         self.get_unit(
             "setRating",
             &[

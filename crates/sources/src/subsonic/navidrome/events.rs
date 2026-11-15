@@ -378,7 +378,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(row.state.favorite);
-        assert_eq!(row.state.rating, Some(8));
+        assert_eq!(row.state.rating, Some(4));
         assert_eq!(row.metadata.title, "Track");
         assert!(
             database

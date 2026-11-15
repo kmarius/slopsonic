@@ -104,7 +104,6 @@ integer_key!(FolderKey);
 integer_key!(PlaylistKey);
 integer_key!(PlaylistEntryKey);
 integer_key!(ListenOutboxKey);
-integer_key!(DownloadAccessFileKey);
 
 #[cfg(test)]
 mod tests {

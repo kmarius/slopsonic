@@ -10,7 +10,7 @@ use crate::{Database, LibraryError, LibraryResult, ReadCancellation};
 #[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct NativeUserState {
     pub favorite: Option<bool>,
-    /// Outer None means absent; Some(None) clears the source rating (0..100).
+    /// Outer None means absent; Some(None) clears the source rating (0..5).
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -73,7 +73,7 @@ impl Database {
     ) -> LibraryResult<Option<(Option<bool>, Option<u8>)>> {
         let mut connection = self.acquire_general(cancellation).await?;
         let result = sqlx::query_as::<_, (Option<bool>, Option<i64>)>(
-            "SELECT favorite,rating/10 FROM user_media_state WHERE media_uri=?1",
+            "SELECT favorite,rating FROM user_media_state WHERE media_uri=?1",
         )
         .bind(media_uri)
         .fetch_optional(&mut *connection)
@@ -96,9 +96,9 @@ impl Database {
         rating: Option<u8>,
         next_attempt_at: i64,
     ) -> LibraryResult<bool> {
-        if rating.is_some_and(|rating| rating > 10) {
+        if rating.is_some_and(|rating| rating > 5) {
             return Err(LibraryError::InvalidRequest(
-                "Ratings must be between 0 and 10".to_string(),
+                "Ratings must be between 0 and 5".to_string(),
             ));
         }
         if next_attempt_at < 0 {
@@ -124,7 +124,7 @@ impl Database {
              ON CONFLICT(media_uri) DO UPDATE SET rating=excluded.rating",
         )
         .bind(target.media_uri())
-        .bind(rating.map(|rating| i64::from(rating) * 10))
+        .bind(rating)
         .execute(&mut *transaction)
         .await?;
         if rating.is_none() {
@@ -173,7 +173,7 @@ impl Database {
             target.kind()
         )))
         .bind(target.media_uri())
-        .bind(rating.map(|rating| i64::from(rating) * 10))
+        .bind(rating)
         .execute(&mut *transaction)
         .await?
         .rows_affected()

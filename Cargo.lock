@@ -1471,7 +1471,6 @@ dependencies = [
  "libadwaita",
  "library",
  "slopsonic-core",
- "sources",
  "tempfile",
  "tokio",
  "tracing",
@@ -1488,7 +1487,6 @@ dependencies = [
  "libadwaita",
  "library",
  "slopsonic-core",
- "sources",
  "tokio",
 ]
 
@@ -1549,7 +1547,6 @@ dependencies = [
  "playback",
  "serde_json",
  "slopsonic-core",
- "sources",
  "tokio",
  "tracing",
 ]
@@ -1558,7 +1555,6 @@ dependencies = [
 name = "gtk-widgets"
 version = "0.0.1"
 dependencies = [
- "app-identity",
  "artwork",
  "async-channel",
  "downloads",
@@ -2178,7 +2174,6 @@ checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 name = "library"
 version = "0.0.1"
 dependencies = [
- "blake3",
  "futures-util",
  "libsqlite3-sys",
  "md-5 0.10.6",

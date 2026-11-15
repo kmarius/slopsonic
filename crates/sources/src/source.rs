@@ -588,8 +588,8 @@ impl Source {
     }
 
     pub async fn set_rating(&self, object_id: &str, rating: Option<u8>) -> SourceResult<()> {
-        if rating.is_some_and(|rating| rating > 10) {
-            return Err(SourceError::InvalidRequest("rating outside 0..=10"));
+        if rating.is_some_and(|rating| rating > 5) {
+            return Err(SourceError::InvalidRequest("rating outside 0..=5"));
         }
         let source = &self.subsonic;
         source.set_rating(object_id, rating).await

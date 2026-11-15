@@ -309,7 +309,7 @@ async fn sparse_artist_credits_preserve_metadata_and_complete_records_can_clear_
         write.artists.push(library::ArtistObservation {
             user_data: library::NativeUserState {
                 favorite: Some(false),
-                rating: (Some(Some(8))).map(|rating| rating.map(|value| value * 10)),
+                rating: Some(Some(4)),
                 ..Default::default()
             },
             metadata: library::ArtistMetadata {
@@ -383,7 +383,7 @@ async fn sparse_artist_credits_preserve_metadata_and_complete_records_can_clear_
             .fetch_one(&mut reader)
             .await
             .unwrap(),
-            (if complete { None } else { Some("mbid".into()) }, Some(80))
+            (if complete { None } else { Some("mbid".into()) }, Some(4))
         );
     }
     let mut write = library::CatalogBatch::default();
@@ -452,7 +452,7 @@ async fn write_small_catalog(
     .expect("begin scan");
     let scan = scan_catalog.start_observation().await.unwrap();
     {
-        let write = library::CatalogBatch { albums: vec![library::AlbumObservation{user_data:library::NativeUserState{favorite:Some(false),rating:(Some(Some(7))).map(|rating|rating.map(|value|value*10)),..Default::default()},metadata:library::AlbumMetadata{title:"Album One".into(),artist:"Artist One".into(),sort_text:"album one".into(),album_artists:vec![library::ArtistCredit {
+        let write = library::CatalogBatch { albums: vec![library::AlbumObservation{user_data:library::NativeUserState{favorite:Some(false),rating:Some(Some(4)),..Default::default()},metadata:library::AlbumMetadata{title:"Album One".into(),artist:"Artist One".into(),sort_text:"album one".into(),album_artists:vec![library::ArtistCredit {
                 object_id: "artist-one".into(),
                 name: "Artist One".into(),
                 ..Default::default()
@@ -707,7 +707,7 @@ async fn canonical_publication_preserves_identity_and_user_overrides() {
     );
     sqlx::query(
         "INSERT INTO user_media_state(media_uri,favorite,rating)
-         SELECT media_uri,1,90 FROM tracks WHERE object_id='track-one'",
+         SELECT media_uri,1,5 FROM tracks WHERE object_id='track-one'",
     )
     .execute(&mut outside)
     .await
@@ -763,7 +763,7 @@ async fn canonical_publication_preserves_identity_and_user_overrides() {
     .expect("read changed facts");
     assert_eq!(
         changed_facts,
-        (original_keys.0, original_keys.1, original_keys.2, 1, 90)
+        (original_keys.0, original_keys.1, original_keys.2, 1, 5)
     );
     assert_eq!(
         sqlx::query_as::<_, (i64, Option<i64>)>(
@@ -995,7 +995,7 @@ let write = library::CatalogBatch { genres: vec![library::GenreObservation{metad
         point_catalog.apply_catalog(&write, true).await.unwrap();
         };
             {
-let write = library::CatalogBatch { albums: vec![library::AlbumObservation{user_data:library::NativeUserState{favorite:Some(false),rating:(Some(Some(7))).map(|rating|rating.map(|value|value*10)),..Default::default()},metadata:library::AlbumMetadata{title:title.to_owned(),artist:"Artist One".into(),sort_text:"album one".into(),year:Some(2025),release_date:Some("2025-01-01".into()),date_added:Some("2025-01-02".into()),musicbrainz_release_id:Some("release-one".into()),musicbrainz_release_group_id:Some("release-group-one".into()),is_compilation:Some(false),album_artists:vec![library::ArtistCredit {
+let write = library::CatalogBatch { albums: vec![library::AlbumObservation{user_data:library::NativeUserState{favorite:Some(false),rating:Some(Some(4)),..Default::default()},metadata:library::AlbumMetadata{title:title.to_owned(),artist:"Artist One".into(),sort_text:"album one".into(),year:Some(2025),release_date:Some("2025-01-01".into()),date_added:Some("2025-01-02".into()),musicbrainz_release_id:Some("release-one".into()),musicbrainz_release_group_id:Some("release-group-one".into()),is_compilation:Some(false),album_artists:vec![library::ArtistCredit {
                         object_id: "artist-one".into(),
                         name: "Artist One".into(),
                         ..Default::default()

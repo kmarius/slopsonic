@@ -159,19 +159,17 @@ async fn make_playable(
         let name = format!("track-{track}.flac");
         let path = directory.join(&name);
         std::fs::write(&path, b"audio").unwrap();
-        let access = library::DownloadAccessWrite {
-            media_uri: batch_item(track, Provenance::Manual).0.media_uri,
-            path: path.to_string_lossy().into_owned(),
-            root: directory.to_string_lossy().into_owned(),
-            relative_path: name,
-            size_bytes: 5,
-            mtime_ns: 0,
-            device_id: None,
-            inode: None,
-            parser_version: 1,
-            access_uri: url::Url::from_file_path(&path).unwrap().to_string(),
-        };
-        database.write_download_access(&[&access]).await.unwrap();
+        database
+            .commit_download(&library::DownloadFile {
+                media_uri: batch_item(track, Provenance::Manual).0.media_uri,
+                encoding: "original".into(),
+                path: url::Url::from_file_path(&path).unwrap().to_string(),
+                storage_root: directory.to_string_lossy().into_owned(),
+                relative_path: name,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
     }
 }
 

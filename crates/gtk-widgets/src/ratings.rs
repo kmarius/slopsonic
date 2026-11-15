@@ -122,31 +122,23 @@ fn widget_width(widget: Option<gtk::Widget>) -> i32 {
     widget.map_or(STAR_WIDTH, |widget| widget.width())
 }
 
-/// Ratings are stored in half-star units; the control only selects whole stars.
 fn rating_at(x: f64, width: i32) -> u8 {
-    ((x / f64::from(width.max(1)) * 5.0).round() as u8)
-        .saturating_mul(2)
-        .min(10)
+    ((x / f64::from(width.max(1)) * 5.0).round() as u8).min(5)
 }
 
 fn normalized_rating(rating: Option<u8>) -> u8 {
-    rating.unwrap_or(0).min(10).div_ceil(2) * 2
+    rating.unwrap_or(0).min(5)
 }
 
 fn set_rating_icons(stars: &[gtk::Image; 5], rating: u8) {
-    let rating = rating.min(10);
     for (index, star) in stars.iter().enumerate() {
-        let value = rating.saturating_sub(index as u8 * 2);
-        if value == 0 {
-            star.remove_css_class("rated");
-        } else {
+        if usize::from(rating) > index {
             star.add_css_class("rated");
+            star.set_icon_name(Some("slopsonic-starred-symbolic"));
+        } else {
+            star.remove_css_class("rated");
+            star.set_icon_name(Some("slopsonic-non-starred-symbolic"));
         }
-        star.set_icon_name(Some(match value {
-            0 => "slopsonic-non-starred-symbolic",
-            1 => "slopsonic-semi-starred-symbolic",
-            _ => "slopsonic-starred-symbolic",
-        }));
     }
 }
 
@@ -182,10 +174,10 @@ mod tests {
 
     #[test]
     fn pointer_position_selects_only_whole_stars() {
-        assert_eq!(rating_at(9.5, 95), 2);
-        assert_eq!(rating_at(19.0, 95), 2);
-        assert_eq!(rating_at(47.5, 95), 6);
-        assert_eq!(rating_at(57.0, 95), 6);
-        assert_eq!(normalized_rating(Some(5)), 6);
+        assert_eq!(rating_at(9.5, 95), 1);
+        assert_eq!(rating_at(19.0, 95), 1);
+        assert_eq!(rating_at(47.5, 95), 3);
+        assert_eq!(rating_at(57.0, 95), 3);
+        assert_eq!(normalized_rating(Some(9)), 5);
     }
 }

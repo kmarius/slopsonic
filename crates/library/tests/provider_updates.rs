@@ -11,7 +11,7 @@ async fn track(
                 tracks: vec![library::TrackObservation {
                     user_data: library::NativeUserState {
                         favorite: favorite,
-                        rating: (Some(Some(8))).map(|rating| rating.map(|value| value * 10)),
+                        rating: Some(Some(4)),
                         play_count: play_count,
                         ..Default::default()
                     },
@@ -69,7 +69,7 @@ async fn fixture() -> (tempfile::TempDir, Database) {
             albums: vec![library::AlbumObservation {
                 user_data: library::NativeUserState {
                     favorite: Some(true),
-                    rating: (Some(Some(8))).map(|rating| rating.map(|value| value * 10)),
+                    rating: Some(Some(4)),
                     ..Default::default()
                 },
                 metadata: library::AlbumMetadata {
@@ -91,7 +91,7 @@ async fn fixture() -> (tempfile::TempDir, Database) {
             artists: vec![library::ArtistObservation {
                 user_data: library::NativeUserState {
                     favorite: Some(true),
-                    rating: (Some(Some(8))).map(|rating| rating.map(|value| value * 10)),
+                    rating: Some(Some(4)),
                     ..Default::default()
                 },
                 metadata: library::ArtistMetadata {
@@ -229,7 +229,7 @@ async fn favorite_and_play_count_changes_do_not_report_new_tracks() {
             .fetch_one(&mut raw)
             .await
             .unwrap(),
-            (favorite, Some(plays), Some(80))
+            (favorite, Some(plays), Some(4))
         );
         let (updates_tx, mut updates) = tokio::sync::mpsc::unbounded_channel();
         database.observe_catalog(move |update| {
@@ -335,7 +335,7 @@ async fn favorite_snapshots_replace_only_source_favorites_and_keep_catalog_fresh
                     .fetch_one(&mut raw)
                     .await
                     .unwrap(),
-                (favorite, Some(80))
+                (favorite, Some(4))
             );
         }
         let (updates_tx, mut updates) = tokio::sync::mpsc::unbounded_channel();
@@ -509,7 +509,7 @@ async fn incomplete_catalog_keeps_home_sections_when_their_refresh_fails() {
             albums: vec![library::AlbumObservation {
                 user_data: library::NativeUserState {
                     favorite: Some(true),
-                    rating: (Some(Some(8))).map(|rating| rating.map(|value| value * 10)),
+                    rating: Some(Some(4)),
                     ..Default::default()
                 },
                 metadata: library::AlbumMetadata {

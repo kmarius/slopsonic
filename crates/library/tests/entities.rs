@@ -829,7 +829,7 @@ async fn tracks_and_collections_keep_complete_orders_and_bounded_rows() {
     assert_eq!(rows[0].links.artists[0].name, rows[0].metadata.artist);
     assert_eq!(rows[0].links.album_artists[0].name, rows[0].metadata.artist);
     assert_eq!(rows[0].links.genres[0].name, "Rock");
-    assert_eq!(rows[0].state.rating, Some(8));
+    assert_eq!(rows[0].state.rating, Some(4));
     assert_eq!(rows[0].state.play_count, 0);
     assert_eq!(rows[0].state.last_played, None);
     assert_eq!(
@@ -1389,7 +1389,7 @@ async fn metadata_refresh_publishes_changes_and_leaves_no_ops_unchanged() {
                 tracks: vec![library::TrackObservation {
                     user_data: library::NativeUserState {
                         favorite: Some(false),
-                        rating: (Some(Some(5))).map(|rating| rating.map(|value| value * 10)),
+                        rating: Some(Some(3)),
                         ..Default::default()
                     },
                     metadata: library::TrackMetadata {
