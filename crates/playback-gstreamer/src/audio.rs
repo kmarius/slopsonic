@@ -640,6 +640,25 @@ fn make_element(factory: &str, name: &str) -> Result<gst::Element, String> {
         .map_err(|error| error.to_string())
 }
 
+/// Keeps pulsesink's shared loop alive: it is freed with the last sink while a streaming thread
+/// may still query it. Its own client name avoids reusing a dead shared connection.
+pub(super) fn hold_pulse_loop() {
+    static HOLDER: Mutex<Option<gst::Element>> = Mutex::new(None);
+    let mut holder = super::lock_recover(&HOLDER);
+    if holder.is_some() {
+        return;
+    }
+    let Ok(sink) = gst::ElementFactory::make("pulsesink")
+        .property("client-name", "Slopsonic idle")
+        .build()
+    else {
+        return;
+    };
+    if sink.set_state(gst::State::Ready).is_ok() {
+        *holder = Some(sink);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use library::NativeGain;
