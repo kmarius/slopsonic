@@ -48,6 +48,7 @@ struct ContextMenuCustomChild {
 enum ContextMenuEntry<T> {
     Configurable(ContextMenuItem, T),
     Fixed(T),
+    Widget(T),
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -57,6 +58,7 @@ enum ContextMenuSection {
     Details,
     Downloads,
     Fixed,
+    Widget,
 }
 
 impl ContextMenuSection {
@@ -163,7 +165,7 @@ impl ContextMenuSurface {
         item.set_attribute_value("custom", Some(&id.to_variant()));
         self.entries
             .borrow_mut()
-            .push(ContextMenuEntry::Fixed(item));
+            .push(ContextMenuEntry::Widget(item));
         self.custom_children
             .borrow_mut()
             .push(ContextMenuCustomChild {
@@ -267,6 +269,9 @@ impl ContextMenuSurface {
                 ),
                 ContextMenuEntry::Fixed(item) => {
                     ContextMenuEntry::Fixed((ContextMenuSection::Fixed, item))
+                }
+                ContextMenuEntry::Widget(item) => {
+                    ContextMenuEntry::Widget((ContextMenuSection::Widget, item))
                 }
             })
             .collect();
@@ -404,7 +409,7 @@ fn resolve_context_menu_entries<T>(
             ContextMenuEntry::Configurable(item, value) => {
                 settings.is_visible(item).then_some(value)
             }
-            ContextMenuEntry::Fixed(value) => Some(value),
+            ContextMenuEntry::Fixed(value) | ContextMenuEntry::Widget(value) => Some(value),
         })
         .collect()
 }
@@ -762,11 +767,14 @@ fn keep_parent_grab_for_nested_native_menus_from(container: &gtk::Widget) {
                 .property::<Option<gtk::Popover>>("popover")
                 .and_then(|popover| popover.downcast::<gtk::PopoverMenu>().ok())
         {
-            // Keep the parent menu's modal grab while its native child is open.
-            nested_popover.set_autohide(false);
             nested_popover.set_width_request(CONTEXT_MENU_MAX_WIDTH);
-            if !widget.has_css_class(NATIVE_MENU_PARENT_GRAB_CLASS) {
+            // Before GTK 4.24 (GTK !9895) closing an autohide child drops the parent menu's
+            // grab, so those versions keep submenus non-modal.
+            if gtk::check_version(4, 24, 0).is_some()
+                && !widget.has_css_class(NATIVE_MENU_PARENT_GRAB_CLASS)
+            {
                 widget.add_css_class(NATIVE_MENU_PARENT_GRAB_CLASS);
+                nested_popover.set_autohide(false);
                 nested_popover.connect_map(|popover| {
                     // Non-modal submenus must still close the previous sibling on arrow navigation.
                     if let Some(parent) = popover
