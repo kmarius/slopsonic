@@ -44,7 +44,6 @@ impl Actor {
         jobs.retain_mut(|job| {
             if job.quality != quality {
                 job.quality = quality;
-                job.replace_unknown = true;
                 job.remaining.extend(job.completed.drain(..));
             }
             job.state = DownloadQueueState::Queued;
@@ -68,7 +67,6 @@ impl Actor {
         media_uri: &str,
         owner: &DownloadOwner,
         quality: DownloadQuality,
-        replace_unknown: bool,
     ) -> Result<bool, String> {
         let encoding = library::media_encoding_key(quality.encoding());
         let previous = self
@@ -76,14 +74,7 @@ impl Actor {
             .download_file(media_uri, &encoding)
             .await
             .map_err(|error| error.to_string())?;
-        let mut saved = previous.clone();
-        if saved.is_none() && !replace_unknown {
-            saved = self
-                .database
-                .download_file(media_uri, "unknown")
-                .await
-                .map_err(|error| error.to_string())?;
-        }
+        let saved = previous.clone();
         let current = self
             .database
             .audio_revision(media_uri)
@@ -141,7 +132,6 @@ impl Actor {
         subject: DownloadSubject,
         quality: DownloadQuality,
         media_uris: Vec<String>,
-        replace_unknown: bool,
     ) -> Option<DownloadFeedback> {
         let mut seen = HashSet::new();
         let media_uris = media_uris
@@ -156,10 +146,7 @@ impl Actor {
         let mut completed = Vec::new();
         let mut remaining = Vec::new();
         for media_uri in &media_uris {
-            match self
-                .add_download_owner(media_uri, &owner, quality, replace_unknown)
-                .await
-            {
+            match self.add_download_owner(media_uri, &owner, quality).await {
                 Ok(true) => completed.push(media_uri.clone()),
                 Ok(false) => remaining.push(media_uri.clone()),
                 Err(error) => {
@@ -178,7 +165,6 @@ impl Actor {
             {
                 let existing = &mut jobs[existing_index];
                 existing.failed = false;
-                existing.replace_unknown |= replace_unknown;
                 let completed_now = completed.iter().collect::<HashSet<_>>();
                 existing
                     .remaining
@@ -213,7 +199,6 @@ impl Actor {
                     id: job_id(&subject, self.next_job),
                     subject: subject.clone(),
                     quality,
-                    replace_unknown,
                     completed,
                     failed: false,
                     remaining: remaining.into(),

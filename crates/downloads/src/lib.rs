@@ -116,8 +116,6 @@ struct DownloadJob {
     #[serde(deserialize_with = "quality::deserialize")]
     quality: DownloadQuality,
     #[serde(default)]
-    replace_unknown: bool,
-    #[serde(default)]
     completed: Vec<String>,
     #[serde(default)]
     failed: bool,

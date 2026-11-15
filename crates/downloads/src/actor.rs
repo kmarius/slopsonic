@@ -155,7 +155,7 @@ impl Actor {
                     warn!("ignored a download that does not belong to the attached server");
                 }
                 if let Some(feedback) = self
-                    .enqueue(subject.clone(), self.settings.quality, accepted, false)
+                    .enqueue(subject.clone(), self.settings.quality, accepted)
                     .await
                 {
                     let _ = self.events.send(DownloadEvent::Feedback(feedback)).await;

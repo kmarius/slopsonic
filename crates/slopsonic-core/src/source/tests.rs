@@ -102,7 +102,7 @@ async fn acquisition_progress_belongs_to_its_source() {
             .await
             .unwrap(),
     );
-    database.reconcile_server("subsonic", "Test").await.unwrap();
+    database.reconcile_server("Test").await.unwrap();
     let runtime = tokio::runtime::Handle::current();
     let (events, receiver) = async_channel::unbounded();
     let owner = ServerOwner::open_dormant(
@@ -322,10 +322,7 @@ async fn cached_selection_and_favorites_work_while_the_server_is_unreachable() {
                 .await
                 .unwrap(),
         );
-        database
-            .reconcile_server("subsonic", "Music")
-            .await
-            .unwrap();
+        database.reconcile_server("Music").await.unwrap();
         let update = {
             let mut catalog = database.catalog(None).await.unwrap();
             catalog
@@ -578,10 +575,7 @@ async fn source_switch_and_removal_complete_without_an_event_consumer() {
                 Ok(())
             })
             .unwrap();
-        database
-            .reconcile_server("subsonic", "first")
-            .await
-            .unwrap();
+        database.reconcile_server("first").await.unwrap();
         let runtime = tokio::runtime::Handle::current();
         let (events, receiver) = async_channel::unbounded();
         let receiver = keep_receiver.then_some(receiver);
@@ -673,10 +667,7 @@ async fn server_reset_drops_its_local_state_and_keeps_the_configuration() {
             .await
             .unwrap(),
     );
-    database
-        .reconcile_server("subsonic", "Server")
-        .await
-        .unwrap();
+    database.reconcile_server("Server").await.unwrap();
     let album = FavoriteTarget::Album(library::entity_uri("album", "a"));
     assert!(
         database

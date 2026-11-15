@@ -145,9 +145,7 @@ CREATE INDEX IF NOT EXISTS download_files_path_idx ON download_files(path,encodi
 CREATE TABLE IF NOT EXISTS sources (
     source_key INTEGER PRIMARY KEY,
     object_id TEXT NOT NULL UNIQUE CHECK (object_id <> ''),
-    display_name TEXT NOT NULL DEFAULT '', normalized_name TEXT NOT NULL DEFAULT '', freshness BLOB,
-    kind TEXT,
-    artwork_digest BLOB NOT NULL DEFAULT X'0000000000000000000000000000000000000000000000000000000000000000' CHECK (length(artwork_digest) = 32),
+    display_name TEXT NOT NULL DEFAULT '', freshness BLOB,
     distinct_track_covers INTEGER NOT NULL DEFAULT 0 CHECK (distinct_track_covers IN (0,1)),
     catalog_revision INTEGER NOT NULL DEFAULT 0 CHECK (catalog_revision >= 0),
     catalog_complete INTEGER NOT NULL DEFAULT 0 CHECK (catalog_complete IN (0,1)),
@@ -762,6 +760,10 @@ const MIGRATIONS: &[&str] = &[
      INSERT INTO rating_outbox_new SELECT outbox_key,media_uri,(rating+1)/2,attempts,next_attempt_at FROM rating_outbox;
      DROP TABLE rating_outbox;
      ALTER TABLE rating_outbox_new RENAME TO rating_outbox;",
+    // 76: drop the server columns nothing reads.
+    "ALTER TABLE sources DROP COLUMN kind;
+     ALTER TABLE sources DROP COLUMN normalized_name;
+     ALTER TABLE sources DROP COLUMN artwork_digest;",
 ];
 
 pub(crate) const SCHEMA_VERSION: i64 = BASE_VERSION + MIGRATIONS.len() as i64;

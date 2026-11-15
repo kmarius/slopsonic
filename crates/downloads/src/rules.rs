@@ -26,7 +26,6 @@ impl Actor {
                 .await;
             for job in &mut self.jobs {
                 job.quality = quality;
-                job.replace_unknown = true;
                 job.remaining.extend(job.completed.drain(..));
                 job.failed = false;
                 job.state = DownloadQueueState::Queued;
@@ -73,7 +72,7 @@ impl Actor {
                 }
             }
             for (subject, uris) in replacements {
-                self.enqueue(subject, quality, uris, true).await;
+                self.enqueue(subject, quality, uris).await;
             }
         }
     }
@@ -202,17 +201,10 @@ impl Actor {
             }
         }
 
-        let replace_unknown = self
-            .jobs
-            .iter()
-            .any(|job| job.subject == subject && job.replace_unknown);
         let mut completed = Vec::new();
         let mut remaining = Vec::new();
         for media_uri in &media_uris {
-            match self
-                .add_download_owner(media_uri, &owner, quality, replace_unknown)
-                .await
-            {
+            match self.add_download_owner(media_uri, &owner, quality).await {
                 Ok(true) => completed.push(media_uri.clone()),
                 Ok(false) => remaining.push(media_uri.clone()),
                 Err(error) => {
@@ -250,7 +242,6 @@ impl Actor {
                 id,
                 subject: subject.clone(),
                 quality,
-                replace_unknown,
                 completed,
                 failed: false,
                 remaining: remaining.into(),

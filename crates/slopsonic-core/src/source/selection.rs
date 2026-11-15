@@ -25,10 +25,7 @@ impl ServerOwner {
             None => self
                 .shared
                 .database
-                .reconcile_server(
-                    configured.configuration.kind.kind_name(),
-                    &configured.configuration.name,
-                )
+                .reconcile_server(&configured.configuration.name)
                 .await
                 .map_err(string_error)?,
         };
@@ -431,10 +428,7 @@ impl ServerOwner {
             let source = self.cache_connected(&replacement, Arc::new(source));
             self.shared
                 .database
-                .reconcile_server(
-                    replacement.configuration.kind.kind_name(),
-                    &replacement.configuration.name,
-                )
+                .reconcile_server(&replacement.configuration.name)
                 .await
                 .map_err(string_error)?;
             let selected = was_selected || self.shared.selected().is_some();
@@ -542,7 +536,7 @@ impl ServerOwner {
                 })?;
                 self.shared
                     .database
-                    .reconcile_server(configuration.kind.kind_name(), &configuration.name)
+                    .reconcile_server(&configuration.name)
                     .await
                     .map_err(string_error)?;
                 Ok(())

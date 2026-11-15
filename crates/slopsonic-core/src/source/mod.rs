@@ -652,7 +652,7 @@ impl ServerOwner {
                 owner
                     .shared
                     .database
-                    .reconcile_server(configuration.kind.kind_name(), &configuration.name)
+                    .reconcile_server(&configuration.name)
                     .await
                     .map_err(string_error)?;
                 let source = Arc::new(source);

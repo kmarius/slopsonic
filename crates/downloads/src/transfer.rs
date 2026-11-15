@@ -24,15 +24,9 @@ impl Actor {
                 self.publish().await;
                 continue;
             };
-            let replace_unknown = self
-                .find_job_mut(&job_id)
-                .is_some_and(|job| job.replace_unknown);
             let custom_directory = attached.directory.as_deref();
             let owner = DownloadOwner::Subject(subject.clone());
-            match self
-                .add_download_owner(&media_uri, &owner, quality, replace_unknown)
-                .await
-            {
+            match self.add_download_owner(&media_uri, &owner, quality).await {
                 Ok(true) => {
                     self.remove_job_track(&job_id, &media_uri, true);
                     self.persist_and_publish().await;

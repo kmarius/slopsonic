@@ -57,7 +57,7 @@ async fn fixture() -> (tempfile::TempDir, Database) {
             .await?
             .is_none()
         {
-            (&database).reconcile_server("subsonic", "Source").await?;
+            (&database).reconcile_server("Source").await?;
         }
         database.catalog(None).await
     }
@@ -497,7 +497,7 @@ async fn incomplete_catalog_keeps_home_sections_when_their_refresh_fails() {
             .await?
             .is_none()
         {
-            (&database).reconcile_server("subsonic", "Source").await?;
+            (&database).reconcile_server("Source").await?;
         }
         database.catalog(None).await
     }

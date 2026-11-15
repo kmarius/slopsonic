@@ -387,12 +387,10 @@ mod tests {
         schema::initialize_durable(&mut connection)
             .await
             .expect("initialize durable Store");
-        sqlx::query(
-            "INSERT INTO sources(object_id,display_name,normalized_name,artwork_digest) VALUES ('source','Source','source',zeroblob(32))",
-        )
-        .execute(&mut connection)
-        .await
-        .expect("insert source");
+        sqlx::query("INSERT INTO sources(object_id,display_name) VALUES ('source','Source')")
+            .execute(&mut connection)
+            .await
+            .expect("insert source");
         let artist = sqlx::query_scalar::<_, ArtistKey>("INSERT INTO artists(object_id,media_uri,metadata) VALUES ('artist','slopsonic:artist/%61%72%74%69%73%74',jsonb(json_object('name','Artist','sort_text','artist'))) RETURNING artist_key")
             .fetch_one(&mut connection).await.expect("insert Artist");
         let genre = sqlx::query_scalar::<_, GenreKey>("INSERT INTO genres(object_id,media_uri,metadata) VALUES ('genre','genre:one',jsonb(json_object('name','Genre','sort_text','genre'))) RETURNING genre_key")
@@ -497,12 +495,10 @@ mod tests {
         schema::initialize_durable(&mut connection)
             .await
             .expect("initialize durable Store");
-        sqlx::query(
-            "INSERT INTO sources(object_id,display_name,normalized_name,artwork_digest) VALUES ('source','Source','source',zeroblob(32))",
-        )
-        .execute(&mut connection)
-        .await
-        .expect("insert source");
+        sqlx::query("INSERT INTO sources(object_id,display_name) VALUES ('source','Source')")
+            .execute(&mut connection)
+            .await
+            .expect("insert source");
         sqlx::query("WITH RECURSIVE sequence(value) AS (VALUES(0) UNION ALL SELECT value+1 FROM sequence WHERE value<299) INSERT INTO tracks(object_id,media_uri,normalized_search,indexed,metadata) SELECT 'track-'||printf('%03d',value),'file:///track-'||printf('%03d',value),'track artist',1,jsonb(json_object('title',COALESCE('Track',''),'album',COALESCE('',''),'artist',COALESCE('Artist',''),'sort_text',COALESCE('track-'||printf('%03d',value),''),'duration_millis',COALESCE(1000,0),'disc_number',COALESCE(0,0),'track_number',COALESCE(value,0))) FROM sequence")
             .execute(&mut connection).await.expect("insert large Folder Track order");
         drop(connection);

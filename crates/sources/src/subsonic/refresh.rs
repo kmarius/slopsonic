@@ -626,7 +626,7 @@ mod tests {
         let database = library::Database::open(directory.path().join("library.sqlite"))
             .await
             .unwrap();
-        database.reconcile_server("source", "Source").await.unwrap();
+        database.reconcile_server("Source").await.unwrap();
 
         let cancellation = library::ReadCancellation::new();
         for (next, expected_reads) in [(0, 1), (1, 1), (2, 2), (3, 3), (6, 4), (4, 5), (5, 5)] {
@@ -757,7 +757,7 @@ mod tests {
             std::future::ready(())
         });
         let marker = library::Freshness::new(b"unchanged catalog".to_vec()).unwrap();
-        database.reconcile_server("source", "Source").await.unwrap();
+        database.reconcile_server("Source").await.unwrap();
         let mut catalog = database.catalog(None).await.unwrap();
         let stamp = Some(catalog.start_observation().await.unwrap());
         (async {
@@ -986,10 +986,7 @@ mod tests {
             });
             let marker = library::Freshness::new(b"server-observation".to_vec()).unwrap();
             if folders_available {
-                database
-                    .reconcile_server("nextcloud music", "Nextcloud Music")
-                    .await
-                    .unwrap();
+                database.reconcile_server("Nextcloud Music").await.unwrap();
                 let mut catalog = database.catalog(None).await.unwrap();
                 catalog.start_observation().await.unwrap();
                 let batch=library::CatalogBatch {
@@ -1031,10 +1028,7 @@ mod tests {
                 updates.try_recv().expect("initial catalog update");
             }
             let progress = std::sync::Mutex::new(Vec::new());
-            database
-                .reconcile_server("nextcloud music", "Nextcloud Music")
-                .await
-                .unwrap();
+            database.reconcile_server("Nextcloud Music").await.unwrap();
             let mut catalog = database.catalog(None).await.unwrap();
             let stamp = Some(catalog.start_observation().await.unwrap());
             let complete = {

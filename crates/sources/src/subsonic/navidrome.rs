@@ -1194,7 +1194,7 @@ mod tests {
         let database = library::Database::open(directory.path().join("library.sqlite"))
             .await
             .unwrap();
-        database.reconcile_server("source", "Source").await.unwrap();
+        database.reconcile_server("Source").await.unwrap();
         let mut catalog = database.catalog(None).await.unwrap();
         catalog.start_observation().await.unwrap();
         (async {
@@ -1470,10 +1470,7 @@ mod tests {
         let database = library::Database::open(directory.path().join("library.sqlite3"))
             .await
             .expect("Library database");
-        database
-            .reconcile_server("navidrome", "Navidrome")
-            .await
-            .unwrap();
+        database.reconcile_server("Navidrome").await.unwrap();
         let mut catalog = database.catalog(None).await.unwrap();
         catalog.start_observation().await.unwrap();
 

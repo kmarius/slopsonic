@@ -1333,7 +1333,7 @@ async fn repeat_wraps_when_source_exhaustion_is_discovered_after_a_full_page() {
     let uris = (0..100)
         .map(|i| library::entity_uri("track", &i.to_string()))
         .collect::<Vec<_>>();
-    db.reconcile_server("subsonic", "Source").await.unwrap();
+    db.reconcile_server("Source").await.unwrap();
     let mut catalog = db.catalog(None).await.unwrap();
     catalog
         .apply_catalog(

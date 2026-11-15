@@ -6,7 +6,7 @@ async fn download_fixture(track_object_id: &str) -> (tempfile::TempDir, Database
     let database = Database::open(&directory.path().join("library.sqlite3"))
         .await
         .expect("open Library");
-    database.reconcile_server("server", "Source").await.unwrap();
+    database.reconcile_server("Source").await.unwrap();
     database
         .catalog(None)
         .await
@@ -78,7 +78,6 @@ async fn queued_media_survives_restart_serialization() {
         id: "job".to_string(),
         subject: DownloadSubject::for_media_uris("track", Some("Track"), &remaining),
         quality: DownloadQuality::Original,
-        replace_unknown: false,
         completed: Vec::new(),
         failed: false,
         remaining: remaining.into(),
@@ -304,7 +303,6 @@ fn test_job(media_uri: String) -> DownloadJob {
             std::slice::from_ref(&media_uri),
         ),
         quality: DownloadQuality::Original,
-        replace_unknown: false,
         completed: Vec::new(),
         failed: false,
         remaining: vec![media_uri].into(),

@@ -216,10 +216,7 @@ where
 
     if let Some(configured) = &stored.sources.configured {
         if let Err(error) = library
-            .reconcile_server(
-                configured.configuration.kind.kind_name(),
-                &configured.configuration.name,
-            )
+            .reconcile_server(&configured.configuration.name)
             .await
         {
             warn!(%error, "could not reconcile configured source mapping");

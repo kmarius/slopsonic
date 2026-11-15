@@ -215,10 +215,7 @@ async fn deleting_or_corrupting_catalog_preserves_exact_durable_records() {
         raw.close().await.unwrap();
         // Ordinary rescan rejoins effective favorites/ratings by the unchanged media URI.
         let (_, object) = library::entity_parts(uri).unwrap();
-        database
-            .reconcile_server("subsonic", "Source")
-            .await
-            .unwrap();
+        database.reconcile_server("Source").await.unwrap();
         let mut catalog = database.catalog(None).await.unwrap();
         let observed = catalog.start_observation().await.unwrap();
         catalog
@@ -339,6 +336,9 @@ async fn single_server_migrations_rewrite_local_state_and_drop_the_server_keys()
     };
     sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
         "ALTER TABLE download_files ADD COLUMN source_id TEXT;
+         ALTER TABLE sources ADD COLUMN kind TEXT;
+         ALTER TABLE sources ADD COLUMN normalized_name TEXT;
+         ALTER TABLE sources ADD COLUMN artwork_digest BLOB;
          ALTER TABLE tracks ADD COLUMN source_key INTEGER;
          ALTER TABLE albums ADD COLUMN source_key INTEGER;
          ALTER TABLE artists ADD COLUMN source_key INTEGER;
@@ -469,10 +469,7 @@ async fn single_server_migrations_rewrite_local_state_and_drop_the_server_keys()
     raw.close().await.unwrap();
     // The upgraded library keeps working: the queue restores and a sync writes the catalog again.
     let database = Database::open(&path).await.unwrap();
-    database
-        .reconcile_server("subsonic", "Server")
-        .await
-        .unwrap();
+    database.reconcile_server("Server").await.unwrap();
     let mut catalog = database.catalog(None).await.unwrap();
     let mut batch = library::CatalogBatch::default();
     batch.tracks.push(library::TrackObservation {

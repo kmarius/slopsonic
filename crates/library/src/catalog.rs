@@ -107,13 +107,13 @@ impl Database {
         }
     }
 
-    pub async fn reconcile_server(&self, kind: &str, name: &str) -> LibraryResult<CachedSource> {
+    pub async fn reconcile_server(&self, name: &str) -> LibraryResult<CachedSource> {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
         let mut transaction = connection.begin().await?;
         crate::db::write_source_identity(&mut transaction).await?;
-        sqlx::query("UPDATE sources SET kind=?1,display_name=?2,normalized_name=?3,distinct_track_covers=?4 WHERE (kind,display_name,normalized_name,distinct_track_covers) IS NOT (?1,?2,?3,?4)")
-            .bind(kind).bind(name).bind(name.to_lowercase()).bind(self.distinct_track_covers()).execute(&mut *transaction).await?;
+        sqlx::query("UPDATE sources SET display_name=?1,distinct_track_covers=?2 WHERE (display_name,distinct_track_covers) IS NOT (?1,?2)")
+            .bind(name).bind(self.distinct_track_covers()).execute(&mut *transaction).await?;
         let row = sqlx::query_as("SELECT display_name,catalog_complete FROM sources")
             .fetch_one(&mut *transaction)
             .await?;

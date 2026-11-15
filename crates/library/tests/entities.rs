@@ -145,7 +145,7 @@ async fn track_sorts_keep_nulls_last_and_title_ties_in_both_directions() {
 async fn repeated_album_cards_keep_whole_counts_and_separate_source_activity() {
     let fixture = fixture().await;
     let mut raw = connection(&fixture.path).await;
-    sqlx::raw_sql("UPDATE sources SET kind='subsonic';\n      INSERT INTO native_media_state(media_uri,play_count,last_played) SELECT media_uri,3,200 FROM tracks WHERE object_id='track-1' ON CONFLICT(media_uri) DO UPDATE SET play_count=excluded.play_count,last_played=excluded.last_played;")
+    sqlx::raw_sql("INSERT INTO native_media_state(media_uri,play_count,last_played) SELECT media_uri,3,200 FROM tracks WHERE object_id='track-1' ON CONFLICT(media_uri) DO UPDATE SET play_count=excluded.play_count,last_played=excluded.last_played;")
         .execute(&mut raw).await.unwrap();
 
     let cancel = ReadCancellation::new();

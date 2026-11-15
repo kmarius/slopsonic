@@ -15,7 +15,7 @@ async fn publication_keeps_tracks_and_known_credits_beside_missing_related_objec
             .await?
             .is_none()
         {
-            (&database).reconcile_server("subsonic", "Source").await?;
+            (&database).reconcile_server("Source").await?;
         }
         database.catalog(None).await
     }
@@ -177,10 +177,7 @@ async fn artist_names_and_sort_names_survive_sparse_credits_and_reset_with_compl
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("library.sqlite3");
     let database = Database::open(&path).await.unwrap();
-    database
-        .reconcile_server("subsonic", "Source")
-        .await
-        .unwrap();
+    database.reconcile_server("Source").await.unwrap();
     let mut write = library::CatalogBatch::default();
     {
         write.artists.extend_from_slice(&[
@@ -300,10 +297,7 @@ async fn sparse_artist_credits_preserve_metadata_and_complete_records_can_clear_
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("library.sqlite3");
     let database = Database::open(&path).await.unwrap();
-    database
-        .reconcile_server("subsonic", "Source")
-        .await
-        .unwrap();
+    database.reconcile_server("Source").await.unwrap();
     let mut write = library::CatalogBatch::default();
     {
         write.artists.push(library::ArtistObservation {
@@ -442,9 +436,7 @@ async fn write_small_catalog(
             .await?
             .is_none()
         {
-            (database)
-                .reconcile_server("subsonic", "Source One")
-                .await?;
+            (database).reconcile_server("Source One").await?;
         }
         database.catalog(None).await
     }
@@ -1135,7 +1127,7 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
                 .await?
                 .is_none()
             {
-                (&database).reconcile_server("subsonic", "Source").await?;
+                (&database).reconcile_server("Source").await?;
             }
             database.catalog(None).await
         }
@@ -1236,7 +1228,7 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
             .await?
             .is_none()
         {
-            (&database).reconcile_server("subsonic", "Source").await?;
+            (&database).reconcile_server("Source").await?;
         }
         database.catalog(None).await
     }
@@ -1331,11 +1323,8 @@ async fn completed_batches_survive_later_failure_and_interleaved_changes() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("library.sqlite3");
     let database = Database::open(&path).await.unwrap();
-    database.reconcile_server("subsonic", "Two").await.unwrap();
-    database
-        .reconcile_server("subsonic", "Three")
-        .await
-        .unwrap();
+    database.reconcile_server("Two").await.unwrap();
+    database.reconcile_server("Three").await.unwrap();
 
     let mut failed_catalog = database.catalog(None).await.unwrap();
     failed_catalog.start_observation().await.unwrap();
@@ -1587,7 +1576,7 @@ async fn completed_batches_survive_later_failure_and_interleaved_changes() {
         .is_err()
     );
 
-    database.reconcile_server("subsonic", "Two").await.unwrap();
+    database.reconcile_server("Two").await.unwrap();
     // A playlist naming the forgotten track before its own sync claims the kept row.
     super::support::server_playlist(
         &database,
@@ -2012,10 +2001,7 @@ async fn reference_names_can_change_and_complete_artist_names_take_precedence() 
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("library.sqlite");
     let database = Database::open(&path).await.unwrap();
-    database
-        .reconcile_server("subsonic", "Source")
-        .await
-        .unwrap();
+    database.reconcile_server("Source").await.unwrap();
     let mut raw = connection(&path).await;
     for (artist, genre, complete) in [
         ("Artist", "Rock", false),

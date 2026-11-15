@@ -36,7 +36,7 @@ mod tests {
             .await
             .unwrap();
         let uri = crate::entity_uri("track", "track");
-        database.reconcile_server("server", "Source").await.unwrap();
+        database.reconcile_server("Source").await.unwrap();
         database
             .catalog(None)
             .await
