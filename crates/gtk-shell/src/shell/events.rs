@@ -316,12 +316,12 @@ fn apply_source_operation(shell: &Rc<Shell>, operation: ServerOperation) {
                 shell.prepare_startup_route_content();
             }
         }
-        ServerOperation::Idle => {
-            shell.preferences.update_add_server_dialog();
-            if shell.selected_library().is_some() && !shell.startup.route_revealed.get() {
-                shell.prepare_startup_route_content();
-            }
-        }
+        ServerOperation::Idle => shell.preferences.update_add_server_dialog(),
+    }
+    // The watch keeps only the latest operation, so the Idle that ended a switch may arrive
+    // as the refresh that followed it.
+    if shell.selected_library().is_some() && !operation.blocks_library() {
+        shell.prepare_startup_route_content();
     }
 }
 
