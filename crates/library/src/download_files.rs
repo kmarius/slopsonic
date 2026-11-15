@@ -25,6 +25,16 @@ pub fn media_encoding_key(encoding: Option<crate::AudioEncoding>) -> String {
     }
 }
 
+pub fn media_encoding_codec(key: &str) -> Option<crate::AudioCodec> {
+    match key {
+        "original" => None,
+        "mp3" => Some(crate::AudioCodec::Mp3),
+        key => serde_json::from_str::<crate::AudioEncoding>(key)
+            .ok()
+            .map(|encoding| encoding.codec),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -71,7 +81,7 @@ mod tests {
         };
         database.commit_download(&receipt).await.unwrap();
         assert_eq!(
-            database.playback_access(&uri).await.unwrap().unwrap(),
+            database.playback_access(&uri).await.unwrap().unwrap().0,
             receipt.path
         );
         assert_eq!(
@@ -84,7 +94,7 @@ mod tests {
             },
             "Track"
         );
-        let alternative = root.path().join("download.opus");
+        let alternative = root.path().join("download.ogg");
         std::fs::write(&alternative, b"alternative").unwrap();
         let alternate = DownloadFile {
             encoding: media_encoding_key(Some(crate::AudioEncoding {
@@ -94,17 +104,21 @@ mod tests {
             path: url::Url::from_file_path(&alternative).unwrap().to_string(),
             completed_size: Some(11),
             storage_root: root.path().to_string_lossy().into_owned(),
-            relative_path: "download.opus".into(),
+            relative_path: "download.ogg".into(),
             ..receipt.clone()
         };
         database.commit_download(&alternate).await.unwrap();
         assert_eq!(
-            database.playback_access(&uri).await.unwrap().unwrap(),
+            database.playback_access(&uri).await.unwrap().unwrap().0,
             alternate.path
+        );
+        assert_eq!(
+            database.playback_access(&uri).await.unwrap().unwrap().1,
+            Some(crate::AudioCodec::Opus)
         );
         database.forget_download_file(&alternate).await.unwrap();
         assert_eq!(
-            database.playback_access(&uri).await.unwrap().unwrap(),
+            database.playback_access(&uri).await.unwrap().unwrap().0,
             receipt.path
         );
         database.forget_download_file(&receipt).await.unwrap();

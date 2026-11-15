@@ -40,13 +40,18 @@ impl Database {
         .await?)
     }
 
-    pub async fn playback_access(&self, media_uri: &str) -> LibraryResult<Option<String>> {
+    /// The newest download's path and its codec, `None` for an original-format download.
+    pub async fn playback_access(
+        &self,
+        media_uri: &str,
+    ) -> LibraryResult<Option<(String, Option<crate::AudioCodec>)>> {
         let mut connection = self.acquire_playable().await?;
-        Ok(sqlx::query_scalar(
-            "SELECT path FROM download_files WHERE media_uri=?1 ORDER BY rowid DESC LIMIT 1",
+        let row: Option<(String, String)> = sqlx::query_as(
+            "SELECT path,encoding FROM download_files WHERE media_uri=?1 ORDER BY rowid DESC LIMIT 1",
         )
         .bind(media_uri)
         .fetch_optional(&mut *connection)
-        .await?)
+        .await?;
+        Ok(row.map(|(path, encoding)| (path, crate::media_encoding_codec(&encoding))))
     }
 }

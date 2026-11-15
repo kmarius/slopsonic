@@ -710,24 +710,20 @@ where
         .await
         .ok()
         .flatten();
-    if let Some(uri) = access.as_ref()
+    if let Some((uri, _)) = access.as_ref()
         && !local_access_available(uri).await?
     {
         access = None;
     }
-    // Downloads names its owned file using the actual transcoded extension.
-    // Mapped and original files still use their parsed source format.
-    let content_type = if let Some(uri) = &access {
-        let path = library::file_media_path(uri);
-        path.and_then(|path: std::path::PathBuf| {
-            path.extension()
-                .and_then(|extension| extension.to_str())
-                .and_then(audio_mime)
-        })
-    } else {
-        None
-    };
-    if let Some(uri) = access {
+    if let Some((uri, codec)) = access {
+        let content_type = match codec {
+            Some(codec) => Some(codec.content_type().to_string()),
+            None => library::file_media_path(&uri).and_then(|path| {
+                path.extension()
+                    .and_then(|extension| extension.to_str())
+                    .and_then(audio_mime)
+            }),
+        };
         return Ok(audio_processing::ResolvedStream::new(uri).with_content_type(content_type));
     }
     let (kind, _) = library::entity_parts(&request.media_uri)
@@ -935,16 +931,19 @@ mod tests {
             )
             .await
             .unwrap();
-        let path = folder.path().join("track.opus");
+        let path = folder.path().join("track.ogg");
         std::fs::write(&path, b"downloaded audio").unwrap();
         let uri = url::Url::from_file_path(&path).unwrap().to_string();
         database
             .commit_download(&library::DownloadFile {
                 media_uri: occurrence.track.media_uri.clone(),
-                encoding: "original".into(),
+                encoding: library::media_encoding_key(Some(library::AudioEncoding {
+                    codec: library::AudioCodec::Opus,
+                    ..library::AudioEncoding::mp3()
+                })),
                 path: uri.clone(),
                 storage_root: folder.path().to_string_lossy().into_owned(),
-                relative_path: "track.opus".into(),
+                relative_path: "track.ogg".into(),
                 ..Default::default()
             })
             .await

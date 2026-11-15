@@ -22,10 +22,9 @@ impl AudioCodec {
         }
     }
     pub fn extension(self) -> &'static str {
-        if self == Self::Vorbis {
-            "ogg"
-        } else {
-            self.name()
+        match self {
+            Self::Opus | Self::Vorbis => "ogg",
+            _ => self.name(),
         }
     }
     pub fn content_type(self) -> &'static str {

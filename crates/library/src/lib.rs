@@ -23,7 +23,7 @@ mod pins;
 mod playlists;
 pub use pins::{SidebarPin, SidebarPinRow};
 mod queue;
-pub use download_files::{DownloadFile, media_encoding_key};
+pub use download_files::{DownloadFile, media_encoding_codec, media_encoding_key};
 mod catalog;
 mod radio;
 mod scroll_sections;
