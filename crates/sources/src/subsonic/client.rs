@@ -217,45 +217,46 @@ impl SubsonicSource {
         folder_object_id: Option<&str>,
         music_folder_object_id: Option<&str>,
     ) -> SourceResult<crate::LiveFolderPage> {
-        let mut page = crate::LiveFolderPage::default();
-        if let Some(folder) = folder_object_id {
-            let body: Value = self
-                .get_json(
-                    "getMusicDirectory",
-                    &[("id", raw_item_id(folder).to_string())],
-                )
-                .await?;
-            for child in json::items(&body["directory"]["child"]) {
-                let Some(id) = json::id(&child["id"]) else {
-                    continue;
-                };
-                if json::boolean(&child["isDir"]).unwrap_or(false) {
-                    page.folders.push(crate::LiveFolder {
-                        object_id: self.id("folder", &id),
-                        name: json::field(child, "title")
-                            .unwrap_or_else(|| "Untitled Folder".to_string()),
-                    });
-                } else {
-                    page.tracks.push(self.id("track", &id));
-                }
+        let body: Value = match folder_object_id {
+            Some(folder) => {
+                let query = [("id", raw_item_id(folder).to_string())];
+                self.get_json("getMusicDirectory", &query).await?
             }
-        } else {
-            let parameters = music_folder_object_id
-                .map(|folder| vec![("musicFolderId", raw_item_id(folder).to_string())])
-                .unwrap_or_default();
-            let body: Value = self.get_json("getIndexes", &parameters).await?;
-            for artist in json::items(&body["indexes"]["index"])
+            None => {
+                let parameters = music_folder_object_id
+                    .map(|folder| vec![("musicFolderId", raw_item_id(folder).to_string())])
+                    .unwrap_or_default();
+                self.get_json("getIndexes", &parameters).await?
+            }
+        };
+        let mut page = crate::LiveFolderPage::default();
+        let artists = json::items(&body["indexes"]["shortcut"]).iter().chain(
+            json::items(&body["indexes"]["index"])
                 .iter()
-                .flat_map(|index| json::items(&index["artist"]))
-            {
-                let Some(id) = json::id(&artist["id"]) else {
-                    continue;
-                };
+                .flat_map(|index| json::items(&index["artist"])),
+        );
+        for artist in artists {
+            let Some(id) = json::id(&artist["id"]) else {
+                continue;
+            };
+            page.folders.push(crate::LiveFolder {
+                object_id: self.id("folder", &id),
+                name: json::field(artist, "name").unwrap_or_else(|| "Untitled Folder".to_string()),
+            });
+        }
+        let children = json::items(&body["directory"]["child"]).iter();
+        for child in children.chain(json::items(&body["indexes"]["child"])) {
+            let Some(id) = json::id(&child["id"]) else {
+                continue;
+            };
+            if json::boolean(&child["isDir"]).unwrap_or(false) {
                 page.folders.push(crate::LiveFolder {
                     object_id: self.id("folder", &id),
-                    name: json::field(artist, "name")
+                    name: json::field(child, "title")
                         .unwrap_or_else(|| "Untitled Folder".to_string()),
                 });
+            } else {
+                page.tracks.push(self.id("track", &id));
             }
         }
         Ok(page)
@@ -520,6 +521,8 @@ impl SubsonicSource {
     }
 }
 
+const PLAYLIST_EDIT_CHUNK: usize = 256;
+
 impl SubsonicSource {
     pub async fn create_playlist(
         &self,
@@ -625,15 +628,34 @@ impl SubsonicSource {
             &json::id(&body["playlist"]["id"]).ok_or(SourceError::NotFound)?,
         );
         let mut entries = playlist_entries_from_json(self, &id, &body["playlist"]["entry"]);
-        if let Some(old_index) = entries.iter().position(|entry| entry.object_id == entry_id) {
-            let entry = entries.remove(old_index);
-            entries.insert(new_index.min(entries.len()), entry);
-        }
-        let ids = entries
-            .into_iter()
-            .map(|entry| entry.track_id)
+        let Some(old_index) = entries.iter().position(|entry| entry.object_id == entry_id) else {
+            return Ok(());
+        };
+        let len = entries.len();
+        let entry = entries.remove(old_index);
+        let new_index = new_index.min(entries.len());
+        entries.insert(new_index, entry);
+        let first = old_index.min(new_index);
+        // The fields go in the URL, so the reordered tail goes in bounded calls. Appending before
+        // removing means a failed call leaves duplicates, never lost entries.
+        let tail = entries[first..]
+            .iter()
+            .map(|entry| entry.track_id.clone())
             .collect::<Vec<_>>();
-        self.replace_playlist_tracks(playlist_id, &ids).await
+        for ids in tail.chunks(PLAYLIST_EDIT_CHUNK) {
+            self.add_playlist_tracks(playlist_id, ids).await?;
+        }
+        let stale = (first..len).rev().collect::<Vec<_>>();
+        for indexes in stale.chunks(PLAYLIST_EDIT_CHUNK) {
+            let mut extra = vec![("playlistId", raw_item_id(playlist_id).to_string())];
+            extra.extend(
+                indexes
+                    .iter()
+                    .map(|index| ("songIndexToRemove", index.to_string())),
+            );
+            self.get_unit("updatePlaylist", &extra).await?;
+        }
+        Ok(())
     }
 }
 
@@ -1191,20 +1213,6 @@ impl SubsonicSource {
             .filter_map(|song| json::id(&song["id"]).map(|id| self.id("track", &id)))
             .collect())
     }
-
-    async fn replace_playlist_tracks(
-        &self,
-        playlist_id: &str,
-        track_ids: &[String],
-    ) -> SourceResult<()> {
-        let mut extra = vec![("playlistId", raw_item_id(playlist_id).to_string())];
-        extra.extend(
-            track_ids
-                .iter()
-                .map(|track_id| ("songId", raw_item_id(track_id).to_string())),
-        );
-        self.get_unit("createPlaylist", &extra).await
-    }
 }
 
 #[cfg(test)]
@@ -1313,6 +1321,91 @@ mod tests {
                 expected == SubsonicFlavor::Navidrome
             );
         }
+    }
+
+    #[tokio::test]
+    async fn a_folder_root_lists_shortcuts_artists_and_its_own_songs() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/rest/getIndexes.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "subsonic-response":{"status":"ok","indexes":{
+                    "shortcut":[{"id":"shortcut","name":"Shortcut"}],
+                    "index":[{"name":"A","artist":[{"id":"artist","name":"Artist"}]}],
+                    "child":[{"id":"song","title":"Song","isDir":false}]
+                }}
+            })))
+            .mount(&server)
+            .await;
+        let source = source(&server.uri());
+
+        let page = source.browse_folder(None, None).await.unwrap();
+
+        assert_eq!(
+            page.folders
+                .iter()
+                .map(|folder| folder.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Shortcut", "Artist"]
+        );
+        assert_eq!(page.tracks, [source.id("track", "song")]);
+    }
+
+    #[tokio::test]
+    async fn moving_a_playlist_entry_appends_the_tail_before_removing_it() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/rest/getPlaylist.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "subsonic-response":{"status":"ok","playlist":{"id":"list","entry":[
+                    {"id":"a","title":"A"}, {"id":"b","title":"B"},
+                    {"id":"c","title":"C"}, {"id":"d","title":"D"}
+                ]}}
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/rest/updatePlaylist.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "subsonic-response":{"status":"ok"}
+            })))
+            .mount(&server)
+            .await;
+        let source = source(&server.uri());
+        let playlist = source.id("playlist", "list");
+        let entry = super::playlist_entry_id(&playlist, 1, "b");
+
+        source
+            .move_playlist_entry(&playlist, &entry, 3)
+            .await
+            .unwrap();
+
+        let calls = server
+            .received_requests()
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|request| request.url.path() == "/rest/updatePlaylist.view")
+            .map(|request| {
+                request
+                    .url
+                    .query_pairs()
+                    .filter(|(key, _)| key.starts_with("song"))
+                    .map(|(key, value)| format!("{key}={value}"))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            calls,
+            [
+                vec!["songIdToAdd=c", "songIdToAdd=d", "songIdToAdd=b"],
+                vec![
+                    "songIndexToRemove=3",
+                    "songIndexToRemove=2",
+                    "songIndexToRemove=1"
+                ],
+            ]
+        );
     }
 
     #[tokio::test]
