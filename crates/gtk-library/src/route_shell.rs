@@ -127,7 +127,6 @@ pub struct LibraryToolbarProjection {
     sort_dropdown: gtk::DropDown,
     direction: gtk::Button,
     layout: gtk::Button,
-    configure: gtk::Button,
     layout_mode: Rc<Cell<LibraryLayout>>,
     syncing: Rc<Cell<bool>>,
 }
@@ -142,10 +141,6 @@ struct LibraryToolbarState {
 impl LibraryToolbarProjection {
     pub fn widget(&self) -> gtk::Widget {
         self.widget.clone()
-    }
-
-    pub fn set_configure_control_visible(&self, visible: bool) {
-        self.configure.set_visible(visible);
     }
 
     pub fn cycle_layout(&self) {
@@ -430,7 +425,6 @@ impl CatalogUi {
             sort_dropdown,
             direction,
             layout,
-            configure,
             layout_mode,
             syncing,
         };

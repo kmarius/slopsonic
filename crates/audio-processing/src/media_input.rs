@@ -64,11 +64,6 @@ impl ResolvedStream {
         self
     }
 
-    pub fn with_transcoding(mut self, transcoded: bool) -> Self {
-        self.transcoded = transcoded;
-        self
-    }
-
     pub fn transcoded(&self) -> bool {
         self.transcoded
     }
@@ -82,12 +77,6 @@ impl ResolvedStream {
     /// Resource ownership does not participate in stream identity or equality.
     pub fn with_resource(mut self, resource: std::sync::Arc<dyn Send + Sync>) -> Self {
         self.resource = Some(resource);
-        self
-    }
-
-    /// The HTTP input accepts source-time start_ms and optional end_ms bounds.
-    pub fn with_time_seek(mut self) -> Self {
-        self.time_seek = true;
         self
     }
 

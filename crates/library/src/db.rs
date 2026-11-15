@@ -115,10 +115,6 @@ impl Database {
         &self.inner.path
     }
 
-    pub fn subscribe_cache_writes(&self) -> tokio::sync::watch::Receiver<()> {
-        self.inner.cache_writes.subscribe()
-    }
-
     pub(crate) fn cache_written(&self) {
         self.inner.cache_writes.send_replace(());
     }

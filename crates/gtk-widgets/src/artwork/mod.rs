@@ -285,34 +285,6 @@ impl ArtworkState {
         tile.clear_image();
     }
 
-    pub async fn load_texture(
-        &self,
-        binding: ArtworkBinding,
-        display_size: i32,
-    ) -> Option<gtk::gdk::Texture> {
-        if binding.stable_identity().is_empty() {
-            return None;
-        }
-        let render_size = cover_decode_size(display_size, self.artwork_scale());
-        let request = ArtworkRequest {
-            fetch_size: ImageSize::Thumbnail(cover_fetch_size(render_size)),
-            ..ArtworkRequest::new(binding, render_size)
-        };
-        let outcome = match self.service.load(request) {
-            artwork::ArtworkLoad::Ready(image) => artwork::ArtworkOutcome::Ready(image),
-            artwork::ArtworkLoad::Missing => artwork::ArtworkOutcome::Missing,
-            artwork::ArtworkLoad::Pending(pending) => pending.finish().await,
-        };
-        match outcome {
-            artwork::ArtworkOutcome::Ready(image) => self.texture_for_decoded(image),
-            artwork::ArtworkOutcome::Failed(error) => {
-                warn!(%error, "artwork request failed");
-                None
-            }
-            _ => None,
-        }
-    }
-
     fn texture_for_decoded(&self, image: Arc<artwork::DecodedImage>) -> Option<gtk::gdk::Texture> {
         self.textures.borrow_mut().texture(image)
     }

@@ -10,7 +10,7 @@ repository.workspace = true
 readme.workspace = true
 publish.workspace = true
 
-[target.'cfg(all(target_os = "linux", target_env = "gnu"))'.dependencies]
+[dependencies]
 libc = "0.2"
 tracing.workspace = true
 

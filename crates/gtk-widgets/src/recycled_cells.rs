@@ -466,10 +466,6 @@ impl RecycledFolderCell {
         self.imp().cover.artwork()
     }
 
-    pub fn set_cover_visible(&self, visible: bool) {
-        self.imp().cover.set_visible(visible);
-    }
-
     pub fn label(&self) -> gtk::Label {
         self.imp().label.get()
     }

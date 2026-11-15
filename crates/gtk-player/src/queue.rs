@@ -1371,27 +1371,6 @@ fn reveal_queue_current_row(scroller: &gtk::ScrolledWindow, position: usize) -> 
     true
 }
 
-pub fn clear_queue_panel_children(
-    panel: &gtk::Box,
-    header: &gtk_widgets::table_header::ColumnViewHeader,
-) {
-    header.set_visible(false);
-    if let Some(scroller) = queue_panel_scroller(panel) {
-        if let Some(table) = scroller.child().and_downcast::<gtk::ColumnView>() {
-            table.set_visible(false);
-        }
-        if let Some(overlay) = scroller.parent().and_downcast::<gtk::Overlay>() {
-            let mut child = overlay.first_child();
-            while let Some(widget) = child {
-                if widget.has_css_class("queue-empty-label") {
-                    widget.set_visible(false);
-                }
-                child = widget.next_sibling();
-            }
-        }
-    }
-}
-
 pub fn connect_queue_panel_controls(shell: &Rc<crate::PlayerUi>) {
     for panel in [
         &shell.right_panel.queue_panel,

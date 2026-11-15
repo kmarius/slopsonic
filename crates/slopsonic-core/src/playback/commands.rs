@@ -192,22 +192,6 @@ impl PlayRequest {
         }
         self
     }
-    pub fn with_context_title(mut self, title: Option<Arc<library::QueueContextTitle>>) -> Self {
-        let set = |provenance: &mut Provenance| {
-            if let Provenance::Context { context_title, .. } = provenance {
-                *context_title = title.clone();
-            }
-        };
-        match &mut self.input {
-            library::QueueLoad::Tracks(groups) => groups.iter_mut().for_each(|(_, p)| set(p)),
-            library::QueueLoad::Items(items) => items.iter_mut().for_each(|(_, p)| set(p)),
-            library::QueueLoad::Uris(_, p) => set(p),
-            library::QueueLoad::Captured(entries) => Arc::make_mut(entries)
-                .iter_mut()
-                .for_each(|e| set(&mut e.provenance)),
-        }
-        self
-    }
     pub(crate) async fn prepare(
         self,
         database: &library::Database,

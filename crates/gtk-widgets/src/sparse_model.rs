@@ -928,10 +928,6 @@ where
         self.model.seed::<K, R>(rows);
     }
 
-    pub fn seed_matching(&self, rows: Vec<R>, key: impl Fn(&R) -> K) -> bool {
-        self.seed_matching_at(0, rows, key)
-    }
-
     pub fn seed_matching_at(&self, first: usize, rows: Vec<R>, key: impl Fn(&R) -> K) -> bool {
         let order = self.order();
         if order.keys().is_some_and(|keys| {

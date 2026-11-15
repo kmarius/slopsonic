@@ -177,12 +177,6 @@ impl TrackCollectionModel {
         true
     }
 
-    pub fn set_scope(&self, scope: library::Collection) {
-        if let TrackRead::Members(read) = &mut *self.0.query.borrow_mut() {
-            read.collection = scope;
-        }
-    }
-
     pub fn apply_settings(&self, settings: &LibraryListSettings) {
         let mut current = self.0.query.borrow_mut();
         let TrackRead::Members(query) = &mut *current else {

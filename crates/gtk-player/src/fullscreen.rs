@@ -682,13 +682,6 @@ impl crate::PlayerUi {
         self.apply_fullscreen_now_playing_cover(presentation);
     }
 
-    pub fn refresh_fullscreen_player_layout(self: &Rc<Self>) {
-        if !self.fullscreen_player_visible() {
-            return;
-        }
-        self.apply_fullscreen_responsive_layout();
-    }
-
     fn apply_fullscreen_responsive_layout(self: &Rc<Self>) {
         let (width, height) = {
             let root = &self.views.fullscreen_player.root;

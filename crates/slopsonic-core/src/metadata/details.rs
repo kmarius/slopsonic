@@ -1,4 +1,3 @@
-use super::MetadataItemId;
 use crate::playback::PlaybackOwner;
 use crate::route::{
     Route,
@@ -22,15 +21,7 @@ pub enum MediaDetailsItem {
     },
 }
 
-impl MediaDetailsItem {
-    pub fn metadata_item(&self) -> MetadataItemId {
-        match self {
-            Self::Track(uri) => MetadataItemId::Track(uri.clone()),
-            Self::Album(uri) => MetadataItemId::Album(uri.clone()),
-            Self::Artist { media_uri, .. } => MetadataItemId::Artist(media_uri.clone()),
-        }
-    }
-}
+impl MediaDetailsItem {}
 
 #[derive(Clone, Debug)]
 pub struct MediaDetailField {

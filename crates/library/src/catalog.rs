@@ -161,14 +161,6 @@ impl Database {
 }
 
 impl Database {
-    pub async fn catalog_missing_media(&self, media: &[String]) -> LibraryResult<Vec<String>> {
-        let mut connection = self.acquire_reader().await?;
-        Ok(sqlx::query_scalar("SELECT requested.value FROM json_each(?1) requested
-            WHERE EXISTS(SELECT 1 FROM main.sources WHERE catalog_complete=1)
-              AND NOT EXISTS(SELECT 1 FROM main.tracks WHERE media_uri=requested.value AND indexed=1)")
-            .bind(serde_json::to_string(media)?).fetch_all(&mut *connection).await?)
-    }
-
     pub async fn server_counts(
         &self,
         cancellation: &ReadCancellation,

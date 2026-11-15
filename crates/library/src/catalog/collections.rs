@@ -164,11 +164,6 @@ impl Database {
         Ok(sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE {table}.object_id=?1 AND(?2=0 OR {table}.indexed=1))"))).bind(id).bind(indexed).fetch_one(&mut *connection).await?)
     }
 
-    pub async fn unresolved_source_artist_ids(&self) -> LibraryResult<Vec<String>> {
-        let mut connection = self.acquire_reader().await?;
-        Ok(sqlx::query_scalar("SELECT artist.object_id FROM artists artist WHERE artist.native_metadata=0 ORDER BY artist.object_id LIMIT 100").fetch_all(&mut *connection).await?)
-    }
-
     pub async fn omitted_album_track_page(
         &self,
         id: &str,
