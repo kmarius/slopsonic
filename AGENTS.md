@@ -51,6 +51,7 @@ Do not implement or expand. If you find leftover code for a non-feature, remove 
 - **Local-only item state** — favorites and ratings live on the server; a local value exists only while its edit waits to be delivered
 - **Playlist folders**
 - **Localization**
+- **Internet radio** — no radio stations, neither the server's nor bundled ones; seeded track Radio stays
 
 ## Architecture
 
