@@ -40,12 +40,7 @@ pub async fn runtime_inputs<StartBackend>(
     start_backend: StartBackend,
 ) -> Result<RuntimeInputs, String>
 where
-    StartBackend: Fn(
-            tokio::sync::watch::Receiver<playback::ProcessingRequest>,
-        ) -> Result<Box<dyn PlaybackBackend>, String>
-        + Send
-        + Sync
-        + 'static,
+    StartBackend: Fn() -> Result<Box<dyn PlaybackBackend>, String> + Send + Sync + 'static,
 {
     let runtime = tokio::runtime::Handle::current();
     let stored = settings.load();

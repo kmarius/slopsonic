@@ -1,10 +1,6 @@
 //! Playback controls, source jobs, and persistent playback facts.
 pub(crate) mod actor;
 mod commands;
-pub mod equalizer;
-pub use equalizer::{
-    EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView, EqualizerPreferences,
-};
 mod queue;
 pub(crate) mod state;
 pub use commands::*;
@@ -44,31 +40,17 @@ pub struct PlaybackOwner {
     source: Mutex<std::sync::Weak<ServerOwner>>,
     active: Mutex<Option<Playback>>,
     pending_queue: Mutex<Option<QueueUpdate>>,
-    equalizer: Mutex<equalizer::EqualizerState>,
     store_sender: async_channel::Sender<PlaybackStoreWork>,
     report_sender: async_channel::Sender<playback::SourceReportFact>,
     monotonic_origin: Instant,
-    start_backend: Box<
-        dyn Fn(
-                tokio::sync::watch::Receiver<playback::ProcessingRequest>,
-            ) -> Result<Box<dyn PlaybackBackend>, String>
-            + Send
-            + Sync,
-    >,
+    start_backend: Box<dyn Fn() -> Result<Box<dyn PlaybackBackend>, String> + Send + Sync>,
 }
 
 enum PlaybackStoreWork {
     Scrobble(Box<ListenWrite>),
     Flush(std::sync::mpsc::SyncSender<()>),
-    Output {
-        volume: f64,
-        muted: bool,
-    },
+    Output { volume: f64, muted: bool },
     Settings,
-    Equalizer {
-        snapshot: EqualizerPreferences,
-        reply: tokio::sync::oneshot::Sender<Result<(), String>>,
-    },
 }
 
 fn enqueue_queue_save(
@@ -120,15 +102,8 @@ impl PlaybackOwner {
         start_backend: StartBackend,
     ) -> Arc<Self>
     where
-        StartBackend: Fn(
-                tokio::sync::watch::Receiver<playback::ProcessingRequest>,
-            ) -> Result<Box<dyn PlaybackBackend>, String>
-            + Send
-            + Sync
-            + 'static,
+        StartBackend: Fn() -> Result<Box<dyn PlaybackBackend>, String> + Send + Sync + 'static,
     {
-        let stored = settings.load();
-        let eq = equalizer::EqualizerState::new(stored.equalizer);
         let (store_sender, store_receiver) = async_channel::unbounded();
         let (report_sender, report_receiver) = async_channel::unbounded();
         let owner = Arc::new(Self {
@@ -140,7 +115,6 @@ impl PlaybackOwner {
             source: Mutex::new(std::sync::Weak::new()),
             active: Mutex::new(None),
             pending_queue: Mutex::new(None),
-            equalizer: Mutex::new(eq),
             store_sender,
             report_sender,
             monotonic_origin: Instant::now(),
@@ -195,12 +169,9 @@ impl PlaybackOwner {
         let owner = Arc::downgrade(self);
         let clock_owner = Arc::downgrade(self);
         let backend_owner = Arc::clone(self);
-        let backend = tokio::task::spawn_blocking(move || {
-            let receiver = backend_owner.processing_receiver();
-            (backend_owner.start_backend)(receiver)
-        })
-        .await
-        .map_err(string_error)??;
+        let backend = tokio::task::spawn_blocking(move || (backend_owner.start_backend)())
+            .await
+            .map_err(string_error)??;
         let (playback, projection) = Playback::start(
             sequence,
             random_identity(),
@@ -268,14 +239,6 @@ impl PlaybackOwner {
         failed_queue_save: &mut Option<QueueUpdate>,
     ) {
         match work {
-            PlaybackStoreWork::Equalizer { snapshot, reply } => {
-                let result = self.settings.update(|stored| {
-                    stored.equalizer = snapshot;
-                    Ok(())
-                });
-                self.equalizer_write_finished(&result);
-                let _ = reply.send(result);
-            }
             PlaybackStoreWork::Scrobble(listen) => self.queue_scrobbles(*listen).await,
             PlaybackStoreWork::Flush(reply) => {
                 if let Err(error) =

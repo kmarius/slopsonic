@@ -1,9 +1,8 @@
-use super::equalizer::EqualizerSurface;
 use adw::prelude::*;
 use gtk_widgets::artwork::ArtworkTile;
 use playback::PlaybackView;
 use std::{
-    cell::{Cell, OnceCell, RefCell},
+    cell::{Cell, RefCell},
     rc::Rc,
 };
 pub const FULLSCREEN_PLAYER_OPEN_TRANSITION_MS: u32 = 420;
@@ -78,8 +77,6 @@ pub struct FullscreenPlayerParts {
     pub queue_panel: gtk::Box,
     pub(crate) queue_header: gtk_widgets::table_header::ColumnViewHeader,
     pub queue_loading: adw::Spinner,
-    pub equalizer: OnceCell<EqualizerSurface>,
-    equalizer_panel: gtk::ScrolledWindow,
     related_list: gtk::Box,
     related_status: gtk::Label,
     related_retry: gtk::Button,
@@ -156,10 +153,8 @@ pub fn build_fullscreen_player() -> FullscreenPlayerParts {
         stack: adw::ViewStack,
         queue_tab: gtk::ToggleButton,
         related_tab: gtk::ToggleButton,
-        equalizer_tab: gtk::ToggleButton,
         queue_panel: gtk::Box,
         queue_loading: adw::Spinner,
-        equalizer_panel: gtk::ScrolledWindow,
         related_panel: gtk::Overlay,
         related_list: gtk::Box,
         related_status: gtk::Label,
@@ -181,16 +176,8 @@ pub fn build_fullscreen_player() -> FullscreenPlayerParts {
     hero.append(&hero_content);
     stack.add_titled(&queue_panel, Some("queue"), "Queue");
     stack.add_titled(&related_panel, Some("related"), "Related");
-    stack.add_titled(&equalizer_panel, Some("equalizer"), "Equalizer");
     stack.set_visible_child_name("queue");
-    connect_fullscreen_player_switcher(
-        &stack,
-        [
-            (queue_tab, "queue"),
-            (related_tab, "related"),
-            (equalizer_tab, "equalizer"),
-        ],
-    );
+    connect_fullscreen_player_switcher(&stack, [(queue_tab, "queue"), (related_tab, "related")]);
     gtk_widgets::text_slide::install(&title_slide, &title_viewport, &title);
     gtk_widgets::text_slide::install(&artist_slide, &artist_viewport, &artist);
     gtk_widgets::text_slide::install(&album_slide, &album_viewport, &album);
@@ -225,8 +212,6 @@ pub fn build_fullscreen_player() -> FullscreenPlayerParts {
         queue_panel,
         queue_header: gtk_widgets::table_header::ColumnViewHeader::new(),
         queue_loading,
-        equalizer: OnceCell::new(),
-        equalizer_panel,
         related_list,
         related_status,
         related_retry,
@@ -244,7 +229,7 @@ pub fn build_fullscreen_player() -> FullscreenPlayerParts {
 
 fn connect_fullscreen_player_switcher(
     stack: &adw::ViewStack,
-    tabs: [(gtk::ToggleButton, &'static str); 3],
+    tabs: [(gtk::ToggleButton, &'static str); 2],
 ) {
     let mut selection = Vec::new();
     for (button, page) in tabs {
@@ -497,22 +482,6 @@ pub fn connect_fullscreen_player_controls(shell: &Rc<crate::PlayerUi>) {
                 return;
             }
             queue_tab_shell.refresh_related_tracks();
-        });
-
-    let equalizer_shell = Rc::downgrade(shell);
-    shell
-        .views
-        .fullscreen_player
-        .equalizer_panel
-        .connect_map(move |panel| {
-            let Some(shell) = equalizer_shell.upgrade() else {
-                return;
-            };
-            shell.views.fullscreen_player.equalizer.get_or_init(|| {
-                let equalizer = EqualizerSurface::new(&shell);
-                panel.set_child(Some(&equalizer.root));
-                equalizer
-            });
         });
 }
 

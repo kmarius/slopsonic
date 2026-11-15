@@ -3,7 +3,6 @@ use super::engine::{
     GaplessPlayback, PipelineId, PreparedRun, SharedBackendState, Slot, WorkerInput,
     handle_about_to_finish,
 };
-use super::measurement::MeasurementTap;
 use super::*;
 use glib::translate::IntoGlib;
 use std::cell::Cell;
@@ -56,8 +55,6 @@ pub(super) struct PlayerPipeline {
     trust_invalid_certificate: Arc<AtomicBool>,
     about_to_finish_id: Option<glib::SignalHandlerId>,
     audio_graph: Option<AudioGraph>,
-    processing_probe: Option<(gst::Pad, gst::PadProbeId)>,
-    processing_tap_key: Option<(PipelineId, RunId)>,
     current_stream: Option<PreparedStream>,
     queued_loudness: SharedQueuedLoudness,
     gapless: Arc<Mutex<GaplessPlayback>>,
@@ -114,8 +111,6 @@ impl PlayerPipeline {
             trust_invalid_certificate: Arc::new(AtomicBool::new(false)),
             about_to_finish_id: None,
             audio_graph: None,
-            processing_probe: None,
-            processing_tap_key: None,
             current_stream: None,
             queued_loudness: Arc::new(Mutex::new(None)),
             gapless: Arc::new(Mutex::new(GaplessPlayback::default())),
@@ -590,28 +585,18 @@ impl PlayerPipeline {
         if let Some(graph) = self.audio_graph.as_mut()
             && graph.reconfigure(settings)?
         {
-            let request = lock_recover(&self.shared).processing.clone();
-            if let Some(request) = request {
-                self.configure_processing(&request)?;
-            }
             if detached {
                 self.attach_audio_graph(true)?;
             }
             return Ok(());
         }
-        self.set_processing_tap(None);
-        let mut graph = AudioGraph::new(
+        let graph = AudioGraph::new(
             settings,
             self.current_stream
                 .as_ref()
                 .and_then(|stream| stream.loudness.clone()),
             Arc::clone(&self.queued_loudness),
         )?;
-        let processing = lock_recover(&self.shared).processing.clone();
-        if let Some(request) = processing {
-            graph.processing.update(&request.config)?;
-            graph.processing.set_meter(request.meter)?;
-        }
         graph
             .output()
             .set_property("name", format!("{}-audio-output", self.native()?.0.name()));
@@ -725,12 +710,7 @@ impl PlayerPipeline {
                                 .as_ref()
                                 .is_some_and(|pending| shared.next.as_ref() != Some(pending)),
                         format.as_ref().is_some_and(|format| {
-                            passthrough_allowed(
-                                format,
-                                &shared.settings,
-                                shared.processing.as_ref(),
-                                loudness.as_ref(),
-                            )
+                            passthrough_allowed(format, &shared.settings, loudness.as_ref())
                         }),
                         shared.active == slot,
                     )
@@ -782,58 +762,6 @@ impl PlayerPipeline {
             .store(stream.trust_invalid_certificate(), Ordering::SeqCst);
         self.native()?.0.set_property("uri", stream.uri());
         Ok(())
-    }
-
-    pub(super) fn configure_processing(
-        &mut self,
-        request: &ProcessingRequest,
-    ) -> Result<(), BackendFailure> {
-        if let Some(graph) = self.audio_graph.as_mut() {
-            graph.processing.update(&request.config)?;
-            graph.processing.set_meter(request.meter)?;
-        }
-        Ok(())
-    }
-
-    pub(super) fn has_audio_graph(&self) -> bool {
-        self.audio_graph.is_some()
-    }
-
-    pub(super) fn poll_processing(
-        &mut self,
-    ) -> Result<
-        Option<(
-            audio_processing::effects::ProcessingConfig,
-            Option<u32>,
-            f64,
-        )>,
-        String,
-    > {
-        self.audio_graph
-            .as_mut()
-            .map_or(Ok(None), |graph| graph.processing.poll())
-    }
-
-    pub(super) fn processing_peak(&self, message: &gst::MessageRef) -> Option<Vec<f64>> {
-        self.audio_graph.as_ref()?.processing.meter_message(message)
-    }
-
-    pub(super) fn set_processing_tap(&mut self, tap: Option<MeasurementTap>) {
-        let key = tap.as_ref().map(MeasurementTap::measurement_key);
-        if key == self.processing_tap_key {
-            return;
-        }
-        if let Some((pad, probe)) = self.processing_probe.take() {
-            pad.remove_probe(probe);
-        }
-        self.processing_tap_key = None;
-        if let (Some(tap), Some(graph)) = (tap, self.audio_graph.as_ref()) {
-            let pad = graph.measurement_pad();
-            if let Some(probe) = tap.install(&pad) {
-                self.processing_probe = Some((pad, probe));
-                self.processing_tap_key = key;
-            }
-        }
     }
 
     pub(super) fn set_output_volume(&self, volume: f64, muted: bool) {
@@ -996,7 +924,6 @@ impl PlayerPipeline {
                 .0
                 .disconnect(handler_id);
         }
-        self.set_processing_tap(None);
         if let Some((pipeline, _)) = self.native.as_ref() {
             let _ = pipeline.set_state(gst::State::Null);
         }
@@ -1308,13 +1235,6 @@ mod tests {
             uris.push(glib::filename_to_uri(&path, None).unwrap());
         }
         let shared = Arc::new(Mutex::new(SharedBackendState::new()));
-        lock_recover(&shared).processing = Some(ProcessingRequest {
-            config: audio_processing::effects::ProcessingConfig {
-                equalizer: Some(audio_processing::effects::EqProfile::default()),
-                ..Default::default()
-            },
-            ..Default::default()
-        });
         let mut player = PlayerPipeline::new("retention-check", Slot::Primary, shared, channel().0);
         let settings = BackendAudioSettings {
             audio_output: Some("fakesink".to_string()),
@@ -1365,8 +1285,9 @@ mod tests {
                 .audio_graph
                 .as_ref()
                 .unwrap()
-                .processing
-                .measurement_pad()
+                .gain
+                .static_pad("sink")
+                .unwrap()
                 .current_caps()
                 .unwrap();
             let info = gstreamer_audio::AudioInfo::from_caps(&caps).unwrap();

@@ -136,26 +136,6 @@
                         </property>
                       </object>
                     </child>
-                    <child>
-                      <object class="GtkToggleButton" id="equalizer_tab">
-                        <property name="tooltip-text" translatable="yes">Equalizer</property>
-                        <property name="child">
-                          <object class="GtkBox">
-                            <property name="spacing">6</property>
-                            <child>
-                              <object class="GtkImage">
-                                <property name="icon-name">slopsonic-sliders-vertical-symbolic</property>
-                              </object>
-                            </child>
-                            <child>
-                              <object class="GtkLabel">
-                                <property name="label" translatable="yes">Equalizer</property>
-                              </object>
-                            </child>
-                          </object>
-                        </property>
-                      </object>
-                    </child>
                   </object>
                 </child>
                 <child>
@@ -418,19 +398,5 @@
         </child>
       </object>
     </child>
-  </object>
-  <object class="GtkScrolledWindow" id="equalizer_panel">
-    <property name="hscrollbar-policy">automatic</property>
-    <property name="vscrollbar-policy">automatic</property>
-    <property name="overlay-scrolling">false</property>
-    <property name="hexpand">true</property>
-    <property name="vexpand">true</property>
-    <property name="min-content-width">0</property>
-    <property name="propagate-natural-width">false</property>
-    <property name="propagate-natural-height">false</property>
-    <style>
-      <class name="fullscreen-player-pane" />
-      <class name="fullscreen-player-equalizer-scroller" />
-    </style>
   </object>
 </interface>

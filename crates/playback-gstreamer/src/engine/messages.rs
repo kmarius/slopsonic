@@ -5,23 +5,7 @@ impl GstEngine {
         if !lock_recover(&self.shared).pipeline_is_live(slot, id) {
             return;
         }
-        if audio_processing::effects::EffectsBin::is_change_message(message) {
-            self.poll_processing();
-            return;
-        }
         use gst::MessageView;
-        if self.is_active_slot(slot)
-            && let Some(peak_db) = self.pipeline_for_slot(slot).processing_peak(message)
-            && self.pipeline_for_slot(slot).has_audio_graph()
-        {
-            push_event(
-                &self.events,
-                BackendEvent::ProcessingMeter {
-                    peak_db,
-                    spectrum_db: Vec::new(),
-                },
-            );
-        }
 
         let preroll_message = matches!(message.view(), MessageView::AsyncDone(_))
             || matches!(message.view(), MessageView::StateChanged(state)

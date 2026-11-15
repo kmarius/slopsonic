@@ -17,7 +17,6 @@ pub(super) fn items(shell: &Preferences) -> Vec<PreferencesSearchItem> {
         (Page::Theme, THEME_PREFERENCES_RESOURCE),
         (Page::Integrations, INTEGRATIONS_RESOURCE),
         (Page::Playback, PLAYBACK_PREFERENCES_RESOURCE),
-        (Page::Equalizer, gtk_player::ui_resource::EQUALIZER_RESOURCE),
         (Page::Library, LIBRARY_PREFERENCES_RESOURCE),
         (Page::Downloads, DOWNLOAD_QUALITY_RESOURCE),
         (Page::Storage, STORAGE_PREFERENCES_RESOURCE),

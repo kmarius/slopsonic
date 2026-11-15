@@ -1635,14 +1635,8 @@ fn streams_without_preloading_keep_the_next_reserved() {
 }
 
 #[test]
-fn processing_changes_and_new_events_wake_their_owners() {
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(1)
-        .build()
-        .unwrap();
-    let _runtime = runtime.enter();
-    let (requests, receiver) = tokio::sync::watch::channel(ProcessingRequest::default());
-    let mut backend = GStreamerPlaybackBackend::new(receiver).unwrap();
+fn new_events_wake_their_owners() {
+    let mut backend = GStreamerPlaybackBackend::new().unwrap();
     let (woke, wakes) = std::sync::mpsc::channel();
     backend.set_event_waker(Arc::new(move || {
         let _ = woke.send(());
@@ -1650,15 +1644,21 @@ fn processing_changes_and_new_events_wake_their_owners() {
     backend.drain_events();
     while wakes.try_recv().is_ok() {}
 
-    requests.send_modify(|request| request.meter = !request.meter);
+    backend
+        .send(BackendCommand::SetOutputVolume {
+            volume: 0.5,
+            volume_scale: VolumeScale::Linear,
+            muted: false,
+        })
+        .unwrap();
     wakes
         .recv_timeout(Duration::from_secs(5))
-        .expect("a processing change reaches the idle worker and wakes core");
+        .expect("an event from the idle worker wakes core");
     assert!(
         backend
             .drain_events()
             .iter()
-            .any(|event| matches!(event, BackendEvent::ProcessingApplied { .. }))
+            .any(|event| matches!(event, BackendEvent::AudioApplied { .. }))
     );
     backend.shutdown().unwrap();
 }

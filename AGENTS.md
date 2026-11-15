@@ -33,6 +33,7 @@ Do not implement or expand. If you find leftover code for a non-feature, remove 
 - **Backup and restore**
 - **Audio fingerprinting and external metadata lookup** — no AcoustID/MusicBrainz or other third-party lookups
 - **Lyrics, visualizer, waveform seekbar**
+- **Equalizer, spectrum analyzer, crossfeed and balance**
 - **Discord rich presence, update checks/self-updater**
 - **Listening overview, playback speed/pitch, audio output selection** — the system default output is always used
 - **Private mode**
@@ -60,7 +61,7 @@ Do not implement or expand. If you find leftover code for a non-feature, remove 
   - `library` — SQLite persistence: catalog cache, queue, download records, outboxes for scrobbles, favorites and ratings
   - `playback` — backend-agnostic playback trait, settings and view types
   - `playback-gstreamer` — GStreamer implementation of the playback backend
-  - `audio-processing` — transcoding, EQ/crossfeed/balance effects, spectrum FFT
+  - `audio-processing` — GStreamer setup and transcoding
   - `downloads` — offline download queue and on-disk storage
   - `artwork` — artwork selection, fetch, cache and decode
   - `scrobbling` — Last.fm, Libre.fm and ListenBrainz delivery
@@ -69,7 +70,7 @@ Do not implement or expand. If you find leftover code for a non-feature, remove 
   - `desktop-integration` — MPRIS media controls
   - `gtk-shell` — window, navigation, native actions, preferences and server setup; composes the other `gtk-*` crates
   - `gtk-library` — catalog pages: albums, artists, playlists, search, home
-  - `gtk-player` — bottom bar, queue, fullscreen player, equalizer UI
+  - `gtk-player` — bottom bar, queue, fullscreen player
   - `gtk-media-menus` — context menus, playlist picker, media details
   - `gtk-widgets` — shared GTK primitives
 - Single server: the app talks to exactly one Navidrome or OpenSubsonic server. Both share the one Subsonic client in `crates/sources/src/subsonic/`; Navidrome-only features are gated on the flavor. Do not add provider abstractions, multi-server selection or per-source UI

@@ -51,9 +51,7 @@ impl Preferences {
     }
 }
 
-use general::{
-    ScrobblingCredentialDrafts, appearance_page, equalizer_page, playback_page, scrobbling_page,
-};
+use general::{ScrobblingCredentialDrafts, appearance_page, playback_page, scrobbling_page};
 
 use layout::{
     ReorderRowPresentation, left_sidebar_mode_from_index, left_sidebar_row, reorder_row,
@@ -105,7 +103,6 @@ enum PreferencesPageKind {
     Customization,
     Theme,
     Playback,
-    Equalizer,
     Library,
     Downloads,
     Storage,
@@ -113,13 +110,12 @@ enum PreferencesPageKind {
 }
 
 impl PreferencesPageKind {
-    const ALL: [Self; 9] = [
+    const ALL: [Self; 8] = [
         Self::General,
         Self::Customization,
         Self::Theme,
         Self::Integrations,
         Self::Playback,
-        Self::Equalizer,
         Self::Library,
         Self::Downloads,
         Self::Storage,
@@ -131,7 +127,6 @@ impl PreferencesPageKind {
             Self::Customization => "customization",
             Self::Theme => "theme",
             Self::Playback => "playback",
-            Self::Equalizer => "equalizer",
             Self::Library => "library",
             Self::Downloads => "downloads",
             Self::Storage => "storage",
@@ -145,7 +140,6 @@ impl PreferencesPageKind {
             Self::Customization => "Customization".to_string(),
             Self::Theme => "Theme".to_string(),
             Self::Playback => "Playback".to_string(),
-            Self::Equalizer => "Equalizer".to_string(),
             Self::Library => "Library".to_string(),
             Self::Downloads => "Downloads".to_string(),
             Self::Storage => "Storage".to_string(),
@@ -159,7 +153,6 @@ impl PreferencesPageKind {
             Self::Customization => "slopsonic-sliders-2-symbolic",
             Self::Theme => "slopsonic-preferences-desktop-appearance-symbolic",
             Self::Playback => "slopsonic-music-queue-symbolic",
-            Self::Equalizer => "slopsonic-sliders-vertical-symbolic",
             Self::Library => "slopsonic-library-symbolic",
             Self::Downloads => "slopsonic-download-symbolic",
             Self::Storage => "slopsonic-drive-harddisk-symbolic",
@@ -773,7 +766,6 @@ fn build_preferences_page(
         PreferencesPageKind::General => general_page(shell),
         PreferencesPageKind::Customization => appearance_page(shell).upcast(),
         PreferencesPageKind::Theme => themes::page(shell).upcast(),
-        PreferencesPageKind::Equalizer => equalizer_page(shell).upcast(),
         PreferencesPageKind::Downloads => library::downloads_page(shell, dialog).upcast(),
         PreferencesPageKind::Storage => storage::page(shell, navigation_controls),
         PreferencesPageKind::Integrations => scrobbling_page(shell, credential_drafts).upcast(),

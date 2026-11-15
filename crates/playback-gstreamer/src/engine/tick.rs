@@ -5,7 +5,6 @@ impl GstEngine {
         if let Some(format) = self.active_pipeline().bitstream_request() {
             self.start_passthrough(format);
         }
-        self.sync_processing_taps();
         if self.active_pipeline().gapless().is_some_and(|gapless| {
             let gapless = lock_recover(gapless);
             gapless.about_to_finish_pending && gapless.pending.is_none()

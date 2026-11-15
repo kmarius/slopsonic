@@ -1,20 +1,16 @@
-//! Audio decoding jobs and bounded signal processing shared by playback hosts.
+//! GStreamer setup, stream inputs and transcoding shared by playback and downloads.
 
 use gst::prelude::*;
 use gstreamer as gst;
 use std::sync::OnceLock;
 
-pub mod effects;
 mod media_input;
 pub use media_input::ResolvedStream;
-mod spectrum;
 mod transcode;
 
 pub use transcode::transcode_audio;
 
-pub use spectrum::SpectrumFft;
-
-/// Initialize GStreamer once before playback or analysis work starts.
+/// Initialize GStreamer once before playback or transcoding starts.
 pub fn ensure_gstreamer_initialized() -> Result<(), String> {
     static INITIALIZED: OnceLock<Result<(), String>> = OnceLock::new();
     INITIALIZED

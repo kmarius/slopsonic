@@ -144,7 +144,6 @@ pub fn verify_icons() -> Result<(), String> {
         "scalable/actions/slopsonic-media-skip-forward-symbolic.svg",
         "scalable/actions/slopsonic-moods-symbolic.svg",
         "scalable/actions/slopsonic-music-queue-symbolic.svg",
-        "scalable/actions/slopsonic-sliders-vertical-symbolic.svg",
         "scalable/actions/slopsonic-sound-symbolic.svg",
         "scalable/actions/slopsonic-text-center-symbolic.svg",
         "scalable/actions/slopsonic-view-list-ordered-symbolic.svg",

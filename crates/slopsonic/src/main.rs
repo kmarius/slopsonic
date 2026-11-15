@@ -11,8 +11,8 @@ fn main() -> ExitCode {
 
     let initial_settings = settings.load().ui.clone();
     let bootstrap = move || async move {
-        app::runtime_inputs(diagnostics, settings, paths::roots(), |processing| {
-            playback_gstreamer::GStreamerPlaybackBackend::new(processing)
+        app::runtime_inputs(diagnostics, settings, paths::roots(), || {
+            playback_gstreamer::GStreamerPlaybackBackend::new()
                 .map(|backend| Box::new(backend) as Box<dyn playback::PlaybackBackend>)
                 .map_err(|error| error.to_string())
         })

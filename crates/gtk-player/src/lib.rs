@@ -143,12 +143,9 @@ pub fn register_resources() -> Result<(), String> {
 }
 
 pub mod bottom;
-pub mod equalizer;
 pub mod fullscreen;
 pub mod fullscreen_background;
 mod icons;
-mod preset_name;
-mod preset_transfer;
 mod progress;
 mod refill_ring;
 use bottom::PlayerControls;

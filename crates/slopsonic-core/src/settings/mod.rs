@@ -62,8 +62,6 @@ pub struct StoredSettings {
     #[serde(flatten)]
     pub ui: UiSettings,
     #[serde(default)]
-    pub(crate) equalizer: crate::playback::EqualizerPreferences,
-    #[serde(default)]
     pub(crate) scrobbling: ScrobblingSettings,
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub(crate) scrobbling_credentials: std::collections::BTreeMap<String, String>,
@@ -75,7 +73,6 @@ impl Default for StoredSettings {
     fn default() -> Self {
         Self {
             ui: UiSettings::default(),
-            equalizer: Default::default(),
             scrobbling: ScrobblingSettings::default(),
             scrobbling_credentials: Default::default(),
             sources: ServerSettings::default(),
@@ -163,20 +160,6 @@ impl SettingsFile {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone()
-    }
-
-    pub(crate) fn equalizer_preset(
-        &self,
-        id: &str,
-    ) -> Option<crate::playback::equalizer::SavedPreset> {
-        self.value
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .equalizer
-            .presets
-            .iter()
-            .find(|p| p.id == id)
-            .cloned()
     }
 
     pub(crate) fn download_artwork_automatically(&self) -> bool {
@@ -593,7 +576,6 @@ pub(crate) fn decode_settings(
     drop_removed_entries(&mut raw);
     let raw = &raw;
     if let Ok(stored) = raw.clone().try_into::<StoredSettings>() {
-        stored.equalizer.validate()?;
         return Ok((stored, Vec::new()));
     }
     let fields = raw.as_table().ok_or("settings must be a table")?;

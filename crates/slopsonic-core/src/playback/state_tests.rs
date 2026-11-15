@@ -104,7 +104,7 @@ pub(in crate::playback) async fn seeded(
         settings,
         runtime,
         scrobbler,
-        move |_| Ok(Box::new(IdleBackend(backend_commands.clone()))),
+        move || Ok(Box::new(IdleBackend(backend_commands.clone()))),
     );
     owner.install_server_owner(&source);
     let (playback, inbox) = actor::channel();

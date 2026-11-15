@@ -1,5 +1,4 @@
 use super::audio::{SharedQueuedLoudness, passthrough_allowed};
-use super::measurement::MeasurementAnalyzer;
 use super::pipeline::{AboutToFinishAction, PlayerPipeline, SourceClock};
 use super::*;
 use std::collections::HashMap;
@@ -37,7 +36,6 @@ struct PendingTelemetry {
 /// Everything the playback worker reacts to, in arrival order.
 pub(super) enum WorkerInput {
     Command(Box<BackendCommand>),
-    Processing(ProcessingRequest),
     Bus(Slot, PipelineId, gst::Message),
     Wake,
     Shutdown,
@@ -48,13 +46,12 @@ pub(super) struct EventMailbox {
     next_sequence: u64,
     ready: VecDeque<BackendEvent>,
     latest: HashMap<(RunId, TelemetryKind), PendingTelemetry>,
-    processing_meter: Option<BackendEvent>,
     waker: Option<EventWaker>,
 }
 
 impl EventMailbox {
     fn is_empty(&self) -> bool {
-        self.ready.is_empty() && self.latest.is_empty() && self.processing_meter.is_none()
+        self.ready.is_empty() && self.latest.is_empty()
     }
 
     /// Returns the waker when this event makes the mailbox non-empty.
@@ -65,35 +62,6 @@ impl EventMailbox {
     }
 
     fn insert(&mut self, event: BackendEvent) {
-        if let BackendEvent::ProcessingMeter {
-            mut peak_db,
-            spectrum_db,
-        } = event
-        {
-            if let Some(BackendEvent::ProcessingMeter {
-                peak_db: old_peak,
-                spectrum_db: old_spectrum,
-            }) = self.processing_meter.as_mut()
-            {
-                if peak_db.len() == old_peak.len() {
-                    for (peak, old) in peak_db.iter_mut().zip(old_peak.iter()) {
-                        *peak = peak.max(*old);
-                    }
-                }
-                if !peak_db.is_empty() {
-                    *old_peak = peak_db;
-                }
-                if !spectrum_db.is_empty() {
-                    *old_spectrum = spectrum_db;
-                }
-            } else {
-                self.processing_meter = Some(BackendEvent::ProcessingMeter {
-                    peak_db,
-                    spectrum_db,
-                });
-            }
-            return;
-        }
         let sequence = self.next_sequence;
         self.next_sequence += 1;
         if let Some(key) = telemetry_key(&event) {
@@ -107,9 +75,6 @@ impl EventMailbox {
 
     fn drain(&mut self) -> Vec<BackendEvent> {
         self.flush_telemetry();
-        if let Some(meter) = self.processing_meter.take() {
-            self.ready.push_back(meter);
-        }
         self.ready.drain(..).collect()
     }
 
@@ -139,9 +104,6 @@ fn telemetry_key(event: &BackendEvent) -> Option<(RunId, TelemetryKind)> {
         | BackendEvent::NextNeeded { .. }
         | BackendEvent::NextPreparationFailed { .. }
         | BackendEvent::AudioApplied { .. }
-        | BackendEvent::ProcessingApplied { .. }
-        | BackendEvent::ProcessingFailed { .. }
-        | BackendEvent::ProcessingMeter { .. }
         | BackendEvent::OperationFailed { .. }
         | BackendEvent::TransportRejected { .. }
         | BackendEvent::TransportObserved { .. }
@@ -153,35 +115,18 @@ pub struct GStreamerPlaybackBackend {
     commands: Option<Sender<WorkerInput>>,
     events: Arc<Mutex<EventMailbox>>,
     thread: Option<thread::JoinHandle<()>>,
-    processing: tokio::task::JoinHandle<()>,
 }
 impl GStreamerPlaybackBackend {
-    pub fn new(
-        mut processing: tokio::sync::watch::Receiver<ProcessingRequest>,
-    ) -> Result<Self, BackendError> {
-        let runtime = tokio::runtime::Handle::try_current()
-            .map_err(|error| BackendError::Backend(error.to_string()))?;
+    pub fn new() -> Result<Self, BackendError> {
         let events = Arc::new(Mutex::new(EventMailbox::default()));
         let thread_events = Arc::clone(&events);
-        let initial = processing.borrow_and_update().clone();
         let (ready_sender, ready_receiver) = sync_channel(1);
         let thread = thread::Builder::new()
             .name("slopsonic-gstreamer-playback".to_string())
-            .spawn(move || run_gstreamer_thread(thread_events, ready_sender, initial))
+            .spawn(move || run_gstreamer_thread(thread_events, ready_sender))
             .map_err(|error| BackendError::Backend(error.to_string()))?;
         match ready_receiver.recv() {
             Ok(Ok(commands)) => Ok(Self {
-                processing: runtime.spawn({
-                    let commands = commands.clone();
-                    async move {
-                        while processing.changed().await.is_ok() {
-                            let request = processing.borrow_and_update().clone();
-                            if commands.send(WorkerInput::Processing(request)).is_err() {
-                                break;
-                            }
-                        }
-                    }
-                }),
                 commands: Some(commands),
                 events,
                 thread: Some(thread),
@@ -222,7 +167,6 @@ impl PlaybackBackend for GStreamerPlaybackBackend {
     }
 
     fn shutdown(&mut self) -> Result<(), BackendError> {
-        self.processing.abort();
         if let Some(commands) = self.commands.take() {
             let _ = commands.send(WorkerInput::Shutdown);
         }
@@ -338,7 +282,6 @@ pub(super) struct SeekState {
 #[derive(Debug)]
 pub(super) struct SharedBackendState {
     pub(super) settings: BackendAudioSettings,
-    pub(super) processing: Option<ProcessingRequest>,
     pub(super) current: Option<PreparedRun>,
     pub(super) next: Option<PreparedNext>,
     pub(super) active: Slot,
@@ -349,7 +292,6 @@ impl SharedBackendState {
         let settings = BackendAudioSettings::default();
         Self {
             current: None,
-            processing: None,
             next: None,
             active: Slot::Primary,
             pipeline_ids: [None, None],
@@ -408,7 +350,6 @@ pub(super) struct GstEngine {
     pub(super) secondary: PlayerPipeline,
     pub(super) shared: Arc<Mutex<SharedBackendState>>,
     events: Arc<Mutex<EventMailbox>>,
-    pub(super) measurement: MeasurementAnalyzer,
     pub(super) last_position_tick: Instant,
     pub(super) seek: SeekState,
     // Positions mean nothing before a session's first preroll.
@@ -438,7 +379,6 @@ impl GstEngine {
             Arc::clone(&shared),
             input_sender.clone(),
         );
-        let measurement = MeasurementAnalyzer::new(Arc::clone(&events), Arc::clone(&shared));
         Self {
             inputs,
             input_sender,
@@ -446,7 +386,6 @@ impl GstEngine {
             secondary,
             shared,
             events,
-            measurement,
             last_position_tick: Instant::now(),
             seek: SeekState::default(),
             session_prerolled: false,
@@ -951,12 +890,7 @@ impl GstEngine {
         let current = self.current_item()?;
         let allowed = {
             let shared = lock_recover(&self.shared);
-            passthrough_allowed(
-                &format,
-                &shared.settings,
-                shared.processing.as_ref(),
-                current.stream.loudness.as_ref(),
-            )
+            passthrough_allowed(&format, &shared.settings, current.stream.loudness.as_ref())
         };
         if allowed {
             return Ok(());
@@ -986,76 +920,6 @@ impl GstEngine {
         )
     }
 
-    fn set_processing(&mut self, request: ProcessingRequest) {
-        if let Err(message) =
-            audio_processing::effects::EffectsBin::validate_available(&request.config)
-        {
-            push_event(&self.events, BackendEvent::ProcessingFailed { message });
-            return;
-        }
-        lock_recover(&self.shared).processing = Some(request.clone());
-        let mut applied = true;
-        for slot in [Slot::Primary, Slot::Secondary] {
-            if let Err(message) = self
-                .pipeline_for_slot_mut(slot)
-                .configure_processing(&request)
-            {
-                applied = false;
-                push_event(
-                    &self.events,
-                    BackendEvent::ProcessingFailed {
-                        message: message.to_string(),
-                    },
-                );
-            }
-        }
-        self.sync_processing_taps();
-        if let Err(error) = self.end_passthrough_if_needed() {
-            self.fail_playback(self.timing_run_id(), error);
-        }
-        // Without an audio graph in use, nothing else reports neutral processing applied.
-        let graph_unused = self.active_pipeline().is_bitstream();
-        if applied && (graph_unused || lock_recover(&self.shared).current.is_none()) {
-            let rate = 48_000;
-            let preamp_db = request.config.equalizer.as_ref().map_or(0.0, |p| {
-                audio_processing::effects::effective_preamp_db(p, rate)
-            });
-            push_event(
-                &self.events,
-                BackendEvent::ProcessingApplied {
-                    config: request.config,
-                    sample_rate: None,
-                    preamp_db,
-                },
-            );
-        }
-    }
-
-    fn poll_processing(&mut self) {
-        for slot in [Slot::Primary, Slot::Secondary] {
-            match self.pipeline_for_slot_mut(slot).poll_processing() {
-                Ok(Some((config, sample_rate, preamp_db))) if self.is_active_slot(slot) => {
-                    if self.pipeline_for_slot(slot).has_audio_graph() {
-                        push_event(
-                            &self.events,
-                            BackendEvent::ProcessingApplied {
-                                config,
-                                sample_rate,
-                                preamp_db,
-                            },
-                        );
-                    }
-                }
-                Err(message) => {
-                    if self.pipeline_for_slot(slot).has_audio_graph() {
-                        push_event(&self.events, BackendEvent::ProcessingFailed { message });
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
     /// Handles every input already queued. Returns false after a shutdown request.
     #[cfg(test)]
     fn poll_bus(&mut self) -> bool {
@@ -1068,7 +932,6 @@ impl GstEngine {
         while let Some(input) = inputs.next() {
             match input {
                 WorkerInput::Command(command) => self.handle_command(*command),
-                WorkerInput::Processing(request) => self.set_processing(request),
                 WorkerInput::Bus(slot, id, message) => {
                     // Use the latest consecutive refill update to avoid an unnecessary pause.
                     let superseded = message.type_() == gst::MessageType::Buffering
@@ -1195,24 +1058,6 @@ impl GstEngine {
         }
     }
 
-    fn sync_processing_taps(&mut self) {
-        let spectrum = lock_recover(&self.shared)
-            .processing
-            .as_ref()
-            .is_some_and(|request| request.spectrum);
-        for slot in [Slot::Primary, Slot::Secondary] {
-            let tap = (spectrum && self.pipeline_for_slot(slot).has_audio_graph())
-                .then(|| {
-                    let shared = lock_recover(&self.shared);
-                    let pipeline_id = shared.pipeline_id(slot)?;
-                    let run = shared.current.as_ref()?.run;
-                    Some(self.measurement.tap(slot, pipeline_id, run))
-                })
-                .flatten();
-            self.pipeline_for_slot_mut(slot).set_processing_tap(tap);
-        }
-    }
-
     fn active_pipeline(&self) -> &PlayerPipeline {
         self.pipeline_for_slot(self.active_slot())
     }
@@ -1301,7 +1146,6 @@ impl GstEngine {
 fn run_gstreamer_thread(
     events: Arc<Mutex<EventMailbox>>,
     ready: SyncSender<Result<Sender<WorkerInput>, String>>,
-    processing: ProcessingRequest,
 ) {
     let startup_started_at = Instant::now();
     if let Err(error) = ensure_gstreamer_initialized() {
@@ -1339,7 +1183,6 @@ fn run_gstreamer_thread(
         gst::log::set_threshold_for_name(category, gst::DebugLevel::Warning);
     }
 
-    engine.set_processing(processing);
     if ready.send(Ok(engine.input_sender.clone())).is_err() {
         gst::log::remove_log_function(audio_log);
         return;

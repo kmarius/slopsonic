@@ -1,13 +1,10 @@
-use audio_processing::effects::{EffectsBin, ProcessingConfig};
 use gstreamer as gst;
 #[cfg(test)]
 use gstreamer_app as gst_app;
 use gstreamer_audio::gst_base::{BaseTransform, prelude::BaseTransformExt};
 use gstreamer_controller::{self as controller, prelude::*};
 use playback::TrackLoudness;
-use playback::{
-    BackendAudioSettings, LoudnessNormalization, LoudnessNormalizationScope, ProcessingRequest,
-};
+use playback::{BackendAudioSettings, LoudnessNormalization, LoudnessNormalizationScope};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -18,10 +15,9 @@ pub(super) struct AudioGraph {
     root: gst::Element,
     input: gst::Element,
     effect_bins: [gst::Element; 1],
-    pub(super) processing: EffectsBin,
     output: gst::Element,
     sink: gst::Element,
-    gain: BaseTransform,
+    pub(super) gain: BaseTransform,
     gain_curve: controller::InterpolationControlSource,
     // Crossfade gain stays apart from user volume, mute and status fades.
     transition: BaseTransform,
@@ -79,7 +75,7 @@ impl AudioGraph {
         let convert_in = make_element("audioconvert", "slopsonic-audio-convert-in")?;
         let convert_out = make_element("audioconvert", "slopsonic-audio-convert-out")?;
         let split = make_element("audiobuffersplit", "slopsonic-audio-buffer-split")?;
-        // Decoder packets can span half a second. Keep output and analysis paced in
+        // Decoder packets can span half a second. Keep output paced in
         // short blocks, including for WavPack, without changing the audio samples.
         split.set_property("output-buffer-duration", gst::Fraction::new(1, 60));
         let new_segment = AtomicBool::new(false);
@@ -110,10 +106,8 @@ impl AudioGraph {
         configure_test_output(&output);
         let (gain, gain_curve) = controlled_volume("slopsonic-output-gain")?;
         let (transition, transition_curve) = controlled_volume("slopsonic-transition-gain")?;
-        let processing = EffectsBin::new(&ProcessingConfig::default())?;
         let sink = gst::Bin::new();
         sink.add_many([
-            processing.element(),
             gain.upcast_ref::<gst::Element>(),
             transition.upcast_ref::<gst::Element>(),
             &resample,
@@ -122,7 +116,6 @@ impl AudioGraph {
         ])
         .map_err(|error| error.to_string())?;
         gst::Element::link_many([
-            processing.element(),
             gain.upcast_ref::<gst::Element>(),
             transition.upcast_ref::<gst::Element>(),
             &resample,
@@ -130,13 +123,9 @@ impl AudioGraph {
             &output,
         ])
         .map_err(|error| error.to_string())?;
-        let sink_pad = gst::GhostPad::with_target(
-            &processing
-                .element()
-                .static_pad("sink")
-                .expect("effects input"),
-        )
-        .map_err(|error| error.to_string())?;
+        let sink_pad =
+            gst::GhostPad::with_target(&gain.static_pad("sink").expect("output gain input"))
+                .map_err(|error| error.to_string())?;
         sink_pad
             .set_active(true)
             .map_err(|error| error.to_string())?;
@@ -242,7 +231,6 @@ impl AudioGraph {
             root: bin.upcast(),
             input: convert_in,
             effect_bins,
-            processing,
             output,
             sink: sink.upcast(),
             gain,
@@ -259,9 +247,6 @@ impl AudioGraph {
     }
 
     pub(super) fn clear_stream(&mut self) {
-        if let Err(error) = self.processing.reset() {
-            tracing::warn!(%error,"Could not reset audio processing");
-        }
         self.gain_frontier.store(0, Ordering::Release);
         self.gain.set_control_binding_disabled("volume", true);
         self.gain_curve.unset_all();
@@ -428,11 +413,6 @@ impl AudioGraph {
         }
         Ok(true)
     }
-
-    pub(super) fn measurement_pad(&self) -> gst::Pad {
-        // This tap follows playbin's queue and precedes playback volume and output conversion.
-        self.gain.static_pad("sink").expect("output gain input")
-    }
 }
 
 fn prepare_effects(
@@ -562,14 +542,12 @@ fn selected_loudness(
 pub(super) fn passthrough_allowed(
     format: &gst::CapsRef,
     settings: &BackendAudioSettings,
-    processing: Option<&ProcessingRequest>,
     loudness: Option<&TrackLoudness>,
 ) -> bool {
     format.structure(0).is_some_and(|format| {
         ["audio/x-ac3", "audio/x-eac3", "audio/x-dts"].contains(&format.name().as_str())
     }) && settings.output_gain() >= 1.0
         && !settings.muted
-        && processing.is_none_or(|request| request.config.is_neutral())
         && loudness
             .and_then(|loudness| selected_loudness(settings, loudness))
             .is_none_or(|(gain, peak)| clipping_safe_gain_db(gain, peak).abs() < 0.01)
@@ -766,43 +744,6 @@ mod tests {
             output.factory().map(|factory| factory.name().to_string()),
             Some(expected.to_string())
         );
-    }
-
-    #[test]
-    fn equalizer_changes_apply_and_bypass_retains_the_bank() {
-        use audio_processing::effects::{EqProfile, Filter, FilterKind, FilterWidth};
-        initialize_gstreamer();
-        let settings = BackendAudioSettings {
-            audio_output: Some("fakesink".into()),
-            ..Default::default()
-        };
-        let mut graph = test_graph(&settings, empty_stream()).unwrap();
-        let profile = EqProfile {
-            bands: vec![Filter {
-                kind: FilterKind::Peak,
-                frequency_hz: 1000.0,
-                gain_db: 5.0,
-                width: FilterWidth::Hertz { value: 400.0 },
-                enabled: true,
-            }],
-            ..Default::default()
-        };
-        graph
-            .processing
-            .update(&ProcessingConfig {
-                equalizer: Some(profile),
-                ..Default::default()
-            })
-            .unwrap();
-        let sink = graph.sink.downcast_ref::<gst::Bin>().unwrap();
-        let equalizer = sink.by_name("slopsonic-equalizer").unwrap();
-        assert_eq!(equalizer_band_gain(&equalizer, 0), Some(5.0));
-        graph
-            .processing
-            .update(&ProcessingConfig::default())
-            .unwrap();
-        assert_eq!(equalizer_band_gain(&equalizer, 0), Some(0.0));
-        assert_eq!(sink.by_name("slopsonic-equalizer"), Some(equalizer));
     }
 
     #[test]
@@ -1163,12 +1104,5 @@ mod tests {
                 );
             }
         }
-    }
-
-    fn equalizer_band_gain(equalizer: &gst::Element, index: usize) -> Option<f64> {
-        equalizer
-            .dynamic_cast_ref::<gst::ChildProxy>()?
-            .child_by_index(index as u32)
-            .map(|band| band.property::<f64>("gain"))
     }
 }

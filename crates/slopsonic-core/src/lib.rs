@@ -18,7 +18,3 @@ pub use settings::SettingsHandle;
 
 pub mod metadata;
 pub mod playlists;
-
-pub use playback::equalizer::{
-    EqEdit, EqPresetFormat, EqPresetSummary, EqSubscription, EqView, EqualizerPreferences,
-};

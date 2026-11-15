@@ -181,22 +181,6 @@ pub enum BackendState {
     Playing,
 }
 #[derive(Clone, Debug, PartialEq)]
-pub struct ProcessingRequest {
-    pub config: audio_processing::effects::ProcessingConfig,
-    pub meter: bool,
-    pub spectrum: bool,
-}
-impl Default for ProcessingRequest {
-    fn default() -> Self {
-        Self {
-            config: Default::default(),
-            meter: false,
-            spectrum: false,
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub enum BackendCommand {
     Start {
         run: RunId,
@@ -296,18 +280,6 @@ pub enum BackendEvent {
         current_run: RunId,
         next_run: RunId,
         error: BackendFailure,
-    },
-    ProcessingApplied {
-        config: audio_processing::effects::ProcessingConfig,
-        sample_rate: Option<u32>,
-        preamp_db: f64,
-    },
-    ProcessingFailed {
-        message: String,
-    },
-    ProcessingMeter {
-        peak_db: Vec<f64>,
-        spectrum_db: Vec<f64>,
     },
     AudioApplied {
         volume: f64,

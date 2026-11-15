@@ -2,7 +2,6 @@ pub const NORMALIZATION_SCOPE_TITLE: &str = "Normalization scope";
 pub const NORMALIZATION_TITLE: &str = "Loudness normalization";
 pub const VOLUME_SCALE_TITLE: &str = "Volume scale";
 pub const STREAM_QUALITY_TITLE: &str = "Stream quality";
-use gtk_player::equalizer::EqualizerSurface;
 use gtk_player::playback_settings::{transition_rows, volume_scale_from_index, volume_scale_index};
 use gtk_widgets::forms::{controlled_selection_row, quality_selection_row, selection_row};
 use std::{cell::RefCell, rc::Rc};
@@ -648,18 +647,6 @@ pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
     page
 }
 
-pub fn equalizer_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
-    let resource = crate::ui_resource::PLAYBACK_PREFERENCES_RESOURCE;
-    let builder = gtk_widgets::ui_resource::builder(resource);
-    gtk_widgets::objects!(builder, resource, {
-        equalizer_page: adw::PreferencesPage,
-        equalizer_group: adw::PreferencesGroup,
-    });
-    let equalizer = EqualizerSurface::new(&shell.player_ui);
-    equalizer_group.add(&equalizer.root);
-
-    equalizer_page
-}
 pub fn appearance_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
     let resource = crate::ui_resource::APPEARANCE_PREFERENCES_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);

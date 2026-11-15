@@ -16,12 +16,6 @@
       </object>
     </child>
   </object>
-  <object class="AdwPreferencesPage" id="equalizer_page">
-    <property name="title" translatable="yes">Equalizer</property>
-    <child>
-      <object class="AdwPreferencesGroup" id="equalizer_group" />
-    </child>
-  </object>
   <object class="AdwSwitchRow" id="audio_fade_row">
     <property name="title" translatable="yes">Audio fade on play/pause</property>
     <property name="subtitle" translatable="yes">Fade audio when playback is paused or resumed</property>

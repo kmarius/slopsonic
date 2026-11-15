@@ -47,7 +47,6 @@
     <file>hicolor/scalable/actions/slopsonic-external-link-compact-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-appointment-new-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-image-x-generic-symbolic.svg</file>
-    <file>hicolor/scalable/actions/slopsonic-dialog-information-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-pan-down-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-preferences-desktop-appearance-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-applications-system-symbolic.svg</file>
@@ -58,11 +57,9 @@
     <file>hicolor/scalable/actions/slopsonic-audio-volume-muted-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-audio-x-generic-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-document-edit-symbolic.svg</file>
-    <file>hicolor/scalable/actions/slopsonic-document-save-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-drive-harddisk-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-edit-clear-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-document-open-symbolic.svg</file>
-    <file>hicolor/scalable/actions/slopsonic-document-send-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-download-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-edit-undo-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-edit-copy-symbolic.svg</file>
@@ -110,8 +107,6 @@
     <file>hicolor/scalable/actions/slopsonic-x-office-calendar-symbolic.svg</file>
     <file>hicolor/scalable/apps/io.github.kmarius.slopsonic.svg</file>
     <file>hicolor/symbolic/apps/io.github.kmarius.slopsonic-symbolic.svg</file>
-    <file>hicolor/scalable/actions/slopsonic-sliders-vertical-symbolic.svg</file>
-    <file>hicolor/scalable/actions/slopsonic-spring-graph-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-sound-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-text-center-symbolic.svg</file>
     <file>hicolor/scalable/actions/slopsonic-text-justify-center-symbolic.svg</file>
