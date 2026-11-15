@@ -9,7 +9,7 @@ use gtk::glib;
 use gtk_media_menus::media_menus::{
     download_playlist_entry_selection, download_track_selection, remove_playlist_entry_selection,
 };
-use slopsonic_core::playback::{QueuePlacement, QueueSelection};
+use slopsonic_core::playback::QueuePlacement;
 use std::rc::Rc;
 #[derive(Clone, Copy)]
 enum SelectionShortcut {
@@ -59,7 +59,8 @@ impl Shell {
             {
                 return glib::Propagation::Proceed;
             }
-            if shell.route_keyboard_available()
+            if (shell.route_keyboard_available()
+                || shell.queue_selection_focused(current_focus.as_ref()))
                 && !focus_blocks_playback_shortcut(current_focus.as_ref())
                 && let Some(shortcut) = selection_shortcut(key, state)
                 && shell.run_selection_shortcut(shortcut, current_focus.as_ref())
@@ -138,14 +139,13 @@ impl Shell {
                 return false;
             };
             match shortcut {
-                SelectionShortcut::Play(_) => match selection.selection {
-                    QueueSelection::Occurrences(ids) => {
-                        self.products.playback.activate_occurrence(ids[0]);
-                    }
-                    QueueSelection::Positions(positions) => {
-                        self.products.playback.activate(positions[0]);
-                    }
-                },
+                SelectionShortcut::Play(placement) => {
+                    gtk_media_menus::media_menus::place_queue_selection(
+                        &self.products.playback,
+                        selection.selection,
+                        placement,
+                    );
+                }
                 SelectionShortcut::AddToPlaylist => {
                     present_playlist_picker_media_uris(self, selection.media_uris.iter().cloned());
                 }
@@ -154,9 +154,7 @@ impl Shell {
             }
             return true;
         }
-        if !self.queue_selection_focused(focus)
-            && let Some(selection) = self.current_playlist_entry_selection_snapshot()
-        {
+        if let Some(selection) = self.current_playlist_entry_selection_snapshot() {
             match shortcut {
                 SelectionShortcut::Play(placement) => {
                     selection.play(&self.products.playback, placement, false)

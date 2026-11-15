@@ -54,8 +54,7 @@ pub enum Command {
         input: library::QueueLoad,
         target: crate::playback::QueueReorderTarget,
     },
-    MoveAfterCurrent(usize),
-    MoveOccurrenceAfterCurrent(u64),
+    MoveAfterCurrent(QueueSelection),
     Clear {
         include_current: bool,
     },
@@ -582,13 +581,12 @@ impl Player {
             Command::Forget(positions) => Ok(self.forget(&positions, sample)),
             Command::Reorder { selection, target } => Ok(self.reorder(&selection, &target, sample)),
             Command::Insert { input, target } => Ok(self.insert(input, &target)),
-            Command::MoveAfterCurrent(position) => Ok(self.move_after_current(&position, sample)),
-            Command::MoveOccurrenceAfterCurrent(id) => Ok({
+            Command::MoveAfterCurrent(selection) => Ok({
                 let target = self
                     .sequence
                     .selected_index()
                     .map_or(QueueReorderTarget::End, QueueReorderTarget::After);
-                self.reorder(&QueueSelection::Occurrences(vec![id]), &target, sample);
+                self.reorder(&selection, &target, sample);
             }),
             Command::Clear { include_current } => Ok(self.clear(include_current, sample)),
             Command::PlayPause => Ok(self.play_pause()),

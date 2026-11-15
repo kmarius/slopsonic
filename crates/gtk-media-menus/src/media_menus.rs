@@ -6,7 +6,9 @@ use gtk::glib;
 use library::{
     AlbumView, ArtistView, FavoriteTarget, GenreView, MoodView, PlaylistRow, RadioSeed, TrackView,
 };
-use slopsonic_core::playback::{QueuePlacement, RadioPlayRequest};
+use slopsonic_core::playback::{
+    PlaybackOwner, QueuePlacement, QueueReorderTarget, QueueSelection, RadioPlayRequest,
+};
 
 use gtk_widgets::controls::{ADD_ICON, DELETE_ICON, EDIT_ICON, REMOVE_ICON, TRASH_ICON};
 use gtk_widgets::downloads::{OperationArtwork, OperationFeedback, OperationFeedbackKind};
@@ -212,31 +214,39 @@ fn install_queue_entry_actions(
     occurrence_id: Option<u64>,
 ) {
     let selection = match occurrence_id {
-        Some(id) => slopsonic_core::playback::QueueSelection::Occurrences(vec![id]),
-        None => slopsonic_core::playback::QueueSelection::Positions(vec![position]),
+        Some(id) => QueueSelection::Occurrences(vec![id]),
+        None => QueueSelection::Positions(vec![position]),
     };
     let remove = selection.clone();
     let queue = menus.playback.clone();
     surface.add_action("remove-from-queue", move || {
         queue.remove_many(remove.clone())
     });
-    let queue = menus.playback.clone();
-    surface.add_action("play", move || match occurrence_id {
-        Some(id) => queue.activate_occurrence(id),
-        None => queue.activate(position),
-    });
-    let queue = menus.playback.clone();
-    surface.add_action("play-next", move || match occurrence_id {
-        Some(id) => queue.move_occurrence_after_current(id),
-        None => queue.move_after_current(position),
-    });
-    let queue = menus.playback.clone();
-    surface.add_action("play-last", move || {
-        queue.reorder(
-            selection.clone(),
-            slopsonic_core::playback::QueueReorderTarget::End,
-        );
-    });
+    for (action, placement) in [
+        ("play", QueuePlacement::Now),
+        ("play-next", QueuePlacement::Next),
+        ("play-last", QueuePlacement::End),
+    ] {
+        let queue = menus.playback.clone();
+        let selection = selection.clone();
+        surface.add_action(action, move || {
+            place_queue_selection(&queue, selection.clone(), placement)
+        });
+    }
+}
+
+/// Play Next and Play Later move the queue entries `selection`; other placements play the first.
+pub fn place_queue_selection(
+    queue: &PlaybackOwner,
+    selection: QueueSelection,
+    placement: QueuePlacement,
+) {
+    match (placement, selection) {
+        (QueuePlacement::Next, selection) => queue.move_selection_after_current(selection),
+        (QueuePlacement::End, selection) => queue.reorder(selection, QueueReorderTarget::End),
+        (_, QueueSelection::Occurrences(ids)) => queue.activate_occurrence(ids[0]),
+        (_, QueueSelection::Positions(positions)) => queue.activate(positions[0]),
+    }
 }
 
 fn install_track_navigation(

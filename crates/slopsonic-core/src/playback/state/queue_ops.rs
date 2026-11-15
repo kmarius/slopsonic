@@ -357,15 +357,6 @@ impl Player {
             },
         )
     }
-    pub(super) fn move_after_current(&mut self, id: &usize, sample: &ClockSample) {
-        let target = self
-            .sequence
-            .selected()
-            .map_or(QueueReorderTarget::End, |row| {
-                QueueReorderTarget::AfterOccurrence(row.occurrence_id.expect("local queue entry"))
-            });
-        self.reorder(&QueueSelection::Positions(vec![*id]), &target, sample)
-    }
     pub(super) fn clear(&mut self, include_current: bool, sample: &ClockSample) {
         let previous = self.sequence.selected_index();
         if include_current {
