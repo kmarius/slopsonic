@@ -329,6 +329,9 @@ impl Actor {
         if let Err(error) = self.retire_previous_files(&mut file).await {
             let _ = self.events.send(DownloadEvent::Notice(error)).await;
         }
+        if let Err(error) = self.replace_other_encodings(&mut file).await {
+            let _ = self.events.send(DownloadEvent::Notice(error)).await;
+        }
         Ok(finished.paths)
     }
 

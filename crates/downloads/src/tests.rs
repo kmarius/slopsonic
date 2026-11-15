@@ -433,3 +433,53 @@ async fn authoritative_rule_change_is_retained_while_prior_rules_prepare() {
         Some(replacement)
     );
 }
+
+#[tokio::test]
+async fn a_finished_download_replaces_the_other_encodings_of_its_track() {
+    let (_library, database, track) = download_fixture("track").await;
+    let root = tempfile::tempdir().expect("Downloads root");
+    let actor = actor_for_test(root.path(), database.clone());
+    let media_uri = test_media(track);
+    let subject = test_job(media_uri.clone()).subject;
+    let paths = download_paths(root.path(), &media_uri);
+    std::fs::create_dir_all(paths.audio_part.parent().unwrap()).unwrap();
+    std::fs::write(&paths.audio_part, b"original bytes").unwrap();
+    actor
+        .commit_transfer(&media_uri, &subject, &paths, DownloadQuality::Original)
+        .await
+        .unwrap_or_else(|_| panic!("commit original"));
+    // The original lives in its own file, as when it was downloaded into another folder.
+    let mut original = database
+        .download_file(&media_uri, "original")
+        .await
+        .unwrap()
+        .expect("original record");
+    let original_path = paths.directory.join("original.audio");
+    std::fs::rename(&paths.audio.path, &original_path).unwrap();
+    original.path = reqwest::Url::from_file_path(&original_path)
+        .unwrap()
+        .to_string();
+    database.save_download_file(&original).await.unwrap();
+
+    std::fs::write(&paths.audio_part, b"opus bytes").unwrap();
+    let opus = DownloadQuality::Transcoded(library::AudioEncoding {
+        codec: library::AudioCodec::Opus,
+        bitrate_kbps: Some(64),
+        channels: library::AudioChannels::Preserve,
+    });
+    actor
+        .commit_transfer(&media_uri, &subject, &paths, opus)
+        .await
+        .unwrap_or_else(|_| panic!("commit opus"));
+
+    let files = database.download_files(&media_uri).await.unwrap();
+    assert_eq!(
+        files
+            .iter()
+            .map(|file| file.encoding.clone())
+            .collect::<Vec<_>>(),
+        [library::media_encoding_key(opus.encoding())]
+    );
+    assert!(!original_path.exists(), "the replaced original is deleted");
+    assert!(paths.audio.path.exists());
+}

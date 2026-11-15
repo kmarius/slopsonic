@@ -132,6 +132,7 @@ impl Actor {
         {
             self.retire_receipt(&previous).await?;
         }
+        self.replace_other_encodings(&mut file).await?;
         Ok(true)
     }
 

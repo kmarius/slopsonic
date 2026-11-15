@@ -201,6 +201,42 @@ impl Actor {
         remove_download_files(&paths).await.map(usize::from)
     }
 
+    /// Once `file` holds the track, its downloads in other encodings go and their owners move to `file`.
+    pub(super) async fn replace_other_encodings(
+        &self,
+        file: &mut library::DownloadFile,
+    ) -> Result<(), String> {
+        let others: Vec<_> = self
+            .database
+            .download_files(&file.media_uri)
+            .await
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .filter(|other| other.encoding != file.encoding)
+            .collect();
+        if others.is_empty() {
+            return Ok(());
+        }
+        let mut owners = download_owners(file)?;
+        for other in &others {
+            owners.extend(download_owners(other)?);
+        }
+        file.owners = serde_json::to_string(&owners).map_err(|error| error.to_string())?;
+        self.database
+            .save_download_file(file)
+            .await
+            .map_err(|error| error.to_string())?;
+        for mut other in others {
+            self.retire_previous_files(&mut other).await?;
+            self.remove_representation_bytes(&other).await?;
+            self.database
+                .forget_download_file(&other)
+                .await
+                .map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    }
+
     pub(super) async fn retire_receipt(
         &self,
         file: &library::DownloadFile,
