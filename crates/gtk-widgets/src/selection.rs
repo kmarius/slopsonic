@@ -208,10 +208,11 @@ impl PositionSelectionModel {
             };
             let previous = selection.clear_for_model_change();
             selection.items_changed(position, removed, added);
-            if !previous.is_empty() && previous.minimum() < position {
+            let n_items = selection.n_items();
+            if !previous.is_empty() && previous.minimum() < n_items {
                 let first = previous.minimum();
-                let end = previous.maximum().saturating_add(1).min(position);
-                selection.selection_changed(first, end - first);
+                let last = previous.maximum().min(n_items - 1);
+                selection.selection_changed(first, last - first + 1);
             }
         });
         selection.imp().model_handler.replace(Some(handler));
