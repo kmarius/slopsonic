@@ -762,7 +762,9 @@ impl ReusableCollectionGridCell<library::TrackView> for TrackGridCell {
             .bind(row.title(), |value| (self.field)(position, &row, value));
         self.body.bind_playing_target(
             &shell,
-            track_play_request(row.track_key().expect("catalog song key")),
+            Some(track_play_request(
+                row.track_key().expect("catalog song key"),
+            )),
         );
         self.body.set_download_target(&shell, row.download_badge());
         set_grid_favorite(&self.favorite, Some(row.favorite()));
@@ -1015,11 +1017,10 @@ impl ReusableCollectionGridCell<ArtistView> for ArtistGridCell {
         };
         self.body.bind_playing_target(
             &shell,
-            if self.album_artist {
-                gtk_widgets::selection::artist_play_request(&row, true)
-            } else {
-                gtk_widgets::selection::artist_play_request(&row, false)
-            },
+            Some(gtk_widgets::selection::artist_play_request(
+                &row,
+                self.album_artist,
+            )),
         );
         shell.artwork.bind_artwork_tile(
             &self.cover,
@@ -1068,23 +1069,17 @@ impl ReusableCollectionGridCell<AlbumView> for AlbumGridCell {
         let Some(shell) = self.shell.upgrade() else {
             return;
         };
-        self.body
-            .bind_playing_target(&shell, album_playback_target(&row, self.context.as_deref()));
+        self.body.bind_playing_target(
+            &shell,
+            Some(album_playback_target(&row, self.context.as_deref())),
+        );
         shell.artwork.bind_artwork_tile(
             &self.cover,
             opaque_artwork(row.artwork_binding.as_deref()),
             COLLECTION_GRID_MAX_CARD_WIDTH,
         );
-        self.body.bind(&row.metadata.title, |field| {
-            let value = album_field(&row, field);
-            if value.is_empty()
-                || !matches!(field, LibraryField::Artist | LibraryField::AlbumArtist)
-            {
-                DetailLinks::text(&value)
-            } else {
-                album_artist_links(&row)
-            }
-        });
+        self.body
+            .bind(&row.metadata.title, |field| album_field_links(&row, field));
         self.body.set_download_target(
             &shell,
             collection_is_downloaded(row.summary.track_count, row.summary.downloaded_count),
@@ -1109,10 +1104,18 @@ impl ReusableCollectionGridCell<AlbumView> for AlbumGridCell {
         };
         self.body.replace_fields(&shell, fields);
         if let Some(row) = self.current.borrow().as_ref() {
-            self.body.bind(&row.metadata.title, |field| {
-                DetailLinks::text(&album_field(row, field))
-            });
+            self.body
+                .bind(&row.metadata.title, |field| album_field_links(row, field));
         }
+    }
+}
+
+fn album_field_links(row: &AlbumView, field: LibraryField) -> DetailLinks {
+    let value = album_field(row, field);
+    if value.is_empty() || !matches!(field, LibraryField::Artist | LibraryField::AlbumArtist) {
+        DetailLinks::text(&value)
+    } else {
+        album_artist_links(row)
     }
 }
 
@@ -1237,10 +1240,10 @@ impl CollectionGridCardCell {
         self.title_row.append(&badge);
     }
 
-    pub fn bind_playing_target(&self, shell: &CatalogUi, target: PlayRequest) {
+    pub fn bind_playing_target(&self, shell: &CatalogUi, target: Option<PlayRequest>) {
         let mut binding = self.playing_target.borrow_mut();
         let binding = binding.get_or_insert_with(|| MediaPlayingBinding::new(shell, &self.title));
-        binding.bind(shell, Some(target));
+        binding.bind(shell, target);
     }
 
     pub fn set_download_target(&self, shell: &Rc<CatalogUi>, downloaded: bool) {

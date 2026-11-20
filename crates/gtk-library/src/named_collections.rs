@@ -825,9 +825,8 @@ impl<T: NamedCollectionRow> ReusableCollectionGridCell<T> for NamedCollectionGri
     }
 
     fn bind(&self, _: u32, item: T) {
-        if let Some(target) = item.playback(self.key) {
-            self.body.bind_playing_target(&self.shell, target);
-        }
+        self.body
+            .bind_playing_target(&self.shell, item.playback(self.key));
         let artwork = item.artwork();
         self.cover.replace(&self.shell.artwork, &artwork);
         self.body
