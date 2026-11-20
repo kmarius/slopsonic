@@ -1038,7 +1038,7 @@ fn folder_context_id(path: &[FolderPathItem]) -> String {
 }
 
 fn folder_error_view(shell: &Rc<CatalogUi>) -> gtk::Widget {
-    folder_status_view(shell, "Couldn't load this folder", false)
+    folder_status_view(shell, "Could not load this folder", false)
 }
 
 fn folder_empty_view(shell: &Rc<CatalogUi>) -> gtk::Widget {

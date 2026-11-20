@@ -711,6 +711,9 @@ impl Shell {
             message: gtk::Label,
             refresh: gtk::Button,
         });
+        if matches!(route, Route::Folders { .. }) {
+            message.set_text("Could not load this folder");
+        }
         let keep_content = self
             .route_viewport
             .mounted_route
