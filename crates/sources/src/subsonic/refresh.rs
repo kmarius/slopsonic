@@ -224,10 +224,12 @@ impl SubsonicSource {
             self.acquire_navidrome_library(catalog, progress, cancelled)
                 .await?;
         } else {
+            // Artists come first so that the albums and tracks crediting them are resolved once.
+            let mut listed = Vec::new();
             for (entity, read_stage) in [
+                ("artist", SourceReadStage::Artists),
                 ("album", SourceReadStage::Albums),
                 ("track", SourceReadStage::Tracks),
-                ("artist", SourceReadStage::Artists),
             ] {
                 progress(stage(read_stage, 0));
                 let result = async {
@@ -294,19 +296,26 @@ impl SubsonicSource {
                             break;
                         }
                     }
-                    if let Some(stamp) = stamp {
-                        check_cancelled(cancelled)?;
-                        catalog
-                            .complete_source_observation(stamp, &[entity], None)
-                            .await?;
-                    }
                     Ok(())
                 }
                 .await;
-                if let Err(error) = result {
-                    complete = false;
-                    crate::source::optional_collection_error(error)?;
+                match result {
+                    Ok(()) if entity != "track" => listed.push(entity),
+                    Ok(()) => {}
+                    Err(error) => {
+                        complete = false;
+                        crate::source::optional_collection_error(error)?;
+                    }
                 }
+            }
+            if let Some(stamp) = stamp {
+                // An artist stays while an album credits it, so albums complete first; tracks
+                // completed when they were listed.
+                listed.reverse();
+                check_cancelled(cancelled)?;
+                catalog
+                    .complete_source_observation(stamp, &listed, None)
+                    .await?;
             }
         }
 
