@@ -394,6 +394,33 @@ impl PlayerPipeline {
             }
             if element
                 .factory()
+                .is_some_and(|factory| factory.name() == "typefind")
+            {
+                // Runs before the source bin's own handler, which builds the stream's path.
+                element.connect("have-type", false, |values| {
+                    let source = values[0]
+                        .get::<gst::Element>()
+                        .expect("have-type typefind")
+                        .parent()
+                        .and_downcast::<gst::Element>()
+                        .filter(|parent| {
+                            parent
+                                .factory()
+                                .is_some_and(|factory| factory.name() == "urisourcebin")
+                        })?;
+                    let caps = values[2].get::<gst::Caps>().expect("have-type caps");
+                    let flac = caps
+                        .structure(0)
+                        .is_some_and(|caps| caps.name() == "audio/x-flac");
+                    // Lets flacparse read a network stream at any offset so a seek bisects;
+                    // the bin outlives one stream, so other types reset it.
+                    let ring_bytes = if flac { 4 * 1024 * 1024_u64 } else { 0 };
+                    source.set_property("ring-buffer-max-size", ring_bytes);
+                    None
+                });
+            }
+            if element
+                .factory()
                 .is_some_and(|factory| factory.name() == "qtdemux")
             {
                 element.connect_pad_added(|_, pad| {
@@ -956,8 +983,31 @@ impl PlayerPipeline {
         }
     }
 
+    fn flac_parser_reads_anywhere(&self) -> bool {
+        self.native.as_ref().is_some_and(|(pipeline, _)| {
+            pipeline
+                .downcast_ref::<gst::Bin>()
+                .expect("playbin is a bin")
+                .iterate_recurse()
+                .into_iter()
+                .flatten()
+                .any(|element| {
+                    element
+                        .factory()
+                        .is_some_and(|factory| factory.name() == "flacparse")
+                        && element
+                            .static_pad("sink")
+                            .is_some_and(|pad| pad.mode() == gst::PadMode::Pull)
+                })
+        })
+    }
+
     pub(super) fn seek_physical_millis(&self, millis: u64) -> Result<(), BackendFailure> {
-        let flags = gst::SeekFlags::FLUSH | gst::SeekFlags::ACCURATE;
+        let mut flags = gst::SeekFlags::FLUSH;
+        // FLAC frames carry their position, so a pull-mode flacparse lands on the exact sample.
+        if !self.flac_parser_reads_anywhere() {
+            flags |= gst::SeekFlags::ACCURATE;
+        }
         let start = gst::ClockTime::try_from(Duration::from_millis(millis))
             .map_err(|_| "Seek position exceeds the GStreamer clock range".to_string())?;
         let event = gst::event::Seek::new(
