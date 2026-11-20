@@ -191,25 +191,24 @@ impl Database {
         Ok(true)
     }
 
-    pub async fn defer_remote_rating(
+    /// The server is unreachable: every rating due by `due_by` waits until `next_attempt_at`.
+    /// Edits made since then stay due.
+    pub async fn defer_remote_ratings(
         &self,
-        target: &FavoriteTarget,
-        rating: Option<u8>,
+        due_by: i64,
         next_attempt_at: i64,
-    ) -> LibraryResult<bool> {
+    ) -> LibraryResult<()> {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
-        Ok(sqlx::query(
-            "UPDATE rating_outbox SET attempts=attempts+1,next_attempt_at=?3
-             WHERE media_uri=?1 AND rating IS ?2",
+        sqlx::query(
+            "UPDATE rating_outbox SET attempts=attempts+1,next_attempt_at=?2
+             WHERE next_attempt_at<=?1",
         )
-        .bind(target.media_uri())
-        .bind(rating)
+        .bind(due_by)
         .bind(next_attempt_at)
         .execute(connection)
-        .await?
-        .rows_affected()
-            == 1)
+        .await?;
+        Ok(())
     }
 
     /// Drops the edit; the item shows the server rating again.
@@ -319,25 +318,24 @@ impl Database {
         .await?)
     }
 
-    pub async fn defer_remote_favorite(
+    /// The server is unreachable: every favorite due by `due_by` waits until `next_attempt_at`.
+    /// Edits made since then stay due.
+    pub async fn defer_remote_favorites(
         &self,
-        target: &FavoriteTarget,
-        favorite: bool,
+        due_by: i64,
         next_attempt_at: i64,
-    ) -> LibraryResult<bool> {
+    ) -> LibraryResult<()> {
         let mut writer = self.writer().await?;
         let connection = writer.as_mut().ok_or(LibraryError::WriterUnavailable)?;
-        Ok(sqlx::query(
-            "UPDATE favorite_outbox SET attempts=attempts+1,next_attempt_at=?3
-             WHERE media_uri=?1 AND favorite=?2",
+        sqlx::query(
+            "UPDATE favorite_outbox SET attempts=attempts+1,next_attempt_at=?2
+             WHERE next_attempt_at<=?1",
         )
-        .bind(target.media_uri())
-        .bind(favorite)
+        .bind(due_by)
         .bind(next_attempt_at)
         .execute(connection)
-        .await?
-        .rows_affected()
-            == 1)
+        .await?;
+        Ok(())
     }
 
     pub async fn reject_remote_favorite(

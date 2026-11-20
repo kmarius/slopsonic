@@ -358,13 +358,11 @@ async fn rating_favorite_and_delivery_are_uri_owned() {
             .unwrap()
     );
     assert!(fixture.database.favorite(&album).await.unwrap());
-    assert!(
-        fixture
-            .database
-            .defer_remote_favorite(&target, false, 200)
-            .await
-            .expect("defer delivery")
-    );
+    fixture
+        .database
+        .defer_remote_favorites(100, 200)
+        .await
+        .expect("defer delivery");
     fixture.database.clone().close().await.unwrap();
     fixture.database = library::Database::open(&fixture.path).await.unwrap();
     assert!(!fixture.database.favorite(&target).await.unwrap());
@@ -396,13 +394,11 @@ async fn rating_favorite_and_delivery_are_uri_owned() {
             .await
             .unwrap()
     );
-    assert!(
-        !fixture
-            .database
-            .defer_remote_favorite(&target, false, 300)
-            .await
-            .unwrap()
-    );
+    fixture
+        .database
+        .defer_remote_favorites(200, 300)
+        .await
+        .unwrap();
     assert_eq!(
         fixture
             .database
@@ -511,12 +507,7 @@ async fn rating_override_lives_only_until_the_server_answers() {
             .unwrap(),
         "a superseded answer keeps the newer edit"
     );
-    assert!(
-        database
-            .defer_remote_rating(&target, Some(4), 200)
-            .await
-            .unwrap()
-    );
+    database.defer_remote_ratings(100, 200).await.unwrap();
     assert!(
         database
             .due_remote_ratings(199, 64, &cancellation)

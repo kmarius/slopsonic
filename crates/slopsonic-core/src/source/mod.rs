@@ -1121,11 +1121,6 @@ impl ServerOwner {
             }
             Err(error) if source_error_is_temporary(&error) => {
                 info!(favorite, "Favorite delivery deferred");
-                let _ = self
-                    .shared
-                    .database
-                    .defer_remote_favorite(&target, favorite, unix_seconds().saturating_add(30))
-                    .await;
                 return true;
             }
             Err(_) => {
@@ -1176,28 +1171,23 @@ impl ServerOwner {
         };
         let full = pending.len() == 64;
         let mut completed = true;
-        let mut unavailable = false;
         for (media_uri, favorite) in pending {
             let Some(target) = pending_target(media_uri) else {
                 completed = false;
                 continue;
             };
-            if unavailable {
-                let _ = self
-                    .shared
-                    .database
-                    .defer_remote_favorite(&target, favorite, unix_seconds().saturating_add(30))
-                    .await;
-                completed = false;
-                continue;
-            }
             if !self.favorite_source(&target).await {
                 completed = false;
                 continue;
             }
             if self.deliver_favorite(target, favorite).await {
-                unavailable = true;
+                let _ = self
+                    .shared
+                    .database
+                    .defer_remote_favorites(now, unix_seconds().saturating_add(30))
+                    .await;
                 completed = false;
+                break;
             }
         }
         if full && completed {
@@ -1207,8 +1197,9 @@ impl ServerOwner {
 
     async fn deliver_pending_ratings(&self) {
         let database = &self.shared.database;
+        let now = unix_seconds();
         let pending = match database
-            .due_remote_ratings(unix_seconds(), 64, &ReadCancellation::new())
+            .due_remote_ratings(now, 64, &ReadCancellation::new())
             .await
         {
             Ok(pending) => pending,
@@ -1220,23 +1211,16 @@ impl ServerOwner {
         let full = pending.len() == 64;
         let mut completed = true;
         let mut rejected = false;
-        let mut unavailable = false;
         for (media_uri, rating) in pending {
             let Some(target) = pending_target(media_uri) else {
                 completed = false;
                 continue;
             };
             let retry = unix_seconds().saturating_add(30);
-            let source = if unavailable {
-                None
-            } else {
-                self.open_client().await.ok()
-            };
-            let Some(source) = source else {
-                let _ = database.defer_remote_rating(&target, rating, retry).await;
-                unavailable = true;
+            let Ok(source) = self.open_client().await else {
+                let _ = database.defer_remote_ratings(now, retry).await;
                 completed = false;
-                continue;
+                break;
             };
             let Some((_, object_id)) = favorite_object(&target) else {
                 completed = false;
@@ -1253,9 +1237,9 @@ impl ServerOwner {
                     }
                 }
                 Err(error) if source_error_is_temporary(&error) => {
-                    let _ = database.defer_remote_rating(&target, rating, retry).await;
-                    unavailable = true;
+                    let _ = database.defer_remote_ratings(now, retry).await;
                     completed = false;
+                    break;
                 }
                 Err(error) => {
                     warn!(%error, "server rejected rating");
