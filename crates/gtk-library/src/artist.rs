@@ -178,9 +178,10 @@ impl CatalogUi {
                             unreachable!("artist overview")
                         };
                         header.replace(&shell, *summary);
-                        favorite.replace_page(favorite_tracks);
-                        let present = !favorite.source_is_empty();
-                        releases.set_favorite_present(present);
+                        let filtered = !favorite_tracks.read.filter.is_empty();
+                        if favorite.replace_page(favorite_tracks) {
+                            releases.set_favorite_present(!favorite.source_is_empty() || filtered);
+                        }
                         releases.replace_page(*page);
                         releases.apply_library_list_settings(&album_settings);
                     },
@@ -234,6 +235,12 @@ impl CatalogUi {
                 });
             }) as Rc<dyn Fn()>
         };
+        let search_refresh = Rc::downgrade(&refresh);
+        favorite.connect_search_request(move |_| {
+            if let Some(refresh) = search_refresh.upgrade() {
+                refresh();
+            }
+        });
 
         let resume = {
             let shell = Rc::downgrade(self);
