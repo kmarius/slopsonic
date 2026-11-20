@@ -377,7 +377,9 @@ mod freedesktop {
     }
 
     fn mpris_metadata(playback: Option<&PlaybackView>, art_url: Option<String>) -> Metadata {
-        let Some(entry) = playback.and_then(|playback| playback.transport.current.as_ref()) else {
+        let Some((transport, entry)) = playback
+            .and_then(|playback| Some((&playback.transport, playback.transport.current.as_ref()?)))
+        else {
             return Metadata::builder().trackid(MprisTrackId::NO_TRACK).build();
         };
         let mut builder = Metadata::builder()
@@ -386,11 +388,8 @@ mod freedesktop {
             .artist([entry.row.track.metadata.artist.clone()])
             .album(entry.row.track.metadata.album.clone())
             .length(Time::from_micros(
-                entry
-                    .row
-                    .track
-                    .metadata
-                    .duration_millis
+                i64::try_from(transport.duration_millis)
+                    .unwrap_or(i64::MAX)
                     .saturating_mul(1_000),
             ));
         if let Some(art_url) = art_url {
