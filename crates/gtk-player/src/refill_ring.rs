@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::f64::consts::{PI, TAU};
+use std::time::Duration;
 
 use gtk::{glib, graphene, prelude::*, subclass::prelude::*};
 
@@ -7,6 +8,8 @@ use gtk::{glib, graphene, prelude::*, subclass::prelude::*};
 // the transport row never grows when it appears.
 const OUTSET: f32 = 4.0;
 const LINE: f64 = 3.5;
+// A seek refills for a frame or two; showing the ring for that only flickers.
+const SHOW_DELAY: Duration = Duration::from_millis(400);
 
 mod imp {
     use super::*;
@@ -14,6 +17,7 @@ mod imp {
     #[derive(Default)]
     pub struct RefillRing {
         pub(super) tick: RefCell<Option<gtk::TickCallbackId>>,
+        pub(super) show: RefCell<Option<glib::SourceId>>,
     }
 
     #[glib::object_subclass]
@@ -91,6 +95,28 @@ impl RefillRing {
         ring.set_can_target(false);
         ring.set_visible(false);
         ring
+    }
+
+    /// Shows the ring once a refill has lasted `SHOW_DELAY`, hides it right away.
+    pub fn set_refilling(&self, refilling: bool) {
+        let show = &self.imp().show;
+        if !refilling {
+            if let Some(source) = show.take() {
+                source.remove();
+            }
+            self.set_visible(false);
+            return;
+        }
+        if self.is_visible() || show.borrow().is_some() {
+            return;
+        }
+        let ring = self.downgrade();
+        *show.borrow_mut() = Some(glib::timeout_add_local_once(SHOW_DELAY, move || {
+            if let Some(ring) = ring.upgrade() {
+                ring.imp().show.take();
+                ring.set_visible(true);
+            }
+        }));
     }
 }
 

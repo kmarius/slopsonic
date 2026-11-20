@@ -91,7 +91,7 @@ pub fn set_play_icon(
     } else {
         "slopsonic-media-playback-start-symbolic"
     }));
-    ring.set_visible(refilling);
+    ring.set_refilling(refilling);
 }
 
 fn transport_image(name: &str) -> gtk::Image {
