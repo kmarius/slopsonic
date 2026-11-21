@@ -1341,24 +1341,6 @@ async fn collection_rows_keep_their_server_identity() {
         rows.iter().map(|row| row.playlist_key).collect::<Vec<_>>(),
         keys
     );
-    for row in &rows {
-        assert_eq!(
-            fixture
-                .database
-                .playlist_key_by_identity(&row.object_id, &cancel)
-                .await
-                .unwrap(),
-            Some(row.playlist_key)
-        );
-    }
-    assert_eq!(
-        fixture
-            .database
-            .playlist_key_by_identity("global", &cancel)
-            .await
-            .unwrap(),
-        None
-    );
     sqlx::raw_sql("INSERT INTO tracks(track_key,media_uri,indexed,metadata,normalized_search) VALUES (55,'https://example.test/unavailable',0,jsonb(json_object('title',COALESCE('Known',''))),lower(COALESCE(json_extract(jsonb(json_object('title',COALESCE('Known',''))),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Known',''))),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Known',''))),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Known',''))),'$.comment'),'')));\n        INSERT INTO playlist_entries(playlist_entry_key,playlist_key,object_id,track_key,position) VALUES\n        (550,55,'first',55,0),(551,55,'second',55,1),(560,56,'first',55,0),(561,56,'second',55,1);")
         .execute(&mut raw).await.unwrap();
     for (key, entry_keys) in [(keys[0], [550, 551]), (keys[1], [560, 561])] {

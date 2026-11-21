@@ -16,9 +16,12 @@ async fn queue_restores_uri_owned_duplicates_state_and_unavailable_media() {
     let cancel = ReadCancellation::new();
     let mut media = fixture
         .database
-        .track_references_for_uris(&fixture.track_uris[..2], &cancel)
+        .tracks_by_uris(&fixture.track_uris[..2], &cancel)
         .await
-        .expect("materialize catalog media");
+        .expect("materialize catalog media")
+        .into_iter()
+        .map(library::TrackReference::from)
+        .collect::<Vec<_>>();
     media[0].artwork_binding = Some(br#"[{"key":"native/d3ee5c18a8f1961e8937c3905db90793","image":{"kind":"native","item_id":"shared-art","tag":null},"blur_hash":null}]"#.to_vec());
     let mut raw = connection(&fixture.path).await;
     {
@@ -88,9 +91,12 @@ async fn occurrence_media_and_progress_follow_the_exact_uri() {
     let fixture = fixture().await;
     let mut media = fixture
         .database
-        .track_references_for_uris(&fixture.track_uris[..3], &ReadCancellation::new())
+        .tracks_by_uris(&fixture.track_uris[..3], &ReadCancellation::new())
         .await
-        .expect("materialize media");
+        .expect("materialize media")
+        .into_iter()
+        .map(library::TrackReference::from)
+        .collect::<Vec<_>>();
     for (position, media) in media.iter_mut().enumerate() {
         media.media_uri = format!("file:///transition-{position}.flac");
     }
@@ -139,58 +145,6 @@ async fn occurrence_media_and_progress_follow_the_exact_uri() {
         );
         assert_eq!(restored.current_index, Some(position));
         assert_eq!(restored.progress_millis, (position as i64 + 1) * 1_000);
-    }
-}
-
-#[tokio::test]
-async fn album_and_playlist_materialize_the_same_uri_identity() {
-    let fixture = fixture().await;
-    let cancel = ReadCancellation::new();
-    let album = ({
-        let rows = ((&library::MemberRead {
-            collection: library::Collection::Album(fixture.albums[0]),
-            sort: Some(CatalogSort::TrackNumber),
-            ..library::MemberRead::new(library::Collection::Album(fixture.albums[0]))
-        })
-            .page(&fixture.database, library::RouteSeedWindow::top(), &cancel)
-            .await
-            .expect("Album Track order")
-            .rows)
-            .into_iter()
-            .map(library::MemberRow::into_track)
-            .collect::<Vec<_>>();
-        rows
-    })
-    .into_iter()
-    .map(|row| row.media_uri)
-    .collect::<Vec<_>>();
-    let playlist_key =
-        super::support::server_playlist(&fixture.database, "Collection", &fixture.track_uris[..3])
-            .await
-            .0;
-    let playlist = fixture
-        .database
-        .selected_track_uris(
-            &library::MemberRead::new(library::Collection::Playlist(playlist_key)).selection(),
-            None,
-            &cancel,
-        )
-        .await
-        .expect("Playlist URI order");
-    for (name, order) in [("album", album), ("playlist", playlist)] {
-        assert!(!order.is_empty(), "{name} order");
-        let media = fixture
-            .database
-            .track_references_for_uris(&order, &cancel)
-            .await
-            .expect("materialize URI order");
-        assert_eq!(
-            media
-                .iter()
-                .map(|item| item.media_uri.as_str())
-                .collect::<Vec<_>>(),
-            order.iter().map(String::as_str).collect::<Vec<_>>()
-        );
     }
 }
 

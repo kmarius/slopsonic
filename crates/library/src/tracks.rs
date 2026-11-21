@@ -554,25 +554,27 @@ mod tests {
                 .map(|index| TrackKey::from_raw(index + 1))
                 .collect::<Vec<_>>()
         );
+        let uri = |key: i64| format!("file:///track-{:03}", key - 1);
         assert_eq!(
             database
-                .selected_track_keys(&query.clone().selection(), &cancel)
+                .selected_track_uris(&query.clone().selection(), None, &cancel)
                 .await
                 .unwrap(),
-            ordered
+            (1..=300).map(uri).collect::<Vec<_>>()
         );
         assert_eq!(
             database
-                .selected_track_keys(
+                .selected_track_uris(
                     &crate::MemberSelection::Members {
                         read: query.clone(),
                         ranges: Some(vec![1..3, 129..132])
                     },
+                    None,
                     &cancel
                 )
                 .await
                 .unwrap(),
-            [2, 3, 130, 131, 132].map(TrackKey::from_raw),
+            [2, 3, 130, 131, 132].map(uri),
         );
         assert_eq!(
             (&query)

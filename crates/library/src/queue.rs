@@ -239,49 +239,6 @@ impl QueueRepeatMode {
 }
 
 impl Database {
-    pub async fn track_references_for_uris(
-        &self,
-        media_uris: &[String],
-        cancellation: &ReadCancellation,
-    ) -> LibraryResult<Vec<TrackReference>> {
-        if media_uris.len() > QUEUE_CONTEXT_LIMIT {
-            return Err(LibraryError::InvalidRequest(format!(
-                "Queue materialization is limited to {QUEUE_CONTEXT_LIMIT} media URIs"
-            )));
-        }
-        let mut connection = tokio::select! {result=self.acquire_reader()=>result?,()=cancellation.cancelled()=>return Err(LibraryError::ReadCancelled)};
-        track_references_for_uris_on(&mut connection, media_uris).await
-    }
-}
-
-impl Database {
-    pub async fn remember_media_uris(
-        &self,
-        uris: &[String],
-    ) -> LibraryResult<Vec<crate::TrackKey>> {
-        let mut writer = self.writer().await?;
-        let mut transaction = writer
-            .as_mut()
-            .ok_or(LibraryError::WriterUnavailable)?
-            .begin()
-            .await?;
-        let mut keys = Vec::with_capacity(uris.len());
-        for uri in uris {
-            keys.push(
-                crate::catalog::remember_track(
-                    &mut transaction,
-                    &TrackReference {
-                        media_uri: uri.clone(),
-                        ..Default::default()
-                    },
-                )
-                .await?,
-            );
-        }
-        transaction.commit().await?;
-        Ok(keys)
-    }
-
     pub async fn queue_entries(
         &self,
         input: QueueLoad,
@@ -722,28 +679,6 @@ pub fn shuffle_order<T>(values: &mut [T], mut seed: u64) {
         n ^= n >> 31;
         values.swap(i, ((u128::from(n) * (i as u128 + 1)) >> 64) as usize);
     }
-}
-
-async fn track_references_for_uris_on(
-    connection: &mut SqliteConnection,
-    uris: &[String],
-) -> LibraryResult<Vec<TrackReference>> {
-    let keys = sqlx::query_scalar::<_, crate::TrackKey>("SELECT track_key FROM json_each(?1) requested JOIN tracks ON media_uri=requested.value ORDER BY CAST(requested.key AS INTEGER)")
-        .bind(serde_json::to_string(uris)?).fetch_all(&mut *connection).await?;
-    let songs = crate::tracks::load_track_rows(connection, &keys).await?;
-    let songs = songs
-        .into_iter()
-        .map(|song| (song.media_uri.clone(), TrackReference::from(song)))
-        .collect::<HashMap<_, _>>();
-    Ok(uris
-        .iter()
-        .map(|uri| {
-            songs.get(uri).cloned().unwrap_or_else(|| TrackReference {
-                media_uri: uri.clone(),
-                ..Default::default()
-            })
-        })
-        .collect())
 }
 
 impl QueueRow {

@@ -202,17 +202,6 @@ impl Database {
             .collect())
     }
 
-    pub async fn selected_track_keys(
-        &self,
-        selection: &MemberSelection,
-        cancellation: &ReadCancellation,
-    ) -> LibraryResult<Vec<TrackKey>> {
-        let mut connection = self.acquire_general(cancellation).await?;
-        let mut transaction = connection.begin().await?;
-        let rows = selected_tracks_on(&mut transaction, selection).await?;
-        transaction.commit().await?;
-        Ok(rows.into_iter().map(|(key, _)| key).collect())
-    }
     pub async fn selected_track_uris(
         &self,
         selection: &MemberSelection,

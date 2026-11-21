@@ -918,10 +918,11 @@ mod tests {
         })
         .expect("start Scrobbler");
         let track = database
-            .track_references_for_uris(std::slice::from_ref(&track_uri), &cancellation)
+            .tracks_by_uris(std::slice::from_ref(&track_uri), &cancellation)
             .await
             .expect("materialize Track")
             .pop()
+            .map(library::TrackReference::from)
             .expect("Track");
         let listen = ListenWrite {
             play_id: "play".to_string(),

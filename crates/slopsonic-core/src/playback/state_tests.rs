@@ -872,9 +872,8 @@ async fn shuffled_batches_keep_placement_and_global_shuffle() {
                     .collect::<Vec<_>>();
                 let request = crate::playback::PlayRequest::from_input(
                     library::QueueLoad::items(items),
-                    placement,
+                    placement.with_anchor(count as usize - 1),
                 )
-                .with_anchor_index(count as usize - 1)
                 .shuffled(true);
                 assert!(request.activation_context(global_shuffle).is_none());
                 session.apply_batch(request, &sample).unwrap();
@@ -1110,16 +1109,22 @@ async fn auto_dj_refills_after_track_changes_and_delayed_completion() {
                     request.seed_run,
                     &request.seed_media_uri,
                     database
-                        .remember_media_uris(&[
-                            batch_item(queue_length as i64 + 1, Provenance::AutoDj)
-                                .0
-                                .media_uri,
-                            batch_item(queue_length as i64 + 2, Provenance::AutoDj)
-                                .0
-                                .media_uri,
-                        ])
+                        .tracks_by_uris(
+                            &[
+                                batch_item(queue_length as i64 + 1, Provenance::AutoDj)
+                                    .0
+                                    .media_uri,
+                                batch_item(queue_length as i64 + 2, Provenance::AutoDj)
+                                    .0
+                                    .media_uri,
+                            ],
+                            &library::ReadCancellation::new(),
+                        )
                         .await
-                        .unwrap(),
+                        .unwrap()
+                        .into_iter()
+                        .map(|track| track.track_key)
+                        .collect(),
                     5,
                     &sample
                 )

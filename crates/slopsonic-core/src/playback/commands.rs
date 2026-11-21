@@ -143,10 +143,6 @@ impl PlayRequest {
         self.anchor = Some((key, entry));
         self
     }
-    pub fn with_anchor_index(mut self, index: usize) -> Self {
-        self.placement = self.placement.with_anchor(index);
-        self
-    }
     pub fn activation_context(&self, shuffled: bool) -> Option<(String, library::TrackKey, usize)> {
         if !self.reactivate
             || !matches!(self.placement, Placement::Replace { .. })

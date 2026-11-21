@@ -93,21 +93,6 @@ impl Database {
         )
     }
 
-    pub async fn playlist_key_by_identity(
-        &self,
-        object_id: &str,
-        cancellation: &ReadCancellation,
-    ) -> LibraryResult<Option<PlaylistKey>> {
-        let mut connection = self.acquire_general(cancellation).await?;
-        Ok(sqlx::query_scalar(
-            "SELECT playlist_key FROM playlists
-             WHERE object_id=?1 AND name IS NOT NULL",
-        )
-        .bind(object_id)
-        .fetch_optional(&mut *connection)
-        .await?)
-    }
-
     pub async fn all_playlist_track_order(
         &self,
         folder: Option<FolderKey>,

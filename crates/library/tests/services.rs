@@ -298,10 +298,11 @@ async fn source_removal_preserves_pending_scrobbles() {
     };
     let queue_media = fixture
         .database
-        .track_references_for_uris(&fixture.track_uris[..1], &ReadCancellation::new())
+        .tracks_by_uris(&fixture.track_uris[..1], &ReadCancellation::new())
         .await
         .expect("materialize Queue media")
-        .remove(0);
+        .remove(0)
+        .into();
     persist_queue(
         &fixture.database,
         &[QueueItem {
