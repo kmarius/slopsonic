@@ -16,6 +16,7 @@ mod policy;
 mod source;
 
 mod remote_http;
+pub use remote_http::authenticated_redirect_policy;
 mod remote_json;
 mod subsonic;
 

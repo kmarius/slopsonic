@@ -51,7 +51,7 @@ fn configured_client_builder(
         .timeout(timeouts.request)
 }
 
-pub(crate) fn authenticated_redirect_policy() -> reqwest::redirect::Policy {
+pub fn authenticated_redirect_policy() -> reqwest::redirect::Policy {
     reqwest::redirect::Policy::custom(|attempt| {
         if attempt
             .previous()
@@ -63,17 +63,6 @@ pub(crate) fn authenticated_redirect_policy() -> reqwest::redirect::Policy {
             reqwest::redirect::Policy::limited(10).redirect(attempt)
         }
     })
-}
-
-pub(crate) fn build_url_client(
-    trust_invalid_cert: bool,
-    timeouts: RemoteTimeouts,
-    policy: RemoteHttpPolicy,
-) -> SourceResult<Client> {
-    configured_client_builder(trust_invalid_cert, timeouts)
-        .redirect(reqwest::redirect::Policy::default())
-        .build()
-        .map_err(|error| map_reqwest_error(error, policy))
 }
 
 pub async fn json<T: DeserializeOwned>(
@@ -467,6 +456,40 @@ mod tests {
     )]
     struct Track {
         duration: u32,
+    }
+
+    #[tokio::test]
+    async fn cross_origin_redirect_is_not_followed() {
+        let target = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&target)
+            .await;
+        let origin = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/rest/ping"))
+            .respond_with(
+                ResponseTemplate::new(302)
+                    .insert_header("Location", format!("{}/leak?t=token", target.uri())),
+            )
+            .mount(&origin)
+            .await;
+        let client = build_client(
+            false,
+            RemoteTimeouts {
+                connect: Duration::from_secs(5),
+                request: Duration::from_secs(5),
+            },
+            POLICY,
+        )
+        .expect("client");
+        let result = unit(
+            client.get(format!("{}/rest/ping?t=token", origin.uri())),
+            POLICY,
+        )
+        .await;
+        assert!(result.is_err(), "cross-origin redirect must fail");
     }
 
     #[tokio::test]

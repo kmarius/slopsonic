@@ -1034,7 +1034,7 @@ pub(super) async fn subsonic_bytes(request: reqwest::RequestBuilder) -> SourceRe
     .await
 }
 pub(super) fn build_client(trust_invalid_cert: bool) -> SourceResult<Client> {
-    remote_http::build_url_client(
+    remote_http::build_client(
         trust_invalid_cert,
         RemoteTimeouts {
             connect: SUBSONIC_CONNECT_TIMEOUT,

@@ -79,6 +79,7 @@ impl TransferClients {
             .get_or_try_init(|| async move {
                 reqwest::Client::builder()
                     .referer(false)
+                    .redirect(sources::authenticated_redirect_policy())
                     .danger_accept_invalid_certs(trust_invalid_certificate)
                     .connect_timeout(Duration::from_secs(15))
                     .read_timeout(Duration::from_secs(60))
