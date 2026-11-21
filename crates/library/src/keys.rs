@@ -27,18 +27,6 @@ pub fn entity_parts(uri: &str) -> Option<(String, String)> {
     Some((kind.to_string(), object))
 }
 
-/// Rewrites a former `slopsonic:source/<kind>/<server>/<object>` URI; others pass through.
-pub fn single_server_uri(uri: &str) -> String {
-    let parts = uri
-        .strip_prefix("slopsonic:source/")
-        .and_then(|rest| rest.split_once('/'))
-        .and_then(|(kind, rest)| Some((kind, rest.split_once('/')?.1)));
-    match parts {
-        Some((kind, object)) => format!("slopsonic:{kind}/{object}"),
-        None => uri.to_owned(),
-    }
-}
-
 pub fn file_media_path(uri: &str) -> Option<std::path::PathBuf> {
     let parsed = url::Url::parse(uri).ok()?;
     if !parsed.username().is_empty() || parsed.password().is_some() {
@@ -121,16 +109,6 @@ mod tests {
         assert_eq!(entity_parts("slopsonic:track/a/b"), None);
         assert_eq!(entity_parts("slopsonic:genre/rock"), None);
         assert_eq!(entity_parts("slopsonic:track/"), None);
-    }
-
-    #[test]
-    fn former_server_uris_drop_the_server_segment() {
-        assert_eq!(
-            single_server_uri("slopsonic:source/album/slopsonic%2Dsource%2Dabc/a%2F1"),
-            "slopsonic:album/a%2F1"
-        );
-        assert_eq!(single_server_uri("slopsonic:track/t"), "slopsonic:track/t");
-        assert_eq!(single_server_uri("file:///a.flac"), "file:///a.flac");
     }
 
     #[test]

@@ -63,7 +63,7 @@ pub use home::{
 };
 pub use keys::{
     AlbumKey, ArtistKey, FolderKey, GenreKey, ListenOutboxKey, MoodKey, PlaylistEntryKey,
-    PlaylistKey, TrackKey, entity_parts, entity_uri, file_media_path, single_server_uri,
+    PlaylistKey, TrackKey, entity_parts, entity_uri, file_media_path,
 };
 pub use playlists::{
     PlaylistAccess, PlaylistEditEntry, PlaylistEntryView, PlaylistEntryWrite, PlaylistGenreLink,

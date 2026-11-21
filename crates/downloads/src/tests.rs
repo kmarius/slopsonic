@@ -83,31 +83,12 @@ async fn queued_media_survives_restart_serialization() {
         remaining: remaining.into(),
         state: DownloadQueueState::Queued,
     };
-    let encoded = |jobs: Vec<DownloadJob>| {
-        serde_json::to_vec(&QueueFile {
-            version: QUEUE_VERSION,
-            jobs,
-        })
-        .unwrap()
-    };
-    let former = "slopsonic:source/track/slopsonic%2Dsource%2Dabc/track".to_string();
-    let direct = "https://media.example/direct.flac".to_string();
-    for (folder, jobs) in [
-        ("0123abcd", vec![job(vec![former.clone()])]),
-        ("direct", vec![job(vec![direct.clone()])]),
-    ] {
-        let folder = root.path().join(folder);
-        std::fs::create_dir_all(&folder).unwrap();
-        std::fs::write(folder.join(QUEUE_FILE), encoded(jobs)).unwrap();
-    }
-    for _ in 0..2 {
-        merge_legacy_queues(root.path(), &database).await.unwrap();
-        let ordinary = load_queue(root.path()).await.unwrap();
-        assert_eq!(ordinary.len(), 1);
-        assert_eq!(ordinary[0].remaining, std::slice::from_ref(&media_uri));
-    }
-    assert!(!root.path().join("0123abcd").exists());
-    assert!(!root.path().join("direct").exists());
+    persist_queue(root.path(), &[job(vec![media_uri.clone()])])
+        .await
+        .unwrap();
+    let saved = load_queue(root.path()).await.unwrap();
+    assert_eq!(saved.len(), 1);
+    assert_eq!(saved[0].remaining, std::slice::from_ref(&media_uri));
     let mut actor = actor_for_test(root.path(), database);
     actor.attached = None;
     actor.settings.quality = DownloadQuality::Transcoded(library::AudioEncoding {
@@ -117,77 +98,6 @@ async fn queued_media_survives_restart_serialization() {
     });
     actor.attach(None, None).await.unwrap();
     assert_eq!(actor.jobs[0].quality, actor.settings.quality);
-}
-
-#[tokio::test]
-async fn former_server_folders_keep_only_files_a_record_uses() {
-    let (_directory, database, _) = download_fixture("track").await;
-    let root = tempfile::tempdir().unwrap();
-    let write = |relative: &str| {
-        let path = root.path().join(relative);
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(&path, b"bytes").unwrap();
-        path
-    };
-    let hashed = hash_id_bytes(b"slopsonic-source-abc");
-    let kept = write(&format!("{hashed}/kept.audio"));
-    let orphan = write(&format!("{hashed}/orphan.audio"));
-    let unmerged = write(&format!("{hashed}/{QUEUE_FILE}"));
-    let partial = write("direct/track.audio.part");
-    let artwork = write("artwork/cover.png");
-    let current = write("server/track.audio.part");
-    let nested = write(&format!("{hashed}/Artist/Album/track.flac"));
-
-    // Without records under this root (a temporary or replaced database, a moved root) only
-    // partial downloads go.
-    sweep_former_folders(root.path(), &database).await;
-    assert!(orphan.exists() && kept.exists());
-    assert!(!partial.exists());
-
-    database
-        .save_download_file(&library::DownloadFile {
-            media_uri: library::entity_uri("track", "kept"),
-            encoding: "original".into(),
-            path: reqwest::Url::from_file_path(&kept).unwrap().to_string(),
-            managed: true,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-
-    sweep_former_folders(root.path(), &database).await;
-
-    assert!(
-        kept.exists() && unmerged.exists(),
-        "used files and unmerged queues stay"
-    );
-    assert!(
-        nested.exists(),
-        "only top-level files of a former folder are judged"
-    );
-    assert!(!orphan.exists());
-    assert!(!root.path().join("direct").exists());
-    assert!(
-        artwork.exists() && current.exists(),
-        "other folders are left alone"
-    );
-
-    // A custom download folder's former staging keeps only what is not a partial download.
-    let custom = tempfile::tempdir().unwrap();
-    let staged = |relative: &str| {
-        let path = custom.path().join(CUSTOM_STAGING_DIRECTORY).join(relative);
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(&path, b"bytes").unwrap();
-        path
-    };
-    let direct = staged("direct/track.audio.part");
-    let resume = staged(&format!("{hashed}/track.audio.part.resume"));
-    let foreign = staged(&format!("{hashed}/notes.txt"));
-    cleanup_staging(root.path(), Some(custom.path()), &HashSet::new())
-        .await
-        .unwrap();
-    assert!(!direct.exists() && !resume.exists());
-    assert!(foreign.exists(), "files the app did not stage stay");
 }
 
 #[tokio::test]

@@ -408,46 +408,9 @@ pub(super) async fn cleanup_staging(
         let _ = tokio::fs::remove_dir(source_staging).await;
     }
     if let Some(directory) = directory {
-        let staging = directory.join(CUSTOM_STAGING_DIRECTORY);
-        // Former per-server staging folders only ever held partial downloads, which no longer resume.
-        for folder in former_server_folders(&staging).await {
-            if let Ok(mut entries) = tokio::fs::read_dir(&folder).await {
-                while let Ok(Some(entry)) = entries.next_entry().await {
-                    // A leftover that cannot go must not stop the current staging cleanup.
-                    if managed_staging_file(&entry.path())
-                        && let Err(error) = remove_file_if_present(&entry.path()).await
-                    {
-                        tracing::warn!(%error, "could not remove a former partial download");
-                    }
-                }
-            }
-            let _ = tokio::fs::remove_dir(&folder).await;
-        }
-        let _ = tokio::fs::remove_dir(staging).await;
+        let _ = tokio::fs::remove_dir(directory.join(CUSTOM_STAGING_DIRECTORY)).await;
     }
     Ok(())
-}
-
-/// Folders of the former per-server layout under `parent`: `direct`, or a blake3 hex digest.
-pub(super) async fn former_server_folders(parent: &Path) -> Vec<PathBuf> {
-    let former = |name: &str| {
-        name == "direct"
-            || name.len() == 64
-                && name
-                    .bytes()
-                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    };
-    let mut folders = Vec::new();
-    let Ok(mut entries) = tokio::fs::read_dir(parent).await else {
-        return folders;
-    };
-    while let Ok(Some(entry)) = entries.next_entry().await {
-        let path = entry.path();
-        if path.is_dir() && entry.file_name().to_str().is_some_and(former) {
-            folders.push(path);
-        }
-    }
-    folders
 }
 
 pub(super) fn managed_staging_file(path: &Path) -> bool {

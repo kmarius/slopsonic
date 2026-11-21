@@ -527,46 +527,6 @@ fn drop_removed_entries(raw: &mut toml::Value) {
         "item",
     );
     strip(raw.get_mut("library_lists"), "key");
-    // Former per-server pins and import markers drop the server id.
-    if let Some(sidebar) = raw.get_mut("sidebar").and_then(toml::Value::as_table_mut) {
-        if let Some(imported) = sidebar.remove("playlist_pin_imported_sources") {
-            let imported = imported.as_array().is_some_and(|list| !list.is_empty());
-            sidebar
-                .entry("playlist_pins_imported")
-                .or_insert(toml::Value::Boolean(imported));
-        }
-        for pin in sidebar
-            .get_mut("pins")
-            .and_then(toml::Value::as_array_mut)
-            .into_iter()
-            .flatten()
-            .filter_map(toml::Value::as_table_mut)
-        {
-            for (_, fields) in pin.iter_mut() {
-                if let Some(fields) = fields.as_table_mut() {
-                    fields.remove("source_id");
-                }
-            }
-        }
-    }
-    // The former per-server download list keeps only the configured server's entry.
-    let configured = raw
-        .get("sources")
-        .and_then(|sources| sources.get("configured"))
-        .and_then(|configured| configured.get("source_id"))
-        .cloned();
-    if let Some(table) = raw.as_table_mut()
-        && let Some(list) = table.get("downloads").and_then(toml::Value::as_array)
-    {
-        match list
-            .iter()
-            .find(|entry| configured.is_some() && entry.get("source_id") == configured.as_ref())
-            .cloned()
-        {
-            Some(entry) => table.insert("downloads".into(), entry),
-            None => table.remove("downloads"),
-        };
-    }
 }
 
 pub(crate) fn decode_settings(
@@ -687,84 +647,6 @@ fn sync_settings_directory(parent: &Path) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn former_pins_drop_their_server_and_keep_their_order() {
-        let mut saved = toml::Value::try_from(StoredSettings::default()).unwrap();
-        saved.as_table_mut().unwrap().insert(
-            "sidebar".into(),
-            toml::Value::Table(toml::toml! {
-                playlist_pin_imported_sources = ["first"]
-                [[pins]]
-                Genre = { source_id = "first", genre_id = "rock" }
-                [[pins]]
-                Playlist = { playlist_id = "mix" }
-                [[pins]]
-                Genre = { source_id = "second", genre_id = "rock" }
-            }),
-        );
-        let (mut stored, unsupported) = decode_settings(&saved).unwrap();
-        stored.migrate_defaults();
-        assert!(unsupported.is_empty());
-        assert!(stored.ui.sidebar.playlist_pins_imported);
-        assert_eq!(
-            stored.ui.sidebar.pins,
-            [
-                SidebarPin::Genre {
-                    genre_id: "rock".into()
-                },
-                SidebarPin::Playlist {
-                    playlist_id: "mix".into()
-                },
-            ]
-        );
-    }
-
-    #[test]
-    fn former_download_list_keeps_the_configured_server_entry() {
-        let mut saved = toml::Value::try_from(StoredSettings::default()).unwrap();
-        let source = |id: &str| {
-            toml::Value::Table(toml::toml! {
-                source_id = id
-                kind = "navidrome"
-                name = "Server"
-                provider_payload = "{}"
-            })
-        };
-        saved["sources"]
-            .as_table_mut()
-            .unwrap()
-            .insert("configured".into(), source("current"));
-        saved.as_table_mut().unwrap().insert(
-            "downloads".into(),
-            toml::toml! {
-                [[list]]
-                source_id = "forgotten"
-                entire_library = true
-                directory = "/old"
-                [[list]]
-                source_id = "current"
-                favorites = true
-                directory = "/music"
-            }["list"]
-                .clone(),
-        );
-        let (stored, unsupported) = decode_settings(&saved).unwrap();
-        assert!(unsupported.is_empty());
-        assert!(stored.ui.downloads.rules.favorites);
-        assert!(!stored.ui.downloads.rules.entire_library);
-        assert_eq!(
-            stored.ui.downloads.directory.as_deref(),
-            Some(std::path::Path::new("/music"))
-        );
-
-        saved["sources"]
-            .as_table_mut()
-            .unwrap()
-            .insert("configured".into(), source("other"));
-        let (stored, _) = decode_settings(&saved).unwrap();
-        assert!(stored.ui.downloads.is_default());
-    }
 
     #[test]
     fn removed_history_entries_keep_the_rest_of_their_lists() {
