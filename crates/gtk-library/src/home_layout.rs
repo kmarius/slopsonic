@@ -10,6 +10,8 @@ gtk_widgets::composite_box!(
         previous: gtk::Button,
         next: gtk::Button,
         refresh: gtk::Button,
+        play: gtk::Button,
+        shuffle: gtk::Button,
     }
 );
 
@@ -33,5 +35,13 @@ impl HomeSectionHeaderView {
 
     pub fn refresh(&self) -> gtk::Button {
         self.imp().refresh.get()
+    }
+
+    pub fn play(&self) -> gtk::Button {
+        self.imp().play.get()
+    }
+
+    pub fn shuffle(&self) -> gtk::Button {
+        self.imp().shuffle.get()
     }
 }

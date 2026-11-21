@@ -627,6 +627,28 @@ impl CatalogUi {
             .connect_clicked(move |_| previous.shift(false));
         let next = mounted.clone();
         header.next().connect_clicked(move |_| next.shift(true));
+        for (button, shuffled) in [(header.play(), false), (header.shuffle(), true)] {
+            let shell = Rc::clone(self);
+            let data = Rc::clone(&mounted.data);
+            button.connect_clicked(move |_| {
+                let requests = data
+                    .borrow()
+                    .iter()
+                    .map(|item| match item {
+                        HomeItem::Track(row) => track_play_request(row.track.track_key),
+                        HomeItem::Album(row) => {
+                            gtk_widgets::selection::album_play_request(&row.album)
+                        }
+                    })
+                    .collect();
+                let placement = slopsonic_core::playback::QueuePlacement::Now;
+                (shell.media_menus.play_target)(
+                    &slopsonic_core::playback::PlayRequest::group(requests, placement),
+                    placement,
+                    shuffled,
+                );
+            });
+        }
         if let Some(kind) = refresh_kind {
             let shell = Rc::clone(self);
             let refresh_section = mounted.clone();
