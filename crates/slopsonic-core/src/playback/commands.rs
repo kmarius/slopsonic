@@ -310,10 +310,3 @@ impl RadioPlayRequest {
         }
     }
 }
-
-#[derive(Clone, Debug)]
-pub struct QueuePage {
-    pub rows: Vec<Arc<playback::QueueRow>>,
-    pub total: u64,
-    pub window_offset: u64,
-}

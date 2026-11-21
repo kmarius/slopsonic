@@ -255,35 +255,6 @@ impl Database {
 }
 
 impl Database {
-    pub async fn queue_search_page(
-        &self,
-        queue: &QueueRestore,
-        filter: &str,
-        offset: u64,
-        limit: u32,
-    ) -> LibraryResult<(Vec<usize>, u64)> {
-        let mut reader = self.acquire_general(&ReadCancellation::new()).await?;
-        let mut transaction = reader.begin().await?;
-        let filter = filter.trim().to_lowercase();
-        let mut positions = Vec::new();
-        let mut total = 0;
-        for (page, order) in queue.order.chunks(4096).enumerate() {
-            let keys = order
-                .iter()
-                .map(|i| queue.entries[*i as usize].track_key)
-                .collect::<Vec<_>>();
-            let matches=sqlx::query_scalar::<_,i64>("SELECT CAST(requested.key AS INTEGER) FROM json_each(?1) requested JOIN tracks ON track_key=requested.value WHERE instr(normalized_search,?2)>0 ORDER BY CAST(requested.key AS INTEGER)")
-                .bind(serde_json::to_string(&keys)?).bind(&filter).fetch_all(&mut *transaction).await?;
-            for position in matches {
-                if total >= offset && positions.len() < limit as usize {
-                    positions.push(page * 4096 + position as usize);
-                }
-                total += 1;
-            }
-        }
-        Ok((positions, total))
-    }
-
     pub async fn remember_media_uris(
         &self,
         uris: &[String],

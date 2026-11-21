@@ -620,64 +620,6 @@ impl PlaybackOwner {
 }
 
 impl PlaybackOwner {
-    pub(crate) async fn receiver_queue_page(
-        &self,
-        offset: u64,
-        limit: u32,
-        filter: String,
-    ) -> Result<QueuePage, String> {
-        let limit = limit.min(library::QUEUE_CONTEXT_LIMIT as u32);
-        let Some(active) = self.active() else {
-            return Ok(QueuePage {
-                rows: Vec::new(),
-                total: 0,
-                window_offset: 0,
-            });
-        };
-        let (requested, total) = if filter.trim().is_empty() {
-            let (entries, total) = active
-                .page_entries(offset as usize, limit as usize)
-                .map_err(string_error)?;
-            (entries, total as u64)
-        } else {
-            let queue = active.handoff_snapshot().map_err(string_error)?.0;
-            let (positions, total) = self
-                .database
-                .queue_search_page(&queue, &filter, offset, limit)
-                .await
-                .map_err(string_error)?;
-            let entries = positions
-                .into_iter()
-                .map(|position| {
-                    let index = queue.order[position] as usize;
-                    (
-                        position,
-                        queue.ids.get(index).copied(),
-                        queue.entries[index].clone(),
-                    )
-                })
-                .collect();
-            (entries, total)
-        };
-        let entries = requested
-            .iter()
-            .map(|(position, _, entry)| (*position, entry.clone()))
-            .collect::<Vec<_>>();
-        let mut rows = self
-            .database
-            .queue_rows_for_entries(&entries, &ReadCancellation::new())
-            .await
-            .map_err(string_error)?;
-        for (row, (_, id, _)) in rows.iter_mut().zip(requested) {
-            Arc::make_mut(row).occurrence_id = id;
-        }
-        Ok(QueuePage {
-            rows,
-            total,
-            window_offset: offset.min(total),
-        })
-    }
-
     pub fn shutdown(&self) {
         if let Some(active) = self.active() {
             let _ = active.shutdown();
@@ -976,13 +918,6 @@ pub enum PlaybackError {
     Message(String),
 }
 
-pub struct PreparedQueuePage {
-    pub revision: u64,
-    pub rows: Vec<Arc<library::QueueRow>>,
-    pub total: u64,
-    pub window_offset: u64,
-}
-
 impl PlaybackOwner {
     pub async fn selection(
         self: Arc<Self>,
@@ -1002,29 +937,5 @@ impl PlaybackOwner {
             })
             .await
             .map_err(|error| PlaybackError::Message(error.to_string()))?
-    }
-
-    pub async fn queue_page(
-        self: Arc<Self>,
-        offset: u64,
-        limit: u32,
-        filter: String,
-    ) -> Result<PreparedQueuePage, PlaybackError> {
-        let runtime = self.runtime.clone();
-        tokio_util::task::AbortOnDropHandle::new(runtime.spawn(async move {
-            let revision = self.updates.current().map_or(0, |view| view.queue.revision);
-            let page = self
-                .receiver_queue_page(offset, limit, filter)
-                .await
-                .map_err(PlaybackError::Message)?;
-            Ok(PreparedQueuePage {
-                revision,
-                rows: page.rows,
-                total: page.total,
-                window_offset: page.window_offset,
-            })
-        }))
-        .await
-        .map_err(|error| PlaybackError::Message(error.to_string()))?
     }
 }

@@ -170,13 +170,6 @@ impl Playback {
     pub(crate) fn command(&self, command: Command) -> PlaybackResult<()> {
         self.request(move |player, sample| Ok(player.handle_command(command, sample)?))
     }
-    pub(crate) fn page_entries(
-        &self,
-        offset: usize,
-        limit: usize,
-    ) -> PlaybackResult<(Vec<(usize, Option<u64>, library::QueueEntry)>, usize)> {
-        self.request(move |player, _| Ok(player.page_entries(offset, limit)))
-    }
 
     pub(crate) fn handoff_snapshot(
         &self,

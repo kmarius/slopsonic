@@ -288,23 +288,6 @@ impl Player {
         &self.sequence
     }
 
-    pub(super) fn page_entries(
-        &self,
-        offset: usize,
-        limit: usize,
-    ) -> (Vec<(usize, Option<u64>, library::QueueEntry)>, usize) {
-        let rows = self
-            .sequence
-            .page_entries(offset, limit)
-            .into_iter()
-            .map(|(position, entry)| {
-                let id = self.sequence.id_at(position).map(|id| id.0);
-                (position, id, entry)
-            })
-            .collect();
-        (rows, self.sequence.total())
-    }
-
     pub(super) fn handoff_snapshot(&self) -> (library::QueueRestore, Option<SourceReportFact>) {
         let restored = self.sequence.selected().map(|entry| {
             let run = RunId::new(self.next_run_number);

@@ -188,19 +188,6 @@ impl Sequence {
     pub(super) fn entry_at(&self, index: usize) -> Option<&library::QueueEntry> {
         self.members.get(&self.id_at(index)?)
     }
-    pub(super) fn page_entries(
-        &self,
-        offset: usize,
-        limit: usize,
-    ) -> Vec<(usize, library::QueueEntry)> {
-        self.order
-            .iter()
-            .enumerate()
-            .skip(offset)
-            .take(limit)
-            .map(|(i, id)| (i, self.members[id].clone()))
-            .collect()
-    }
     pub(super) fn entries(&self) -> &[Arc<QueueRow>] {
         &self.rows
     }
