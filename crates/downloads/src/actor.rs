@@ -141,7 +141,12 @@ impl Actor {
                 let mut accepted = Vec::new();
                 let mut skipped = false;
                 for media_uri in media_uris {
-                    if self.attached.is_some() && is_server_media(&self.database, &media_uri).await
+                    if self.attached.is_some()
+                        && self
+                            .database
+                            .is_server_media(&media_uri)
+                            .await
+                            .unwrap_or(false)
                     {
                         accepted.push(media_uri);
                     } else {

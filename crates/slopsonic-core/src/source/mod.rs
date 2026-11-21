@@ -1005,12 +1005,9 @@ impl ServerOwner {
     }
 
     pub(crate) async fn is_server_media(&self, media_uri: &str) -> Result<bool, String> {
-        if library::entity_parts(media_uri).is_some() {
-            return Ok(true);
-        }
         self.shared
             .database
-            .is_server_track(media_uri, &ReadCancellation::new())
+            .is_server_media(media_uri)
             .await
             .map_err(string_error)
     }

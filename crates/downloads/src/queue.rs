@@ -65,11 +65,3 @@ pub(super) async fn load_queue(root: &Path) -> Result<Vec<DownloadJob>, String> 
     }
     Ok(queue.jobs)
 }
-
-pub(super) async fn is_server_media(database: &Database, media_uri: &str) -> bool {
-    library::entity_parts(media_uri).is_some()
-        || database
-            .is_server_track(media_uri, &library::ReadCancellation::new())
-            .await
-            .unwrap_or(false)
-}

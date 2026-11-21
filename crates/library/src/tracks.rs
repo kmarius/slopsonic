@@ -301,6 +301,15 @@ impl Database {
         .fetch_one(&mut *connection)
         .await?)
     }
+
+    /// Whether the media belongs to the configured server: a catalog entity URI or a server track.
+    pub async fn is_server_media(&self, media_uri: &str) -> LibraryResult<bool> {
+        if crate::entity_parts(media_uri).is_some() {
+            return Ok(true);
+        }
+        self.is_server_track(media_uri, &ReadCancellation::new())
+            .await
+    }
 }
 
 pub(crate) fn downloaded_filter(query: &mut crate::query::OrderedQuery) {
