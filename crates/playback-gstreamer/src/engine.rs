@@ -1255,11 +1255,7 @@ pub(super) fn handle_about_to_finish(
 }
 
 fn about_to_finish_may_query(shared: &SharedBackendState, slot: Slot, id: PipelineId) -> bool {
-    shared.pipeline_is_current(slot, id)
-        && shared
-            .current
-            .as_ref()
-            .is_some_and(|current| current.stream.allows_preloading)
+    shared.pipeline_is_current(slot, id) && shared.current.is_some()
 }
 
 fn about_to_finish_action_for_pipeline(
@@ -1320,12 +1316,7 @@ fn gapless_preload_should_run(
     next: &PreparedNext,
     bitstream: bool,
 ) -> bool {
-    let Some(current) = shared.current.as_ref() else {
-        return false;
-    };
-    (next.transition == NextTransition::Gapless || bitstream)
-        && next.stream.allows_preloading
-        && current.stream.allows_preloading
+    shared.current.is_some() && (next.transition == NextTransition::Gapless || bitstream)
 }
 
 pub(super) fn gapless_preload_source_is_supported(uri: &str) -> bool {

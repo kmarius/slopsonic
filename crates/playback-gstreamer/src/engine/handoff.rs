@@ -120,7 +120,7 @@ impl GstEngine {
 
     pub(super) fn prepare_incoming(&mut self, next: &PreparedNext) {
         // The output takes one stream while passed through: no overlap or second player.
-        if !next.stream.allows_preloading || self.active_pipeline().is_bitstream() {
+        if self.active_pipeline().is_bitstream() {
             self.clear_incoming();
             return;
         }
@@ -139,11 +139,7 @@ impl GstEngine {
         let overlapping = self.overlap().is_some();
         let context = (|| {
             let shared = lock_recover(&self.shared);
-            if overlapping {
-                return None;
-            }
-            let current = shared.current.as_ref()?;
-            if !current.stream.allows_preloading {
+            if overlapping || shared.current.is_none() {
                 return None;
             }
             let should_prepare = match next.transition {

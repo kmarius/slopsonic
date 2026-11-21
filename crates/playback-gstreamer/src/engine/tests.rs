@@ -1600,41 +1600,6 @@ fn about_to_finish_before_playback_does_not_consume_the_next_track() {
 }
 
 #[test]
-fn streams_without_preloading_keep_the_next_reserved() {
-    let mut gapless = GaplessPlayback::default();
-    let pipeline = PipelineId(5);
-    let current_run = RunId::new(10);
-    let next = PreparedNext::new(
-        RunId::new(11),
-        ResolvedStream::new("file:///music/next.flac"),
-        NextTransition::Gapless,
-    );
-    let mut shared = SharedBackendState::new();
-    shared.active = Slot::Primary;
-    shared.current = Some(PreparedRun {
-        run: current_run,
-        stream: PreparedStream::from(ResolvedStream::new("file:///music/current.mod"))
-            .without_preloading(),
-    });
-    shared.next = Some(next.clone());
-    shared.set_pipeline_id(Slot::Primary, Some(pipeline));
-
-    assert!(!about_to_finish_may_query(&shared, Slot::Primary, pipeline));
-    assert_eq!(
-        about_to_finish_action_for_pipeline(
-            &mut shared,
-            &mut gapless,
-            Slot::Primary,
-            pipeline,
-            true
-        ),
-        AboutToFinishAction::Ignore
-    );
-    assert_eq!(shared.next, Some(next));
-    assert!(gapless.pending.is_none());
-}
-
-#[test]
 fn new_events_wake_their_owners() {
     let mut backend = GStreamerPlaybackBackend::new().unwrap();
     let (woke, wakes) = std::sync::mpsc::channel();
