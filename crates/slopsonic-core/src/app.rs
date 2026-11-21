@@ -26,7 +26,7 @@ pub fn with_runtime<T>(host: impl FnOnce(&tokio::runtime::Runtime) -> T) -> std:
     Ok(result)
 }
 
-pub fn worker_runtime() -> std::io::Result<tokio::runtime::Runtime> {
+fn worker_runtime() -> std::io::Result<tokio::runtime::Runtime> {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .thread_name("slopsonic-async")

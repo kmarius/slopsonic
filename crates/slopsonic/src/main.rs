@@ -18,14 +18,8 @@ fn main() -> ExitCode {
         })
         .await
     };
-    let runtime = match app::worker_runtime() {
-        Ok(runtime) => runtime,
-        Err(error) => return gtk_shell::run_startup_error_application(error.to_string()),
-    };
-    let code = {
-        let _guard = runtime.enter();
-        gtk_shell::run_application(initial_settings, bootstrap)
-    };
-    runtime.shutdown_timeout(std::time::Duration::from_secs(1));
-    code
+    match app::with_runtime(|_| gtk_shell::run_application(initial_settings, bootstrap)) {
+        Ok(code) => code,
+        Err(error) => gtk_shell::run_startup_error_application(error.to_string()),
+    }
 }
