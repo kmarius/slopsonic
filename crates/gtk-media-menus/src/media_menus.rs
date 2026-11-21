@@ -222,11 +222,8 @@ fn install_queue_entry_actions(
     surface.add_action("remove-from-queue", move || {
         queue.remove_many(remove.clone())
     });
-    for (action, placement) in [
-        ("play", QueuePlacement::Now),
-        ("play-next", QueuePlacement::Next),
-        ("play-last", QueuePlacement::End),
-    ] {
+    // Shuffling a single entry is a no-op, so shuffled items share the plain placement.
+    for (action, placement, _) in PLAY_ACTIONS {
         let queue = menus.playback.clone();
         let selection = selection.clone();
         surface.add_action(action, move || {
@@ -243,7 +240,7 @@ pub fn place_queue_selection(
 ) {
     match (placement, selection) {
         (QueuePlacement::Next, selection) => queue.move_selection_after_current(selection),
-        (QueuePlacement::End, selection) => queue.reorder(selection, QueueReorderTarget::End),
+        (QueuePlacement::Last, selection) => queue.reorder(selection, QueueReorderTarget::End),
         (_, QueueSelection::Occurrences(ids)) => queue.activate_occurrence(ids[0]),
         (_, QueueSelection::Positions(positions)) => queue.activate(positions[0]),
     }
