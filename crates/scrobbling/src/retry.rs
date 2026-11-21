@@ -691,10 +691,7 @@ fn targets(settings: &Settings, now_playing: bool) -> Vec<DeliveryTarget> {
     if settings.listenbrainz.configured(now_playing) {
         targets.push(DeliveryTarget {
             service: DeliveryService::ListenBrainz,
-            account_id: opaque_account_id(
-                DeliveryService::ListenBrainz,
-                &settings.listenbrainz.user_token,
-            ),
+            account_id: listenbrainz_account_id(&settings.listenbrainz),
             settings: TargetSettings::ListenBrainz(settings.listenbrainz.clone()),
         });
     }
@@ -718,10 +715,7 @@ fn known_accounts(settings: &Settings) -> Vec<(DeliveryService, String)> {
     if !settings.listenbrainz.user_token.is_empty() {
         accounts.push((
             DeliveryService::ListenBrainz,
-            opaque_account_id(
-                DeliveryService::ListenBrainz,
-                &settings.listenbrainz.user_token,
-            ),
+            listenbrainz_account_id(&settings.listenbrainz),
         ));
     }
     accounts
@@ -731,7 +725,7 @@ fn reauthorized_accounts(
     previous: &Settings,
     current: &Settings,
 ) -> Vec<(DeliveryService, String)> {
-    let mut accounts = Vec::with_capacity(2);
+    let mut accounts = Vec::with_capacity(3);
     for (service, previous, current) in [
         (DeliveryService::LastFm, &previous.lastfm, &current.lastfm),
         (
@@ -752,7 +746,27 @@ fn reauthorized_accounts(
             accounts.push((service, current_account));
         }
     }
+    let (previous, current) = (&previous.listenbrainz, &current.listenbrainz);
+    if !previous.user_token.is_empty()
+        && !current.user_token.is_empty()
+        && previous.user_token != current.user_token
+        && listenbrainz_account_id(previous) == listenbrainz_account_id(current)
+    {
+        accounts.push((
+            DeliveryService::ListenBrainz,
+            listenbrainz_account_id(current),
+        ));
+    }
     accounts
+}
+
+fn listenbrainz_account_id(settings: &ListenBrainzSettings) -> String {
+    let identity = if settings.username.trim().is_empty() {
+        settings.user_token.as_str()
+    } else {
+        settings.username.as_str()
+    };
+    opaque_account_id(DeliveryService::ListenBrainz, &identity.to_lowercase())
 }
 
 fn audioscrobbler_account_id(
@@ -819,6 +833,25 @@ mod tests {
         let listenbrainz = opaque_account_id(DeliveryService::ListenBrainz, "secret");
         assert_ne!(lastfm, listenbrainz);
         assert!(!lastfm.contains("secret"));
+    }
+
+    #[test]
+    fn new_listenbrainz_token_for_the_same_user_unblocks_its_account() {
+        let mut previous = Settings::default();
+        previous.listenbrainz.username = "Listener".into();
+        previous.listenbrainz.user_token = "old-token".into();
+        let mut current = previous.clone();
+        current.listenbrainz.user_token = "new-token".into();
+        let account = listenbrainz_account_id(&current.listenbrainz);
+        assert_eq!(listenbrainz_account_id(&previous.listenbrainz), account);
+        assert_eq!(
+            reauthorized_accounts(&previous, &current),
+            [(DeliveryService::ListenBrainz, account)]
+        );
+        assert!(reauthorized_accounts(&previous, &previous).is_empty());
+        let mut other_user = current;
+        other_user.listenbrainz.username = "Someone else".into();
+        assert!(reauthorized_accounts(&previous, &other_user).is_empty());
     }
 
     #[test]
