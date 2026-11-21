@@ -291,7 +291,7 @@ impl DetailLayout {
         let mut low = 0;
         let mut high = self.starts.len();
         while low < high {
-            let middle = (low + high) / 2;
+            let middle = usize::midpoint(low, high);
             if self
                 .index
                 .spans()
@@ -781,18 +781,16 @@ impl AlbumDetailListInner {
             gtk::gdk::Key::Up => Some(gtk::DirectionType::Up),
             gtk::gdk::Key::Down => Some(gtk::DirectionType::Down),
             _ => None,
-        } {
-            if focused.as_ref().is_some_and(|(_, cell)| {
-                cell.root
-                    .state_flags()
-                    .contains(gtk::StateFlags::FOCUS_WITHIN)
-                    && cell.root.child_focus(direction)
-            }) || panel
-                .as_ref()
-                .is_some_and(|(_, panel)| panel.root.child_focus(direction))
-            {
-                return glib::Propagation::Stop;
-            }
+        } && (focused.as_ref().is_some_and(|(_, cell)| {
+            cell.root
+                .state_flags()
+                .contains(gtk::StateFlags::FOCUS_WITHIN)
+                && cell.root.child_focus(direction)
+        }) || panel
+            .as_ref()
+            .is_some_and(|(_, panel)| panel.root.child_focus(direction)))
+        {
+            return glib::Propagation::Stop;
         }
         let layout = self.model.native.layout();
         let current = focused
@@ -1273,7 +1271,7 @@ impl AlbumSidePanel {
         let row = item
             .as_ref()
             .filter(|item| item.is_ready())
-            .and_then(|item| item.value::<Arc<AlbumDetailRow>>());
+            .and_then(gtk_widgets::sparse_model::SparseObjectItem::value::<Arc<AlbumDetailRow>>);
         self.item.replace(item);
         let same = match (self.binding.borrow().as_ref(), row.as_ref()) {
             (Some(old), Some(new)) => Arc::ptr_eq(old, new),

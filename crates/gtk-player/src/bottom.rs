@@ -772,9 +772,9 @@ impl crate::PlayerUi {
         player: Option<&PlaybackView>,
         presentation: Option<&NowPlayingPresentation>,
     ) {
-        let state = player
-            .map(|player| player.transport.effective_state())
-            .unwrap_or(TransportStatus::Stopped);
+        let state = player.map_or(TransportStatus::Stopped, |player| {
+            player.transport.effective_state()
+        });
         let duration_seconds = player
             .map(|player| {
                 (player.transport.duration_millis / 1_000).min(u64::from(u32::MAX)) as u32
@@ -785,9 +785,7 @@ impl crate::PlayerUi {
                 (player.transport.position_millis / 1_000).min(u64::from(u32::MAX)) as u32
             })
             .unwrap_or_default();
-        let repeat_mode = player
-            .map(|player| player.controls.repeat_mode)
-            .unwrap_or(RepeatMode::Off);
+        let repeat_mode = player.map_or(RepeatMode::Off, |player| player.controls.repeat_mode);
         let controls = &self.views.player_controls;
         self.controls.updating_controls.set(true);
 
@@ -839,9 +837,9 @@ impl crate::PlayerUi {
             .duration
             .set_text(&format_duration(duration_seconds));
 
-        let (muted, volume) = player
-            .map(|player| (player.controls.muted, player.controls.volume))
-            .unwrap_or((false, 1.0));
+        let (muted, volume) = player.map_or((false, 1.0), |player| {
+            (player.controls.muted, player.controls.volume)
+        });
         let volume_icon = volume_icon_state(muted, volume);
         if controls.mute_icon_state.get() != volume_icon {
             controls.mute_icon_state.set(volume_icon);
@@ -1166,6 +1164,200 @@ impl crate::PlayerUi {
     }
 }
 
+pub fn connect_player_controls(shell: &Rc<crate::PlayerUi>) {
+    connect_bottom_player_resize(shell);
+    let fullscreen = &shell.views.fullscreen_player;
+    for (label, binding) in [
+        (&fullscreen.artist, &fullscreen.artist_links),
+        (&fullscreen.album, &fullscreen.album_links),
+    ] {
+        let weak = Rc::downgrade(shell);
+        binding.replace(Some(DetailLinkBinding::new(
+            label,
+            Rc::new(move |route| {
+                if let Some(shell) = weak.upgrade() {
+                    shell.close_fullscreen_player();
+                    (shell.navigate)(route);
+                }
+            }),
+        )));
+    }
+    let controls = &shell.views.player_controls;
+    controls.artist_links.replace(Some(DetailLinkBinding::new(
+        &controls.artist,
+        Rc::clone(&shell.navigate),
+    )));
+    controls.album_links.replace(Some(DetailLinkBinding::new(
+        &controls.album,
+        Rc::clone(&shell.navigate),
+    )));
+    let transport = shell.playback_owner.clone();
+    shell
+        .views
+        .player_controls
+        .previous_button
+        .connect_clicked(move |_| transport.previous());
+
+    let transport = shell.playback_owner.clone();
+    shell
+        .views
+        .player_controls
+        .play_button
+        .connect_clicked(move |_| transport.play_pause());
+
+    let transport = shell.playback_owner.clone();
+    shell
+        .views
+        .player_controls
+        .next_button
+        .connect_clicked(move |_| transport.next());
+
+    let feedback_shell = Rc::clone(shell);
+    shell
+        .views
+        .player_controls
+        .shuffle_button
+        .connect_clicked(move |_| {
+            let Some(enabled) = feedback_shell
+                .selected_playback()
+                .as_deref()
+                .map(|player| !player.controls.shuffle_enabled)
+            else {
+                return;
+            };
+            feedback_shell.playback_owner.set_shuffle(enabled);
+        });
+
+    let feedback_shell = Rc::clone(shell);
+    shell
+        .views
+        .player_controls
+        .repeat_button
+        .connect_clicked(move |_| {
+            if feedback_shell.selected_playback().is_none() {
+                return;
+            }
+            feedback_shell.playback_owner.cycle_repeat();
+        });
+
+    let feedback_shell = Rc::clone(shell);
+    shell
+        .views
+        .player_controls
+        .dj_button
+        .connect_clicked(move |_| {
+            if feedback_shell.selected_playback().is_none() {
+                return;
+            }
+            feedback_shell.playback_owner.toggle_auto_dj();
+        });
+
+    let mute_shell = Rc::clone(shell);
+    shell
+        .views
+        .player_controls
+        .mute_button
+        .connect_clicked(move |_| {
+            let Some(muted) = mute_shell
+                .selected_playback()
+                .as_deref()
+                .map(|player| !player.controls.muted)
+            else {
+                return;
+            };
+            mute_shell.apply_user_muted(muted);
+        });
+    let seek_shell = Rc::downgrade(shell);
+    shell
+        .views
+        .player_controls
+        .progress
+        .connect_change_value(move |scale, _, value| {
+            let Some(seek_shell) = seek_shell.upgrade() else {
+                return glib::Propagation::Stop;
+            };
+            if seek_shell.controls.updating_controls.get() {
+                return glib::Propagation::Proceed;
+            }
+            let duration_seconds = {
+                let player = seek_shell.selected_playback();
+                let Some(player) = player.as_ref() else {
+                    return glib::Propagation::Stop;
+                };
+                let duration_seconds =
+                    (player.transport.duration_millis / 1_000).min(u64::from(u32::MAX)) as u32;
+                if player.transport.current.is_none()
+                    || !player.transport.can_seek
+                    || duration_seconds == 0
+                {
+                    return glib::Propagation::Stop;
+                }
+                duration_seconds
+            };
+
+            let seconds = seekbar_target_seconds(value, duration_seconds);
+            preview_player_seek(&seek_shell, seconds);
+            scale.set_value(f64::from(seconds));
+            if !seek_shell.controls.seek_pointer_active.get() {
+                commit_player_seek_preview_now(&seek_shell);
+            }
+            glib::Propagation::Stop
+        });
+
+    {
+        let widget = shell
+            .views
+            .player_controls
+            .progress
+            .upcast_ref::<gtk::Widget>();
+        // Observe release even after the scale's own gesture claims the drag.
+        let events = gtk::EventControllerLegacy::new();
+        events.set_propagation_phase(gtk::PropagationPhase::Capture);
+        let seek_shell = Rc::downgrade(shell);
+        events.connect_event(move |_, event| {
+            let Some(shell) = seek_shell.upgrade() else {
+                return glib::Propagation::Proceed;
+            };
+            match event.event_type() {
+                gtk::gdk::EventType::ButtonPress | gtk::gdk::EventType::TouchBegin => {
+                    shell.controls.seek_pointer_active.set(true);
+                }
+                gtk::gdk::EventType::ButtonRelease | gtk::gdk::EventType::TouchEnd => {
+                    if shell.controls.seek_pointer_active.replace(false) {
+                        commit_player_seek_preview_now(&shell);
+                    }
+                }
+                gtk::gdk::EventType::TouchCancel | gtk::gdk::EventType::GrabBroken => {
+                    shell.clear_player_seek_preview();
+                }
+                _ => {}
+            }
+            glib::Propagation::Proceed
+        });
+        widget.add_controller(events);
+    }
+
+    let volume_shell = Rc::clone(shell);
+    shell
+        .views
+        .player_controls
+        .volume
+        .connect_value_changed(move |scale| {
+            if volume_shell.controls.updating_controls.get() {
+                return;
+            }
+            volume_shell.apply_user_volume(scale.value());
+        });
+}
+
+impl crate::PlayerUi {
+    pub fn set_current_rating_and_favorite(&self, favorite: bool, rating: Option<u8>) {
+        let controls = &self.views.player_controls;
+        set_favorite_button_active(&controls.favorite_button, favorite);
+        controls.rating.set_rating(rating);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -1321,199 +1513,5 @@ mod tests {
         assert!(super::should_clear_seek_preview(
             19, 5_000, true, true, true, true
         ));
-    }
-}
-
-pub fn connect_player_controls(shell: &Rc<crate::PlayerUi>) {
-    connect_bottom_player_resize(shell);
-    let fullscreen = &shell.views.fullscreen_player;
-    for (label, binding) in [
-        (&fullscreen.artist, &fullscreen.artist_links),
-        (&fullscreen.album, &fullscreen.album_links),
-    ] {
-        let weak = Rc::downgrade(shell);
-        binding.replace(Some(DetailLinkBinding::new(
-            label,
-            Rc::new(move |route| {
-                if let Some(shell) = weak.upgrade() {
-                    shell.close_fullscreen_player();
-                    (shell.navigate)(route);
-                }
-            }),
-        )));
-    }
-    let controls = &shell.views.player_controls;
-    controls.artist_links.replace(Some(DetailLinkBinding::new(
-        &controls.artist,
-        Rc::clone(&shell.navigate),
-    )));
-    controls.album_links.replace(Some(DetailLinkBinding::new(
-        &controls.album,
-        Rc::clone(&shell.navigate),
-    )));
-    let transport = shell.playback_owner.clone();
-    shell
-        .views
-        .player_controls
-        .previous_button
-        .connect_clicked(move |_| transport.previous());
-
-    let transport = shell.playback_owner.clone();
-    shell
-        .views
-        .player_controls
-        .play_button
-        .connect_clicked(move |_| transport.play_pause());
-
-    let transport = shell.playback_owner.clone();
-    shell
-        .views
-        .player_controls
-        .next_button
-        .connect_clicked(move |_| transport.next());
-
-    let feedback_shell = Rc::clone(shell);
-    shell
-        .views
-        .player_controls
-        .shuffle_button
-        .connect_clicked(move |_| {
-            let Some(enabled) = feedback_shell
-                .selected_playback()
-                .as_deref()
-                .map(|player| !player.controls.shuffle_enabled)
-            else {
-                return;
-            };
-            feedback_shell.playback_owner.set_shuffle(enabled);
-        });
-
-    let feedback_shell = Rc::clone(shell);
-    shell
-        .views
-        .player_controls
-        .repeat_button
-        .connect_clicked(move |_| {
-            if feedback_shell.selected_playback().is_none() {
-                return;
-            }
-            feedback_shell.playback_owner.cycle_repeat();
-        });
-
-    let feedback_shell = Rc::clone(shell);
-    shell
-        .views
-        .player_controls
-        .dj_button
-        .connect_clicked(move |_| {
-            if feedback_shell.selected_playback().is_none() {
-                return;
-            }
-            feedback_shell.playback_owner.toggle_auto_dj();
-        });
-
-    let mute_shell = Rc::clone(shell);
-    shell
-        .views
-        .player_controls
-        .mute_button
-        .connect_clicked(move |_| {
-            let Some(muted) = mute_shell
-                .selected_playback()
-                .as_deref()
-                .map(|player| !player.controls.muted)
-            else {
-                return;
-            };
-            mute_shell.apply_user_muted(muted);
-        });
-    let seek_shell = Rc::downgrade(shell);
-    shell
-        .views
-        .player_controls
-        .progress
-        .connect_change_value(move |scale, _, value| {
-            let Some(seek_shell) = seek_shell.upgrade() else {
-                return glib::Propagation::Stop;
-            };
-            if seek_shell.controls.updating_controls.get() {
-                return glib::Propagation::Proceed;
-            }
-            let duration_seconds = {
-                let player = seek_shell.selected_playback();
-                let Some(player) = player.as_ref() else {
-                    return glib::Propagation::Stop;
-                };
-                let duration_seconds =
-                    (player.transport.duration_millis / 1_000).min(u64::from(u32::MAX)) as u32;
-                if player.transport.current.is_none()
-                    || !player.transport.can_seek
-                    || duration_seconds == 0
-                {
-                    return glib::Propagation::Stop;
-                }
-                duration_seconds
-            };
-
-            let seconds = seekbar_target_seconds(value, duration_seconds);
-            preview_player_seek(&seek_shell, seconds);
-            scale.set_value(f64::from(seconds));
-            if !seek_shell.controls.seek_pointer_active.get() {
-                commit_player_seek_preview_now(&seek_shell);
-            }
-            glib::Propagation::Stop
-        });
-
-    for widget in [shell
-        .views
-        .player_controls
-        .progress
-        .upcast_ref::<gtk::Widget>()]
-    {
-        // Observe release even after the scale's own gesture claims the drag.
-        let events = gtk::EventControllerLegacy::new();
-        events.set_propagation_phase(gtk::PropagationPhase::Capture);
-        let seek_shell = Rc::downgrade(shell);
-        events.connect_event(move |_, event| {
-            let Some(shell) = seek_shell.upgrade() else {
-                return glib::Propagation::Proceed;
-            };
-            match event.event_type() {
-                gtk::gdk::EventType::ButtonPress | gtk::gdk::EventType::TouchBegin => {
-                    shell.controls.seek_pointer_active.set(true);
-                }
-                gtk::gdk::EventType::ButtonRelease | gtk::gdk::EventType::TouchEnd => {
-                    if shell.controls.seek_pointer_active.replace(false) {
-                        commit_player_seek_preview_now(&shell);
-                    }
-                }
-                gtk::gdk::EventType::TouchCancel | gtk::gdk::EventType::GrabBroken => {
-                    shell.clear_player_seek_preview();
-                }
-                _ => {}
-            }
-            glib::Propagation::Proceed
-        });
-        widget.add_controller(events);
-    }
-
-    let volume_shell = Rc::clone(shell);
-    shell
-        .views
-        .player_controls
-        .volume
-        .connect_value_changed(move |scale| {
-            if volume_shell.controls.updating_controls.get() {
-                return;
-            }
-            volume_shell.apply_user_volume(scale.value());
-        });
-}
-
-impl crate::PlayerUi {
-    pub fn set_current_rating_and_favorite(&self, favorite: bool, rating: Option<u8>) {
-        let controls = &self.views.player_controls;
-        set_favorite_button_active(&controls.favorite_button, favorite);
-        controls.rating.set_rating(rating);
     }
 }

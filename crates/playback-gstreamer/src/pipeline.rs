@@ -186,7 +186,7 @@ impl PlayerPipeline {
     pub(super) fn has_pending_gapless(&self) -> bool {
         self.gapless
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .pending
             .is_some()
     }
@@ -240,20 +240,20 @@ impl PlayerPipeline {
         let output_state = sink.as_ref().map(|sink| sink.state(gst::ClockTime::ZERO));
         debug!(
             clock_time_millis = pipeline.clock().map(|clock| clock.time().mseconds()),
-            base_time_millis = pipeline.base_time().map(|time| time.mseconds()),
+            base_time_millis = pipeline.base_time().map(gstreamer::ClockTime::mseconds),
             rendered_buffers = stats
                 .as_ref()
                 .and_then(|stats| stats.get::<u64>("rendered").ok()),
             last_buffer_pts_millis = sample
                 .as_ref()
                 .and_then(|sample| sample.buffer())
-                .and_then(|buffer| buffer.pts())
-                .map(|time| time.mseconds()),
+                .and_then(gstreamer::BufferRef::pts)
+                .map(gstreamer::ClockTime::mseconds),
             ?current,
             ?pending,
             output_current = ?output_state.as_ref().map(|state| state.1),
             output_pending = ?output_state.as_ref().map(|state| state.2),
-            output_factory = sink.as_ref().and_then(|sink| sink.factory()).map(|factory| factory.name().to_string()),
+            output_factory = sink.as_ref().and_then(gstreamer::prelude::ElementExt::factory).map(|factory| factory.name().to_string()),
             "GStreamer output timing"
         );
     }
@@ -298,7 +298,7 @@ impl PlayerPipeline {
         *self
             .queued_loudness
             .lock()
-            .unwrap_or_else(|p| p.into_inner()) = stream.loudness.clone();
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = stream.loudness.clone();
     }
 
     pub(super) fn has_session(&self) -> bool {
@@ -690,7 +690,7 @@ impl PlayerPipeline {
             .expect("raw audio caps");
         if let Some(name) = format
             .and_then(|format| format.structure(0))
-            .map(|format| format.name())
+            .map(gstreamer::StructureRef::name)
         {
             caps.merge(gst::Caps::new_empty_simple(name));
         }
@@ -759,8 +759,8 @@ impl PlayerPipeline {
                     match &passthrough {
                         Some(current) => {
                             !undecoded
-                                || current.structure(0).map(|current| current.name())
-                                    != format.structure(0).map(|format| format.name())
+                                || current.structure(0).map(gstreamer::StructureRef::name)
+                                    != format.structure(0).map(gstreamer::StructureRef::name)
                         }
                         None => undecoded,
                     }
@@ -792,7 +792,7 @@ impl PlayerPipeline {
         *self
             .queued_loudness
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = stream.loudness.clone();
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = stream.loudness.clone();
         self.trust_invalid_certificate
             .store(stream.trust_invalid_certificate(), Ordering::SeqCst);
         self.native()?.0.set_property("uri", stream.uri());
@@ -1018,7 +1018,10 @@ impl PlayerPipeline {
             gst::SeekType::None,
             gst::ClockTime::NONE,
         );
-        *self.segment.lock().unwrap_or_else(|p| p.into_inner()) = SegmentPlayback {
+        *self
+            .segment
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = SegmentPlayback {
             progress: SeekProgress::Pausing(event),
         };
         let result = self
@@ -1031,7 +1034,7 @@ impl PlayerPipeline {
             Err(error) => {
                 self.segment
                     .lock()
-                    .unwrap_or_else(|p| p.into_inner())
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .progress = SeekProgress::Ready;
                 return Err(error.into());
             }
@@ -1045,7 +1048,7 @@ impl PlayerPipeline {
         !matches!(
             self.segment
                 .lock()
-                .unwrap_or_else(|p| p.into_inner())
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .progress,
             SeekProgress::Ready
         )
@@ -1069,7 +1072,10 @@ impl PlayerPipeline {
         }
         let pipeline = &self.native()?.0;
         let progress = {
-            let mut segment = self.segment.lock().unwrap_or_else(|p| p.into_inner());
+            let mut segment = self
+                .segment
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             match std::mem::take(&mut segment.progress) {
                 SeekProgress::Pausing(event) => {
                     segment.progress = SeekProgress::Preroll;
@@ -1083,7 +1089,7 @@ impl PlayerPipeline {
             if !pipeline.send_event(event) {
                 self.segment
                     .lock()
-                    .unwrap_or_else(|p| p.into_inner())
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .progress = SeekProgress::Ready;
                 let _ = self.apply_requested_state();
                 return Err("GStreamer segment seek failed".into());
@@ -1093,7 +1099,7 @@ impl PlayerPipeline {
             if self.live.get() || self.has_prerolled() {
                 self.segment
                     .lock()
-                    .unwrap_or_else(|p| p.into_inner())
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .progress = SeekProgress::Ready;
                 self.apply_requested_state()?;
             }
@@ -1133,7 +1139,7 @@ impl PlayerPipeline {
 
     pub(super) fn audio_output_factory(&self) -> Option<String> {
         self.output()
-            .and_then(|output| output.factory())
+            .and_then(gstreamer::prelude::ElementExt::factory)
             .map(|factory| factory.name().to_string())
     }
 }

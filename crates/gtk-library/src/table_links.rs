@@ -75,7 +75,7 @@ where
 
     let column = gtk::ColumnViewColumn::new(
         Some(gtk_widgets::settings::library_field_title(field)),
-        Some(factory.clone()),
+        Some(factory),
     );
     column.set_fixed_width(width);
     column

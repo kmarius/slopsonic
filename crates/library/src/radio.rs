@@ -39,7 +39,7 @@ impl PlayedFilter {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RandomCriteria {
     pub min_year: Option<i64>,
     pub max_year: Option<i64>,
@@ -145,7 +145,7 @@ impl Database {
         let mut connection = self.acquire_general(cancellation).await?;
         let (seed_kind, seed_raw) = if let RadioSeed::Playlist(playlist) = seed {
             let first = sqlx::query_scalar::<_, TrackKey>("SELECT track.track_key FROM playlist_entries entry JOIN tracks track ON track.track_key=entry.track_key AND track.object_id IS NOT NULL WHERE entry.playlist_key=?1 ORDER BY entry.position LIMIT 1").bind(playlist).fetch_optional(&mut *connection).await?;
-            (0, first.map(|key| key.raw()))
+            (0, first.map(super::keys::TrackKey::raw))
         } else {
             match seed {
                 RadioSeed::Track(media_uri) => {
@@ -155,7 +155,7 @@ impl Database {
                     .bind(media_uri)
                     .fetch_optional(&mut *connection)
                     .await?;
-                    (0, key.map(|key| key.raw()))
+                    (0, key.map(super::keys::TrackKey::raw))
                 }
                 RadioSeed::Album(key) => (1, Some(key.raw())),
                 RadioSeed::Artist(key) => (2, Some(key.raw())),

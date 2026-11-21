@@ -6,8 +6,7 @@ const RECLAIM_INTERVAL: Duration = Duration::from_secs(10);
 
 pub fn configure_allocator() {
     let arenas = std::thread::available_parallelism()
-        .map(|count| count.get().saturating_mul(2))
-        .unwrap_or(2)
+        .map_or(2, |count| count.get().saturating_mul(2))
         .min(libc::c_int::MAX as usize) as libc::c_int;
     // Fixed thresholds prevent large temporary buffers from raising them process-wide.
     for (option, value) in [
@@ -53,9 +52,9 @@ fn reclaim(requests: mpsc::Receiver<()>) {
     let mut last_trim: Option<Instant> = None;
     while requests.recv().is_ok() {
         let now = Instant::now();
-        let deadline = last_trim
-            .map(|last| (last + RECLAIM_INTERVAL).max(now + COALESCE))
-            .unwrap_or(now + COALESCE);
+        let deadline = last_trim.map_or(now + COALESCE, |last| {
+            (last + RECLAIM_INTERVAL).max(now + COALESCE)
+        });
         std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
         let _ = requests.try_recv();
         // SAFETY: glibc serializes malloc_trim with allocations in each arena.

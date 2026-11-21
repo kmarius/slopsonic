@@ -594,15 +594,14 @@ pub(crate) async fn remember_track(
         } else {
             None
         };
-    if reference.metadata == crate::TrackMetadata::default() && reference.artwork_binding.is_none()
-    {
-        if let Some(key) = sqlx::query_scalar("SELECT track_key FROM tracks WHERE media_uri=?1")
+    if reference.metadata == crate::TrackMetadata::default()
+        && reference.artwork_binding.is_none()
+        && let Some(key) = sqlx::query_scalar("SELECT track_key FROM tracks WHERE media_uri=?1")
             .bind(&uri)
             .fetch_optional(&mut *connection)
             .await?
-        {
-            return Ok(key);
-        }
+    {
+        return Ok(key);
     }
     let changed: Option<(crate::TrackKey,Option<String>,sqlx::types::Json<crate::TrackMetadata>)> = sqlx::query_as("INSERT INTO tracks(media_uri,object_id,metadata,indexed,native_artwork,normalized_search) VALUES(?1,?2,jsonb(?5),0,?3,?4) ON CONFLICT(media_uri) DO UPDATE SET metadata=jsonb_patch(tracks.metadata,?5),native_artwork=coalesce(tracks.native_artwork,excluded.native_artwork) WHERE native_metadata=0 AND(tracks.metadata IS NOT jsonb_patch(tracks.metadata,?5) OR(tracks.native_artwork IS NULL AND excluded.native_artwork IS NOT NULL)) RETURNING track_key,object_id,json(metadata)")
         .bind(&uri).bind(object.as_deref()).bind(&reference.artwork_binding).bind(track_search(&reference.metadata)).bind(sqlx::types::Json(reference_patch(&reference.metadata)?)).fetch_optional(&mut *connection).await?;

@@ -323,8 +323,11 @@ impl super::Catalog<'_> {
             .begin()
             .await?;
         let (table, _) = super::cache::table(kind);
-        let mut update = CatalogUpdate::default();
-        update.metadata = sqlx::query(sqlx::AssertSqlSafe(format!("INSERT INTO native_media_state(media_uri,favorite) SELECT media_uri,object_id IN(SELECT value FROM json_each(?1)) FROM {table} WHERE object_id IS NOT NULL ON CONFLICT(media_uri) DO UPDATE SET favorite=excluded.favorite WHERE favorite IS NOT excluded.favorite"))).bind(serde_json::to_string(ids)?).execute(&mut *tx).await?.rows_affected() > 0;
+        let metadata = sqlx::query(sqlx::AssertSqlSafe(format!("INSERT INTO native_media_state(media_uri,favorite) SELECT media_uri,object_id IN(SELECT value FROM json_each(?1)) FROM {table} WHERE object_id IS NOT NULL ON CONFLICT(media_uri) DO UPDATE SET favorite=excluded.favorite WHERE favorite IS NOT excluded.favorite"))).bind(serde_json::to_string(ids)?).execute(&mut *tx).await?.rows_affected() > 0;
+        let update = CatalogUpdate {
+            metadata,
+            ..Default::default()
+        };
         tx.commit().await?;
         self.changes.merge(update);
         Ok(())

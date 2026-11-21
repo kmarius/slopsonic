@@ -222,7 +222,7 @@ async fn deleting_or_corrupting_catalog_preserves_exact_durable_records() {
             .apply_catalog(
                 &library::CatalogBatch {
                     tracks: vec![library::TrackObservation {
-                        object_id: object.to_owned(),
+                        object_id: object.clone(),
                         metadata: library::TrackMetadata {
                             title: "Changed tags".into(),
                             artist: "Artist".into(),

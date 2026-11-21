@@ -703,10 +703,10 @@ fn append_compact_sidebar_pins(shell: &Rc<Shell>) {
 pub(crate) fn request_sidebar_pins(shell: &Rc<Shell>) {
     let pins = {
         let settings = shell.settings.current.borrow();
-        if !settings.sidebar.pins_visible {
-            Vec::new()
-        } else {
+        if settings.sidebar.pins_visible {
             settings.sidebar.pins.clone()
+        } else {
+            Vec::new()
         }
     };
     if shell.navigation.pin_identity.borrow().as_ref() == Some(&pins) {
@@ -743,8 +743,8 @@ pub(crate) fn request_sidebar_pins(shell: &Rc<Shell>) {
     let database = Arc::clone(&shell.products.library);
     let runtime = shell.products.runtime.clone();
     let read_pins = pins;
-    let read_database = database.clone();
-    let read_cancel = cancellation.clone();
+    let read_database = database;
+    let read_cancel = cancellation;
     let task = runtime.spawn(async move {
         read_database
             .sidebar_pin_rows(&read_pins, &read_cancel)
@@ -1158,7 +1158,7 @@ fn sidebar_pin_row(shell: &Rc<Shell>, pin: SidebarPinItem) -> gtk::Overlay {
         }
     });
     let motion_for_hold = motion.clone();
-    let controls_for_hold = controls.clone();
+    let controls_for_hold = controls;
     row.connect_css_classes_notify(move |row| {
         if !row.has_css_class(CONTEXT_MENU_HOVER_HELD_CLASS) {
             controls_for_hold.set_visible(motion_for_hold.contains_pointer());
@@ -1167,7 +1167,7 @@ fn sidebar_pin_row(shell: &Rc<Shell>, pin: SidebarPinItem) -> gtk::Overlay {
     row.add_controller(motion);
 
     let context_shell = Rc::downgrade(shell);
-    let context_pin = pin.clone();
+    let context_pin = pin;
     install_context_menu_openers(
         &row,
         Rc::new(move |target, position| {
@@ -1624,6 +1624,27 @@ fn configure_sidebar_entry_label(label: &gtk::Label) {
     label.set_ellipsize(gtk::pango::EllipsizeMode::End);
 }
 
+pub(super) fn install_mouse_history_buttons(shell: &Rc<Shell>) {
+    let click = gtk::GestureClick::new();
+    click.set_button(0);
+    click.set_propagation_phase(gtk::PropagationPhase::Capture);
+
+    let history_shell = Rc::clone(shell);
+    click.connect_pressed(move |click, _, _, _| match click.current_button() {
+        MOUSE_BACK_BUTTON => {
+            click.set_state(gtk::EventSequenceState::Claimed);
+            history_shell.go_back();
+        }
+        MOUSE_FORWARD_BUTTON => {
+            click.set_state(gtk::EventSequenceState::Claimed);
+            history_shell.go_forward();
+        }
+        _ => {}
+    });
+
+    shell.chrome.window.add_controller(click);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1715,25 +1736,4 @@ mod tests {
         assert!(sidebar_pin_publication_is_current(2, 2));
         assert!(!sidebar_pin_publication_is_current(1, 2));
     }
-}
-
-pub(super) fn install_mouse_history_buttons(shell: &Rc<Shell>) {
-    let click = gtk::GestureClick::new();
-    click.set_button(0);
-    click.set_propagation_phase(gtk::PropagationPhase::Capture);
-
-    let history_shell = Rc::clone(shell);
-    click.connect_pressed(move |click, _, _, _| match click.current_button() {
-        MOUSE_BACK_BUTTON => {
-            click.set_state(gtk::EventSequenceState::Claimed);
-            history_shell.go_back();
-        }
-        MOUSE_FORWARD_BUTTON => {
-            click.set_state(gtk::EventSequenceState::Claimed);
-            history_shell.go_forward();
-        }
-        _ => {}
-    });
-
-    shell.chrome.window.add_controller(click);
 }

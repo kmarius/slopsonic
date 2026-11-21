@@ -84,7 +84,7 @@ impl ScrobblingOwner {
         let mut loaded = self
             .credential_work
             .lock()
-            .unwrap_or_else(|p| p.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if reload || !*loaded {
             if let Err(error) = self
                 .scrobbler
@@ -196,7 +196,7 @@ impl ScrobblingOwner {
         let _work = self
             .credential_work
             .lock()
-            .unwrap_or_else(|p| p.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut settings = self.loaded_settings();
         match request {
             ScrobblingConnection::LastFm {
@@ -293,17 +293,16 @@ impl ScrobblingOwner {
         let owner = self.clone();
         self.runtime
             .spawn_blocking(move || {
-                let result = scrobbling::connect_listenbrainz(&user_token).and_then(|username| {
+                scrobbling::connect_listenbrainz(&user_token).and_then(|username| {
                     let _work = owner
                         .credential_work
                         .lock()
-                        .unwrap_or_else(|p| p.into_inner());
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
                     let mut settings = owner.loaded_settings();
                     settings.listenbrainz.user_token = user_token;
                     settings.listenbrainz.username = username;
                     owner.commit(settings)
-                });
-                result
+                })
             })
             .await
             .map_err(|error| crate::settings::SettingsError::from(error.to_string()))?
@@ -353,7 +352,7 @@ impl ScrobblingOwner {
                 let _work = owner
                     .credential_work
                     .lock()
-                    .unwrap_or_else(|p| p.into_inner());
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 let mut settings = owner.loaded_settings();
                 let mut preferences = preferences(&settings);
                 match edit {

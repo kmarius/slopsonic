@@ -330,8 +330,8 @@ impl CatalogUi {
         let refresh = {
             let shell = Rc::downgrade(self);
             let owner = Rc::clone(&owner_state);
-            let showcase = showcase_view.clone();
-            let cover = cover.clone();
+            let showcase = showcase_view;
+            let cover = cover;
             let apply_owner = Rc::clone(&owner);
             let apply = Rc::new(
                 move |_: PlaylistDetailOwner, result: Result<PlaylistDetailOwner, String>| {
@@ -449,6 +449,8 @@ pub fn playlist_detail_compact_for_width(width: i32) -> bool {
     width < PLAYLIST_DETAIL_COMPACT_WIDTH
 }
 
+use gtk_media_menus::media_menus::CollectionPlay;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -501,5 +503,3 @@ mod tests {
         assert_eq!(owner.artwork().len(), 1);
     }
 }
-
-use gtk_media_menus::media_menus::CollectionPlay;

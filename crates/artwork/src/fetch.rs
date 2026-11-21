@@ -30,13 +30,13 @@ impl FetchContext {
         *self
             .database
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(database);
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(database);
     }
 
     pub(crate) fn database(&self) -> Option<Arc<library::Database>> {
         self.database
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
     }
 
@@ -44,7 +44,7 @@ impl FetchContext {
         let resolver = self
             .source_resolver
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
             .ok_or_else(|| "artwork source is unavailable".to_string())?;
         resolver().ok_or_else(|| "artwork source is unavailable".to_string())

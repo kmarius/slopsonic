@@ -145,8 +145,7 @@ impl NamedDetailSummary {
             Self::Genre(row) => row
                 .artwork_binding
                 .as_ref()
-                .map(std::slice::from_ref)
-                .unwrap_or(&row.representative_artwork)
+                .map_or(row.representative_artwork.as_slice(), std::slice::from_ref)
                 .iter()
                 .map(|binding| ArtworkBinding::opaque(binding))
                 .collect(),

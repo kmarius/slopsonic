@@ -74,7 +74,7 @@ pub struct ReadyChange {
     pub range: Range<usize>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SparseItem<K, R> {
     Placeholder(Option<K>),
     Ready(Arc<R>),
@@ -470,7 +470,7 @@ mod imp {
                 state
                     .as_mut()?
                     .item(position as usize)
-                    .map(|item| item.upcast())
+                    .map(gtk::glib::object::Cast::upcast)
             };
             if item.is_some()
                 && let Some(demand) = self.demand.borrow().clone()
@@ -916,6 +916,10 @@ where
         self.model.n_items() as usize
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.model.n_items() == 0
+    }
+
     pub fn order_id(&self) -> String {
         self.model.order_id::<K, R>()
     }
@@ -1202,6 +1206,10 @@ where
         self.order.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.order.is_empty()
+    }
+
     pub fn order(&self) -> SparseSource<K> {
         self.order.clone()
     }
@@ -1318,6 +1326,38 @@ where
         }
         self.ready_windows.push_back(first);
     }
+}
+
+fn sparse_item<T: Clone + 'static, R>(
+    item: &SparseObjectItem,
+    map: impl FnOnce(&T) -> R,
+) -> Option<R> {
+    if !item.is_ready() {
+        return None;
+    }
+    item.value::<Arc<T>>().map(|row| map(&row))
+}
+
+pub fn object_item<T: Clone + 'static, R>(
+    item: glib::Object,
+    map: impl FnOnce(&T) -> R,
+) -> Option<R> {
+    match item.downcast::<glib::BoxedAnyObject>() {
+        Ok(boxed) => boxed.try_borrow::<T>().ok().map(|item| map(&item)),
+        Err(item) => item
+            .downcast::<SparseObjectItem>()
+            .ok()
+            .and_then(|item| sparse_item(&item, map)),
+    }
+}
+
+pub fn item_at<T: Clone + 'static>(model: &impl IsA<gio::ListModel>, position: u32) -> Option<T> {
+    model
+        .item(position)
+        .and_then(|item| object_item(item, Clone::clone))
+}
+pub fn item_at_from_item<T: Clone + 'static>(item: &gtk::ListItem) -> Option<T> {
+    item.item().and_then(|item| object_item(item, Clone::clone))
 }
 
 #[cfg(test)]
@@ -1879,36 +1919,4 @@ mod tests {
         ));
         assert_eq!(demanded.get(), Some(64));
     }
-}
-
-fn sparse_item<T: Clone + 'static, R>(
-    item: &SparseObjectItem,
-    map: impl FnOnce(&T) -> R,
-) -> Option<R> {
-    if !item.is_ready() {
-        return None;
-    }
-    item.value::<Arc<T>>().map(|row| map(&row))
-}
-
-pub fn object_item<T: Clone + 'static, R>(
-    item: glib::Object,
-    map: impl FnOnce(&T) -> R,
-) -> Option<R> {
-    match item.downcast::<glib::BoxedAnyObject>() {
-        Ok(boxed) => boxed.try_borrow::<T>().ok().map(|item| map(&item)),
-        Err(item) => item
-            .downcast::<SparseObjectItem>()
-            .ok()
-            .and_then(|item| sparse_item(&item, map)),
-    }
-}
-
-pub fn item_at<T: Clone + 'static>(model: &impl IsA<gio::ListModel>, position: u32) -> Option<T> {
-    model
-        .item(position)
-        .and_then(|item| object_item(item, Clone::clone))
-}
-pub fn item_at_from_item<T: Clone + 'static>(item: &gtk::ListItem) -> Option<T> {
-    item.item().and_then(|item| object_item(item, Clone::clone))
 }

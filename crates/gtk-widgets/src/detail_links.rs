@@ -314,7 +314,6 @@ mod tests {
                 source_name: String::new(),
                 source_path: None,
                 is_downloaded: false,
-                ..Default::default()
             },
             links: library::TrackLinks {
                 album_key: Some(AlbumKey::from_raw(1)),
@@ -322,14 +321,12 @@ mod tests {
                 artists: Vec::new(),
                 album_artists: Vec::new(),
                 genres: Vec::new(),
-                ..Default::default()
             },
             state: library::TrackState {
                 favorite: false,
                 rating: None,
                 last_played: None,
                 play_count: 0,
-                ..Default::default()
             },
         }
     }
@@ -358,7 +355,6 @@ mod tests {
                 rating: None,
                 play_count: 0,
                 last_played: None,
-                ..Default::default()
             },
             summary: library::CollectionSummary {
                 track_count: 0,
@@ -369,7 +365,6 @@ mod tests {
             links: library::AlbumLinks {
                 album_artists: Vec::new(),
                 genres: Vec::new(),
-                ..Default::default()
             },
         }
     }

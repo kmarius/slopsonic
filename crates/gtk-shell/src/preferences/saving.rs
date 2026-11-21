@@ -52,7 +52,7 @@ impl Preferences {
         }
         self.with_shell(|shell| shell.reconcile_mounted_route());
         if added {
-            self.with_shell(|shell| shell.refresh_mounted_home());
+            self.with_shell(super::super::shell::Shell::refresh_mounted_home);
         }
     }
 }

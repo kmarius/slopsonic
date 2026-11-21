@@ -78,7 +78,7 @@ impl DownloadsState {
             image: image.downgrade(),
             downloaded: Cell::new(false),
         };
-        self.set_download_badge_visible(&image, false);
+        self.set_download_badge_visible(image, false);
         let identity = image.as_ptr() as usize;
         self.badges.borrow_mut().insert(identity, binding);
         let badges = Rc::downgrade(&self.badges);

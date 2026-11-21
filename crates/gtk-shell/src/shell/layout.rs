@@ -57,15 +57,15 @@ mod shell_allocation_owner_imp {
         fn request_mode(&self) -> gtk::SizeRequestMode {
             self.obj()
                 .first_child()
-                .map(|child| child.request_mode())
-                .unwrap_or(gtk::SizeRequestMode::ConstantSize)
+                .map_or(gtk::SizeRequestMode::ConstantSize, |child| {
+                    child.request_mode()
+                })
         }
 
         fn measure(&self, orientation: gtk::Orientation, for_size: i32) -> (i32, i32, i32, i32) {
             self.obj()
                 .first_child()
-                .map(|child| child.measure(orientation, for_size))
-                .unwrap_or((0, 0, -1, -1))
+                .map_or((0, 0, -1, -1), |child| child.measure(orientation, for_size))
         }
 
         fn size_allocate(&self, width: i32, height: i32, baseline: i32) {
@@ -499,19 +499,19 @@ impl Shell {
                 "full"
             },
         );
-        if !hidden_sidebar {
-            if !self.navigation_view.split_view.shows_sidebar() {
-                self.navigation_view.split_view.set_show_sidebar(true);
-            }
-            if self.navigation_view.split_view.is_collapsed() {
-                self.navigation_view.split_view.set_collapsed(false);
-            }
-        } else {
+        if hidden_sidebar {
             // While the responsive presentation is hidden, show-sidebar is
             // transient overlay state owned by the header button and
             // libadwaita. Rewriting it during allocation cancels its reveal.
             if !self.navigation_view.split_view.is_collapsed() {
                 self.navigation_view.split_view.set_collapsed(true);
+            }
+        } else {
+            if !self.navigation_view.split_view.shows_sidebar() {
+                self.navigation_view.split_view.set_show_sidebar(true);
+            }
+            if self.navigation_view.split_view.is_collapsed() {
+                self.navigation_view.split_view.set_collapsed(false);
             }
         }
         set_widget_visible(&self.navigation_view.normal_nav_panel, true);

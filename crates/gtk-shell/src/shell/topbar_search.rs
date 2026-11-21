@@ -196,15 +196,15 @@ impl SearchPopup {
                 });
                 let weak = Rc::downgrade(self);
                 row.body.imp().menu.connect_clicked(move |button| {
-                    if let Some(popup) = weak.upgrade() {
-                        if let Some(catalog) = popup.catalog() {
-                            popup.session.present_context(
-                                category,
-                                position,
-                                button.upcast_ref(),
-                                &catalog,
-                            );
-                        }
+                    if let Some(popup) = weak.upgrade()
+                        && let Some(catalog) = popup.catalog()
+                    {
+                        popup.session.present_context(
+                            category,
+                            position,
+                            button.upcast_ref(),
+                            &catalog,
+                        );
                     }
                 });
             }
@@ -281,10 +281,10 @@ impl SearchPopup {
         click.set_propagation_phase(gtk::PropagationPhase::Capture);
         let weak = Rc::downgrade(self);
         click.connect_pressed(move |_, _, _, _| {
-            if let Some(popup) = weak.upgrade() {
-                if !popup.popover.is_visible() {
-                    popup.open();
-                }
+            if let Some(popup) = weak.upgrade()
+                && !popup.popover.is_visible()
+            {
+                popup.open();
             }
         });
         self.entry.add_controller(click);
@@ -339,13 +339,13 @@ impl SearchPopup {
                     (Some(index), false) => index.checked_sub(1).and_then(|index| rows.get(index)),
                 };
                 popup.list.select_row(next);
-                if let Some(row) = next {
-                    if let Some(bounds) = row.compute_bounds(&popup.list) {
-                        popup
-                            .scroller
-                            .vadjustment()
-                            .clamp_page(bounds.y() as f64, (bounds.y() + bounds.height()) as f64);
-                    }
+                if let Some(row) = next
+                    && let Some(bounds) = row.compute_bounds(&popup.list)
+                {
+                    popup
+                        .scroller
+                        .vadjustment()
+                        .clamp_page(bounds.y() as f64, (bounds.y() + bounds.height()) as f64);
                 }
                 return glib::Propagation::Stop;
             }
@@ -360,19 +360,19 @@ impl SearchPopup {
         });
         let weak = Rc::downgrade(self);
         clear.connect_clicked(move |_| {
-            if let Some(popup) = weak.upgrade() {
-                if let Some(shell) = popup.shell.upgrade() {
-                    shell
-                        .settings
-                        .update_app_settings("clear recent searches", |settings| {
-                            if settings.recent_search_results.is_empty() {
-                                return false;
-                            }
-                            settings.recent_search_results.clear();
-                            true
-                        });
-                    popup.render();
-                }
+            if let Some(popup) = weak.upgrade()
+                && let Some(shell) = popup.shell.upgrade()
+            {
+                shell
+                    .settings
+                    .update_app_settings("clear recent searches", |settings| {
+                        if settings.recent_search_results.is_empty() {
+                            return false;
+                        }
+                        settings.recent_search_results.clear();
+                        true
+                    });
+                popup.render();
             }
         });
         for row in &self.history {

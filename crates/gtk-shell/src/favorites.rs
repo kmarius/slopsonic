@@ -72,7 +72,7 @@ impl Shell {
         self.update_visible_favorite_buttons(&item_id, favorite);
         self.player_ui
             .set_bottom_player_favorite(&item_id, favorite);
-        self.products.source.set_favorite(item_id.clone(), favorite);
+        self.products.source.set_favorite(item_id, favorite);
     }
 
     pub(crate) fn apply_favorite_settlement(

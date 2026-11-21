@@ -163,13 +163,10 @@ impl<T: Send + 'static, R: Clone + Send + 'static> LatestMountedRouteRead<T, R> 
                 return;
             };
             read.running.borrow_mut().take();
-            let value = match result {
-                Ok(value) => value,
-                Err(_) => {
-                    warn!(context = read.context, "route projection task panicked");
-                    read.start();
-                    return;
-                }
+            let Ok(value) = result else {
+                warn!(context = read.context, "route projection task panicked");
+                read.start();
+                return;
             };
             if read.generation.get() != generation {
                 read.start();
@@ -193,8 +190,8 @@ async fn next_paint() {
     let Some(clock) = gtk::Window::list_toplevels()
         .into_iter()
         .filter_map(|widget| widget.downcast::<gtk::Window>().ok())
-        .filter(|window| window.is_mapped())
-        .max_by_key(|window| window.is_active())
+        .filter(gtk::prelude::WidgetExt::is_mapped)
+        .max_by_key(gtk::prelude::GtkWindowExt::is_active)
         .and_then(|window| window.frame_clock())
     else {
         return;

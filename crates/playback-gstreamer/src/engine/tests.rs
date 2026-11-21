@@ -39,7 +39,7 @@ impl HandoffFixture {
         engine.transition = Transition::Preparing(IncomingPipeline {
             id: INCOMING_PIPELINE,
             slot: Slot::Secondary,
-            item: next.clone(),
+            item: next,
             phase: IncomingPhase::Ready,
         });
         engine.desired_playing = true;
@@ -108,7 +108,7 @@ fn fresh_playback_outputs_the_selected_gain_and_mute() {
     let path = directory.path().join("initial-volume.wav");
     write_silent_wave(&path);
     let mut wav = std::fs::read(&path).unwrap();
-    for bytes in wav[44..].chunks_exact_mut(2) {
+    for bytes in wav[44..].as_chunks_mut::<2>().0 {
         bytes.copy_from_slice(&8192_i16.to_le_bytes());
     }
     std::fs::write(&path, wav).unwrap();
@@ -160,8 +160,8 @@ fn fresh_playback_outputs_the_selected_gain_and_mute() {
         let map = sample.buffer().unwrap().map_readable().unwrap();
         let expected = if muted { 0.0 } else { 0.25 * expected_gain };
         assert!(!map.is_empty());
-        for bytes in map.as_slice().chunks_exact(4) {
-            let actual = f32::from_le_bytes(bytes.try_into().unwrap());
+        for bytes in map.as_slice().as_chunks::<4>().0 {
+            let actual = f32::from_le_bytes(*bytes);
             assert!(
                 (f64::from(actual) - expected).abs() < 0.0001,
                 "first audio sample {actual}, expected {expected}"
@@ -481,8 +481,10 @@ fn pause_intent_survives_handoff_audio_reconfiguration_and_late_playing_state() 
         ResolvedStream::new(uri.as_str()),
         NextTransition::Gapless,
     );
-    let mut settings = BackendAudioSettings::default();
-    settings.audio_output = Some("fakesink".to_string());
+    let settings = BackendAudioSettings {
+        audio_output: Some("fakesink".to_string()),
+        ..Default::default()
+    };
     let pipeline_id = engine
         .start_pipeline(
             Slot::Primary,
@@ -579,7 +581,7 @@ fn repeats_preserve_samples_on_one_pipeline() {
         .map(|i| ((i % 1000) as i16 - 500) * 16)
         .collect::<Vec<_>>();
     let mut wav = std::fs::read(&path).unwrap();
-    for (sample, bytes) in source.iter().zip(wav[44..].chunks_exact_mut(2)) {
+    for (sample, bytes) in source.iter().zip(wav[44..].as_chunks_mut::<2>().0) {
         bytes.copy_from_slice(&sample.to_le_bytes());
     }
     std::fs::write(&path, wav).unwrap();
@@ -620,8 +622,10 @@ fn repeats_preserve_samples_on_one_pipeline() {
                 let map = sample.buffer().unwrap().map_readable().unwrap();
                 samples.extend(
                     map.as_slice()
-                        .chunks_exact(4)
-                        .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap())),
+                        .as_chunks::<4>()
+                        .0
+                        .iter()
+                        .map(|&bytes| f32::from_le_bytes(bytes)),
                 );
             }
             for event in lock_recover(&events).drain() {
@@ -888,9 +892,8 @@ fn aac_priming_seeks_render_audio_and_end_at_the_real_duration() {
                 last_audio = Some(Instant::now());
                 let index = usize::from(sought);
                 frames[index] += map.len() / 4;
-                for bytes in map.as_slice().chunks_exact(4) {
-                    peak[index] =
-                        peak[index].max(f32::from_le_bytes(bytes.try_into().unwrap()).abs());
+                for bytes in map.as_slice().as_chunks::<4>().0 {
+                    peak[index] = peak[index].max(f32::from_le_bytes(*bytes).abs());
                 }
             }
             for event in lock_recover(&events).drain() {
@@ -997,8 +1000,10 @@ fn aac_priming_repeat_one_renders_each_run_without_stalls_or_lost_audio() {
                 last_audio = Some(Instant::now());
                 samples.extend(
                     map.as_slice()
-                        .chunks_exact(4)
-                        .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap())),
+                        .as_chunks::<4>()
+                        .0
+                        .iter()
+                        .map(|&bytes| f32::from_le_bytes(bytes)),
                 );
             }
             for event in lock_recover(&events).drain() {
@@ -1087,7 +1092,7 @@ fn pause_resume_fades_render_smoothly_without_position_reversal() {
     let path = directory.path().join("fade-tone.wav");
     write_long_silent_wave(&path);
     let mut wav = std::fs::read(&path).unwrap();
-    for sample in wav[44..].chunks_exact_mut(2) {
+    for sample in wav[44..].as_chunks_mut::<2>().0 {
         sample.copy_from_slice(&8192_i16.to_le_bytes());
     }
     std::fs::write(&path, wav).unwrap();
@@ -1173,8 +1178,10 @@ fn pause_resume_fades_render_smoothly_without_position_reversal() {
                 let map = sample.buffer().unwrap().map_readable().unwrap();
                 let values = map
                     .as_slice()
-                    .chunks_exact(4)
-                    .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap()))
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|&bytes| f32::from_le_bytes(bytes))
                     .collect::<Vec<_>>();
                 frames += values.len();
                 let level = values.iter().sum::<f32>() / values.len() as f32;
@@ -1708,7 +1715,7 @@ fn constant_tone(directory: &std::path::Path, name: &str, frames: u32) -> Resolv
     let path = directory.join(name);
     write_silent_mono_wave(&path, frames);
     let mut wav = std::fs::read(&path).unwrap();
-    for sample in wav[44..].chunks_exact_mut(2) {
+    for sample in wav[44..].as_chunks_mut::<2>().0 {
         sample.copy_from_slice(&8192_i16.to_le_bytes());
     }
     std::fs::write(&path, wav).unwrap();
@@ -1739,8 +1746,10 @@ fn record_levels(
                 let map = sample.buffer().unwrap().map_readable().unwrap();
                 let values = map
                     .as_slice()
-                    .chunks_exact(4)
-                    .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap()))
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|&bytes| f32::from_le_bytes(bytes))
                     .collect::<Vec<_>>();
                 levels.push(values.iter().sum::<f32>() / values.len() as f32);
             }
@@ -1916,7 +1925,7 @@ fn clearing_preloaded_next_prevents_its_audio_from_playing() {
     for (index, path) in paths.iter().enumerate() {
         write_silent_mono_wave(path, 16_000);
         let mut wav = std::fs::read(path).unwrap();
-        for bytes in wav[44..].chunks_exact_mut(2) {
+        for bytes in wav[44..].as_chunks_mut::<2>().0 {
             bytes.copy_from_slice(&(if index == 0 { -8192_i16 } else { 8192_i16 }).to_le_bytes());
         }
         std::fs::write(path, wav).unwrap();
@@ -1971,8 +1980,10 @@ fn clearing_preloaded_next_prevents_its_audio_from_playing() {
             let map = sample.buffer().unwrap().map_readable().unwrap();
             samples.extend(
                 map.as_slice()
-                    .chunks_exact(4)
-                    .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap())),
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|&bytes| f32::from_le_bytes(bytes)),
             );
         }
         for event in lock_recover(&events).drain() {

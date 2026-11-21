@@ -57,7 +57,7 @@ pub(crate) struct ServerSettings {
     pub(crate) configured: Option<ConfiguredServer>,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Default)]
 pub struct StoredSettings {
     #[serde(flatten)]
     pub ui: UiSettings,
@@ -67,17 +67,6 @@ pub struct StoredSettings {
     pub(crate) scrobbling_credentials: std::collections::BTreeMap<String, String>,
     #[serde(default)]
     pub(crate) sources: ServerSettings,
-}
-
-impl Default for StoredSettings {
-    fn default() -> Self {
-        Self {
-            ui: UiSettings::default(),
-            scrobbling: ScrobblingSettings::default(),
-            scrobbling_credentials: Default::default(),
-            sources: ServerSettings::default(),
-        }
-    }
 }
 
 impl StoredSettings {
@@ -125,10 +114,8 @@ impl SettingsFile {
                 }
             }
         }
-        if changed {
-            if let Err(error) = write_settings(&path, &value) {
-                warn!(%error, "could not save startup settings");
-            }
+        if changed && let Err(error) = write_settings(&path, &value) {
+            warn!(%error, "could not save startup settings");
         }
         Ok(Self {
             sidebar: tokio::sync::watch::channel(value.ui.sidebar.clone()).0,
@@ -158,12 +145,15 @@ impl SettingsFile {
     pub fn load(&self) -> StoredSettings {
         self.value
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
     }
 
     pub(crate) fn download_artwork_automatically(&self) -> bool {
-        let stored = self.value.lock().unwrap_or_else(|p| p.into_inner());
+        let stored = self
+            .value
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         stored.ui.application.download_artwork_automatically
     }
 
@@ -195,7 +185,10 @@ impl SettingsFile {
         } else {
             None
         };
-        let mut current = self.value.lock().unwrap_or_else(|p| p.into_inner());
+        let mut current = self
+            .value
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut next = current.clone();
         let output = operation(&mut next)?;
         next.prepare()?;
@@ -218,7 +211,10 @@ impl SettingsFile {
         &self,
         operation: impl FnOnce(&mut StoredSettings) -> Result<T, String>,
     ) -> Result<T, String> {
-        let mut saved = self.persistence.lock().unwrap_or_else(|p| p.into_inner());
+        let mut saved = self
+            .persistence
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let previous = self.load();
         let mut next = previous.clone();
         let output = operation(&mut next)?;
@@ -227,7 +223,10 @@ impl SettingsFile {
             self.persist(&next)?;
         }
         *saved = next.clone();
-        let mut current = self.value.lock().unwrap_or_else(|p| p.into_inner());
+        let mut current = self
+            .value
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // Preference edits can arrive while a background transaction writes to disk.
         // Keep those newer edits when publishing the committed source or configuration.
         merge_preference_edits(&mut next.ui, &previous.ui, &current.ui)?;
@@ -242,7 +241,10 @@ impl SettingsFile {
     }
 
     pub(crate) fn flush(&self) -> Result<(), String> {
-        let mut saved = self.persistence.lock().unwrap_or_else(|p| p.into_inner());
+        let mut saved = self
+            .persistence
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let result = (|| {
             let next = self.load();
             if next != *saved {
@@ -351,7 +353,7 @@ impl SettingsOwner {
         self.file
             .value
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .ui
             .clone()
     }

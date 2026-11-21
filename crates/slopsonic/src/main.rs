@@ -9,7 +9,7 @@ fn main() -> ExitCode {
     let settings = app::startup_settings(&paths::roots());
     let (diagnostics, _stderr_guard) = diagnostics::Diagnostics::install(paths::state_dir());
 
-    let initial_settings = settings.load().ui.clone();
+    let initial_settings = settings.load().ui;
     let bootstrap = move || async move {
         app::runtime_inputs(diagnostics, settings, paths::roots(), || {
             playback_gstreamer::GStreamerPlaybackBackend::new()

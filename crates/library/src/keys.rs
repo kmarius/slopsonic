@@ -43,7 +43,7 @@ fn decode(value: &str) -> Option<String> {
     percent_decode_str(value)
         .decode_utf8()
         .ok()
-        .map(|value| value.into_owned())
+        .map(std::borrow::Cow::into_owned)
 }
 
 macro_rules! integer_key {

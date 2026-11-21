@@ -35,6 +35,11 @@ pub const COLLECTION_GRID_COVER_RESOURCE: &str =
 pub const COLLECTION_GRID_CARD_RESOURCE: &str =
     "/io/github/kmarius/Slopsonic/ui/routes/collection_grid_card.ui";
 
+pub const ALBUM_DETAIL_ROW_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/routes/album_detail_row.ui";
+pub const ALBUM_DETAIL_PANEL_RESOURCE: &str =
+    "/io/github/kmarius/Slopsonic/ui/routes/album_detail_panel.ui";
+
 #[cfg(test)]
 mod resource_tests {
     #[test]
@@ -46,8 +51,3 @@ mod resource_tests {
         }
     }
 }
-
-pub const ALBUM_DETAIL_ROW_RESOURCE: &str =
-    "/io/github/kmarius/Slopsonic/ui/routes/album_detail_row.ui";
-pub const ALBUM_DETAIL_PANEL_RESOURCE: &str =
-    "/io/github/kmarius/Slopsonic/ui/routes/album_detail_panel.ui";

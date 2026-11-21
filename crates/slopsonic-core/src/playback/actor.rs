@@ -137,7 +137,11 @@ impl Playback {
                 }
             })
             .map_err(|error| PlaybackError::WorkerStart(error.to_string()))?;
-        *playback.0.thread.lock().unwrap_or_else(|p| p.into_inner()) = Some(thread);
+        *playback
+            .0
+            .thread
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(thread);
         Ok((playback, initial))
     }
 
@@ -201,7 +205,7 @@ impl Playback {
             .0
             .thread
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take()
         {
             thread.join().map_err(|_| PlaybackError::WorkerStopped)?;

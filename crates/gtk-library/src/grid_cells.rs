@@ -851,7 +851,7 @@ impl AlbumGridCell {
             let _shell = drag_shell.upgrade()?;
             let row = drag_current.borrow();
             let row = row.as_ref()?;
-            let target = album_playback_target(&row, drag_context.as_deref());
+            let target = album_playback_target(row, drag_context.as_deref());
             let source = MediaDragSource::capture_target(target);
             Some((source, row.metadata.title.clone()))
         });
@@ -886,7 +886,7 @@ impl AlbumGridCell {
             [play, play_next, play_last],
             move |shell, row, placement| {
                 (shell.media_menus.play_target)(
-                    &album_playback_target(&row, play_context.as_deref()),
+                    &album_playback_target(row, play_context.as_deref()),
                     placement,
                     false,
                 );
@@ -946,9 +946,9 @@ impl ArtistGridCell {
             let row = drag_current.borrow();
             let row = row.as_ref()?;
             let target = if album_artist {
-                gtk_widgets::selection::artist_play_request(&row, true)
+                gtk_widgets::selection::artist_play_request(row, true)
             } else {
-                gtk_widgets::selection::artist_play_request(&row, false)
+                gtk_widgets::selection::artist_play_request(row, false)
             };
             let source = MediaDragSource::capture_target(target);
             Some((source, row.metadata.name.clone()))
@@ -981,9 +981,9 @@ impl ArtistGridCell {
             [play, play_next, play_last],
             move |shell, row, placement| {
                 let target = if album_artist {
-                    gtk_widgets::selection::artist_play_request(&row, true)
+                    gtk_widgets::selection::artist_play_request(row, true)
                 } else {
-                    gtk_widgets::selection::artist_play_request(&row, false)
+                    gtk_widgets::selection::artist_play_request(row, false)
                 };
                 (shell.media_menus.play_target)(&target, placement, false);
             },
@@ -1221,7 +1221,8 @@ impl CollectionGridCardCell {
         for field in &field_cells {
             card.append(&field.widget);
         }
-        let cell = Self {
+
+        Self {
             card,
             title,
             title_row,
@@ -1229,8 +1230,7 @@ impl CollectionGridCardCell {
             fields: RefCell::new(field_cells),
             ready: Cell::new(false),
             playing_target: RefCell::new(None),
-        };
-        cell
+        }
     }
 
     pub fn set_download_badge(&self, badge: gtk::Image) {

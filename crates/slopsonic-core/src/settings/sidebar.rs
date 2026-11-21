@@ -293,7 +293,7 @@ mod tests {
             [SidebarRouteItem::Search, SidebarRouteItem::Moods]
         );
 
-        let mut saved = defaults.clone();
+        let mut saved = defaults;
         saved.route_items.rotate_left(4);
         saved.route_items[0].visible = false;
         let expected = saved.route_items.clone();

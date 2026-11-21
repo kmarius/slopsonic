@@ -154,15 +154,15 @@ glib::wrapper! {
 impl ArtistRowsModel {
     fn refresh(&self, count: u32) {
         let old = self.imp().count.replace(count);
-        if old != count {
+        if old == count {
+            self.refresh_items(|_| true);
+        } else {
             self.imp()
                 .items
                 .borrow_mut()
                 .retain(|position, _| *position == 0);
             let start = u32::from(old != 0 && count != 0);
             self.items_changed(start, old - start, count - start);
-        } else {
-            self.refresh_items(|_| true);
         }
     }
     #[expect(
@@ -704,7 +704,7 @@ impl ArtistReleaseProjections {
             model_sections.append(model);
         }
         let rows = gtk::FlattenListModel::new(Some(model_sections));
-        let grid_fields = Rc::new(RefCell::new(settings.grid_fields.clone()));
+        let grid_fields = Rc::new(RefCell::new(settings.grid_fields));
         let (list, apply_grid_fields, scroll) =
             artist_route_list(shell, rows, Rc::clone(&grid_fields), Rc::clone(&query));
         let selection = list.model().expect("Artist selection");
@@ -1060,9 +1060,9 @@ fn artist_route_list(
                     .list_model()
                     .item(position as u32)
                     .and_downcast::<SparseObjectItem>();
-                let row = value
-                    .as_ref()
-                    .and_then(|item| item.value::<Arc<library::AlbumView>>());
+                let row = value.as_ref().and_then(
+                    gtk_widgets::sparse_model::SparseObjectItem::value::<Arc<library::AlbumView>>,
+                );
                 for cell in state.imp().table_cells.borrow().iter() {
                     cell.downcast_ref::<AlbumTableCell>()
                         .unwrap()
@@ -1146,9 +1146,12 @@ fn artist_route_list(
                     let value = model
                         .item(position as u32)
                         .and_downcast::<SparseObjectItem>();
-                    if let Some(album) = value
-                        .as_ref()
-                        .and_then(|item| item.value::<Arc<library::AlbumView>>())
+                    if let Some(album) =
+                        value.as_ref().and_then(
+                            gtk_widgets::sparse_model::SparseObjectItem::value::<
+                                Arc<library::AlbumView>,
+                            >,
+                        )
                     {
                         slot.cell.bind(position as u32, (*album).clone());
                         slot.widget.remove_css_class("row-pending");

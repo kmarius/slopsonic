@@ -448,7 +448,6 @@ impl SubsonicSource {
                     metadata: library::FolderMetadata {
                         sort_text: Some(name.to_lowercase()),
                         name: Some(name),
-                        ..Default::default()
                     },
                     object_id: self.id("music-folder", &json::id(&folder["id"])?),
                     ..Default::default()
@@ -670,10 +669,9 @@ mod tests {
             state.store(next, Ordering::Relaxed);
             let mut catalog = database.catalog(None).await.unwrap();
             let result = {
-                let result = source
+                source
                     .acquire_user_collections(&mut catalog, &|_| {}, &|| false)
-                    .await;
-                result
+                    .await
             };
             {
                 database
@@ -687,7 +685,7 @@ mod tests {
                 kind: library::ListKind::Playlists,
                 sort: library::CatalogSort::Position,
                 folder: None,
-                filter: ("").to_string(),
+                filter: String::new(),
                 descending: false,
                 favorites_only: false,
                 downloaded_only: false,
@@ -725,7 +723,7 @@ mod tests {
                     .await
                     .unwrap()
                     .len(),
-                if next == 4 { 0 } else { 1 }
+                usize::from(next != 4)
             );
         }
     }
@@ -851,43 +849,36 @@ mod tests {
         let stamp = Some(catalog.start_observation().await.unwrap());
         (async {
             let mut batch = library::CatalogBatch::default();
-            let result = batch.albums.extend_from_slice(&[(super::album_from_json(
-                &source,
+            batch.albums.extend_from_slice(&[(super::album_from_json(
+                source,
                 &serde_json::json!({"id":"album","name":"Album","userRating":4}),
             )
             .unwrap()
-            .unwrap())
-            .clone()]);
+            .unwrap())]);
             catalog.apply_catalog(&batch, true).await?;
-            Ok::<_, library::LibraryError>(result)
+            Ok::<_, library::LibraryError>(())
         })
         .await
         .unwrap();
         (async {
             let mut batch = library::CatalogBatch::default();
-            let result = batch.artists.extend_from_slice(&[(super::artist_from_json(
-                &source,
+            batch.artists.extend_from_slice(&[(super::artist_from_json(
+                source,
                 &serde_json::json!({"id":"artist","name":"Artist"}),
             )
             .unwrap()
-            .unwrap())
-            .clone()]);
+            .unwrap())]);
             catalog.apply_catalog(&batch, true).await?;
-            Ok::<_, library::LibraryError>(result)
+            Ok::<_, library::LibraryError>(())
         })
         .await
         .unwrap();
-        (async { let mut batch = library::CatalogBatch::default(); let result = batch.tracks.extend_from_slice(&[(super::track_from_json(&source, &serde_json::json!({"id":"track","title":"Track","albumId":"album","comment":"Keep","duration":42,"userRating":4})).unwrap().unwrap()).clone()]); catalog.apply_catalog(&batch, true).await?; Ok::<_,library::LibraryError>(result) }).await.unwrap();
+        (async { let mut batch = library::CatalogBatch::default(); batch.tracks.extend_from_slice(&[(super::track_from_json(source, &serde_json::json!({"id":"track","title":"Track","albumId":"album","comment":"Keep","duration":42,"userRating":4})).unwrap().unwrap())]); catalog.apply_catalog(&batch, true).await?; Ok::<_,library::LibraryError>(()) }).await.unwrap();
+        { source.acquire_favorites(&mut catalog, &|| false).await }.unwrap();
         {
-            let result = source.acquire_favorites(&mut catalog, &|| false).await;
-            result
-        }
-        .unwrap();
-        {
-            let result = source
+            source
                 .acquire_playlist_snapshot(&mut catalog, "subsonic:playlist:playlist", &|| false)
-                .await;
-            result
+                .await
         }
         .unwrap();
         (async {
@@ -923,10 +914,9 @@ mod tests {
             state.store(next, Ordering::Relaxed);
             let mut catalog = database.catalog(None).await.unwrap();
             let result = {
-                let result = source
+                source
                     .acquire_user_collections(&mut catalog, &|_| {}, &|| false)
-                    .await;
-                result
+                    .await
             };
             {
                 database
@@ -946,11 +936,7 @@ mod tests {
             }
             let cancellation = library::ReadCancellation::new();
             let uri = library::entity_uri("track", "subsonic:track:track");
-            let row = database
-                .track(&(&uri), &cancellation)
-                .await
-                .unwrap()
-                .unwrap();
+            let row = database.track(&uri, &cancellation).await.unwrap().unwrap();
             assert_eq!(row.metadata.comment.as_deref(), Some("Keep"));
             assert!(
                 database
@@ -963,7 +949,7 @@ mod tests {
                     kind: library::ListKind::Playlists,
                     sort: library::CatalogSort::Title,
                     folder: None,
-                    filter: ("").to_string(),
+                    filter: String::new(),
                     descending: false,
                     favorites_only: false,
                     downloaded_only: false,
@@ -983,10 +969,9 @@ mod tests {
         });
         let mut catalog = database.catalog(None).await.unwrap();
         let result = {
-            let result = source
+            source
                 .acquire_user_collections(&mut catalog, &|_| {}, &|| false)
-                .await;
-            result
+                .await
         };
         {
             database
@@ -1031,7 +1016,7 @@ mod tests {
                 .respond_with(|request: &wiremock::Request| {
                     let query = request.url.query_pairs().collect::<std::collections::HashMap<_, _>>();
                     let songs = if query.get("songCount").is_some_and(|count| count == "500") {
-                        match query.get("songOffset").map(|value| value.as_ref()) {
+                        match query.get("songOffset").map(std::convert::AsRef::as_ref) {
                             Some("0") => {
                                 let mut page = vec![serde_json::json!({"title":"No identity"}); 499];
                                 page.push(serde_json::json!({
@@ -1121,7 +1106,7 @@ mod tests {
             let mut catalog = database.catalog(None).await.unwrap();
             let stamp = Some(catalog.start_observation().await.unwrap());
             let complete = {
-                let result = source
+                source
                     .acquire_catalog(
                         &mut catalog,
                         &|value| {
@@ -1129,19 +1114,14 @@ mod tests {
                         },
                         &|| false,
                     )
-                    .await;
-                result
+                    .await
             }
             .unwrap();
             (async {
                 let update = {
                     if let Some(stamp) = stamp {
                         catalog
-                            .complete_source_observation(
-                                stamp,
-                                &[],
-                                Some(&marker).filter(|_| complete),
-                            )
+                            .complete_source_observation(stamp, &[], complete.then_some(&marker))
                             .await?;
                     }
                     Ok::<_, library::LibraryError>(catalog.changes().clone())
@@ -1173,7 +1153,7 @@ mod tests {
             for (id, title) in [("track", "Track"), ("2", "Next page")] {
                 let uri = library::entity_uri("track", &format!("subsonic:track:{id}"));
                 let track = database
-                    .track(&(&uri), &cancellation)
+                    .track(&uri, &cancellation)
                     .await
                     .unwrap()
                     .expect("usable track is published");
@@ -1233,7 +1213,7 @@ mod tests {
                     let folder = database
                         .catalog_keys(
                             library::CatalogKind::Folder,
-                            &[(&source.id("music-folder", id)).to_string()],
+                            &[source.id("music-folder", id).clone()],
                             &cancellation,
                         )
                         .await

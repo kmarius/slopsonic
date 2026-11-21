@@ -379,10 +379,10 @@ impl Sequence {
         self.order.splice(at..at, ids.iter().copied());
         self.ordinary
             .splice(ordinary_at..ordinary_at, ids.iter().copied());
-        if let Some(selected) = &mut self.selected_index {
-            if *selected >= at {
-                *selected += count;
-            }
+        if let Some(selected) = &mut self.selected_index
+            && *selected >= at
+        {
+            *selected += count;
         }
         if self.selected_index.is_none() && !self.order.is_empty() {
             self.selected_index = Some(if replacing { page.current_index } else { at });
@@ -584,10 +584,10 @@ impl Sequence {
             .map(|i| (self.order[i], i))
             .collect::<HashMap<_, _>>();
         for (id, item) in items {
-            if !self
+            if self
                 .members
                 .get(&id)
-                .is_some_and(|entry| entry.track_key == item.track_key)
+                .is_none_or(|entry| entry.track_key != item.track_key)
             {
                 continue;
             }

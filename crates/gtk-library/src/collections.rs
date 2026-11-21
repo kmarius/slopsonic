@@ -98,8 +98,10 @@ impl CollectionTableProjection {
             let column = previous
                 .iter()
                 .find(|(previous_field, _)| previous_field == field)
-                .map(|(_, column)| column.clone())
-                .unwrap_or_else(|| (self.column_for_field)(*field));
+                .map_or_else(
+                    || (self.column_for_field)(*field),
+                    |(_, column)| column.clone(),
+                );
             active.push((column.clone(), (self.width_for_field)(*field)));
             field_columns.push((*field, column));
         }
@@ -629,9 +631,7 @@ pub fn album_grid(
         sparse.list_model(),
         &fields,
         move |fields| AlbumGridCell::new(&cell_shell, fields, None, false),
-        move |_, album: AlbumView| {
-            activate_shell.navigate(Route::AlbumDetail(album.media_uri.clone()))
-        },
+        move |_, album: AlbumView| activate_shell.navigate(Route::AlbumDetail(album.media_uri)),
         move |position| demand.demand_positions([position as usize]),
     )
 }
@@ -657,7 +657,7 @@ pub fn artist_grid(
         move |fields| ArtistGridCell::new(&cell_shell, fields, album_artist, false),
         move |_, artist: ArtistView| {
             activate_shell.navigate(super::artist::artist_detail_route(
-                artist.media_uri.clone(),
+                artist.media_uri,
                 album_artist,
             ));
         },
@@ -687,7 +687,7 @@ where
         |field| column_fit_width(field, column_width(field)),
         true,
         Some(Box::new(move |_, album: AlbumView| {
-            activate_shell.navigate(Route::AlbumDetail(album.media_uri.clone()));
+            activate_shell.navigate(Route::AlbumDetail(album.media_uri));
         })),
         None,
         route_column_view_initial_width(shell),
@@ -717,7 +717,7 @@ where
         true,
         Some(Box::new(move |_, artist: ArtistView| {
             activate_shell.navigate(super::artist::artist_detail_route(
-                artist.media_uri.clone(),
+                artist.media_uri,
                 album_artist,
             ));
         })),
@@ -1126,6 +1126,8 @@ pub fn collection_grid_field_label(value: &str, field: LibraryField) -> (gtk::Wi
     grid_label_with_label(value, collection_grid_field_class(field))
 }
 
+use crate::route_layout::configure_library_route_scroller;
+
 #[cfg(test)]
 mod layout_policy_tests {
     use super::*;
@@ -1184,5 +1186,3 @@ mod layout_policy_tests {
         ));
     }
 }
-
-use crate::route_layout::configure_library_route_scroller;

@@ -7,7 +7,7 @@ use crate::{Database, LibraryError, LibraryResult, ListenOutboxKey, ReadCancella
 const DELIVERY_LIMIT: usize = 100;
 
 /// A qualified play, as handed to the external scrobbling services.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ListenWrite {
     pub play_id: String,
     pub title: String,
@@ -25,7 +25,7 @@ pub struct ListenDeliveryTarget {
     pub next_attempt_at: Option<i64>,
 }
 
-#[derive(Clone, Debug, FromRow, PartialEq)]
+#[derive(Clone, Debug, FromRow, PartialEq, Eq)]
 pub struct PendingListenDelivery {
     pub outbox_key: ListenOutboxKey,
     pub service: String,

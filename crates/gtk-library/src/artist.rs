@@ -140,7 +140,7 @@ impl CatalogUi {
             self,
             ArtistReleaseRoutePreamble {
                 header: header.widget(),
-                favorite: Some((favorite_section.clone().upcast(), favorite.search())),
+                favorite: Some((favorite_section.upcast(), favorite.search())),
                 favorite_present,
                 empty: crate::route_layout::route_empty_view("No music from this artist yet"),
             },
@@ -938,6 +938,8 @@ fn artist_count_button(icon_name: &str, text: &str) -> (gtk::Button, gtk::Label)
     (button, label)
 }
 
+use gtk_media_menus::media_menus::CollectionPlay;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -979,5 +981,3 @@ mod tests {
         }
     }
 }
-
-use gtk_media_menus::media_menus::CollectionPlay;

@@ -345,7 +345,7 @@ impl CatalogUi {
         let favorites_only = captured.favorites_only;
         let key = LibraryListKey::Albums;
         let settings = self.settings.current.borrow().library_list(key);
-        let applied_settings = Rc::new(RefCell::new(settings.clone()));
+        let applied_settings = Rc::new(RefCell::new(settings));
         let applied_query = Rc::new(RefCell::new(captured.clone()));
         let models = AlbumCollectionModels::new(
             &self.library,
@@ -464,7 +464,6 @@ impl CatalogUi {
             let read = Rc::clone(&read);
             let search = search.clone();
             let shell = Rc::downgrade(self);
-            let captured = captured.clone();
             Rc::new(move || {
                 let Some(shell) = shell.upgrade() else { return };
                 let settings = shell.settings.current.borrow().library_list(key);
@@ -513,7 +512,7 @@ impl CatalogUi {
             .with_item_navigation(content.item_navigation())
             .with_item_scroll(content.item_scroll())
             .with_initial_demand({
-                let models = models.clone();
+                let models = models;
                 Rc::new(move || {
                     let models = models.borrow().clone();
                     models.resume_initial_demand();

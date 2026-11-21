@@ -32,7 +32,7 @@ impl Drop for PersistentGuard {
         self.0
             .output
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .closed = true;
         self.0.ready.notify_all();
         if let Some(worker) = self.1.take() {
@@ -65,7 +65,10 @@ impl DiagnosticState {
     }
 
     fn append(&self, text: String) {
-        let mut output = self.output.lock().unwrap_or_else(|p| p.into_inner());
+        let mut output = self
+            .output
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if !output.closed {
             output.append(text);
             self.ready.notify_one();
@@ -73,18 +76,30 @@ impl DiagnosticState {
     }
 
     fn flush(&self) {
-        let mut output = self.output.lock().unwrap_or_else(|p| p.into_inner());
+        let mut output = self
+            .output
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         while output.written < output.end() {
-            output = self.drained.wait(output).unwrap_or_else(|p| p.into_inner());
+            output = self
+                .drained
+                .wait(output)
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
         }
     }
 
     fn run(&self, mut file: Option<RotatingLog>) {
         loop {
             let update = {
-                let mut output = self.output.lock().unwrap_or_else(|p| p.into_inner());
+                let mut output = self
+                    .output
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 while output.written == output.end() && !output.closed {
-                    output = self.ready.wait(output).unwrap_or_else(|p| p.into_inner());
+                    output = self
+                        .ready
+                        .wait(output)
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
                 }
                 if output.written == output.end() {
                     return;
@@ -103,14 +118,14 @@ impl DiagnosticState {
                 file = None;
                 self.output
                     .lock()
-                    .unwrap_or_else(|p| p.into_inner())
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .append(sanitize_free_text(&format!(
                         "WARN slopsonic::diagnostics: local log file is unavailable: {error}\n"
                     )));
             }
             self.output
                 .lock()
-                .unwrap_or_else(|p| p.into_inner())
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .written = update.end;
             self.drained.notify_all();
         }
@@ -228,7 +243,7 @@ impl Diagnostics {
         self.output
             .output
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .updates(cursor)
     }
 }
@@ -838,7 +853,7 @@ fn install_panic_hook(log_dir: PathBuf, stderr: stderr::Writer) {
     std::panic::set_hook(Box::new(move |panic| {
         let _guard = write_lock
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let report = panic_report(panic);
         let _ = write_panic_report(&log_dir, &report);
         // The default hook writes synchronously to stderr and can block on the
@@ -850,17 +865,17 @@ fn install_panic_hook(log_dir: PathBuf, stderr: stderr::Writer) {
 fn panic_report(panic: &std::panic::PanicHookInfo<'_>) -> String {
     let thread = std::thread::current();
     let thread_name = thread.name().unwrap_or("unnamed");
-    let location = panic
-        .location()
-        .map(|location| {
+    let location = panic.location().map_or_else(
+        || "unknown".to_string(),
+        |location| {
             format!(
                 "{}:{}:{}",
                 summarize_path(location.file()),
                 location.line(),
                 location.column()
             )
-        })
-        .unwrap_or_else(|| "unknown".to_string());
+        },
+    );
     let message = panic
         .payload()
         .downcast_ref::<&str>()
@@ -1052,7 +1067,7 @@ mod tests {
         let snapshot = output
             .output
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .updates(0)
             .text;
         assert!(snapshot.contains("source request"));

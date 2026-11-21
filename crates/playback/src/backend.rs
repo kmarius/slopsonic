@@ -336,7 +336,7 @@ impl FailureKind {
     }
 }
 
-#[derive(Clone, Debug, Error, PartialEq)]
+#[derive(Clone, Debug, Error, PartialEq, Eq)]
 #[error("{message}")]
 pub struct BackendFailure {
     kind: FailureKind,

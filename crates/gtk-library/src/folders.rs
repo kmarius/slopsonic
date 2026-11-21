@@ -298,7 +298,7 @@ fn folder_page(
         rows,
         Rc::clone(&folder_sparse),
         Rc::clone(&track_sparse),
-        path.clone(),
+        path,
         table_initial_width,
         Rc::clone(&applied_query),
         &settings.row_fields,
@@ -310,7 +310,7 @@ fn folder_page(
     table_scroller.set_vexpand(true);
     table_scroller.set_child(Some(&table.widget()));
     let table_view = crate::route_layout::route_scroller_widget(table_scroller.clone());
-    let resize_table_scroller = table_scroller.clone();
+    let resize_table_scroller = table_scroller;
     let resize_table = table.clone();
     let table_view = gtk_widgets::layout::width_allocation_owner(&table_view, move |width| {
         resize_table.fit_scroller_allocation(&resize_table_scroller, width);
@@ -529,7 +529,7 @@ fn folder_table(
                 let mut next = path.clone();
                 next.push(FolderPathItem {
                     id: folder.object_id.clone(),
-                    name: folder.name.clone(),
+                    name: folder.name,
                 });
                 activate_shell.navigate(Route::Folders { path: next });
             }
@@ -607,18 +607,17 @@ fn folder_index_column(
         else {
             return;
         };
-        let text = match gtk_widgets::sparse_model::item_at_from_item::<FolderTableRow>(item) {
-            Some(FolderTableRow::Track(track)) => {
-                bind_playing.bind(cell.upcast_ref(), item.position(), &track.media_uri);
-                item.position()
-                    .saturating_sub(folders.len().min(u32::MAX as usize) as u32)
-                    .saturating_add(1)
-                    .to_string()
-            }
-            _ => {
-                bind_playing.unbind(cell.upcast_ref());
-                String::new()
-            }
+        let text = if let Some(FolderTableRow::Track(track)) =
+            gtk_widgets::sparse_model::item_at_from_item::<FolderTableRow>(item)
+        {
+            bind_playing.bind(cell.upcast_ref(), item.position(), &track.media_uri);
+            item.position()
+                .saturating_sub(folders.len().min(u32::MAX as usize) as u32)
+                .saturating_add(1)
+                .to_string()
+        } else {
+            bind_playing.unbind(cell.upcast_ref());
+            String::new()
         };
         super::columns::set_track_row_index_text(&cell, &text);
     });

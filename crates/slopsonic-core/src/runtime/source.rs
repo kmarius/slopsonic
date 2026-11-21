@@ -124,6 +124,17 @@ pub fn server_operation_text(operation: &ServerOperation) -> Option<String> {
 
 pub type ServerHandle = Arc<crate::source::ServerOwner>;
 
+pub fn source_kind_title(kind: sources::SubsonicFlavor) -> &'static str {
+    kind.display_name()
+}
+
+pub fn source_kind_icon_name(kind: sources::SubsonicFlavor) -> &'static str {
+    match kind {
+        sources::SubsonicFlavor::Navidrome => "io.github.kmarius.slopsonic.source.navidrome",
+        sources::SubsonicFlavor::Subsonic => "io.github.kmarius.slopsonic.source.opensubsonic",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,16 +167,5 @@ mod tests {
             }
             .blocks_library()
         );
-    }
-}
-
-pub fn source_kind_title(kind: sources::SubsonicFlavor) -> &'static str {
-    kind.display_name()
-}
-
-pub fn source_kind_icon_name(kind: sources::SubsonicFlavor) -> &'static str {
-    match kind {
-        sources::SubsonicFlavor::Navidrome => "io.github.kmarius.slopsonic.source.navidrome",
-        sources::SubsonicFlavor::Subsonic => "io.github.kmarius.slopsonic.source.opensubsonic",
     }
 }

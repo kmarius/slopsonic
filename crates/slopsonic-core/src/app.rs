@@ -209,13 +209,12 @@ where
 
     let stored = settings.load();
 
-    if let Some(configured) = &stored.sources.configured {
-        if let Err(error) = library
+    if let Some(configured) = &stored.sources.configured
+        && let Err(error) = library
             .reconcile_server(&configured.configuration.name)
             .await
-        {
-            warn!(%error, "could not reconcile configured source mapping");
-        }
+    {
+        warn!(%error, "could not reconcile configured source mapping");
     }
     source.start()?;
     let source_handle: crate::runtime::ServerHandle = source.clone();

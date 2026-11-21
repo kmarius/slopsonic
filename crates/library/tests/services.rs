@@ -279,7 +279,6 @@ async fn source_removal_preserves_pending_scrobbles() {
                     source_loudness: Some(library::NativeGain {
                         replay_gain_db: Some(-3.0),
                         replay_gain_peak: Some(0.8),
-                        ..Default::default()
                     }),
                     ..Default::default()
                 },
@@ -294,7 +293,7 @@ async fn source_removal_preserves_pending_scrobbles() {
     };
     {
         let update = scan_catalog.into_changes();
-        (&fixture.database).publish_catalog_update(update).await;
+        fixture.database.publish_catalog_update(update).await;
     };
     let queue_media = fixture
         .database

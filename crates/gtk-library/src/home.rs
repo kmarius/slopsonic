@@ -501,7 +501,7 @@ impl CatalogUi {
         let resume = projection.clone();
         let download = projection.clone();
 
-        let download_counts = projection.clone();
+        let download_counts = projection;
 
         let counts = crate::collection_download_change(move |identity, downloaded| {
             let Some(uri) = identity.strip_prefix("album:") else {
@@ -670,7 +670,7 @@ impl CatalogUi {
         });
         showcase_view.append_kind_control(&radio);
         let drag_album = album.clone();
-        let drag_title = title_text.clone();
+        let drag_title = title_text;
         let drag_target: gtk::Widget = cover.button().upcast();
         let drag_artwork = cover.drag_paintable_source();
         let drag_shell = Rc::downgrade(self);
@@ -905,9 +905,11 @@ fn activate_home_item(shell: &Rc<CatalogUi>, item: HomeItem) {
             slopsonic_core::playback::QueuePlacement::Now,
             false,
         ),
-        HomeItem::Album(item) => shell.navigate(Route::AlbumDetail(item.album.media_uri.clone())),
+        HomeItem::Album(item) => shell.navigate(Route::AlbumDetail(item.album.media_uri)),
     }
 }
+
+use gtk_media_menus::media_menus::CollectionPlay;
 
 #[cfg(test)]
 mod tests {
@@ -927,5 +929,3 @@ mod tests {
         assert!(!visible_section_exists([]));
     }
 }
-
-use gtk_media_menus::media_menus::CollectionPlay;

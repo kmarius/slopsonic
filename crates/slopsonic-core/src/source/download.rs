@@ -26,7 +26,7 @@ impl ServerOwner {
             .shared
             .asset_download
             .lock()
-            .unwrap_or_else(|p| p.into_inner()) = Some(task);
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(task);
         self.request_asset_downloads();
     }
 
@@ -35,12 +35,11 @@ impl ServerOwner {
     }
 
     async fn download_assets(&self) {
-        if self.asset_download_enabled() {
-            if let Some(configured) = self.shared.settings.load().sources.configured {
-                if let Err(error) = self.download_source_assets().await {
-                    tracing::warn!(source = %configured.configuration.name, %error, "could not download source assets");
-                }
-            }
+        if self.asset_download_enabled()
+            && let Some(configured) = self.shared.settings.load().sources.configured
+            && let Err(error) = self.download_source_assets().await
+        {
+            tracing::warn!(source = %configured.configuration.name, %error, "could not download source assets");
         }
         self.publish_asset_operation(ServerOperation::Idle);
     }

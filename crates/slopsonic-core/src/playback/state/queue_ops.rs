@@ -230,7 +230,7 @@ impl Player {
                     self.changed_queue(advance || !had_current, false, sample)
                 }
             },
-        };
+        }
         if self.current_run.is_some() {
             self.queue_transport = None;
         }

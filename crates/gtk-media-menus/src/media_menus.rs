@@ -413,7 +413,7 @@ pub fn present_playlist_entry_menu(
             ),
         );
     }
-    install_media_uri_playback_actions(&surface, menus, row.track.media_uri.clone());
+    install_media_uri_playback_actions(&surface, menus, row.track.media_uri);
     let remove_menus = Rc::downgrade(menus);
     surface.add_action("remove-from-playlist", move || {
         if let (Some(menus), Some(removal)) = (remove_menus.upgrade(), removal.as_ref()) {
@@ -643,7 +643,7 @@ pub fn remove_playlist_entry_selection(
                     gtk_widgets::playlists::add_media_to_playlist(
                         &menus.source,
                         selection.playlist,
-                        songs.clone(),
+                        songs,
                         false,
                         Rc::new(|_| {}),
                     );
@@ -709,8 +709,8 @@ fn append_track_selection_actions(
         return;
     }
     surface.append_play_actions(&menus.settings.current.borrow().application.context_menu);
-    append_context_menu_picker_selection(&surface, menus, selection.clone());
-    install_track_selection_download_actions(&surface, menus, selection.clone());
+    append_context_menu_picker_selection(surface, menus, selection.clone());
+    install_track_selection_download_actions(surface, menus, selection.clone());
     for (action, placement, shuffled) in PLAY_ACTIONS {
         let menus = Rc::clone(menus);
         let selection = selection.clone();

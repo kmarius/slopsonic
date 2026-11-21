@@ -222,7 +222,7 @@ pub fn album_column(
     } else {
         gtk_widgets::settings::library_field_title(field)
     };
-    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory.clone()));
+    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory));
     column.set_fixed_width(column_width(field));
     column
 }
@@ -441,7 +441,7 @@ impl AlbumTableCell {
         };
         let view = imp.view.borrow();
         let target = row.as_ref().map(|row| {
-            let target = gtk_widgets::selection::album_play_request(&row);
+            let target = gtk_widgets::selection::album_play_request(row);
             imp.playback_context
                 .borrow()
                 .as_ref()
@@ -569,8 +569,7 @@ pub fn track_column_for_key<T: gtk_widgets::library_fields::TrackPresentation>(
                 Some(if key == LibraryListKey::AlbumDetailTracks {
                     item.track_number()
                         .filter(|number| *number > 0)
-                        .map(|number| number.to_string())
-                        .unwrap_or_else(|| (position + 1).to_string())
+                        .map_or_else(|| (position + 1).to_string(), |number| number.to_string())
                 } else {
                     (position + 1).to_string()
                 })
@@ -700,7 +699,12 @@ fn track_rating_column<T: gtk_widgets::library_fields::TrackPresentation>(
         let Some(widget) = item.child() else { return };
         let rating = item
             .item()
-            .and_then(|object| object_item::<T, _>(object, |row| row.rating()))
+            .and_then(|object| {
+                object_item::<T, _>(
+                    object,
+                    gtk_widgets::library_fields::TrackPresentation::rating,
+                )
+            })
             .flatten();
         widget.set_opacity(if item.item().is_some() { 1.0 } else { 0.0 });
         if let Some((_, control)) = controls
@@ -849,7 +853,7 @@ where
     });
     let column = gtk::ColumnViewColumn::new(
         Some(gtk_widgets::settings::library_field_title(field)),
-        Some(factory.clone()),
+        Some(factory),
     );
     column.set_fixed_width(width);
     column
@@ -1095,7 +1099,7 @@ where
             set_cover_placeholder(&unbind_shell, &cell.artwork(), true);
         }
     });
-    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory.clone()));
+    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory));
     column.set_fixed_width(width);
     column
 }
@@ -1148,7 +1152,7 @@ pub fn artist_image_column(
             set_cover_placeholder(&unbind_shell, &cell.artwork(), true);
         }
     });
-    let column = gtk::ColumnViewColumn::new(Some("Image"), Some(factory.clone()));
+    let column = gtk::ColumnViewColumn::new(Some("Image"), Some(factory));
     column.set_fixed_width(column_width(LibraryField::Image));
     column
 }
@@ -1225,7 +1229,7 @@ where
             cell.clear();
         }
     });
-    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory.clone()));
+    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory));
     column.set_fixed_width(width);
     column
 }
@@ -1322,7 +1326,7 @@ where
         }
     });
 
-    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory.clone()));
+    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory));
     column.set_fixed_width(width);
     column
 }
@@ -1412,10 +1416,10 @@ where
                 .downloads
                 .bind_download_badge(downloaded, download);
         }
-        if let Some(playing) = bind_playing.as_ref() {
-            if let Some(uri) = track {
-                playing.bind(label.upcast_ref(), item.position(), &uri);
-            }
+        if let Some(playing) = bind_playing.as_ref()
+            && let Some(uri) = track
+        {
+            playing.bind(label.upcast_ref(), item.position(), &uri);
         }
     });
 
@@ -1433,7 +1437,7 @@ where
         }
     });
 
-    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory.clone()));
+    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory));
     column.set_fixed_width(width);
     column
 }
@@ -1572,7 +1576,7 @@ where
         }
     });
 
-    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory.clone()));
+    let column = gtk::ColumnViewColumn::new(Some(title), Some(factory));
     column.set_fixed_width(width);
     column
 }

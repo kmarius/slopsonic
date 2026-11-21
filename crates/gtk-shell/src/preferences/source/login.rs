@@ -131,11 +131,11 @@ impl Preferences {
             .as_ref()
             .and_then(|handle| handle.context.clone())
             .filter(|context| context.onboarding);
-        if let Some(context) = context {
-            if let Some(dialog) = context.preferences_dialog {
-                dialog.present(Some(&self.window));
-                return;
-            }
+        if let Some(context) = context
+            && let Some(dialog) = context.preferences_dialog
+        {
+            dialog.present(Some(&self.window));
+            return;
         }
         let resource = crate::ui_resource::ONBOARDING_RESOURCE;
         let builder = gtk_widgets::ui_resource::builder(resource);
@@ -324,7 +324,7 @@ fn subsonic_settings_group(
     let host = credential_host_view(&snapshot, authentication);
     host.fields_group.set_title("Server Settings");
     host.fields_group
-        .set_description(Some(&gtk_widgets::source_labels::source_kind_title(kind)));
+        .set_description(Some(gtk_widgets::source_labels::source_kind_title(kind)));
     host.cert_verify
         .set_subtitle("Off only for a server you control");
 
@@ -713,10 +713,10 @@ fn bind_open_subsonic_authentication(
         let username = username.downgrade();
         let secret = secret.downgrade();
         row.connect_active_notify(move |row| {
-            if mode == SubsonicAuthentication::ApiKey {
-                if let Some(legacy) = other.upgrade() {
-                    legacy.set_visible(!row.is_active());
-                }
+            if mode == SubsonicAuthentication::ApiKey
+                && let Some(legacy) = other.upgrade()
+            {
+                legacy.set_visible(!row.is_active());
             }
             let next = if row.is_active() {
                 if let Some(other) = other.upgrade() {
@@ -828,7 +828,7 @@ fn append_credential_connect(
 
     let source = shell.products.source.clone();
     let status_for_login = status.clone();
-    let host_for_click = host.clone();
+    let host_for_click = host;
     login.connect_clicked(move |login| {
         if !host_for_click.ready() {
             let message = if host_for_click

@@ -265,7 +265,7 @@ impl Pipeline {
                 .shared
                 .previews
                 .lock()
-                .unwrap_or_else(|p| p.into_inner());
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             match image {
                 Some(image) => previews.retain(|(key, _, _)| key != &image.key),
                 None => previews.clear(),
@@ -502,9 +502,7 @@ fn resolve(shared: &Shared, work: &Work) -> Resolution {
             resolved => return resolved,
         }
     }
-    failure
-        .map(Resolution::Failed)
-        .unwrap_or(Resolution::Missing)
+    failure.map_or(Resolution::Missing, Resolution::Failed)
 }
 
 fn cached_leaf_file(shared: &Shared, candidate: &Candidate) -> Option<std::path::PathBuf> {
@@ -776,7 +774,10 @@ fn cached_preview(
 ) -> Option<Arc<crate::ArtworkPreview>> {
     let family = FilesystemCache::candidate_family(candidate);
     let cached = {
-        let mut previews = shared.previews.lock().unwrap_or_else(|p| p.into_inner());
+        let mut previews = shared
+            .previews
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         previews
             .iter()
             .position(|(key, hash, _)| supplied.map_or(key == &family, |supplied| hash == supplied))
@@ -787,22 +788,24 @@ fn cached_preview(
                 cached
             })
     };
-    let (hash, preview) = match cached {
-        Some(cached) => cached,
-        None => {
-            let hash = supplied?;
-            let image = RgbaImage::from_blur_hash(hash).ok()?;
-            let png = image.encode_png().ok()?;
-            (
-                hash.to_owned(),
-                Arc::new(crate::ArtworkPreview {
-                    image,
-                    png: Arc::new(png),
-                }),
-            )
-        }
+    let (hash, preview) = if let Some(cached) = cached {
+        cached
+    } else {
+        let hash = supplied?;
+        let image = RgbaImage::from_blur_hash(hash).ok()?;
+        let png = image.encode_png().ok()?;
+        (
+            hash.to_owned(),
+            Arc::new(crate::ArtworkPreview {
+                image,
+                png: Arc::new(png),
+            }),
+        )
     };
-    let mut previews = shared.previews.lock().unwrap_or_else(|p| p.into_inner());
+    let mut previews = shared
+        .previews
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     previews.retain(|(key, _, _)| key != &family);
     previews.push_back((family, hash, Arc::clone(&preview)));
     if previews.len() > 256 {
@@ -831,10 +834,11 @@ fn cache_preview(
     }
     let database = shared.fetch.database();
     let result: Result<String, ArtworkError> = shared.runtime.block_on(async {
-        if let Some(database) = &database {
-            if !refresh && let Some(hash) = database.artwork_preview(&candidate.key).await? {
-                return Ok(hash);
-            }
+        if let Some(database) = &database
+            && !refresh
+            && let Some(hash) = database.artwork_preview(&candidate.key).await?
+        {
+            return Ok(hash);
         }
         let hash = encode()?;
         if let Some(database) = database {

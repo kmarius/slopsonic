@@ -716,25 +716,6 @@ fn detail_external_links(
     row.first_child().is_some().then(|| row.upcast())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn responsive_detail_artwork_covers_every_presented_size() {
-        let render = detail_cover_render_size();
-        for width in [240, 360, 520, 760, 1_200, i32::MAX] {
-            assert!(render >= detail_showcase_cover_size(width));
-        }
-    }
-
-    #[test]
-    fn empty_summary_values_hide_the_icon_and_text() {
-        assert!(!summary_value_is_visible(""));
-        assert!(summary_value_is_visible("0"));
-    }
-}
-
 fn detail_external_link_row() -> gtk::Box {
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     row.add_css_class("detail-external-link-row");
@@ -781,4 +762,23 @@ fn detail_link_button(icon_name: &str, label: &str) -> gtk::Button {
     image.set_pixel_size(18);
     button.set_child(Some(&image));
     button
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn responsive_detail_artwork_covers_every_presented_size() {
+        let render = detail_cover_render_size();
+        for width in [240, 360, 520, 760, 1_200, i32::MAX] {
+            assert!(render >= detail_showcase_cover_size(width));
+        }
+    }
+
+    #[test]
+    fn empty_summary_values_hide_the_icon_and_text() {
+        assert!(!summary_value_is_visible(""));
+        assert!(summary_value_is_visible("0"));
+    }
 }

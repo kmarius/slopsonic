@@ -13,9 +13,10 @@ pub fn project_cache_dir() -> Option<PathBuf> {
 }
 
 fn config_dir() -> PathBuf {
-    project_dirs()
-        .map(|dirs| dirs.config_dir().to_path_buf())
-        .unwrap_or_else(|| PathBuf::from("."))
+    project_dirs().map_or_else(
+        || PathBuf::from("."),
+        |dirs| dirs.config_dir().to_path_buf(),
+    )
 }
 
 fn cache_dir() -> PathBuf {
@@ -23,9 +24,7 @@ fn cache_dir() -> PathBuf {
 }
 
 fn data_dir() -> PathBuf {
-    project_dirs()
-        .map(|dirs| dirs.data_dir().to_path_buf())
-        .unwrap_or_else(|| PathBuf::from("."))
+    project_dirs().map_or_else(|| PathBuf::from("."), |dirs| dirs.data_dir().to_path_buf())
 }
 
 pub fn state_dir() -> PathBuf {

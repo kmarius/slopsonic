@@ -68,7 +68,9 @@ impl Actor {
                     }
                 };
                 let transcoded_extension = match &resolved {
-                    ResolvedDownload::Ready { codec, .. } => codec.map(|codec| codec.extension()),
+                    ResolvedDownload::Ready { codec, .. } => {
+                        codec.map(library::AudioCodec::extension)
+                    }
                     ResolvedDownload::Encode { encoding, .. } => Some(encoding.codec.extension()),
                 };
                 let metadata = database.download_metadata(&uri).await.ok().flatten();
@@ -143,7 +145,7 @@ impl Actor {
                 // Companion failures do not discard successfully downloaded audio.
                 tokio::select! {
                     _ = &mut cancelled => {},
-                    _ = cache_track_artwork(&database, &artwork, &uri) => {},
+                    () = cache_track_artwork(&database, &artwork, &uri) => {},
                 }
                 Ok(task_paths.audio)
             });

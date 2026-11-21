@@ -413,18 +413,17 @@ impl SearchRouteProjection {
     }
 
     fn apply(&self, mut items: [Vec<SearchItem>; 4]) {
-        for index in 0..items.len() {
+        for ((items, model), category) in items
+            .iter_mut()
+            .zip(&self.models)
+            .zip(CollectionCategory::ALL)
+        {
             if let Some(shell) = self.shell.upgrade() {
-                let category = CollectionCategory::ALL[index];
                 let settings = shell.settings.current.borrow().library_list(category.key());
-                sort_search_items(&mut items[index], settings.sort_key, settings.descending);
+                sort_search_items(items, settings.sort_key, settings.descending);
             }
-            let additions = items[index]
-                .iter()
-                .cloned()
-                .map(search_object)
-                .collect::<Vec<_>>();
-            self.models[index].splice(0, self.models[index].n_items(), &additions);
+            let additions = items.iter().cloned().map(search_object).collect::<Vec<_>>();
+            model.splice(0, model.n_items(), &additions);
         }
         if let Some(active) = self.active.borrow().as_ref() {
             self.show_results(self.models[active.category as usize].n_items() != 0);

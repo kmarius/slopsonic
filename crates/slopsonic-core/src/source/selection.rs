@@ -39,7 +39,7 @@ impl ServerOwner {
             .shared
             .client
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .as_ref()
             .is_some_and(|cached| cached.observer.is_some())
         {
@@ -85,7 +85,7 @@ impl ServerOwner {
             owner.shared.present_refresh();
             if refresh && activated && !cached_start {
                 let refresh_owner = owner.clone();
-                let refresh_server = source.clone();
+                let refresh_server = source;
                 owner.shared.runtime.spawn(async move {
                     let _ = refresh_owner
                         .refresh_now(&refresh_server, false, true)
@@ -100,7 +100,7 @@ impl ServerOwner {
             .shared
             .connection
             .lock()
-            .unwrap_or_else(|p| p.into_inner()) = Some(task.abort_handle());
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(task.abort_handle());
         Ok(())
     }
 
@@ -145,7 +145,7 @@ impl ServerOwner {
                 .shared
                 .selected
                 .lock()
-                .unwrap_or_else(|p| p.into_inner()) = Some(selected.clone());
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(selected.clone());
             source.map(|source| {
                 let source = self.cache_connected(&configured, source);
                 self.start_observer(source.clone(), true);
@@ -188,27 +188,24 @@ impl ServerOwner {
     /// A selection a reset overtook may have published or attached after the reset released it;
     /// restates the current selection, or its absence, to listeners and downloads.
     pub(super) async fn restate_selection(&self) {
-        match self.shared.selected() {
-            Some(selected) => {
-                if let Err(error) = self
-                    .shared
-                    .downloads
-                    .attach(selected.music_folder_key)
-                    .await
-                {
-                    self.shared.warn_nonfatal(&error);
-                }
-                self.shared
-                    .send(ServerEvent::Selected {
-                        configured: self.shared.server_status(Some(&selected)),
-                        selected,
-                    })
-                    .await;
+        if let Some(selected) = self.shared.selected() {
+            if let Err(error) = self
+                .shared
+                .downloads
+                .attach(selected.music_folder_key)
+                .await
+            {
+                self.shared.warn_nonfatal(&error);
             }
-            None => {
-                self.shared.downloads.detach();
-                self.shared.send(ServerEvent::ReleaseSelected).await;
-            }
+            self.shared
+                .send(ServerEvent::Selected {
+                    configured: self.shared.server_status(Some(&selected)),
+                    selected,
+                })
+                .await;
+        } else {
+            self.shared.downloads.detach();
+            self.shared.send(ServerEvent::ReleaseSelected).await;
         }
     }
 
@@ -219,7 +216,7 @@ impl ServerOwner {
             .shared
             .selected
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take()
             .is_some();
         if released {
@@ -232,7 +229,7 @@ impl ServerOwner {
             .shared
             .connection
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take()
         {
             job.abort();
@@ -240,7 +237,11 @@ impl ServerOwner {
     }
 
     pub(super) fn start_observer(&self, source: Arc<Source>, initial_scan_pending: bool) -> bool {
-        let mut client = self.shared.client.lock().unwrap_or_else(|p| p.into_inner());
+        let mut client = self
+            .shared
+            .client
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let Some(cached) = client.as_mut() else {
             return false;
         };
@@ -322,10 +323,7 @@ impl ServerOwner {
             .acquire_catalog(&self.shared.database, &progress, token.clone(), force)
             .await;
         let outcome = outcome.map(|_| ());
-        let result = outcome
-            .as_ref()
-            .map(|_| ())
-            .map_err(source_refresh_error_text);
+        let result = outcome.as_ref().copied().map_err(source_refresh_error_text);
         self.finish_server_refresh(&token, outcome).await;
         result
     }
@@ -342,7 +340,11 @@ impl ServerOwner {
             self.shared.maintenance.notify_one();
         }
         {
-            let mut client = self.shared.client.lock().unwrap_or_else(|p| p.into_inner());
+            let mut client = self
+                .shared
+                .client
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             if let Some(cached) = client.as_mut()
                 && cached
                     .refresh
@@ -356,7 +358,7 @@ impl ServerOwner {
             .shared
             .client
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .as_ref()
             .and_then(|cached| {
                 cached
@@ -382,7 +384,7 @@ impl ServerOwner {
 
     pub(crate) async fn finish_refresh(&self, result: sources::SourceResult<()>) {
         let operation = match result {
-            Ok(_) => ServerOperation::Idle,
+            Ok(()) => ServerOperation::Idle,
             Err(error) if source_error_is_cancelled(&error) => ServerOperation::Idle,
             Err(error) => ServerOperation::Failed {
                 message: {
@@ -462,7 +464,11 @@ impl ServerOwner {
         configured: &ConfiguredServer,
         source: Arc<Source>,
     ) -> Arc<Source> {
-        let mut client = self.shared.client.lock().unwrap_or_else(|p| p.into_inner());
+        let mut client = self
+            .shared
+            .client
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(cached) = client.as_ref()
             && cached.matches(configured)
         {
@@ -491,7 +497,11 @@ impl ServerOwner {
             stored.sources.configured = Some(configured.clone());
             Ok(())
         })?;
-        let mut client = self.shared.client.lock().unwrap_or_else(|p| p.into_inner());
+        let mut client = self
+            .shared
+            .client
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if client
             .as_ref()
             .is_some_and(|cached| !cached.matches(&configured))
@@ -525,7 +535,7 @@ impl ServerOwner {
                     self.shared
                         .client
                         .lock()
-                        .unwrap_or_else(|p| p.into_inner())
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
                         .take();
                 }
                 self.shared.settings.update(|stored| {
@@ -586,7 +596,7 @@ impl ServerOwner {
                             .shared
                             .selected
                             .lock()
-                            .unwrap_or_else(|p| p.into_inner())
+                            .unwrap_or_else(std::sync::PoisonError::into_inner)
                             .as_mut()
                         {
                             current.music_folders = folders;
@@ -638,7 +648,7 @@ impl ServerOwner {
                 self.shared.warn_nonfatal(&error.to_string());
                 return;
             }
-        };
+        }
         self.shared
             .send(ServerEvent::CatalogPublished(CatalogPublication {
                 favorite: None,

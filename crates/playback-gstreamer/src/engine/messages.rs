@@ -186,8 +186,7 @@ impl GstEngine {
                     .unwrap_or_else(|| BackendFailure::new(error_message.error().to_string()));
                 let source = message
                     .src()
-                    .map(|source| source.name().to_string())
-                    .unwrap_or_else(|| "unknown".to_string());
+                    .map_or_else(|| "unknown".to_string(), |source| source.name().to_string());
                 let active_slot = self.active_slot();
                 let relevant = self.error_is_relevant_slot(slot);
                 error!(

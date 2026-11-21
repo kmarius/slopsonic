@@ -100,8 +100,7 @@ fn distribute_column_width_remainder(widths: &mut [i32], target: i32) {
             .iter()
             .enumerate()
             .max_by_key(|(_, width)| **width)
-            .map(|(pos, _)| pos)
-            .unwrap_or(0);
+            .map_or(0, |(pos, _)| pos);
         widths[pos] -= 1;
         remainder += 1;
     }
@@ -126,8 +125,7 @@ fn distribute_column_width(widths: &mut [i32], target: i32) {
         .iter()
         .enumerate()
         .max_by_key(|(_, width)| **width)
-        .map(|(pos, _)| pos)
-        .unwrap_or(0);
+        .map_or(0, |(pos, _)| pos);
     widths[pos] += remainder;
 }
 
@@ -299,8 +297,9 @@ pub fn column_header_minimum_width(title: Option<&str>, preferred: i32) -> i32 {
     }
     let fallback = preferred.clamp(MIN_TABLE_COLUMN_WIDTH, TABLE_TARGET_WIDTH);
     let header = title
-        .map(|title| compact_header_text_width(&title, MIN_TABLE_COLUMN_WIDTH))
-        .unwrap_or(MIN_TABLE_COLUMN_WIDTH)
+        .map_or(MIN_TABLE_COLUMN_WIDTH, |title| {
+            compact_header_text_width(title, MIN_TABLE_COLUMN_WIDTH)
+        })
         .min(preferred.max(1));
     fallback.max(header)
 }

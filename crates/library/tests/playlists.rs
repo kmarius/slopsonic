@@ -53,7 +53,7 @@ async fn playlist_order_is_title_ordered_and_folder_scoped() {
         kind: library::ListKind::Playlists,
         sort: CatalogSort::Title,
         folder: None,
-        filter: ("").into(),
+        filter: String::new(),
         descending: false,
         favorites_only: false,
         downloaded_only: false,
@@ -72,7 +72,7 @@ async fn playlist_order_is_title_ordered_and_folder_scoped() {
         kind: library::ListKind::Playlists,
         sort: CatalogSort::Title,
         folder: Some(folder),
-        filter: ("").into(),
+        filter: String::new(),
         descending: false,
         favorites_only: false,
         downloaded_only: false,
@@ -203,12 +203,12 @@ async fn provider_playlist_payload_resolves_uri_only_at_the_protocol_boundary() 
             .source_playlist_track_ids(
                 Some(playlist),
                 &library::MemberSelection::Uris(
-                    ((&[
+                    ([
                         fixture.track_uris[0].clone(),
                         fixture.track_uris[1].clone(),
                         fixture.track_uris[1].clone(),
-                    ])
-                        .to_vec())
+                    ]
+                    .to_vec())
                     .into()
                 ),
                 true

@@ -67,10 +67,9 @@ mod imp {
                 .and_downcast::<gtk::ScrolledWindow>()
                 .expect("Metadata fade contains its scroller");
             let adjustment = scroll.hadjustment();
-            let left = adjustment.value().max(0.0).min(12.0) as f32;
+            let left = adjustment.value().clamp(0.0, 12.0) as f32;
             let right = (adjustment.upper() - adjustment.page_size() - adjustment.value())
-                .max(0.0)
-                .min(12.0) as f32;
+                .clamp(0.0, 12.0) as f32;
             let masked = width > 0.0
                 && height > 0.0
                 && (left > 0.0 || right > 0.0)

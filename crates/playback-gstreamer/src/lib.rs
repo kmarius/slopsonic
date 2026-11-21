@@ -29,14 +29,13 @@ fn gstreamer_playback_error(
     let gst::MessageView::Error(error) = message.view() else {
         return None;
     };
-    let source = message
-        .src()
-        .map(|source| source.path_string().to_string())
-        .unwrap_or_else(|| "unknown".to_string());
+    let source = message.src().map_or_else(
+        || "unknown".to_string(),
+        |source| source.path_string().to_string(),
+    );
     let details = error
         .debug()
-        .map(|debug| debug.to_string())
-        .unwrap_or_else(|| "unavailable".to_string());
+        .map_or_else(|| "unavailable".to_string(), |debug| debug.to_string());
     let audio_sink = audio_sink.unwrap_or("unconfigured");
     let cause = error.error();
     let kind = failure_kind(
@@ -51,7 +50,7 @@ fn gstreamer_playback_error(
 
 fn failure_kind(error: &glib::Error, element: Option<&gst::Element>) -> FailureKind {
     let class = element
-        .and_then(|element| element.factory())
+        .and_then(gstreamer::prelude::ElementExt::factory)
         .map(|factory| factory.klass().to_string())
         .unwrap_or_default();
     let has_class = |name| class.split('/').any(|part| part == name);

@@ -8,7 +8,7 @@ use crate::{
     PlaylistEntryKey, PlaylistKey, ReadCancellation, TrackKey,
 };
 
-#[derive(Clone, Debug, PartialEq, FromRow)]
+#[derive(Clone, Debug, PartialEq, Eq, FromRow)]
 pub struct PlaylistAccess {
     pub object_id: String,
     pub writable: bool,
@@ -17,7 +17,7 @@ pub struct PlaylistAccess {
 
 pub(crate) const PLAYLIST_ROW_LIMIT: usize = 128;
 
-#[derive(Clone, Debug, PartialEq, FromRow)]
+#[derive(Clone, Debug, PartialEq, Eq, FromRow)]
 pub struct PlaylistRow {
     pub playlist_key: PlaylistKey,
     pub object_id: String,
@@ -32,13 +32,13 @@ pub struct PlaylistRow {
     pub genres: Vec<PlaylistGenreLink>,
 }
 
-#[derive(Clone, Debug, PartialEq, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
 pub struct PlaylistGenreLink {
     pub genre_key: crate::GenreKey,
     pub name: String,
 }
 
-#[derive(Clone, Debug, FromRow, PartialEq)]
+#[derive(Clone, Debug, FromRow, PartialEq, Eq)]
 pub struct PlaylistEditEntry {
     pub playlist_entry_key: PlaylistEntryKey,
     pub track_key: TrackKey,

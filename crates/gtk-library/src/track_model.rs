@@ -149,7 +149,7 @@ impl TrackCollectionModel {
     }
 
     pub fn source_is_empty(&self) -> bool {
-        self.0.sparse.len() == 0
+        self.0.sparse.is_empty()
     }
 
     pub fn visible_count(&self) -> usize {

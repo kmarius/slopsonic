@@ -280,8 +280,10 @@ pub(crate) async fn update_playlist_on(
     .await;
     let changed = match &result {
         Ok(changed) => *changed,
-        Err(sources::SourceMetadataError::PartiallySaved { .. })
-        | Err(sources::SourceMetadataError::SavedRefreshFailed(_)) => true,
+        Err(
+            sources::SourceMetadataError::PartiallySaved { .. }
+            | sources::SourceMetadataError::SavedRefreshFailed(_),
+        ) => true,
         Err(error) => {
             owner.shared.warn_nonfatal(&error.to_string());
             false
@@ -315,7 +317,7 @@ pub async fn delete_playlist(
     playlist: PlaylistKey,
 ) -> sources::SourceResult<bool> {
     playlist_change(
-        &owner,
+        owner,
         playlist,
         false,
         move |source, id, database| async move {
@@ -424,7 +426,7 @@ pub fn move_playlist_entry(
     position: usize,
 ) -> Receiver<Result<bool, String>> {
     playlist_change(
-        &owner,
+        owner,
         playlist,
         true,
         move |source, id, database| async move {

@@ -129,7 +129,7 @@ impl CatalogUi {
         actions.set_halign(gtk::Align::Start);
         let play_controller = self.playback.clone();
         let play_tracks = track_projection.clone();
-        let play_context_id = context_id.clone();
+        let play_context_id = context_id;
         let play: CollectionPlay = Rc::new(move |placement, shuffled| {
             play_tracks.play_source(
                 play_controller.clone(),
@@ -188,7 +188,7 @@ impl CatalogUi {
         let showcase = detail_showcase_frame(media_showcase(MediaShowcase {
             view: showcase_view.clone(),
             initial_width: inner_content_width,
-            cover: cover.clone(),
+            cover,
             cover_controls,
             context_menu: Some(context_menu),
             actions_min_cover_size: None,
@@ -211,7 +211,7 @@ impl CatalogUi {
         let resume = {
             let shell = Rc::downgrade(self);
             let album = Rc::clone(&current_album);
-            let showcase = showcase_view.clone();
+            let showcase = showcase_view;
             let applied_external_link_settings = Rc::clone(&applied_external_link_settings);
             let track_projection = track_projection.clone();
             let refresh = Rc::clone(&refresh);

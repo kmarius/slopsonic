@@ -18,7 +18,7 @@ pub struct TrackObservation {
     pub folders: Option<Vec<String>>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AlbumObservation {
     pub object_id: String,
     pub metadata: AlbumMetadata,
@@ -27,7 +27,7 @@ pub struct AlbumObservation {
     pub first_seen_at: Option<i64>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ArtistObservation {
     pub object_id: String,
     pub metadata: ArtistMetadata,
@@ -35,21 +35,21 @@ pub struct ArtistObservation {
     pub user_data: NativeUserState,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct GenreObservation {
     pub object_id: String,
     pub metadata: TagMetadata,
     pub artwork_binding: Option<Vec<u8>>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MoodObservation {
     pub object_id: String,
     pub metadata: TagMetadata,
     pub artwork_binding: Option<Vec<u8>>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FolderObservation {
     pub object_id: String,
     pub metadata: FolderMetadata,
@@ -57,7 +57,7 @@ pub struct FolderObservation {
     pub tracks: Vec<String>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PlaylistObservation {
     pub object_id: String,
     pub name: String,

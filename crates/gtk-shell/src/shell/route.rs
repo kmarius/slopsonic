@@ -585,12 +585,12 @@ impl Shell {
 
     fn finish_root_order_read(&self, generation: u64) -> bool {
         if self.route_viewport.order_read_generation.get() != generation
-            || !self
+            || self
                 .route_viewport
                 .order_cancellation
                 .borrow()
                 .as_ref()
-                .is_some_and(|(owner, _)| *owner == generation)
+                .is_none_or(|(owner, _)| *owner != generation)
         {
             return false;
         }
@@ -674,7 +674,7 @@ impl Shell {
                 load_failed: false,
                 pending: false,
                 refresh_after_fill: false,
-                view: view.clone(),
+                view,
                 surface: surface.clone(),
                 position_key,
                 scroll_adjustment,

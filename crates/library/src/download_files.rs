@@ -35,107 +35,6 @@ pub fn media_encoding_codec(key: &str) -> Option<crate::AudioCodec> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn forgetting_a_download_falls_back_to_the_remaining_one() {
-        let root = tempfile::tempdir().unwrap();
-        let database = Database::open(root.path().join("library.sqlite"))
-            .await
-            .unwrap();
-        let uri = crate::entity_uri("track", "track");
-        database.reconcile_server("Source").await.unwrap();
-        database
-            .catalog(None)
-            .await
-            .unwrap()
-            .apply_catalog(
-                &crate::CatalogBatch {
-                    tracks: vec![crate::TrackObservation {
-                        object_id: "track".into(),
-                        metadata: crate::TrackMetadata {
-                            title: "Track".into(),
-                            ..Default::default()
-                        },
-                        ..Default::default()
-                    }],
-                    ..Default::default()
-                },
-                true,
-            )
-            .await
-            .unwrap();
-        let copy = root.path().join("download.mp3");
-        std::fs::write(&copy, b"download").unwrap();
-        let receipt = DownloadFile {
-            media_uri: uri.clone(),
-            encoding: "mp3".into(),
-            revision: "1".into(),
-            path: url::Url::from_file_path(&copy).unwrap().to_string(),
-            managed: true,
-            storage_root: root.path().to_string_lossy().into_owned(),
-            relative_path: "download.mp3".into(),
-            ..Default::default()
-        };
-        database.commit_download(&receipt).await.unwrap();
-        assert_eq!(
-            database.playback_access(&uri).await.unwrap().unwrap().0,
-            receipt.path
-        );
-        assert_eq!(
-            {
-                let rows = database
-                    .tracks_by_uris(std::slice::from_ref(&uri), &crate::ReadCancellation::new())
-                    .await
-                    .unwrap();
-                rows[0].metadata.title.clone()
-            },
-            "Track"
-        );
-        let alternative = root.path().join("download.ogg");
-        std::fs::write(&alternative, b"alternative").unwrap();
-        let alternate = DownloadFile {
-            encoding: media_encoding_key(Some(crate::AudioEncoding {
-                codec: crate::AudioCodec::Opus,
-                ..crate::AudioEncoding::mp3()
-            })),
-            path: url::Url::from_file_path(&alternative).unwrap().to_string(),
-            completed_size: Some(11),
-            storage_root: root.path().to_string_lossy().into_owned(),
-            relative_path: "download.ogg".into(),
-            ..receipt.clone()
-        };
-        database.commit_download(&alternate).await.unwrap();
-        assert_eq!(
-            database.playback_access(&uri).await.unwrap().unwrap().0,
-            alternate.path
-        );
-        assert_eq!(
-            database.playback_access(&uri).await.unwrap().unwrap().1,
-            Some(crate::AudioCodec::Opus)
-        );
-        database.forget_download_file(&alternate).await.unwrap();
-        assert_eq!(
-            database.playback_access(&uri).await.unwrap().unwrap().0,
-            receipt.path
-        );
-        database.forget_download_file(&receipt).await.unwrap();
-        assert!(database.playback_access(&uri).await.unwrap().is_none());
-        assert_eq!(
-            {
-                let rows = database
-                    .tracks_by_uris(std::slice::from_ref(&uri), &crate::ReadCancellation::new())
-                    .await
-                    .unwrap();
-                rows[0].metadata.title.clone()
-            },
-            "Track"
-        );
-    }
-}
-
 impl Database {
     pub async fn download_files(&self, uri: &str) -> LibraryResult<Vec<DownloadFile>> {
         let mut reader = self.acquire_reader().await?;
@@ -238,4 +137,105 @@ async fn save_download_on(
         .bind(if file.owners.is_empty() { "[]" } else { &file.owners }).bind(&file.storage_root).bind(&file.relative_path).bind(file.completed_size)
         .bind(if file.retired_documents.is_empty() { "[]" } else { &file.retired_documents }).execute(connection).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn forgetting_a_download_falls_back_to_the_remaining_one() {
+        let root = tempfile::tempdir().unwrap();
+        let database = Database::open(root.path().join("library.sqlite"))
+            .await
+            .unwrap();
+        let uri = crate::entity_uri("track", "track");
+        database.reconcile_server("Source").await.unwrap();
+        database
+            .catalog(None)
+            .await
+            .unwrap()
+            .apply_catalog(
+                &crate::CatalogBatch {
+                    tracks: vec![crate::TrackObservation {
+                        object_id: "track".into(),
+                        metadata: crate::TrackMetadata {
+                            title: "Track".into(),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+                true,
+            )
+            .await
+            .unwrap();
+        let copy = root.path().join("download.mp3");
+        std::fs::write(&copy, b"download").unwrap();
+        let receipt = DownloadFile {
+            media_uri: uri.clone(),
+            encoding: "mp3".into(),
+            revision: "1".into(),
+            path: url::Url::from_file_path(&copy).unwrap().to_string(),
+            managed: true,
+            storage_root: root.path().to_string_lossy().into_owned(),
+            relative_path: "download.mp3".into(),
+            ..Default::default()
+        };
+        database.commit_download(&receipt).await.unwrap();
+        assert_eq!(
+            database.playback_access(&uri).await.unwrap().unwrap().0,
+            receipt.path
+        );
+        assert_eq!(
+            {
+                let rows = database
+                    .tracks_by_uris(std::slice::from_ref(&uri), &crate::ReadCancellation::new())
+                    .await
+                    .unwrap();
+                rows[0].metadata.title.clone()
+            },
+            "Track"
+        );
+        let alternative = root.path().join("download.ogg");
+        std::fs::write(&alternative, b"alternative").unwrap();
+        let alternate = DownloadFile {
+            encoding: media_encoding_key(Some(crate::AudioEncoding {
+                codec: crate::AudioCodec::Opus,
+                ..crate::AudioEncoding::mp3()
+            })),
+            path: url::Url::from_file_path(&alternative).unwrap().to_string(),
+            completed_size: Some(11),
+            storage_root: root.path().to_string_lossy().into_owned(),
+            relative_path: "download.ogg".into(),
+            ..receipt.clone()
+        };
+        database.commit_download(&alternate).await.unwrap();
+        assert_eq!(
+            database.playback_access(&uri).await.unwrap().unwrap().0,
+            alternate.path
+        );
+        assert_eq!(
+            database.playback_access(&uri).await.unwrap().unwrap().1,
+            Some(crate::AudioCodec::Opus)
+        );
+        database.forget_download_file(&alternate).await.unwrap();
+        assert_eq!(
+            database.playback_access(&uri).await.unwrap().unwrap().0,
+            receipt.path
+        );
+        database.forget_download_file(&receipt).await.unwrap();
+        assert!(database.playback_access(&uri).await.unwrap().is_none());
+        assert_eq!(
+            {
+                let rows = database
+                    .tracks_by_uris(std::slice::from_ref(&uri), &crate::ReadCancellation::new())
+                    .await
+                    .unwrap();
+                rows[0].metadata.title.clone()
+            },
+            "Track"
+        );
+    }
 }

@@ -10,7 +10,7 @@ use gtk_widgets::sparse_model::{SparseObjectModel, SparseRouteModel, SparseSourc
 
 const PLAYLIST_ENTRY_OVERSCAN: usize = 64;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlaylistEntryProjectionRequest {
     pub query: library::MemberRead,
     pub settings: LibraryListSettings,
@@ -42,7 +42,7 @@ impl PlaylistEntryModel {
     ) -> Self {
         let request = PlaylistEntryProjectionRequest {
             query: read,
-            settings: settings.clone(),
+            settings,
             first_row_position,
         };
         let applied = Rc::new(RefCell::new(request.clone()));
@@ -71,7 +71,7 @@ impl PlaylistEntryModel {
         let sparse = SparseRouteModel::new(
             SparseSource::Query { count },
             PLAYLIST_ENTRY_OVERSCAN,
-            runtime.clone(),
+            runtime,
             load,
         );
         sparse.seed_matching_at(first_row_position, first_rows, |row| row.playlist_entry_key);
@@ -111,7 +111,7 @@ impl PlaylistEntryModel {
     }
 
     pub fn source_is_empty(&self) -> bool {
-        self.inner.sparse.len() == 0
+        self.inner.sparse.is_empty()
     }
 
     pub fn projection_request(&self) -> PlaylistEntryProjectionRequest {

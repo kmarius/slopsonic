@@ -76,9 +76,9 @@ impl Shell {
             name_entry.set_text(&current_name);
             let weak_shell = Rc::downgrade(&shell);
             let dialog = edit_dialog.downgrade();
-            let entry = name_entry.clone();
+            let entry = name_entry;
             let artwork = Rc::downgrade(&artwork);
-            let public_toggle = playlist_public.clone();
+            let public_toggle = playlist_public;
             save_edit.connect_clicked(move |_| {
                 let Some(shell) = weak_shell.upgrade() else {
                     return;

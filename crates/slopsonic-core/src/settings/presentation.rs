@@ -131,20 +131,23 @@ pub fn now_playing_labels(
 }
 
 pub fn home_provider_title(section_id: &str, title: Option<&str>) -> String {
-    title.map(str::to_owned).unwrap_or_else(|| {
-        section_id
-            .split(['-', '_'])
-            .filter(|part| !part.is_empty())
-            .map(|part| {
-                let mut chars = part.chars();
-                chars
-                    .next()
-                    .map(|first| first.to_uppercase().collect::<String>() + chars.as_str())
-                    .unwrap_or_default()
-            })
-            .collect::<Vec<_>>()
-            .join(" ")
-    })
+    title.map_or_else(
+        || {
+            section_id
+                .split(['-', '_'])
+                .filter(|part| !part.is_empty())
+                .map(|part| {
+                    let mut chars = part.chars();
+                    chars
+                        .next()
+                        .map(|first| first.to_uppercase().collect::<String>() + chars.as_str())
+                        .unwrap_or_default()
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        },
+        str::to_owned,
+    )
 }
 
 pub fn home_block_title(value: HomeBlockKind) -> &'static str {

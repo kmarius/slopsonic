@@ -177,7 +177,7 @@ pub(crate) const TRACK_ARTISTS: &str = "(SELECT json_group_array(json_object('ar
 pub(crate) const TRACK_ALBUM_ARTISTS: &str = "(SELECT json_group_array(json_object('artist_key',artist.artist_key,'media_uri',artist.media_uri,'name',artist.name) ORDER BY credit.position)
     FROM album_artists credit JOIN artists artist USING(artist_key) WHERE credit.album_key=track.album_key)";
 
-#[derive(Clone, Debug, FromRow, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, FromRow, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct TrackGenreLink {
     pub genre_key: GenreKey,
     pub name: String,
@@ -205,7 +205,7 @@ impl<'row> sqlx::Decode<'row, Sqlite> for AudioProperties {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, FromRow)]
 pub struct TrackState {
     pub favorite: bool,
     pub rating: Option<i64>,
@@ -213,14 +213,14 @@ pub struct TrackState {
     pub play_count: i64,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, FromRow)]
 pub struct TrackAccess {
     pub source_path: Option<String>,
     pub source_name: String,
     pub is_downloaded: bool,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, FromRow)]
 pub struct TrackLinks {
     pub album_key: Option<AlbumKey>,
     pub album_media_uri: Option<String>,
@@ -545,11 +545,11 @@ mod tests {
                     .into(),
             ))
         };
-        assert_eq!((&query).count(&database, &cancel).await.unwrap(), 300);
+        assert_eq!(query.count(&database, &cancel).await.unwrap(), 300);
         let mut ordered = Vec::new();
         for offset in (0..300).step_by(64) {
             ordered.extend(
-                (&query)
+                query
                     .rows(&database, offset, 64, &cancel)
                     .await
                     .unwrap()
@@ -586,7 +586,7 @@ mod tests {
             [2, 3, 130, 131, 132].map(uri),
         );
         assert_eq!(
-            (&query)
+            query
                 .sections(&database, &cancel)
                 .await
                 .unwrap()
@@ -596,33 +596,33 @@ mod tests {
             [("T".to_string(), 0)],
         );
         assert!(
-            (&crate::MemberRead {
+            crate::MemberRead {
                 sort: Some(CatalogSort::TrackNumber),
                 ..query.clone()
-            })
-                .disc_sections(&database, &cancel)
-                .await
-                .unwrap()
-                .is_empty()
+            }
+            .disc_sections(&database, &cancel)
+            .await
+            .unwrap()
+            .is_empty()
         );
         assert_eq!(
-            (&crate::MemberRead {
+            crate::MemberRead {
                 favorites_only: true,
                 ..query.clone()
-            })
-                .count(&database, &cancel)
-                .await
-                .unwrap(),
+            }
+            .count(&database, &cancel)
+            .await
+            .unwrap(),
             0
         );
         assert_eq!(
-            (&crate::MemberRead {
+            crate::MemberRead {
                 filter: "missing".into(),
                 ..query
-            })
-                .count(&database, &cancel)
-                .await
-                .unwrap(),
+            }
+            .count(&database, &cancel)
+            .await
+            .unwrap(),
             0
         );
     }

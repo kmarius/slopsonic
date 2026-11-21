@@ -197,26 +197,26 @@ async fn source_membership_matches_track_view_sort_filter_and_null_order() {
     ] {
         for descending in [false, true] {
             for filter in ["", "a"] {
-                let view = (&library::MemberRead {
+                let view = library::MemberRead {
                     collection: library::Collection::Library,
                     sort: Some(sort),
                     filter: (filter).into(),
-                    descending: descending,
+                    descending,
                     ..library::MemberRead::new(library::Collection::Library)
-                })
-                    .page(
-                        &fixture.database,
-                        library::RouteSeedWindow::top(),
-                        &ReadCancellation::new(),
-                    )
-                    .await
-                    .unwrap();
+                }
+                .page(
+                    &fixture.database,
+                    library::RouteSeedWindow::top(),
+                    &ReadCancellation::new(),
+                )
+                .await
+                .unwrap();
                 let input = library::QueueLoad::Tracks(vec![(
                     library::MemberRead {
                         collection: library::Collection::Library,
                         sort: Some(sort),
                         filter: filter.into(),
-                        descending: descending,
+                        descending,
                         ..library::MemberRead::new(library::Collection::Library)
                     }
                     .selection(),
@@ -230,12 +230,10 @@ async fn source_membership_matches_track_view_sort_filter_and_null_order() {
                 assert_eq!(
                     items.iter().map(|row| &row.media_uri).collect::<Vec<_>>(),
                     ({
-                        let rows = view
-                            .rows
+                        view.rows
                             .iter()
                             .map(library::MemberRow::track)
-                            .collect::<Vec<_>>();
-                        rows
+                            .collect::<Vec<_>>()
                     })
                     .iter()
                     .map(|row| &row.media_uri)
@@ -392,7 +390,7 @@ async fn saved_membership_keeps_provenance_metadata_and_source_identity_across_f
             .queue_positions_for_source(&state)
             .await
             .unwrap();
-        source_members.sort();
+        source_members.sort_unstable();
         assert_eq!(source_members, [6, 7]);
         fixture
             .database
@@ -511,11 +509,11 @@ async fn rewritten_queue_keeps_member_order_and_known_song_facts() {
             .database
             .selected_track_uris(
                 &library::MemberSelection::Keys {
-                    keys: ((&restored
+                    keys: (restored
                         .entries
                         .iter()
                         .map(|entry| entry.track_key)
-                        .collect::<Vec<_>>())
+                        .collect::<Vec<_>>()
                         .iter()
                         .map(|key| key.raw())
                         .collect::<Vec<i64>>())

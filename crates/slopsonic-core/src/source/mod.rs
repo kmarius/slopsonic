@@ -33,7 +33,7 @@ use tracing::{info, warn};
 use crate::playback::PlaybackOwner;
 use crate::settings::{ConfiguredServer, SettingsFile, StoredSettings};
 
-const SOURCE_CHECK_INTERVAL: Duration = Duration::from_secs(5 * 60);
+const SOURCE_CHECK_INTERVAL: Duration = Duration::from_mins(5);
 
 #[derive(Clone)]
 pub(crate) struct ServerOutputs {
@@ -114,7 +114,7 @@ impl Shared {
         *self
             .catalog_counts
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     async fn refresh_source_counts(&self) -> Result<(usize, usize), String> {
@@ -125,7 +125,7 @@ impl Shared {
             .map_err(string_error)?;
         self.catalog_counts
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .replace(counts);
         Ok(counts)
     }
@@ -148,7 +148,7 @@ impl Shared {
         *self
             .catalog_counts
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = counts;
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = counts;
         Ok(())
     }
 
@@ -159,7 +159,7 @@ impl Shared {
     pub(crate) fn selected(&self) -> Option<SelectedLibrary> {
         self.selected
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
     }
 
@@ -198,7 +198,7 @@ impl Shared {
         let active = self
             .asset_download
             .lock()
-            .unwrap_or_else(|p| p.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if matches!(
             operation,
             ServerOperation::Idle | ServerOperation::Refreshing { .. }
@@ -224,7 +224,7 @@ impl Shared {
     pub(crate) fn playback(&self) -> Result<Arc<PlaybackOwner>, String> {
         self.playback
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .upgrade()
             .ok_or_else(|| "Playback is unavailable".to_string())
     }
@@ -235,7 +235,7 @@ impl Shared {
         *self
             .selection_intent
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Arc::downgrade(&cancelled);
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Arc::downgrade(&cancelled);
         cancelled
     }
 
@@ -244,7 +244,7 @@ impl Shared {
             && self
                 .selection_intent
                 .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .upgrade()
                 .is_some_and(|active| Arc::ptr_eq(&active, cancelled))
     }
@@ -259,7 +259,7 @@ impl Shared {
         let intent = self
             .selection_intent
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let current = !cancelled.load(Ordering::Acquire)
             && intent
                 .upgrade()
@@ -271,14 +271,17 @@ impl Shared {
         let intent = self
             .selection_intent
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(cancelled) = intent.upgrade() {
             cancelled.store(true, Ordering::Release);
         }
     }
 
     pub(crate) fn begin_refresh(&self, replace: bool, visible: bool) -> Option<Arc<AtomicBool>> {
-        let mut client = self.client.lock().unwrap_or_else(|p| p.into_inner());
+        let mut client = self
+            .client
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cached = client.as_mut()?;
         if let Some(previous) = &cached.refresh {
             if !replace && !previous.cancelled.load(Ordering::Acquire) {
@@ -300,7 +303,7 @@ impl Shared {
             && self
                 .client
                 .lock()
-                .unwrap_or_else(|p| p.into_inner())
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .as_ref()
                 .and_then(|cached| cached.refresh.as_ref())
                 .is_some_and(|refresh| Arc::ptr_eq(&refresh.cancelled, token))
@@ -309,7 +312,7 @@ impl Shared {
     fn is_refreshing(&self) -> bool {
         self.client
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .as_ref()
             .and_then(|cached| cached.refresh.as_ref())
             .is_some_and(|refresh| !refresh.cancelled.load(Ordering::Acquire))
@@ -319,7 +322,7 @@ impl Shared {
         let progress = self
             .client
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .as_ref()
             .and_then(|cached| cached.refresh.as_ref())
             .filter(|refresh| refresh.visible)
@@ -334,7 +337,10 @@ impl Shared {
     pub(crate) fn refresh_progress(&self, token: &Arc<AtomicBool>, value: SourceReadProgress) {
         let progress = source_progress(value);
         {
-            let mut client = self.client.lock().unwrap_or_else(|p| p.into_inner());
+            let mut client = self
+                .client
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let Some(refresh) = client.as_mut().and_then(|cached| cached.refresh.as_mut()) else {
                 return;
             };
@@ -425,7 +431,7 @@ impl ServerOwner {
             .shared
             .playback
             .lock()
-            .unwrap_or_else(|p| p.into_inner()) = Arc::downgrade(playback);
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Arc::downgrade(playback);
     }
 
     pub(crate) fn start(&self) -> Result<(), String> {
@@ -458,7 +464,7 @@ impl ServerOwner {
             loop {
                 tokio::select! {
                     _ = interval.tick() => {},
-                    _ = maintenance.notified() => {},
+                    () = maintenance.notified() => {},
                 };
                 let Some(shared) = weak.upgrade() else {
                     break;
@@ -483,7 +489,7 @@ impl ServerOwner {
         self.shared
             .client
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take();
         self.release_selected().await;
         // Each step runs even when an earlier one fails, so a partial reset leaves no stale state.
@@ -521,12 +527,12 @@ impl ServerOwner {
         self.shared
             .client
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take();
         self.shared
             .catalog_counts
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take();
         note(
             self.shared
@@ -705,7 +711,7 @@ impl ServerOwner {
         self.spawn_serialized(move |owner| async move {
             let result = owner.edit_configured_server(input).await;
             if let Err(error) = &result {
-                owner.shared.warn_nonfatal(&error);
+                owner.shared.warn_nonfatal(error);
             }
             let _ = sender.try_send(result);
         });
@@ -775,7 +781,7 @@ impl ServerOwner {
         self.shared
             .client
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take();
         if matches!(
             &*self.shared.operation.borrow(),
@@ -1031,7 +1037,7 @@ impl ServerOwner {
             .shared
             .client
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .as_ref()
             && cached.matches(&configured)
         {
@@ -1044,7 +1050,11 @@ impl ServerOwner {
             )
             .map_err(string_error)?,
         );
-        let mut client = self.shared.client.lock().unwrap_or_else(|p| p.into_inner());
+        let mut client = self
+            .shared
+            .client
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let current = self.shared.settings.load();
         if current.sources.configured.iter().any(|item| {
             same_native_input(&item.configuration, &configured.configuration)
@@ -1079,7 +1089,7 @@ impl ServerOwner {
         self.shared
             .client
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .as_ref()
             .map(|cached| cached.source.clone())
     }
@@ -1122,14 +1132,13 @@ impl ServerOwner {
             }
             Err(_) => {
                 info!(favorite, "Favorite delivery rejected");
-                let previous = match self
+                let Ok(previous) = self
                     .shared
                     .database
                     .reject_remote_favorite(&target, favorite)
                     .await
-                {
-                    Ok(previous) => previous,
-                    Err(_) => return true,
+                else {
+                    return true;
                 };
                 if let Some(previous) = previous {
                     self.publish_current_catalog(

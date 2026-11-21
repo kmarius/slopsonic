@@ -40,7 +40,7 @@ impl AlbumCover {
             if let Some(shell) = open_shell.upgrade()
                 && let Some(album) = row.borrow().clone()
             {
-                shell.navigate(Route::AlbumDetail(album.media_uri.clone()));
+                shell.navigate(Route::AlbumDetail(album.media_uri));
             }
         });
         let menu_shell = Rc::downgrade(shell);
@@ -49,14 +49,7 @@ impl AlbumCover {
             if let Some(shell) = menu_shell.upgrade()
                 && let Some(album) = row.borrow().clone()
             {
-                present_album_context_menu(
-                    target,
-                    &shell.media_menus,
-                    album.clone(),
-                    None,
-                    None,
-                    position,
-                );
+                present_album_context_menu(target, &shell.media_menus, album, None, None, position);
             }
         });
         let (controls, favorite) = cover_hover_controls_with_favorite(0, "Play album", false);
@@ -95,7 +88,7 @@ impl AlbumCover {
                 && let Some(album) = row.borrow().clone()
             {
                 shell.set_favorite_with_feedback(
-                    library::FavoriteTarget::Album(album.media_uri.clone()),
+                    library::FavoriteTarget::Album(album.media_uri),
                     !favorite_button_is_active(button),
                     Some(button),
                 );
@@ -323,8 +316,9 @@ mod collection_grid_card_inset_imp {
         fn request_mode(&self) -> gtk::SizeRequestMode {
             self.obj()
                 .first_child()
-                .map(|child| child.request_mode())
-                .unwrap_or(gtk::SizeRequestMode::ConstantSize)
+                .map_or(gtk::SizeRequestMode::ConstantSize, |child| {
+                    child.request_mode()
+                })
         }
 
         fn measure(&self, orientation: gtk::Orientation, for_size: i32) -> (i32, i32, i32, i32) {
@@ -430,6 +424,39 @@ fn collection_grid_card_inner_extent(allocation: i32, inset: i32) -> (i32, i32) 
     (leading, allocation.saturating_sub(leading * 2))
 }
 
+pub fn collection_grid_card_inset(
+    child: &impl IsA<gtk::Widget>,
+    minimum_content_width: i32,
+) -> CollectionGridCardInset {
+    use gtk::subclass::prelude::ObjectSubclassIsExt;
+
+    let minimum_content_width = minimum_content_width.max(1);
+    let inset: CollectionGridCardInset = gtk::glib::Object::new();
+    inset.imp().minimum_content_width.set(minimum_content_width);
+    inset.imp().inset.set(COLLECTION_GRID_CARD_MARGIN);
+    inset.set_hexpand(true);
+    inset.set_halign(gtk::Align::Fill);
+    inset.set_valign(gtk::Align::Start);
+    inset.set_accessible_role(gtk::AccessibleRole::Presentation);
+    child.set_width_request(minimum_content_width);
+    child.set_parent(&inset);
+    inset
+}
+
+fn square_cover_vertical_measure(for_size: i32) -> (i32, i32, i32, i32) {
+    let size = if for_size >= 0 {
+        for_size
+    } else {
+        COLLECTION_GRID_MIN_CARD_WIDTH
+    };
+    (size, size, -1, -1)
+}
+
+use gtk_widgets::cover_controls::{
+    CoverHoverControls, constrain_cover_widget, cover_hover_controls_with_favorite,
+    cover_hover_transport_spacing,
+};
+
 #[cfg(test)]
 mod collection_grid_card_inset_tests {
     use super::*;
@@ -473,36 +500,3 @@ mod collection_grid_card_inset_tests {
         );
     }
 }
-
-pub fn collection_grid_card_inset(
-    child: &impl IsA<gtk::Widget>,
-    minimum_content_width: i32,
-) -> CollectionGridCardInset {
-    use gtk::subclass::prelude::ObjectSubclassIsExt;
-
-    let minimum_content_width = minimum_content_width.max(1);
-    let inset: CollectionGridCardInset = gtk::glib::Object::new();
-    inset.imp().minimum_content_width.set(minimum_content_width);
-    inset.imp().inset.set(COLLECTION_GRID_CARD_MARGIN);
-    inset.set_hexpand(true);
-    inset.set_halign(gtk::Align::Fill);
-    inset.set_valign(gtk::Align::Start);
-    inset.set_accessible_role(gtk::AccessibleRole::Presentation);
-    child.set_width_request(minimum_content_width);
-    child.set_parent(&inset);
-    inset
-}
-
-fn square_cover_vertical_measure(for_size: i32) -> (i32, i32, i32, i32) {
-    let size = if for_size >= 0 {
-        for_size
-    } else {
-        COLLECTION_GRID_MIN_CARD_WIDTH
-    };
-    (size, size, -1, -1)
-}
-
-use gtk_widgets::cover_controls::{
-    CoverHoverControls, constrain_cover_widget, cover_hover_controls_with_favorite,
-    cover_hover_transport_spacing,
-};

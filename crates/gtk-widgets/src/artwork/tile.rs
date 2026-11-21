@@ -240,11 +240,11 @@ impl ArtworkTile {
     }
 
     fn release_unmapped_artwork(&self) {
-        if !self
+        if self
             .bound_request
             .borrow()
             .as_ref()
-            .is_some_and(|request| !request.immediate())
+            .is_none_or(BoundRequest::immediate)
         {
             return;
         }
@@ -301,8 +301,8 @@ impl ArtworkTile {
         self.cancel_artwork_request();
         self.bound_request.replace(Some(BoundRequest {
             owner,
-            key,
             request,
+            key,
             playback,
             display_size,
         }));
@@ -554,14 +554,13 @@ impl ArtworkTile {
         let picture = softened.downgrade();
         let complete = Rc::clone(&self.request_complete);
         transition.connect_done(move |_| {
-            if let (Some(area), Some(picture)) = (area.upgrade(), picture.upgrade()) {
-                if complete.get()
+            if let (Some(area), Some(picture)) = (area.upgrade(), picture.upgrade())
+                && (complete.get()
                     || !area.is_mapped()
-                    || !area.settings().is_gtk_enable_animations()
-                {
-                    picture.set_visible(false);
-                    picture.set_paintable(None::<&gtk::gdk::Paintable>);
-                }
+                    || !area.settings().is_gtk_enable_animations())
+            {
+                picture.set_visible(false);
+                picture.set_paintable(None::<&gtk::gdk::Paintable>);
             }
         });
         self.transition.replace(Some(CoverReveal {

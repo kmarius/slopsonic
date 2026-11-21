@@ -171,8 +171,10 @@ impl Database {
             .store(enabled, Ordering::Release);
         drop(writer);
         if changed {
-            let mut update = crate::CatalogUpdate::default();
-            update.artwork = true;
+            let update = crate::CatalogUpdate {
+                artwork: true,
+                ..Default::default()
+            };
             self.publish_catalog_update(update).await;
         }
         Ok(())
@@ -405,6 +407,18 @@ async fn open_readers(
             .connect_with(reader_options(path).row_buffer_size(row_buffer))
             .await?)
     }
+}
+
+/// The one server row's fixed identity.
+pub(crate) const SERVER_OBJECT_ID: &str = "server";
+
+/// Creates the server row, which holds the catalog's freshness, revision and counts.
+pub(crate) async fn write_source_identity(connection: &mut SqliteConnection) -> LibraryResult<()> {
+    sqlx::query("INSERT INTO sources(object_id) VALUES(?1) ON CONFLICT(object_id) DO NOTHING")
+        .bind(SERVER_OBJECT_ID)
+        .execute(connection)
+        .await?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -657,16 +671,4 @@ mod tests {
             1
         );
     }
-}
-
-/// The one server row's fixed identity.
-pub(crate) const SERVER_OBJECT_ID: &str = "server";
-
-/// Creates the server row, which holds the catalog's freshness, revision and counts.
-pub(crate) async fn write_source_identity(connection: &mut SqliteConnection) -> LibraryResult<()> {
-    sqlx::query("INSERT INTO sources(object_id) VALUES(?1) ON CONFLICT(object_id) DO NOTHING")
-        .bind(SERVER_OBJECT_ID)
-        .execute(connection)
-        .await?;
-    Ok(())
 }

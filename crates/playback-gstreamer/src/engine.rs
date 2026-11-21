@@ -453,15 +453,12 @@ impl GstEngine {
                     self.status_fade = None;
                 }
                 let result = (|| -> Result<(), BackendFailure> {
-                    if !self.desired_playing {
-                        if self.active_pipeline().has_session() {
-                            if let Err(error) = self.active_pipeline().set_state(gst::State::Paused)
-                            {
-                                self.retire_playback();
-                                return Err(error);
-                            }
-                            self.push_state(BackendState::Paused);
+                    if !self.desired_playing && self.active_pipeline().has_session() {
+                        if let Err(error) = self.active_pipeline().set_state(gst::State::Paused) {
+                            self.retire_playback();
+                            return Err(error);
                         }
+                        self.push_state(BackendState::Paused);
                     }
                     lock_recover(&self.shared).settings = settings.clone();
                     self.primary.configure_audio(&settings)?;
@@ -1165,18 +1162,16 @@ fn run_gstreamer_thread(
                 "audiobasesink" | "pulse" | "opensles_ringbuffer"
             )
             && let Some(message) = message.get()
-        {
-            if audio_warning_sender
+            && audio_warning_sender
                 .try_send(AudioWarning {
                     category: category.name().to_string(),
-                    element: object.map(|object| object.to_string()),
+                    element: object.map(std::string::ToString::to_string),
                     message: message.to_string(),
                     captured_at: Instant::now(),
                 })
                 .is_ok()
-            {
-                let _ = warning_wake.send(WorkerInput::Wake);
-            }
+        {
+            let _ = warning_wake.send(WorkerInput::Wake);
         }
     });
     for category in ["audiobasesink", "pulse", "opensles_ringbuffer"] {
@@ -1245,7 +1240,7 @@ pub(super) fn handle_about_to_finish(
             );
             *queued_loudness
                 .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner()) = next.stream.loudness.clone();
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = next.stream.loudness.clone();
             trust_invalid_certificate
                 .store(next.stream.trust_invalid_certificate(), Ordering::SeqCst);
             pipeline.set_property("uri", next.stream.uri());
@@ -1339,7 +1334,5 @@ fn clock_millis(clock_time: gst::ClockTime) -> u64 {
     clock_time.mseconds()
 }
 fn stream_uri_scheme(uri: &str) -> &str {
-    uri.split_once(':')
-        .map(|(scheme, _)| scheme)
-        .unwrap_or("unknown")
+    uri.split_once(':').map_or("unknown", |(scheme, _)| scheme)
 }

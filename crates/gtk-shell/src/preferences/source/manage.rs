@@ -141,8 +141,7 @@ pub fn confirm_forget_source(
     let dialog = adw::AlertDialog::builder()
         .heading("Forget Source".to_string())
         .body(format!(
-            "This removes {} with its cached library, queue, downloads, pins, and favorites or ratings not yet sent to the server",
-            server_name
+            "This removes {server_name} with its cached library, queue, downloads, pins, and favorites or ratings not yet sent to the server"
         ))
         .build();
     let cancel = "Cancel".to_string();

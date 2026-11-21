@@ -629,7 +629,7 @@ fn activity_triggers() -> String {
     sql
 }
 
-const CREATE: &str = r#"
+const CREATE: &str = r"
 CREATE TABLE IF NOT EXISTS playlist_genres (
     playlist_key INTEGER NOT NULL REFERENCES playlists ON DELETE CASCADE,
     genre_key INTEGER NOT NULL REFERENCES genres ON DELETE CASCADE,
@@ -672,7 +672,7 @@ CREATE INDEX IF NOT EXISTS tracks_album_title_window ON tracks(indexed,album_tit
 CREATE INDEX IF NOT EXISTS tracks_album_title_desc_window ON tracks(indexed,album_title_sort DESC,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
 CREATE INDEX IF NOT EXISTS tracks_album_artist_window ON tracks(indexed,(album_artist_sort IS NULL),album_artist_sort,(album_year_sort IS NULL),album_year_sort,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
 CREATE INDEX IF NOT EXISTS tracks_album_artist_desc_window ON tracks(indexed,(album_artist_sort IS NULL),album_artist_sort DESC,(album_year_sort IS NULL),album_year_sort,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
-"#;
+";
 
 const PLAYLIST_GENRES: &str = "INSERT INTO playlist_genres(playlist_key,genre_key,track_count)
     SELECT entry.playlist_key,credit.genre_key,count(*) FROM playlist_entries entry JOIN track_genres credit USING(track_key) GROUP BY entry.playlist_key,credit.genre_key;";

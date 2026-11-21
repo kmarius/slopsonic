@@ -29,20 +29,23 @@ pub struct NowPlayingPresentation {
 impl NowPlayingPresentation {
     pub fn new(player: Option<&PlaybackView>) -> Self {
         let current = player.and_then(|player| player.transport.current.as_ref());
-        let title = current
-            .map(|entry| entry.row.track.metadata.title.clone())
-            .unwrap_or_else(|| "Nothing playing".to_string());
-        let artist = current
-            .map(|entry| entry.row.track.metadata.artist.clone())
-            .unwrap_or_else(|| "Queue a track to begin".to_string());
+        let title = current.map_or_else(
+            || "Nothing playing".to_string(),
+            |entry| entry.row.track.metadata.title.clone(),
+        );
+        let artist = current.map_or_else(
+            || "Queue a track to begin".to_string(),
+            |entry| entry.row.track.metadata.artist.clone(),
+        );
         let album = current
             .map(|entry| entry.row.track.metadata.album.clone())
             .unwrap_or_default();
         Self {
             current: current.is_some(),
-            artist_links: current
-                .map(|current| track_artist_links(&current.row.track))
-                .unwrap_or_else(|| DetailLinks::text(&artist)),
+            artist_links: current.map_or_else(
+                || DetailLinks::text(&artist),
+                |current| track_artist_links(&current.row.track),
+            ),
             album_links: DetailLinks::route(
                 &album,
                 current.and_then(|current| {

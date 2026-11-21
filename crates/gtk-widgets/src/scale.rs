@@ -164,7 +164,7 @@ pub fn install_sliding_value_bubble(
     let events = gtk::EventControllerLegacy::new();
     events.set_propagation_phase(gtk::PropagationPhase::Capture);
     let weak_scale = scale.downgrade();
-    let value_for_event = value.clone();
+    let value_for_event = value;
     let bubble_for_event = bubble.clone();
     let format_for_event = Rc::clone(&format_value);
     events.connect_event(move |_, event| {

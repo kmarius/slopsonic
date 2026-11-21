@@ -100,9 +100,11 @@ pub async fn media_details(
                 ] {
                     let mut value = detail_track_field(&track, field);
                     if field == LibraryField::TrackNumber {
-                        value = (track.metadata.track_number > 0)
-                            .then(|| track.metadata.track_number.to_string())
-                            .unwrap_or_default();
+                        value = if track.metadata.track_number > 0 {
+                            track.metadata.track_number.to_string()
+                        } else {
+                            Default::default()
+                        };
                     }
                     if field == LibraryField::DiscNumber && track.metadata.disc_number <= 0 {
                         value.clear();
@@ -423,9 +425,11 @@ fn set_links(field: &mut MediaDetailField, links: DetailLinks) {
 
 fn detail_track_field(track: &library::TrackView, field: LibraryField) -> String {
     if field == LibraryField::Duration {
-        return (track.metadata.duration_millis > 0)
-            .then(|| format_duration_units((track.metadata.duration_millis / 1000) as u32))
-            .unwrap_or_default();
+        return if track.metadata.duration_millis > 0 {
+            format_duration_units((track.metadata.duration_millis / 1000) as u32)
+        } else {
+            Default::default()
+        };
     }
     presentation::track_field(track, field)
 }

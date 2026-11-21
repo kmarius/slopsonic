@@ -326,16 +326,8 @@ impl Player {
     }
 
     pub(super) fn status(&self) -> TransportStatus {
-        self.current_run
-            .as_ref()
-            .map(|run| {
-                if run.status == TransportStatus::Resolving && !run.desired_playing {
-                    TransportStatus::Paused
-                } else {
-                    run.status
-                }
-            })
-            .unwrap_or_else(|| {
+        self.current_run.as_ref().map_or_else(
+            || {
                 if self.restored_paused {
                     TransportStatus::Paused
                 } else if self.last_error.is_some() {
@@ -343,7 +335,15 @@ impl Player {
                 } else {
                     TransportStatus::Stopped
                 }
-            })
+            },
+            |run| {
+                if run.status == TransportStatus::Resolving && !run.desired_playing {
+                    TransportStatus::Paused
+                } else {
+                    run.status
+                }
+            },
+        )
     }
 
     pub(super) fn desired_playing(&self) -> bool {
@@ -404,7 +404,7 @@ impl Player {
         let source = owner
             .source
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone();
         let selected = source.upgrade().and_then(|owner| owner.selected_library());
         self.start_candidates(request.placement, Provenance::Radio, async move {
@@ -499,7 +499,10 @@ impl Player {
                 sample,
             ),
             Ok(_) => Ok(()),
-            Err(error) => Ok(self.report_error(error)),
+            Err(error) => {
+                self.report_error(error);
+                Ok(())
+            }
         }
     }
 
@@ -550,51 +553,128 @@ impl Player {
             return Ok(());
         }
         match command {
-            Command::Radio(request) => Ok(self.play_radio(request)),
-            Command::Random(request) => Ok(self.play_random(request)),
+            Command::Radio(request) => {
+                self.play_radio(request);
+                Ok(())
+            }
+            Command::Random(request) => {
+                self.play_random(request);
+                Ok(())
+            }
             Command::ApplyQueue(request) => self.apply_batch(request, sample),
-            Command::Activate(position) => Ok(self.activate(&position, sample)),
-            Command::ActivateOccurrence(id) => Ok({
-                if let Some(position) = self.sequence.index_of(OccurrenceId(id)) {
-                    self.activate_index(position, sample);
-                }
-            }),
-            Command::Remove(position) => Ok(self.remove(&position, sample)),
-            Command::RemoveMany(selection) => Ok(self.remove_many(&selection, sample)),
-            Command::Forget(positions) => Ok(self.forget(&positions, sample)),
-            Command::Reorder { selection, target } => Ok(self.reorder(&selection, &target, sample)),
-            Command::Insert { input, target } => Ok(self.insert(input, &target)),
-            Command::MoveAfterCurrent(selection) => Ok({
+            Command::Activate(position) => {
+                self.activate(&position, sample);
+                Ok(())
+            }
+            Command::ActivateOccurrence(id) => {
+                let _: () = {
+                    if let Some(position) = self.sequence.index_of(OccurrenceId(id)) {
+                        self.activate_index(position, sample);
+                    }
+                };
+                Ok(())
+            }
+            Command::Remove(position) => {
+                self.remove(&position, sample);
+                Ok(())
+            }
+            Command::RemoveMany(selection) => {
+                self.remove_many(&selection, sample);
+                Ok(())
+            }
+            Command::Forget(positions) => {
+                self.forget(&positions, sample);
+                Ok(())
+            }
+            Command::Reorder { selection, target } => {
+                self.reorder(&selection, &target, sample);
+                Ok(())
+            }
+            Command::Insert { input, target } => {
+                self.insert(input, &target);
+                Ok(())
+            }
+            Command::MoveAfterCurrent(selection) => {
                 let target = self
                     .sequence
                     .selected_index()
                     .map_or(QueueReorderTarget::End, QueueReorderTarget::After);
                 self.reorder(&selection, &target, sample);
-            }),
-            Command::Clear { include_current } => Ok(self.clear(include_current, sample)),
-            Command::PlayPause => Ok(self.play_pause()),
-            Command::Play => Ok(self.set_playing(true)),
-            Command::Pause => Ok(self.set_playing(false)),
-            Command::Stop => Ok(self.stop(sample, true)),
-            Command::Next => Ok(self.next(sample)),
-            Command::Previous => Ok(self.previous(sample)),
-            Command::Seek(position_millis) => Ok(self.seek(position_millis)),
-            Command::SetVolume(volume) => Ok(self.set_output(volume, false)),
-            Command::SetMuted(muted) => Ok(self.save_output(self.output_volume, muted)),
-            Command::PersistVolume(volume) => Ok(self.save_output(volume, self.output_muted)),
-            Command::SetRepeat(repeat) => Ok(self.set_repeat(repeat)),
-            Command::SetShuffle { enabled, seed } => Ok(self.set_shuffle(enabled, seed)),
+                Ok(())
+            }
+            Command::Clear { include_current } => {
+                self.clear(include_current, sample);
+                Ok(())
+            }
+            Command::PlayPause => {
+                self.play_pause();
+                Ok(())
+            }
+            Command::Play => {
+                self.set_playing(true);
+                Ok(())
+            }
+            Command::Pause => {
+                self.set_playing(false);
+                Ok(())
+            }
+            Command::Stop => {
+                self.stop(sample, true);
+                Ok(())
+            }
+            Command::Next => {
+                self.next(sample);
+                Ok(())
+            }
+            Command::Previous => {
+                self.previous(sample);
+                Ok(())
+            }
+            Command::Seek(position_millis) => {
+                self.seek(position_millis);
+                Ok(())
+            }
+            Command::SetVolume(volume) => {
+                self.set_output(volume, false);
+                Ok(())
+            }
+            Command::SetMuted(muted) => {
+                self.save_output(self.output_volume, muted);
+                Ok(())
+            }
+            Command::PersistVolume(volume) => {
+                self.save_output(volume, self.output_muted);
+                Ok(())
+            }
+            Command::SetRepeat(repeat) => {
+                self.set_repeat(repeat);
+                Ok(())
+            }
+            Command::SetShuffle { enabled, seed } => {
+                self.set_shuffle(enabled, seed);
+                Ok(())
+            }
             Command::SetAutoDj {
                 enabled,
                 refill_threshold,
-            } => Ok(self.set_auto_dj(enabled, refill_threshold)),
-            Command::UpdateSettings(settings) => Ok(self.update_settings(settings)),
-            Command::RekeyTracks(pairs) => Ok({
+            } => {
+                self.set_auto_dj(enabled, refill_threshold);
+                Ok(())
+            }
+            Command::UpdateSettings(settings) => {
+                self.update_settings(settings);
+                Ok(())
+            }
+            Command::RekeyTracks(pairs) => {
                 let mut changed = false;
                 self.edit_queue(|sequence| changed = sequence.rekey_tracks(&pairs));
                 self.dirty |= changed;
-            }),
-            Command::CatalogChanged => Ok(self.sequence.refresh_metadata()),
+                Ok(())
+            }
+            Command::CatalogChanged => {
+                self.sequence.refresh_metadata();
+                Ok(())
+            }
         }
     }
 
@@ -944,13 +1024,7 @@ impl Player {
                 return;
             }
             TransportStatus::Paused => {
-                if !desired_playing {
-                    if !run.desired_playing {
-                        return;
-                    }
-                    run.desired_playing = false;
-                    BackendCommand::Pause { run: run.id }
-                } else {
+                if desired_playing {
                     run.desired_playing = true;
                     if !run.backend_loaded
                         && let Some(stream) = run.resolved_stream.clone()
@@ -974,6 +1048,12 @@ impl Player {
                         return;
                     }
                     BackendCommand::Play { run: run.id }
+                } else {
+                    if !run.desired_playing {
+                        return;
+                    }
+                    run.desired_playing = false;
+                    BackendCommand::Pause { run: run.id }
                 }
             }
             TransportStatus::Playing | TransportStatus::Buffering => {
@@ -1360,10 +1440,8 @@ impl Player {
             }
             return;
         };
-        let request = StreamRequest::new(
-            (&next.track).media_uri.clone(),
-            self.settings.stream_quality,
-        );
+        let request =
+            StreamRequest::new(next.track.media_uri.clone(), self.settings.stream_quality);
         let transition = decided_transition(
             &self.settings,
             self.sequence.selected().map(|entry| &entry.track.metadata),
@@ -1400,10 +1478,8 @@ impl Player {
     }
 
     fn resolve_current(&mut self, run: RunId, entry: &std::sync::Arc<QueueRow>) {
-        let mut request = StreamRequest::new(
-            (&entry.track).media_uri.clone(),
-            self.settings.stream_quality,
-        );
+        let mut request =
+            StreamRequest::new(entry.track.media_uri.clone(), self.settings.stream_quality);
         request.session_identifier = Some(
             self.current_run
                 .as_ref()

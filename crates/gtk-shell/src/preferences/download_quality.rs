@@ -95,7 +95,7 @@ pub(crate) fn rows(
     set(initial);
     let commit: Rc<dyn Fn()> = {
         let (weak, updating, current, rate, set) = (
-            weak.clone(),
+            weak,
             updating.clone(),
             current.clone(),
             rate.clone(),
@@ -147,12 +147,8 @@ pub(crate) fn rows(
     let events = gtk::EventControllerLegacy::new();
     events.set_propagation_phase(gtk::PropagationPhase::Capture);
     {
-        let (interacting, commit, reset, current) = (
-            interacting.clone(),
-            commit.clone(),
-            set.clone(),
-            current.clone(),
-        );
+        let (interacting, commit, reset, current) =
+            (interacting.clone(), commit.clone(), set.clone(), current);
         events.connect_event(move |_, event| {
             use gtk::gdk::EventType;
             match event.event_type() {

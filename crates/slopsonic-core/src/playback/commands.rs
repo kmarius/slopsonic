@@ -271,7 +271,7 @@ pub enum QueueSelection {
     Occurrences(Vec<u64>),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RandomPlayRequest {
     pub placement: QueuePlacement,
     pub requested: usize,

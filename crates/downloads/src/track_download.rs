@@ -372,7 +372,7 @@ pub(super) async fn cleanup_staging(
     let expected = media
         .iter()
         .map(|identity| staging_paths(root, identity, directory))
-        .flat_map(|paths| [paths.audio_part.clone(), paths.checkpoint.clone()])
+        .flat_map(|paths| [paths.audio_part.clone(), paths.checkpoint])
         .collect::<HashSet<_>>();
     let custom = directory.map(|directory| {
         directory
@@ -736,9 +736,7 @@ pub(super) fn new_download_paths(
     transcoded_extension: Option<&str>,
 ) -> DownloadPaths {
     let mut paths = staging_paths(root, media_uri, directory);
-    let audio_root = directory
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| source_directory(root));
+    let audio_root = directory.map_or_else(|| source_directory(root), Path::to_path_buf);
     let artist = safe_path_component(media.map_or("", |media| &media.artist), "Unknown Artist");
     let album = safe_path_component(media.map_or("", |media| &media.album), "Unknown Album");
     let title = safe_path_component(media.map_or("", |media| &media.title), "Untitled");
@@ -824,7 +822,7 @@ fn download_extension(source_format: Option<&str>, transcoded_extension: Option<
         .or(source_format)
         .unwrap_or(AUDIO_EXTENSION)
         .chars()
-        .filter(|character| character.is_ascii_alphanumeric())
+        .filter(char::is_ascii_alphanumeric)
         .take(12)
         .collect::<String>()
         .to_ascii_lowercase();

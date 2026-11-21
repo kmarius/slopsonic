@@ -158,7 +158,7 @@ impl SubsonicSource {
                 Err(SourceError::NotFound) => {
                     check_cancelled(cancelled)?;
                     catalog
-                        .remove_source_items("playlist", &[(&id).to_owned()])
+                        .remove_source_items("playlist", std::slice::from_ref(&id))
                         .await?;
                 }
                 Err(error) => return Err(error),
@@ -217,17 +217,14 @@ impl SubsonicSource {
         folder_object_id: Option<&str>,
         music_folder_object_id: Option<&str>,
     ) -> SourceResult<crate::LiveFolderPage> {
-        let body: Value = match folder_object_id {
-            Some(folder) => {
-                let query = [("id", raw_item_id(folder).to_string())];
-                self.get_json("getMusicDirectory", &query).await?
-            }
-            None => {
-                let parameters = music_folder_object_id
-                    .map(|folder| vec![("musicFolderId", raw_item_id(folder).to_string())])
-                    .unwrap_or_default();
-                self.get_json("getIndexes", &parameters).await?
-            }
+        let body: Value = if let Some(folder) = folder_object_id {
+            let query = [("id", raw_item_id(folder).to_string())];
+            self.get_json("getMusicDirectory", &query).await?
+        } else {
+            let parameters = music_folder_object_id
+                .map(|folder| vec![("musicFolderId", raw_item_id(folder).to_string())])
+                .unwrap_or_default();
+            self.get_json("getIndexes", &parameters).await?
         };
         let mut page = crate::LiveFolderPage::default();
         let artists = json::items(&body["indexes"]["shortcut"]).iter().chain(
@@ -334,8 +331,10 @@ impl SubsonicSource {
                 album.as_object_mut().expect("album summary").extend(detail);
             }
             let metadata = self.read_albums(std::slice::from_ref(&album)).await?;
-            let mut batch = library::CatalogBatch::default();
-            batch.albums = metadata;
+            let batch = library::CatalogBatch {
+                albums: metadata,
+                ..Default::default()
+            };
             check_cancelled(cancelled)?;
             catalog.apply_catalog(&batch, true).await?;
             self.acquire_album_tracks(
@@ -373,8 +372,10 @@ impl SubsonicSource {
                     song.album_object_id = Some(album_id.to_string());
                 }
             }
-            let mut batch = library::CatalogBatch::default();
-            batch.tracks = tracks;
+            let batch = library::CatalogBatch {
+                tracks,
+                ..Default::default()
+            };
             check_cancelled(cancelled)?;
             catalog.apply_catalog(&batch, true).await?;
         }
@@ -396,7 +397,7 @@ impl SubsonicSource {
             }
             check_cancelled(cancelled)?;
             catalog
-                .complete_album_observation(&album_id, stamp.unwrap())
+                .complete_album_observation(album_id, stamp.unwrap())
                 .await?;
         }
         Ok(())
@@ -597,7 +598,7 @@ impl SubsonicSource {
         playlist_id: &str,
         entry_ids: &[String],
     ) -> SourceResult<()> {
-        let prefix = format!("{}:", playlist_id);
+        let prefix = format!("{playlist_id}:");
         let mut extra = vec![("playlistId", raw_item_id(playlist_id).to_string())];
         for entry_id in entry_ids {
             let index = entry_id
@@ -1099,7 +1100,7 @@ pub(super) fn redacted_subsonic_url(url: &Url) -> String {
     redacted.to_string()
 }
 pub(super) fn playlist_entry_id(playlist_id: &str, index: usize, track_id: &str) -> String {
-    format!("{}:{index}:{track_id}", playlist_id)
+    format!("{playlist_id}:{index}:{track_id}")
 }
 pub(super) fn current_year() -> u16 {
     let days_since_epoch = SystemTime::now()
@@ -1733,7 +1734,7 @@ mod tests {
             library::entity_uri("track", "subsonic:track:track-one")
         );
         let stored = database
-            .track(&(&row.media_uri), &library::ReadCancellation::new())
+            .track(&row.media_uri, &library::ReadCancellation::new())
             .await
             .unwrap()
             .unwrap();
@@ -1761,15 +1762,14 @@ mod tests {
             }))).mount(&server).await;
         let mut catalog = database.catalog(None).await.unwrap();
         {
-            let result = source
+            source
                 .acquire_collection(
                     &mut catalog,
                     &crate::SourceCollection::Album("subsonic:album:album-one".to_string()),
                     false,
                     &|| false,
                 )
-                .await;
-            result
+                .await
         }
         .unwrap();
         {
@@ -1827,7 +1827,7 @@ mod tests {
             let mut catalog = database.catalog(None).await.unwrap();
             catalog.start_observation().await.unwrap();
             if cached {
-                (async { let mut batch = library::CatalogBatch::default(); let result = batch.albums.extend_from_slice(&[(super::album_from_json(&source, &serde_json::json!({"id":"album","name":"Nonmatching album","coverArt":"album-cover"})).unwrap().unwrap()).clone()]); catalog.apply_catalog(&batch, true).await?; Ok::<_,library::LibraryError>(result) }).await.unwrap();
+                (async { let mut batch = library::CatalogBatch::default(); batch.albums.extend_from_slice(&[(super::album_from_json(source, &serde_json::json!({"id":"album","name":"Nonmatching album","coverArt":"album-cover"})).unwrap().unwrap())]); catalog.apply_catalog(&batch, true).await?; Ok::<_,library::LibraryError>(()) }).await.unwrap();
             }
             {
                 database

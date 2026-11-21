@@ -234,6 +234,12 @@ impl RecycledTextCell {
     }
 }
 
+impl Default for RecycledTextCell {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 crate::composite_box!(
     pub RecycledBadgedTextCell,
     badged_text_imp,
@@ -471,6 +477,12 @@ impl RecycledFolderCell {
     }
 }
 
+impl Default for RecycledFolderCell {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub fn track_row_index_cell(text: &str, activate: impl Fn(&gtk::Button) + 'static) -> gtk::Overlay {
     let number = gtk::Label::builder()
         .xalign(0.5)
@@ -663,6 +675,12 @@ impl TrackRowPlayingIndicator {
         if self.inner.paused.replace(paused) != paused {
             self.refresh();
         }
+    }
+}
+
+impl Default for TrackRowPlayingIndicator {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

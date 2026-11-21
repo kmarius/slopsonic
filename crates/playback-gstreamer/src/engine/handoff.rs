@@ -446,7 +446,7 @@ impl GstEngine {
                 BackendEvent::NextPreparationFailed {
                     current_run,
                     next_run,
-                    error: error,
+                    error,
                 },
             );
         }

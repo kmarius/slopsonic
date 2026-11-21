@@ -422,11 +422,11 @@ impl FilesystemCache {
             return;
         };
         let previous = file_usage(path);
-        if fs::remove_file(path).is_ok() {
-            if let Some(usage) = state.as_mut() {
-                usage.bytes = usage.bytes.saturating_sub(previous.bytes);
-                usage.files = usage.files.saturating_sub(previous.files);
-            }
+        if fs::remove_file(path).is_ok()
+            && let Some(usage) = state.as_mut()
+        {
+            usage.bytes = usage.bytes.saturating_sub(previous.bytes);
+            usage.files = usage.files.saturating_sub(previous.files);
         }
     }
 
@@ -484,7 +484,8 @@ fn prune_cache(
 }
 
 fn collect_discretionary_files(root: &Path, files: &mut Vec<CacheFile>) -> io::Result<()> {
-    for path in [root.join("displays")] {
+    {
+        let path = root.join("displays");
         if path.is_dir() {
             collect_cache_files(&path, files)?;
         }
@@ -512,7 +513,7 @@ fn collect_cache_files(root: &Path, files: &mut Vec<CacheFile>) -> io::Result<()
 fn file_usage(path: &Path) -> CacheUsage {
     fs::metadata(path)
         .ok()
-        .filter(|metadata| metadata.is_file())
+        .filter(std::fs::Metadata::is_file)
         .map(|metadata| CacheUsage {
             bytes: metadata.len(),
             files: 1,
@@ -614,6 +615,22 @@ fn atomic_write(path: &Path, mut bytes: impl Read) -> io::Result<()> {
     }
 }
 
+fn remove_dir_if_present(path: &Path) -> io::Result<()> {
+    match fs::remove_dir_all(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
+fn remove_file_if_present(path: &Path) -> io::Result<()> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -648,8 +665,8 @@ mod tests {
             .write_ready(&native(), ImageSize::Thumbnail(256), bytes)
             .unwrap();
         assert_eq!(cache.display_path(&native(), 540), Some(display.clone()));
-        assert_eq!(cache.display_path(&native(), 512), Some(display.clone()));
-        assert_eq!(cache.display_path(&native(), 96), Some(smaller.clone()));
+        assert_eq!(cache.display_path(&native(), 512), Some(display));
+        assert_eq!(cache.display_path(&native(), 96), Some(smaller));
         assert!(cache.display_path(&native(), 768).is_none());
         let empty = CacheLimits { bytes: 0, files: 0 };
         let usage = prune_cache(directory.path(), empty, empty, None).unwrap();
@@ -692,21 +709,5 @@ mod tests {
             .expect("invalidate server images");
         assert!(cache.ready_entry(&native()).is_none());
         assert!(cache.display_path(&native(), 512).is_none());
-    }
-}
-
-fn remove_dir_if_present(path: &Path) -> io::Result<()> {
-    match fs::remove_dir_all(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
-    }
-}
-
-fn remove_file_if_present(path: &Path) -> io::Result<()> {
-    match fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
     }
 }

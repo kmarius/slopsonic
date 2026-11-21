@@ -360,10 +360,10 @@ pub fn fullscreen_playback_refresh(
     let Some(previous) = previous else {
         return FullscreenPlaybackRefresh::Static;
     };
-    if previous.transport.current != next.transport.current {
-        FullscreenPlaybackRefresh::Static
-    } else {
+    if previous.transport.current == next.transport.current {
         FullscreenPlaybackRefresh::None
+    } else {
+        FullscreenPlaybackRefresh::Static
     }
 }
 
@@ -519,7 +519,7 @@ impl crate::PlayerUi {
         };
         let cancellation = library::ReadCancellation::new();
         let candidates = self.playback_owner.candidates(
-            library::RadioSeed::Track(seed.clone()),
+            library::RadioSeed::Track(seed),
             20,
             cancellation.clone(),
         );
@@ -552,21 +552,18 @@ impl crate::PlayerUi {
             }
             parts.related_task.borrow_mut().take();
             parts.related_loading.set_visible(false);
-            match result {
-                Ok(Ok(items)) => {
-                    parts.related_status.set_text(&parts.related_empty.text());
-                    parts.related_status.set_visible(items.is_empty());
-                    if !items.is_empty() {
-                        let (view, changed) = (shell.related_tracks_view)(items);
-                        parts.related_display_changed.replace(Some(changed));
-                        parts.related_list.append(&view);
-                    }
+            if let Ok(Ok(items)) = result {
+                parts.related_status.set_text(&parts.related_empty.text());
+                parts.related_status.set_visible(items.is_empty());
+                if !items.is_empty() {
+                    let (view, changed) = (shell.related_tracks_view)(items);
+                    parts.related_display_changed.replace(Some(changed));
+                    parts.related_list.append(&view);
                 }
-                _ => {
-                    parts.related_status.set_text(&parts.related_error.text());
-                    parts.related_status.set_visible(true);
-                    parts.related_retry.set_visible(true);
-                }
+            } else {
+                parts.related_status.set_text(&parts.related_error.text());
+                parts.related_status.set_visible(true);
+                parts.related_retry.set_visible(true);
             }
         });
     }
@@ -866,11 +863,10 @@ impl crate::PlayerUi {
             if progress >= 1.0 {
                 root.set_can_target(opening);
                 root.set_sensitive(opening);
+                tick_shell.views.fullscreen_player.set_slide_offset(0);
                 if opening {
-                    tick_shell.views.fullscreen_player.set_slide_offset(0);
                     root.set_opacity(1.0);
                 } else {
-                    tick_shell.views.fullscreen_player.set_slide_offset(0);
                     root.set_opacity(0.0);
                     if let Some(window) = tick_shell.window.upgrade() {
                         window.remove_css_class("fullscreen-artwork-bars");
@@ -1029,7 +1025,7 @@ mod playback_refresh_tests {
             }),
             id: CurrentMediaId {
                 run: Some(RunId::new(1)),
-                media_uri: media_uri.into(),
+                media_uri,
             },
             row: Arc::new(QueueRow {
                 occurrence_id: None,

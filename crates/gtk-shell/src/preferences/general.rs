@@ -83,7 +83,7 @@ pub fn scrobbling_page(
 
     {
         let settings = shell.settings.current.borrow().clone();
-        let external_links = settings.application.external_site_links.clone();
+        let external_links = settings.application.external_site_links;
         external_links_row.set_active(external_links.enabled);
         lastfm_links_row.set_active(external_links.lastfm);
         lastfm_links_row.set_sensitive(external_links.enabled);
@@ -230,7 +230,7 @@ pub fn scrobbling_page(
         button.set_sensitive(false);
         lastfm_connection_row.set_subtitle("Opening Last.fm authorization...");
         let shell = Rc::clone(&lastfm_connect_shell);
-        let row = lastfm_connection_row.clone();
+        let row = lastfm_connection_row;
         let button = button.clone();
         gtk::glib::spawn_future_local(async move {
             let request = ScrobblingConnection::LastFm {
@@ -290,7 +290,7 @@ pub fn scrobbling_page(
         button.set_sensitive(false);
         librefm_connection_row.set_subtitle("Opening Libre.fm authorization...");
         let shell = Rc::clone(&librefm_connect_shell);
-        let row = librefm_connection_row.clone();
+        let row = librefm_connection_row;
         let button = button.clone();
         gtk::glib::spawn_future_local(async move {
             match connect_scrobbling(
@@ -441,10 +441,10 @@ fn replace_if_changed(current: &mut bool, next: bool) -> bool {
 }
 
 pub fn audioscrobbler_connection_subtitle(connected: bool, username: &str) -> String {
-    if !connected {
-        "Not connected".to_string()
-    } else {
+    if connected {
         audioscrobbler_connected_subtitle(username)
+    } else {
+        "Not connected".to_string()
     }
 }
 pub fn audioscrobbler_connected_subtitle(username: &str) -> String {

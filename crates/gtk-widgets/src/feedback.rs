@@ -44,7 +44,7 @@ impl ControlFeedbackState {
         self.generation.set(generation);
         label.set_text(&title);
         label.set_visible(true);
-        let label = label.clone();
+        let label = label;
         let active_generation = Rc::clone(&self.generation);
         glib::timeout_add_local_once(
             Duration::from_secs(u64::from(CONTROL_TOAST_TIMEOUT)),

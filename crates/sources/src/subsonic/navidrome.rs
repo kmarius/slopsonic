@@ -525,18 +525,17 @@ fn album_from_navidrome(
             sort_text: clean_optional(field(album, "sortAlbumName"))
                 .unwrap_or_else(|| title.clone())
                 .to_lowercase(),
-            title: title,
-            artist: artist,
+            title,
+            artist,
             year: Some(i64::from(year)).filter(|year| *year > 0),
-            release_date: release_date,
+            release_date,
             date_added: normalized_date(field(album, "createdAt")),
             is_compilation: Some(boolean(&album["compilation"]).unwrap_or_default()),
             musicbrainz_release_id: clean_optional(field(album, "mbzAlbumId")),
             musicbrainz_release_group_id: clean_optional(field(album, "mbzReleaseGroupId")),
-            album_artists: album_artists,
+            album_artists,
             genres: genre_credits(source, &album["genres"]),
             release_types: normalize_release_types(tag_values(&album["tags"], "releasetype")),
-            ..Default::default()
         },
         user_data: library::NativeUserState {
             rating: Some(rating(field(album, "rating")).map(i64::from)),
@@ -601,7 +600,7 @@ fn track_from_navidrome(
         .into_iter()
         .collect();
     }
-    let album_id = id(&track["albumId"]).map(|id| String::from(source.id("album", &id)));
+    let album_id = id(&track["albumId"]).map(|id| source.id("album", &id));
     let object_id = source.id("track", raw_id);
     let title =
         clean_optional(field(track, "title")).unwrap_or_else(|| "Untitled Track".to_string());
@@ -628,8 +627,8 @@ fn track_from_navidrome(
             sort_text: clean_optional(field(track, "sortTitle"))
                 .unwrap_or_else(|| title.clone())
                 .to_lowercase(),
-            title: title,
-            artist: artist,
+            title,
+            artist,
             album: clean_optional(field(track, "album"))
                 .unwrap_or_else(|| "Unknown Album".to_string()),
             year: positive_u16(field(track, "year")).map(i64::from),
@@ -642,7 +641,7 @@ fn track_from_navidrome(
                 field(track, "mbzRecordingID").or_else(|| field(track, "mbzRecordingId")),
             ),
             musicbrainz_release_track_id: clean_optional(field(track, "mbzReleaseTrackId")),
-            source_format: source_format,
+            source_format,
             comment: clean_optional(field(track, "comment")),
             bpm: positive_u16(field(track, "bpm")).map(i64::from),
             source_loudness: field::<f64>(track, "rgTrackGain")
@@ -651,7 +650,6 @@ fn track_from_navidrome(
                     replay_gain_db: Some(gain),
                     replay_gain_peak: field::<f64>(track, "rgTrackPeak")
                         .filter(|value| value.is_finite() && *value >= 0.0),
-                    ..Default::default()
                 }),
             album_loudness: field::<f64>(track, "rgAlbumGain")
                 .filter(|value| value.is_finite())
@@ -659,10 +657,9 @@ fn track_from_navidrome(
                     replay_gain_db: Some(gain),
                     replay_gain_peak: field::<f64>(track, "rgAlbumPeak")
                         .filter(|value| value.is_finite() && *value >= 0.0),
-                    ..Default::default()
                 }),
-            artists: artists,
-            album_artists: album_artists,
+            artists,
+            album_artists,
             genres: genre_credits(source, &track["genres"]),
             moods: super::moods_from_item(source, tag_values(&track["tags"], "mood")),
             ..Default::default()
@@ -672,7 +669,6 @@ fn track_from_navidrome(
             play_count: capped_u32(field(track, "playCount")).map(i64::from),
             rating: Some(rating(field(track, "rating")).map(i64::from)),
             favorite: Some(boolean(&track["starred"]).unwrap_or(false)),
-            ..Default::default()
         },
         object_id,
         album_object_id: album_id,
@@ -703,9 +699,8 @@ fn artist_from_navidrome(
                     .unwrap_or_else(|| name.clone())
                     .to_lowercase(),
             ),
-            name: name,
+            name,
             musicbrainz_artist_id: clean_optional(field(artist, "mbzArtistId")),
-            ..Default::default()
         },
         user_data: library::NativeUserState {
             favorite: Some(boolean(&artist["starred"]).unwrap_or(false)),
@@ -731,10 +726,9 @@ fn artist_credit(
 ) -> Option<library::ArtistCredit> {
     clean(raw_id).map(|raw_id| library::ArtistCredit {
         sort_text: clean_optional(sort_name).map(|name| name.to_lowercase()),
-        object_id: String::from(source.id("artist", &raw_id)),
+        object_id: source.id("artist", &raw_id),
         name,
         musicbrainz_artist_id: clean_optional(musicbrainz_artist_id),
-        ..Default::default()
     })
 }
 
@@ -752,11 +746,10 @@ fn participant_credits(
             Some(library::ArtistCredit {
                 sort_text: clean_optional(field::<String>(participant, "sortArtistName"))
                     .map(|name| name.to_lowercase()),
-                object_id: String::from(source.id("artist", &raw_id)),
+                object_id: source.id("artist", &raw_id),
                 name: clean_optional(field(participant, "name"))
                     .unwrap_or_else(|| "Unknown Artist".to_string()),
                 musicbrainz_artist_id: clean_optional(field(participant, "mbzArtistId")),
-                ..Default::default()
             })
         })
         .collect::<Vec<_>>();
@@ -778,7 +771,7 @@ fn genre_credits(source: &SubsonicSource, genres: &Value) -> Vec<library::TagRef
         .iter()
         .filter_map(|genre| clean_optional(field(genre, "name")))
         .map(|name| library::TagReference {
-            object_id: String::from(source.id("genre", &name)),
+            object_id: source.id("genre", &name),
             name,
             ..Default::default()
         })
@@ -1202,28 +1195,26 @@ mod tests {
         catalog.start_observation().await.unwrap();
         (async {
             let mut batch = library::CatalogBatch::default();
-            let result = batch
+            batch
                 .folders
                 .extend_from_slice(&[library::FolderObservation {
                     metadata: library::FolderMetadata {
                         name: Some("Folder".to_string()),
                         sort_text: Some("folder".to_string()),
-                        ..Default::default()
                     },
                     object_id: "navidrome:music-folder:1".to_string(),
                     artwork_binding: None,
                     ..Default::default()
                 }]);
             catalog.apply_catalog(&batch, true).await?;
-            Ok::<_, library::LibraryError>(result)
+            Ok::<_, library::LibraryError>(())
         })
         .await
         .unwrap();
         {
-            let result = source
+            source
                 .acquire_navidrome_library(&mut catalog, &|_| {}, &|| false)
-                .await;
-            result
+                .await
         }
         .unwrap();
         {
@@ -1241,15 +1232,14 @@ mod tests {
                 .unwrap();
             let mut catalog = database.catalog(None).await.unwrap();
             {
-                let result = source
+                source
                     .acquire_collection(
                         &mut catalog,
                         &crate::SourceCollection::Album("navidrome:album:album".into()),
                         false,
                         &|| false,
                     )
-                    .await;
-                result
+                    .await
             }
             .unwrap();
             {
@@ -1261,7 +1251,7 @@ mod tests {
             .unwrap();
             let row = database
                 .track(
-                    &(&library::entity_uri("track", "navidrome:track:track")),
+                    &library::entity_uri("track", "navidrome:track:track"),
                     &library::ReadCancellation::new(),
                 )
                 .await
@@ -1477,29 +1467,27 @@ mod tests {
 
         (async {
             let mut batch = library::CatalogBatch::default();
-            let result = batch
+            batch
                 .folders
                 .extend_from_slice(&[library::FolderObservation {
                     metadata: library::FolderMetadata {
                         name: Some("Music".to_string()),
                         sort_text: Some("music".to_string()),
-                        ..Default::default()
                     },
                     object_id: "navidrome:music-folder:1".to_string(),
                     artwork_binding: None,
                     ..Default::default()
                 }]);
             catalog.apply_catalog(&batch, true).await?;
-            Ok::<_, library::LibraryError>(result)
+            Ok::<_, library::LibraryError>(())
         })
         .await
         .expect("Music Folder");
 
         {
-            let result = source
+            source
                 .acquire_navidrome_library(&mut catalog, &|_| {}, &|| false)
-                .await;
-            result
+                .await
         }
         .expect("private Navidrome library");
         {
@@ -1545,7 +1533,7 @@ mod tests {
             },
             Some("2026-08-27T00:00:00Z")
         );
-        let tracks = (&library::MemberRead::new(library::Collection::Library))
+        let tracks = library::MemberRead::new(library::Collection::Library)
             .page(&database, library::RouteSeedWindow::top(), &cancellation)
             .await
             .expect("Track page");

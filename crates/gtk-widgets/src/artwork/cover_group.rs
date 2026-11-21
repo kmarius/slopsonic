@@ -127,15 +127,14 @@ impl ArtworkState {
         let quadrants = Rc::new(
             (0..if mosaic { 4 } else { 0 })
                 .map(|index| {
-                    let tile = cell_size
-                        .map(ArtworkTile::new)
-                        .unwrap_or_else(ArtworkTile::new_elastic_square);
+                    let tile =
+                        cell_size.map_or_else(ArtworkTile::new_elastic_square, ArtworkTile::new);
                     let widget = tile.widget();
                     widget.set_hexpand(true);
                     widget.set_vexpand(true);
                     widget.set_halign(gtk::Align::Fill);
                     widget.set_valign(gtk::Align::Fill);
-                    grid.attach(&widget, (index % 2) as i32, (index / 2) as i32, 1, 1);
+                    grid.attach(&widget, index % 2, index / 2, 1, 1);
                     tile
                 })
                 .collect::<Vec<_>>(),

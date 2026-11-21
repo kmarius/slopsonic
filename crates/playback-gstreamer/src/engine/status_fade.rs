@@ -145,7 +145,6 @@ impl GstEngine {
                     .set_output_volume(0.0, fade.muted);
                 if let Err(error) = self.pause_current_pipeline() {
                     self.fail_playback(self.timing_run_id(), error);
-                    return;
                 }
             }
             StatusFadeTarget::Playing => {

@@ -23,7 +23,7 @@ fn genre_credits_from_item(source: &SubsonicSource, item: &Value) -> Vec<library
     names
         .into_iter()
         .map(|name| library::TagReference {
-            object_id: String::from(source.id("genre", &name)),
+            object_id: source.id("genre", &name),
             name,
             ..Default::default()
         })
@@ -43,7 +43,7 @@ pub(super) fn moods_from_item(
                 .any(|value: &library::TagReference| value.name.eq_ignore_ascii_case(mood))
         {
             values.push(library::TagReference {
-                object_id: String::from(source.id("mood", mood)),
+                object_id: source.id("mood", mood),
                 name: mood.to_string(),
                 sort_text: Some(mood.to_lowercase()),
             });
@@ -60,7 +60,7 @@ fn artist_credits_from_item(
         .iter()
         .filter_map(|artist| {
             Some(library::ArtistCredit {
-                object_id: String::from(source.id("artist", &json::id(&artist["id"])?)),
+                object_id: source.id("artist", &json::id(&artist["id"])?),
                 name: json::field(artist, "name").unwrap_or_default(),
                 sort_text: clean_optional(json::field::<String>(artist, "sortName"))
                     .map(|name| name.to_lowercase()),
@@ -77,7 +77,7 @@ fn scalar_artist_credit(
 ) -> Vec<library::ArtistCredit> {
     json::id(&item["artistId"])
         .map(|id| library::ArtistCredit {
-            object_id: String::from(source.id("artist", &id)),
+            object_id: source.id("artist", &id),
             name: name.to_string(),
             ..Default::default()
         })
@@ -146,18 +146,17 @@ pub(super) fn album_from_json(
             sort_text: clean_optional(json::field(album, "sortName"))
                 .unwrap_or_else(|| title.clone())
                 .to_lowercase(),
-            title: title,
-            artist: artist,
+            title,
+            artist,
             year: Some(i64::from(year)).filter(|year| *year > 0),
-            release_date: release_date,
+            release_date,
             date_added: normalized_date(json::field(album, "created")),
             is_compilation: json::boolean(&album["isCompilation"]),
             musicbrainz_release_id: clean_optional(json::field(album, "musicBrainzId")),
             musicbrainz_release_group_id: None,
-            album_artists: album_artists,
+            album_artists,
             genres: genre_credits_from_item(source, album),
             release_types: normalize_release_types(json::strings(&album["releaseTypes"])),
-            ..Default::default()
         },
         user_data: library::NativeUserState {
             rating: Some(
@@ -171,7 +170,7 @@ pub(super) fn album_from_json(
         object_id: source.id("album", &raw_id),
         artwork_binding: image_ref(source, json::id(&album["coverArt"]))
             .as_ref()
-            .map(|image| crate::native_artwork_binding(image))
+            .map(crate::native_artwork_binding)
             .transpose()?,
         ..Default::default()
     }))
@@ -217,8 +216,8 @@ pub(super) fn track_from_json(
             sort_text: clean_optional(json::field(song, "sortName"))
                 .unwrap_or_else(|| title.clone())
                 .to_lowercase(),
-            title: title,
-            artist: artist,
+            title,
+            artist,
             album: json::field(song, "album").unwrap_or_else(|| "Unknown Album".to_string()),
             year: Some(i64::from(u16_from_option(json::field(song, "year"))))
                 .filter(|year| *year > 0),
@@ -229,7 +228,7 @@ pub(super) fn track_from_json(
             track_number: i64::from(u16_from_option(json::field(song, "track"))),
             musicbrainz_recording_id: clean_optional(json::field(song, "musicBrainzId")),
             musicbrainz_release_track_id: None,
-            source_format: source_format,
+            source_format,
             comment: clean_optional(json::field(song, "comment")),
             bpm: json::field::<u16>(song, "bpm")
                 .filter(|value| *value > 0)
@@ -238,14 +237,12 @@ pub(super) fn track_from_json(
                 library::NativeGain {
                     replay_gain_db: Some(gain),
                     replay_gain_peak: positive_finite(json::field(replay_gain, "trackPeak")),
-                    ..Default::default()
                 }
             }),
             album_loudness: finite(json::field(replay_gain, "albumGain")).map(|gain| {
                 library::NativeGain {
                     replay_gain_db: Some(gain),
                     replay_gain_peak: positive_finite(json::field(replay_gain, "albumPeak")),
-                    ..Default::default()
                 }
             }),
             artists: artist_credits,
@@ -264,14 +261,13 @@ pub(super) fn track_from_json(
                     .map(|value| i64::from(value.min(5))),
             ),
             favorite: favorite(&json::field(song, "starred")),
-            ..Default::default()
         },
         object_id,
-        album_object_id: json::id(&song["albumId"]).map(|id| String::from(source.id("album", &id))),
+        album_object_id: json::id(&song["albumId"]).map(|id| source.id("album", &id)),
         audio_key,
         artwork_binding: image_ref(source, json::id(&song["coverArt"]))
             .as_ref()
-            .map(|image| crate::native_artwork_binding(image))
+            .map(crate::native_artwork_binding)
             .transpose()?,
         source_path: path,
         ..Default::default()
@@ -327,9 +323,8 @@ pub(super) fn artist_from_json(
                     .unwrap_or_else(|| name.clone())
                     .to_lowercase(),
             ),
-            name: name,
+            name,
             musicbrainz_artist_id: clean_optional(json::field(artist, "musicBrainzId")),
-            ..Default::default()
         },
         user_data: library::NativeUserState {
             favorite: favorite(&json::field(artist, "starred")),
@@ -343,7 +338,7 @@ pub(super) fn artist_from_json(
         object_id: source.id("artist", &raw_id),
         artwork_binding: image_ref(source, json::id(&artist["coverArt"]))
             .as_ref()
-            .map(|image| crate::native_artwork_binding(image))
+            .map(crate::native_artwork_binding)
             .transpose()?,
     }))
 }
@@ -407,11 +402,10 @@ pub(super) fn playlist_from_json(
             name,
             artwork_binding: image_ref(source, json::id(&playlist["coverArt"]))
                 .as_ref()
-                .map(|image| crate::native_artwork_binding(image))
+                .map(crate::native_artwork_binding)
                 .transpose()?,
             writable: Some(writable),
             metadata_writable: Some(metadata_writable),
-            ..Default::default()
         },
         revision: json::field::<String>(playlist, "changed").filter(|value| !value.is_empty()),
         valid_until: crate::policy::unix_seconds(json::field(playlist, "validUntil")),

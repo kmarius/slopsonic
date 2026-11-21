@@ -209,7 +209,7 @@ mod tests {
             subsonic.authentication,
             crate::subsonic::SubsonicAuthentication::Password
         );
-        let subsonic_payload = subsonic.clone().into_payload();
+        let subsonic_payload = subsonic.into_payload();
         assert!(subsonic_payload.get("user_id").is_none());
         assert_eq!(
             decode_provider_payload::<serde_json::Value>(&encode_provider_payload(

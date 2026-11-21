@@ -307,24 +307,6 @@ impl ArtworkState {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{cover_decode_size, cover_fetch_size};
-
-    #[test]
-    fn artwork_decoding_uses_physical_size() {
-        assert_eq!(cover_decode_size(200, 1.0), 200);
-        assert_eq!(cover_decode_size(200, 1.25), 250);
-        assert_eq!(cover_decode_size(200, 1.5), 300);
-        assert_eq!(cover_decode_size(200, 2.0), 400);
-        assert_eq!(cover_decode_size(512, 2.0), 1024);
-        assert_eq!(cover_decode_size(48, 2.0), 96);
-        for (physical, requested) in [(48, 96), (96, 96), (100, 256), (300, 512), (1024, 1024)] {
-            assert_eq!(cover_fetch_size(physical), requested);
-        }
-    }
-}
-
 pub async fn texture_from_image(
     image: Arc<sources::ImageBytes>,
     size: u32,
@@ -344,4 +326,22 @@ pub async fn texture_from_image(
         stride,
     )
     .upcast())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{cover_decode_size, cover_fetch_size};
+
+    #[test]
+    fn artwork_decoding_uses_physical_size() {
+        assert_eq!(cover_decode_size(200, 1.0), 200);
+        assert_eq!(cover_decode_size(200, 1.25), 250);
+        assert_eq!(cover_decode_size(200, 1.5), 300);
+        assert_eq!(cover_decode_size(200, 2.0), 400);
+        assert_eq!(cover_decode_size(512, 2.0), 1024);
+        assert_eq!(cover_decode_size(48, 2.0), 96);
+        for (physical, requested) in [(48, 96), (96, 96), (100, 256), (300, 512), (1024, 1024)] {
+            assert_eq!(cover_fetch_size(physical), requested);
+        }
+    }
 }

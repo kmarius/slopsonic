@@ -15,7 +15,7 @@ async fn publication_keeps_tracks_and_known_credits_beside_missing_related_objec
             .await?
             .is_none()
         {
-            (&database).reconcile_server("Source").await?;
+            database.reconcile_server("Source").await?;
         }
         database.catalog(None).await
     }
@@ -71,7 +71,7 @@ async fn publication_keeps_tracks_and_known_credits_beside_missing_related_objec
     });
     {
         let write = library::CatalogBatch {
-            tracks: tracks.to_vec(),
+            tracks: tracks.clone(),
             ..Default::default()
         };
 
@@ -110,7 +110,7 @@ async fn publication_keeps_tracks_and_known_credits_beside_missing_related_objec
 
             scan_catalog.into_changes()
         };
-        (&database).publish_catalog_update(update).await;
+        database.publish_catalog_update(update).await;
     };
     let update = updates.try_recv().unwrap();
     assert!(update.metadata);
@@ -218,14 +218,13 @@ async fn artist_names_and_sort_names_survive_sparse_credits_and_reset_with_compl
         write.tracks.len()
     };
     {
-        let result = database
+        database
             .catalog(None)
             .await
             .unwrap()
             .apply_catalog(&write, true)
             .await
             .unwrap();
-        result
     };
     let mut reader = connection(&path).await;
     assert_eq!(
@@ -271,14 +270,13 @@ async fn artist_names_and_sort_names_survive_sparse_credits_and_reset_with_compl
             write.tracks.len()
         };
         {
-            let result = database
+            database
                 .catalog(None)
                 .await
                 .unwrap()
                 .apply_catalog(&write, true)
                 .await
                 .unwrap();
-            result
         };
         assert_eq!(
             sqlx::query_as::<_, (String, String)>(
@@ -310,7 +308,6 @@ async fn sparse_artist_credits_preserve_metadata_and_complete_records_can_clear_
                 name: "Artist".into(),
                 sort_text: Some("artist".into()),
                 musicbrainz_artist_id: Some("mbid".into()),
-                ..Default::default()
             },
             object_id: "artist".into(),
             ..Default::default()
@@ -318,14 +315,13 @@ async fn sparse_artist_credits_preserve_metadata_and_complete_records_can_clear_
         write.artists.len()
     };
     {
-        let result = database
+        database
             .catalog(None)
             .await
             .unwrap()
             .apply_catalog(&write, true)
             .await
             .unwrap();
-        result
     };
     let mut reader = connection(&path).await;
     for complete in [false, true] {
@@ -361,14 +357,13 @@ async fn sparse_artist_credits_preserve_metadata_and_complete_records_can_clear_
             };
         }
         {
-            let result = database
+            database
                 .catalog(None)
                 .await
                 .unwrap()
                 .apply_catalog(&write, true)
                 .await
                 .unwrap();
-            result
         };
         assert_eq!(
             sqlx::query_as::<_, (Option<String>, Option<i64>)>(
@@ -397,14 +392,13 @@ async fn sparse_artist_credits_preserve_metadata_and_complete_records_can_clear_
         write.artists.len()
     };
     {
-        let result = database
+        database
             .catalog(None)
             .await
             .unwrap()
             .apply_catalog(&write, true)
             .await
             .unwrap();
-        result
     };
     assert_eq!(
         sqlx::query_scalar::<_, Option<i64>>(
@@ -448,12 +442,12 @@ async fn write_small_catalog(
                 object_id: "artist-one".into(),
                 name: "Artist One".into(),
                 ..Default::default()
-            }],genres:vec![library::TagReference {object_id: "genre-one".into(),name: "Genre One".into(),..Default::default()}],release_types:vec!["Album".into()],year:Some(2025),release_date:Some("2025-01-01".into()),date_added:Some("2025-01-02".into()),musicbrainz_release_id:Some("release-one".into()),musicbrainz_release_group_id:Some("release-group-one".into()),is_compilation:Some(false),..Default::default()},object_id: "album-one".into(),first_seen_at: Some(10),artwork_binding: Some(br#"[{"key":"native/c6ac8f2b31eeee7f0f333306dedc4488","image":{"kind":"native","item_id":"album-art","tag":null},"blur_hash":null}]"#.to_vec()),..Default::default()}], ..Default::default() };
+            }],genres:vec![library::TagReference {object_id: "genre-one".into(),name: "Genre One".into(),..Default::default()}],release_types:vec!["Album".into()],year:Some(2025),release_date:Some("2025-01-01".into()),date_added:Some("2025-01-02".into()),musicbrainz_release_id:Some("release-one".into()),musicbrainz_release_group_id:Some("release-group-one".into()),is_compilation:Some(false),},object_id: "album-one".into(),first_seen_at: Some(10),artwork_binding: Some(br#"[{"key":"native/c6ac8f2b31eeee7f0f333306dedc4488","image":{"kind":"native","item_id":"album-art","tag":null},"blur_hash":null}]"#.to_vec()),}], ..Default::default() };
 
         scan_catalog.apply_catalog(&write, true).await.unwrap();
     };
     {
-        let write = library::CatalogBatch { artists: vec![library::ArtistObservation{user_data:library::NativeUserState{favorite:Some(false),..Default::default()},metadata:library::ArtistMetadata{name:"Artist One".into(),sort_text:Some("artist one".into()),musicbrainz_artist_id:Some("artist-mbid-one".into()),..Default::default()},object_id: "artist-one".into(),artwork_binding: Some(br#"[{"key":"native/2fd9fba09a06194945ca8bb9e17c742c","image":{"kind":"native","item_id":"artist-art","tag":null},"blur_hash":null}]"#.to_vec()),..Default::default()}], ..Default::default() };
+        let write = library::CatalogBatch { artists: vec![library::ArtistObservation{user_data:library::NativeUserState{favorite:Some(false),..Default::default()},metadata:library::ArtistMetadata{name:"Artist One".into(),sort_text:Some("artist one".into()),musicbrainz_artist_id:Some("artist-mbid-one".into()),},object_id: "artist-one".into(),artwork_binding: Some(br#"[{"key":"native/2fd9fba09a06194945ca8bb9e17c742c","image":{"kind":"native","item_id":"artist-art","tag":null},"blur_hash":null}]"#.to_vec()),}], ..Default::default() };
 
         scan_catalog.apply_catalog(&write, true).await.unwrap();
     };
@@ -463,7 +457,6 @@ async fn write_small_catalog(
                 metadata: library::TagMetadata {
                     name: "Genre One".into(),
                     sort_text: Some("genre one".into()),
-                    ..Default::default()
                 },
                 object_id: "genre-one".into(),
                 artwork_binding: Some(genre_artwork.to_vec()),
@@ -479,7 +472,6 @@ async fn write_small_catalog(
                 metadata: library::TagMetadata {
                     name: "Mood One".into(),
                     sort_text: Some("mood one".into()),
-                    ..Default::default()
                 },
                 object_id: "mood-one".into(),
                 ..Default::default()
@@ -495,7 +487,6 @@ async fn write_small_catalog(
                 metadata: library::FolderMetadata {
                     name: Some("Folder One".into()),
                     sort_text: Some("folder one".into()),
-                    ..Default::default()
                 },
                 object_id: "folder-one".into(),
                 ..Default::default()
@@ -617,7 +608,6 @@ async fn write_track(
                             name: "Artist One".into(),
                             sort_text: Some("artist one".into()),
                             musicbrainz_artist_id: Some("artist-mbid-one".into()),
-                            ..Default::default()
                         }],
                         genres: vec![library::TagReference {
                             object_id: "genre-one".into(),
@@ -669,13 +659,12 @@ async fn canonical_publication_preserves_identity_and_user_overrides() {
         .await
         .unwrap();
     assert!(first_revision > 0);
-    assert_eq!(
+    assert!(
         database
             .cached_server(&ReadCancellation::new())
             .await
             .expect("read saved source without provider contact")
-            .is_some(),
-        true
+            .is_some()
     );
     let mut outside = connection(&path).await;
     let original_keys = sqlx::query_as::<_, (i64, i64, i64)>(
@@ -717,7 +706,7 @@ async fn canonical_publication_preserves_identity_and_user_overrides() {
     );
     assert!(!unchanged.1.changed());
     assert!(
-        (&database)
+        database
             .accept_freshness(
                 &Freshness::new(b"fresh-two".to_vec()).expect("bounded freshness"),
                 &ReadCancellation::new()
@@ -875,7 +864,7 @@ async fn artwork_publication_keeps_one_effective_binding_per_entity() {
             rows.unwrap()
         };
         let tracks = {
-            let rows = database
+            database
                 .tracks_by_uris(
                     &([
                         library::entity_uri("track", "track-one"),
@@ -884,8 +873,7 @@ async fn artwork_publication_keeps_one_effective_binding_per_entity() {
                     &ReadCancellation::new(),
                 )
                 .await
-                .unwrap();
-            rows
+                .unwrap()
         };
         (
             album.artwork_binding.unwrap(),
@@ -903,15 +891,14 @@ async fn artwork_publication_keeps_one_effective_binding_per_entity() {
     );
 
     database.set_distinct_track_covers(true).await.unwrap();
-    assert_eq!(
-        (&database)
+    assert!(
+        database
             .accept_freshness(
                 &Freshness::new(b"shared".to_vec()).expect("freshness"),
                 &ReadCancellation::new()
             )
             .await
-            .expect("check policy freshness"),
-        true
+            .expect("check policy freshness")
     );
     write_small_catalog(&database, "distinct", "Track One", false, br#"[{"key":"native/228a0a3c9474f88ac35fc405342702f7","image":{"kind":"native","item_id":"genre-art","tag":null},"blur_hash":null}]"#).await;
     let distinct = {
@@ -927,7 +914,7 @@ async fn artwork_publication_keeps_one_effective_binding_per_entity() {
             rows.unwrap()
         };
         let tracks = {
-            let rows = database
+            database
                 .tracks_by_uris(
                     &([
                         library::entity_uri("track", "track-one"),
@@ -936,8 +923,7 @@ async fn artwork_publication_keeps_one_effective_binding_per_entity() {
                     &ReadCancellation::new(),
                 )
                 .await
-                .unwrap();
-            rows
+                .unwrap()
         };
         (
             album.artwork_binding.unwrap(),
@@ -979,11 +965,11 @@ async fn point_album_artwork_updates_cached_members_without_replacing_distinct_c
 
 let mut point_catalog = database.catalog(None).await.unwrap();
             {
-let write = library::CatalogBatch { artists: vec![library::ArtistObservation{user_data:library::NativeUserState{favorite:Some(false),..Default::default()},metadata:library::ArtistMetadata{name:"Artist One".into(),sort_text:Some("artist one".into()),musicbrainz_artist_id:Some("artist-mbid-one".into()),..Default::default()},object_id: "artist-one".into(),artwork_binding: Some(br#"[{"key":"native/2fd9fba09a06194945ca8bb9e17c742c","image":{"kind":"native","item_id":"artist-art","tag":null},"blur_hash":null}]"#.to_vec()),..Default::default()}], ..Default::default() };
+let write = library::CatalogBatch { artists: vec![library::ArtistObservation{user_data:library::NativeUserState{favorite:Some(false),..Default::default()},metadata:library::ArtistMetadata{name:"Artist One".into(),sort_text:Some("artist one".into()),musicbrainz_artist_id:Some("artist-mbid-one".into()),},object_id: "artist-one".into(),artwork_binding: Some(br#"[{"key":"native/2fd9fba09a06194945ca8bb9e17c742c","image":{"kind":"native","item_id":"artist-art","tag":null},"blur_hash":null}]"#.to_vec()),}], ..Default::default() };
         point_catalog.apply_catalog(&write, true).await.unwrap();
         };
             {
-let write = library::CatalogBatch { genres: vec![library::GenreObservation{metadata:library::TagMetadata{name: "Genre One".into(),sort_text: Some("genre one".into()),..Default::default()},object_id: "genre-one".into(),artwork_binding: Some(br#"[{"key":"native/228a0a3c9474f88ac35fc405342702f7","image":{"kind":"native","item_id":"genre-art","tag":null},"blur_hash":null}]"#.to_vec())}], ..Default::default() };
+let write = library::CatalogBatch { genres: vec![library::GenreObservation{metadata:library::TagMetadata{name: "Genre One".into(),sort_text: Some("genre one".into()),},object_id: "genre-one".into(),artwork_binding: Some(br#"[{"key":"native/228a0a3c9474f88ac35fc405342702f7","image":{"kind":"native","item_id":"genre-art","tag":null},"blur_hash":null}]"#.to_vec())}], ..Default::default() };
         point_catalog.apply_catalog(&write, true).await.unwrap();
         };
             {
@@ -991,7 +977,7 @@ let write = library::CatalogBatch { albums: vec![library::AlbumObservation{user_
                         object_id: "artist-one".into(),
                         name: "Artist One".into(),
                         ..Default::default()
-                    }],genres:vec![library::TagReference {object_id: "genre-one".into(),name: "Genre One".into(),..Default::default()}],release_types:vec!["Album".into()],..Default::default()},object_id: "album-one".into(),artwork_binding: Some(artwork.to_vec()),first_seen_at: Some(10),..Default::default()}], ..Default::default() };
+                    }],genres:vec![library::TagReference {object_id: "genre-one".into(),name: "Genre One".into(),..Default::default()}],release_types:vec!["Album".into()],},object_id: "album-one".into(),artwork_binding: Some(artwork.to_vec()),first_seen_at: Some(10),}], ..Default::default() };
         point_catalog.apply_catalog(&write, true).await.unwrap();
         };
             let (updates_tx, mut updates) = tokio::sync::mpsc::unbounded_channel();
@@ -1001,8 +987,8 @@ let write = library::CatalogBatch { albums: vec![library::AlbumObservation{user_
             });
             {
 let update = point_catalog.into_changes();
-        (&database).publish_catalog_update(update).await;};
-            let outcome = updates.try_recv().map(|update| { assert!(update.changed() || !update.track_rekeys.is_empty()); update }).unwrap_or_default();
+        database.publish_catalog_update(update).await;};
+            let outcome = updates.try_recv().inspect(|update| { assert!(update.changed() || !update.track_rekeys.is_empty()); }).unwrap_or_default();
             assert_eq!(outcome.metadata,previous_title!=title);
             assert_eq!(outcome.artwork,previous!=artwork);
             assert!(!outcome.playlists&&!outcome.home);
@@ -1071,7 +1057,7 @@ async fn incomplete_collection_publishes_valid_pages_without_removal_authority()
     });
     {
         let update = scan_catalog.into_changes();
-        (&database).publish_catalog_update(update).await;
+        database.publish_catalog_update(update).await;
     };
     assert!(updates.try_recv().unwrap().metadata);
 
@@ -1127,7 +1113,7 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
                 .await?
                 .is_none()
             {
-                (&database).reconcile_server("Source").await?;
+                database.reconcile_server("Source").await?;
             }
             database.catalog(None).await
         }
@@ -1141,7 +1127,6 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
                         metadata: library::TagMetadata {
                             name: name.to_owned(),
                             sort_text: Some(name.to_owned()),
-                            ..Default::default()
                         },
                         object_id: name.to_owned(),
                         ..Default::default()
@@ -1175,13 +1160,12 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
                     .unwrap();
             }
             let update = scan_catalog.into_changes();
-            (&database).publish_catalog_update(update).await;
+            database.publish_catalog_update(update).await;
         };
         let outcome = updates
             .try_recv()
-            .map(|update| {
+            .inspect(|update| {
                 assert!(update.changed() || !update.track_rekeys.is_empty());
-                update
             })
             .unwrap_or_default();
         assert!(if authoritative {
@@ -1207,7 +1191,6 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
                 metadata: library::TagMetadata {
                     name: "Live name".into(),
                     sort_text: Some("live name".into()),
-                    ..Default::default()
                 },
                 object_id: "a".into(),
                 ..Default::default()
@@ -1219,7 +1202,7 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
     };
     {
         let update = point_catalog.into_changes();
-        (&database).publish_catalog_update(update).await;
+        database.publish_catalog_update(update).await;
     };
 
     let mut complete_catalog = async {
@@ -1228,7 +1211,7 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
             .await?
             .is_none()
         {
-            (&database).reconcile_server("Source").await?;
+            database.reconcile_server("Source").await?;
         }
         database.catalog(None).await
     }
@@ -1241,7 +1224,6 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
                 metadata: library::TagMetadata {
                     name: "a".into(),
                     sort_text: Some("a".into()),
-                    ..Default::default()
                 },
                 object_id: "a".into(),
                 ..Default::default()
@@ -1276,7 +1258,7 @@ async fn complete_scans_remove_unseen_items_after_partial_updates() {
 
             complete_catalog.into_changes()
         };
-        (&database).publish_catalog_update(update).await;
+        database.publish_catalog_update(update).await;
     };
     let update = updates.try_recv().unwrap();
     assert!(update.metadata);
@@ -1510,14 +1492,13 @@ async fn completed_batches_survive_later_failure_and_interleaved_changes() {
         point.tracks.len()
     };
     {
-        let result = database
+        database
             .catalog(None)
             .await
             .unwrap()
             .apply_catalog(&point, true)
             .await
             .unwrap();
-        result
     };
     let mut stale = library::CatalogBatch::default();
     {
@@ -1532,9 +1513,7 @@ async fn completed_batches_survive_later_failure_and_interleaved_changes() {
         stale.tracks.len()
     };
     old_catalog.apply_catalog(&stale, true).await.unwrap();
-    {
-        old_catalog.into_changes()
-    };
+    old_catalog.into_changes();
     assert_eq!(
         sqlx::query_scalar::<_, String>("SELECT title FROM tracks WHERE object_id='known'")
             .fetch_one(&mut outside)
@@ -1651,7 +1630,7 @@ async fn deleting_one_source_playlist_preserves_other_playlist_entries() {
 
     {
         let update = point_catalog.into_changes();
-        (&database).publish_catalog_update(update).await;
+        database.publish_catalog_update(update).await;
     };
 
     let mut removal_catalog = database.catalog(None).await.unwrap();
@@ -1663,7 +1642,7 @@ async fn deleting_one_source_playlist_preserves_other_playlist_entries() {
 
     {
         let update = removal_catalog.into_changes();
-        (&database).publish_catalog_update(update).await;
+        database.publish_catalog_update(update).await;
     };
 
     let mut outside = connection(&path).await;
@@ -1736,13 +1715,12 @@ async fn identical_playlist_point_update_is_not_a_catalog_change() {
     });
     {
         let update = point_catalog.into_changes();
-        (&database).publish_catalog_update(update).await;
+        database.publish_catalog_update(update).await;
     };
     let replayed = updates
         .try_recv()
-        .map(|update| {
+        .inspect(|update| {
             assert!(update.changed() || !update.track_rekeys.is_empty());
-            update
         })
         .unwrap_or_default();
     assert!(!replayed.changed());
@@ -1765,7 +1743,6 @@ async fn repeated_source_playlist_and_folder_observations_coalesce() {
                     metadata: library::FolderMetadata {
                         name: Some("Music".into()),
                         sort_text: Some("music".into()),
-                        ..Default::default()
                     },
                     object_id: "folder-one".into(),
                     ..Default::default()
@@ -1809,7 +1786,7 @@ async fn repeated_source_playlist_and_folder_observations_coalesce() {
     });
     {
         let update = scan_catalog.into_changes();
-        (&database).publish_catalog_update(update).await;
+        database.publish_catalog_update(update).await;
     };
     let update = updates.try_recv().unwrap();
     assert!(update.metadata);
@@ -1862,7 +1839,7 @@ async fn duplicate_provider_entries_keep_first_occurrence_and_dense_positions() 
 
     {
         let update = scan_catalog.into_changes();
-        (&database).publish_catalog_update(update).await;
+        database.publish_catalog_update(update).await;
     };
 
     let mut outside = connection(&path).await;
@@ -1924,7 +1901,7 @@ async fn playlist_point_update_preserves_playlist_scope() {
     });
     {
         let update = point_catalog.into_changes();
-        (&database).publish_catalog_update(update).await;
+        database.publish_catalog_update(update).await;
     };
     let update = updates.try_recv().unwrap();
     assert!(update.playlists && !update.metadata && !update.home);
@@ -1948,7 +1925,7 @@ async fn artist_credits_preserve_favorites_and_explicit_false_clears_them() {
             let write = library::CatalogBatch {
                 artists: vec![library::ArtistObservation {
                     user_data: library::NativeUserState {
-                        favorite: favorite,
+                        favorite,
                         ..Default::default()
                     },
                     metadata: library::ArtistMetadata {
@@ -1985,10 +1962,10 @@ async fn artist_credits_preserve_favorites_and_explicit_false_clears_them() {
         scan_catalog.apply_catalog(&write, true).await.unwrap();
         {
             let update = scan_catalog.into_changes();
-            (&database).publish_catalog_update(update).await;
+            database.publish_catalog_update(update).await;
         };
         let row = database
-            .artist(&(&uri), false, false, &cancel)
+            .artist(&uri, false, false, &cancel)
             .await
             .unwrap()
             .unwrap();
@@ -2045,14 +2022,13 @@ async fn reference_names_can_change_and_complete_artist_names_take_precedence() 
             write.tracks.len()
         };
         {
-            let result = database
+            database
                 .catalog(None)
                 .await
                 .unwrap()
                 .apply_catalog(&write, true)
                 .await
                 .unwrap();
-            result
         };
         assert_eq!(
             sqlx::query_scalar::<_, String>("SELECT name FROM artists")

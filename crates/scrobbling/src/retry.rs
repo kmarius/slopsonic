@@ -243,7 +243,12 @@ impl Worker {
             pending.closed = true;
         }
         let _ = self.sender.try_send(());
-        if let Some(thread) = self.thread.lock().unwrap_or_else(|p| p.into_inner()).take() {
+        if let Some(thread) = self
+            .thread
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+        {
             let _ = thread.join();
         }
     }
@@ -286,7 +291,7 @@ impl Scrobbler {
     pub fn settings(&self) -> Settings {
         self.state
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .settings
             .clone()
     }
@@ -473,8 +478,9 @@ fn run_worker(
                 let deadline = pending
                     .now_playing
                     .as_ref()
-                    .map(|(_, changed_at)| (*changed_at + NOW_PLAYING_STABLE_DELAY).min(retry_at))
-                    .unwrap_or(retry_at);
+                    .map_or(retry_at, |(_, changed_at)| {
+                        (*changed_at + NOW_PLAYING_STABLE_DELAY).min(retry_at)
+                    });
                 (track, deadline)
             }
             Err(_) => return,

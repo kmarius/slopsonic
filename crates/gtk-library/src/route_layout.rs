@@ -127,6 +127,16 @@ pub fn route_empty_view(body: &str) -> gtk::Widget {
     view.upcast()
 }
 
+pub(crate) fn configure_library_route_scroller(scroller: &gtk::ScrolledWindow) {
+    scroller.add_css_class("library-route-scroller");
+    scroller.add_css_class("route-scroll-owner");
+    configure_fill_width_clip(scroller, gtk::PolicyType::Automatic);
+    scroller.set_propagate_natural_height(false);
+    scroller.set_overlay_scrolling(true);
+    scroller.set_hexpand(true);
+    scroller.set_vexpand(true);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,14 +152,4 @@ mod tests {
             1
         );
     }
-}
-
-pub(crate) fn configure_library_route_scroller(scroller: &gtk::ScrolledWindow) {
-    scroller.add_css_class("library-route-scroller");
-    scroller.add_css_class("route-scroll-owner");
-    configure_fill_width_clip(scroller, gtk::PolicyType::Automatic);
-    scroller.set_propagate_natural_height(false);
-    scroller.set_overlay_scrolling(true);
-    scroller.set_hexpand(true);
-    scroller.set_vexpand(true);
 }

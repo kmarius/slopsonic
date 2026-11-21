@@ -54,11 +54,10 @@ impl AudioGraphState {
             .current_loudness
             .as_ref()
             .map(|loudness| {
-                selected_loudness(&self.settings, loudness)
-                    .map(|(gain, peak)| clipping_safe_gain_db(gain, peak))
-                    .unwrap_or_else(|| {
-                        embedded_replaygain(&self.tags, self.settings.loudness_normalization_scope)
-                    })
+                selected_loudness(&self.settings, loudness).map_or_else(
+                    || embedded_replaygain(&self.tags, self.settings.loudness_normalization_scope),
+                    |(gain, peak)| clipping_safe_gain_db(gain, peak),
+                )
             })
             .unwrap_or_default();
         apply_loudness_gain(volume, gain);
@@ -198,7 +197,7 @@ impl AudioGraph {
         }));
         state
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .apply_loudness();
         install_loudness_boundary(&convert_in, Arc::clone(&state), queued_loudness)?;
 
@@ -254,7 +253,10 @@ impl AudioGraph {
         self.transition_curve.unset_all();
         self.transition.set_property("volume", 1.0);
         self.transition.set_passthrough(true);
-        let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         state.tags = gst::TagList::new();
         state.current_loudness = None;
     }
@@ -304,7 +306,7 @@ impl AudioGraph {
                 self.gain_curve
                     .list_control_points()
                     .last()
-                    .map(|point| point.timestamp())
+                    .map(gstreamer::TimedValue::timestamp)
             })
             .flatten()
     }
@@ -350,7 +352,7 @@ impl AudioGraph {
                 self.transition_curve
                     .list_control_points()
                     .last()
-                    .map(|point| point.timestamp())
+                    .map(gstreamer::TimedValue::timestamp)
             })
             .flatten()
     }
@@ -361,13 +363,19 @@ impl AudioGraph {
     }
 
     pub(super) fn set_loudness(&mut self, loudness: TrackLoudness) {
-        let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         state.current_loudness = Some(loudness);
         state.apply_loudness();
     }
 
     pub(super) fn reconfigure(&mut self, settings: &BackendAudioSettings) -> Result<bool, String> {
-        let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut available = state.effects.clone();
         if let Some((_, pending)) = state.pending.as_ref() {
             available.volume = available.volume.or_else(|| pending.volume.clone());
@@ -399,7 +407,9 @@ impl AudioGraph {
                     let Some(_root) = root.upgrade() else {
                         return gst::PadProbeReturn::Remove;
                     };
-                    let mut state = state.lock().unwrap_or_else(|p| p.into_inner());
+                    let mut state = state
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
                     let Some((settings, effects)) = state.pending.take() else {
                         return gst::PadProbeReturn::Remove;
                     };
@@ -419,13 +429,13 @@ fn prepare_effects(
     settings: &BackendAudioSettings,
     available: &AudioEffects,
 ) -> Result<AudioEffects, String> {
-    let volume = if settings.loudness_normalization != LoudnessNormalization::Off {
+    let volume = if settings.loudness_normalization == LoudnessNormalization::Off {
+        None
+    } else {
         Some(match available.volume.as_ref() {
             Some(element) => element.clone(),
             None => make_element("volume", "slopsonic-loudness-normalization")?,
         })
-    } else {
-        None
     };
     Ok(AudioEffects { volume })
 }
@@ -461,14 +471,18 @@ fn install_loudness_boundary(
             gst::EventView::StreamStart(_) => {
                 let loudness = loudness
                     .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                let mut state = state.lock().unwrap_or_else(|p| p.into_inner());
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let mut state = state
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 state.current_loudness = loudness.clone();
                 state.tags = gst::TagList::new();
                 state.apply_loudness();
             }
             gst::EventView::Tag(tag) => {
-                let mut state = state.lock().unwrap_or_else(|p| p.into_inner());
+                let mut state = state
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 state
                     .tags
                     .make_mut()
@@ -691,7 +705,7 @@ mod tests {
     ) -> Result<AudioGraph, String> {
         let current_loudness = stream
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone();
         AudioGraph::new(settings, current_loudness, stream)
     }
@@ -789,7 +803,7 @@ mod tests {
 
         let album = BackendAudioSettings {
             loudness_normalization_scope: LoudnessNormalizationScope::Album,
-            ..settings.clone()
+            ..settings
         };
         assert!(graph.reconfigure(&album).unwrap());
         assert!((volume.property::<f64>("volume") - 10_f64.powf(10.0 / 20.0)).abs() < 0.001);
@@ -957,8 +971,7 @@ mod tests {
         pipeline
             .set_state(gst::State::Null)
             .expect("stop test normalization pipeline");
-        let values = observed.lock().expect("observed gains").clone();
-        values
+        observed.lock().expect("observed gains").clone()
     }
 
     #[test]
@@ -1031,20 +1044,27 @@ mod tests {
             .build();
         source.link_filtered(graph.root(), &caps).unwrap();
         graph.root().link(graph.sink()).unwrap();
-        let sink = graph.output.clone().downcast::<gst_app::AppSink>().unwrap();
+        let sink = graph.output.downcast::<gst_app::AppSink>().unwrap();
         pipeline.set_state(gst::State::Playing).unwrap();
         let mut samples = Vec::new();
         while let Some(sample) = sink.try_pull_sample(gst::ClockTime::from_seconds(5)) {
             let map = sample.buffer().unwrap().map_readable().unwrap();
             samples.extend(
                 map.as_slice()
-                    .chunks_exact(4)
-                    .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap())),
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|&bytes| f32::from_le_bytes(bytes)),
             );
         }
         pipeline.set_state(gst::State::Null).unwrap();
         assert_eq!(samples.len(), 3200);
-        for (block, expected) in samples.chunks_exact(800).zip([0.25, 0.125, 0.25, 0.5]) {
+        for (block, expected) in samples
+            .as_chunks::<800>()
+            .0
+            .iter()
+            .zip([0.25, 0.125, 0.25, 0.5])
+        {
             assert!(
                 block
                     .iter()

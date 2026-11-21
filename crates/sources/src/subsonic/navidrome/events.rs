@@ -103,10 +103,10 @@ async fn read_events(
         .map_err(|error| SourceError::Network(error.to_string()))?
     {
         if line.is_empty() {
-            if let Some(change) = event_change(&event, &data) {
-                if !changed(change) {
-                    return Ok(false);
-                }
+            if let Some(change) = event_change(&event, &data)
+                && !changed(change)
+            {
+                return Ok(false);
             }
             event.clear();
             data.clear();
@@ -278,24 +278,23 @@ mod tests {
         let stamp = Some(catalog.start_observation().await.unwrap());
         (async {
             let mut batch = library::CatalogBatch::default();
-            let result = batch
+            batch
                 .tracks
-                .extend_from_slice(&[(track_from_navidrome(&baseline, "track", &item)).clone()]);
+                .extend_from_slice(&[(track_from_navidrome(&baseline, "track", &item))]);
             catalog.apply_catalog(&batch, true).await?;
-            Ok::<_, library::LibraryError>(result)
+            Ok::<_, library::LibraryError>(())
         })
         .await
         .unwrap();
         (async {
             let mut batch = library::CatalogBatch::default();
-            let result = batch.tracks.extend_from_slice(&[(track_from_navidrome(
+            batch.tracks.extend_from_slice(&[(track_from_navidrome(
                 &baseline,
                 "second",
                 &serde_json::json!({"id":"second","title":"Second"}),
-            ))
-            .clone()]);
+            ))]);
             catalog.apply_catalog(&batch, true).await?;
-            Ok::<_, library::LibraryError>(result)
+            Ok::<_, library::LibraryError>(())
         })
         .await
         .unwrap();
@@ -372,11 +371,7 @@ mod tests {
         assert!(update.metadata);
         let cancellation = library::ReadCancellation::new();
         let uri = library::entity_uri("track", "navidrome:track:track");
-        let row = database
-            .track(&(&uri), &cancellation)
-            .await
-            .unwrap()
-            .unwrap();
+        let row = database.track(&uri, &cancellation).await.unwrap().unwrap();
         assert!(row.state.favorite);
         assert_eq!(row.state.rating, Some(4));
         assert_eq!(row.metadata.title, "Track");
@@ -396,10 +391,7 @@ mod tests {
             .respond_with(
                 ResponseTemplate::new(200)
                     .insert_header("Content-Type", "text/event-stream")
-                    .set_body_raw(
-                        "event: serverStart\ndata: {}\n\n".as_bytes(),
-                        "text/event-stream",
-                    ),
+                    .set_body_raw(b"event: serverStart\ndata: {}\n\n", "text/event-stream"),
             )
             .expect(2)
             .mount(&server)

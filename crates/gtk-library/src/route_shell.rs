@@ -419,7 +419,8 @@ impl CatalogUi {
             }
         });
         let widget = owner.upcast();
-        let projection = LibraryToolbarProjection {
+
+        LibraryToolbarProjection {
             state: toolbar_state,
             widget,
             sort_dropdown,
@@ -427,8 +428,7 @@ impl CatalogUi {
             layout,
             layout_mode,
             syncing,
-        };
-        projection
+        }
     }
     fn present_library_config_dialog_with_detail(
         self: &Rc<Self>,

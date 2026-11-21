@@ -3,7 +3,7 @@ use crate::*;
 use sqlx::{Arguments, Connection, SqliteConnection, sqlite::SqliteArguments};
 use std::{ops::Range, sync::Arc};
 
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Collection {
     Library,
     Objects(Arc<[String]>),
@@ -14,7 +14,7 @@ pub enum Collection {
     Playlist(PlaylistKey),
 }
 
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MemberRead {
     pub collection: Collection,
     pub sort: Option<CatalogSort>,
@@ -28,7 +28,7 @@ pub struct MemberRead {
     pub activity: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ListKind {
     Albums,
     ArtistAlbums {
@@ -45,7 +45,7 @@ pub enum ListKind {
     Playlists,
 }
 
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ListRead {
     pub kind: ListKind,
     pub folder: Option<FolderKey>,
@@ -861,9 +861,7 @@ collection_points!(
 pub(crate) fn selection_ranges(
     ranges: Option<&[std::ops::Range<usize>]>,
 ) -> Vec<std::ops::Range<usize>> {
-    let mut ranges = ranges
-        .map(<[_]>::to_vec)
-        .unwrap_or_else(|| std::iter::once(0..usize::MAX).collect());
+    let mut ranges = ranges.map_or_else(|| std::iter::once(0..usize::MAX).collect(), <[_]>::to_vec);
     ranges.sort_by_key(|range| range.start);
     let mut merged: Vec<std::ops::Range<usize>> = Vec::new();
     for range in ranges {

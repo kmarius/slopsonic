@@ -69,7 +69,7 @@ pub(in crate::playback) async fn seeded(
     let downloads = downloads::Downloads::new(
         artwork::Artwork::new(
             (directory.path().join("downloads")).join("artwork"),
-            (runtime.clone()).clone(),
+            runtime.clone(),
         )
         .unwrap(),
         directory.path().join("downloads"),
@@ -79,7 +79,7 @@ pub(in crate::playback) async fn seeded(
         Default::default(),
     );
     let source = ServerOwner::open_dormant(
-        artwork.clone(),
+        artwork,
         Arc::new(database.clone()),
         downloads,
         settings.clone(),
@@ -188,12 +188,12 @@ async fn active_two_track_session() -> (
     Playback,
     std::sync::mpsc::Receiver<Message>,
 ) {
-    let (_directory, _database, sequence, owner, commands, playback, inbox) = seeded(vec![
+    let (directory, database, sequence, owner, commands, playback, inbox) = seeded(vec![
         batch_item(1, Provenance::Manual),
         batch_item(2, Provenance::Manual),
     ])
     .await;
-    make_playable(&_database, _directory.path(), 0..=2).await;
+    make_playable(&database, directory.path(), 0..=2).await;
     let mut session = Player::new(
         sequence,
         "clear-queue-law",
@@ -207,7 +207,7 @@ async fn active_two_track_session() -> (
     session.set_playing(true);
     assert!(session.current_run().is_some());
     (
-        _directory, _database, session, owner, commands, playback, inbox,
+        directory, database, session, owner, commands, playback, inbox,
     )
 }
 
@@ -647,7 +647,8 @@ async fn stream_access_changes_leave_the_audible_run_untouched() {
     session.handle_backend(BackendEvent::Started { run }, &sample);
     let position = session.sequence.selected().unwrap().position;
     session.sequence.set_progress_millis(42_000);
-    for command in [Command::UpdateSettings(session.settings.clone())] {
+    {
+        let command = Command::UpdateSettings(session.settings.clone());
         commands.lock().unwrap().clear();
         session.handle_command(command, &sample).unwrap();
         assert!(
@@ -1036,13 +1037,13 @@ async fn auto_dj_refills_after_track_changes_and_delayed_completion() {
         (RepeatMode::Off, 4, 2, false),
         (RepeatMode::All, 4, 2, false),
     ] {
-        let (_directory, database, mut sequence, owner, commands, playback, inbox) = seeded(
+        let (directory, database, mut sequence, owner, commands, playback, inbox) = seeded(
             (1..=queue_length)
                 .map(|track| batch_item(track as i64, Provenance::Manual))
                 .collect(),
         )
         .await;
-        make_playable(&database, _directory.path(), 1..=queue_length as i64 + 2).await;
+        make_playable(&database, directory.path(), 1..=queue_length as i64 + 2).await;
         sequence.set_repeat_mode(repeat);
         let refill_threshold = if delayed_completion {
             3
@@ -1181,7 +1182,7 @@ async fn failed_stream_preserves_selected_media_and_player_controls() {
         PlaybackSettings::default(),
         false,
         3,
-        Box::new(IdleBackend(commands.clone())),
+        Box::new(IdleBackend(commands)),
         Arc::downgrade(&owner),
         playback.downgrade(),
     );
@@ -1271,7 +1272,7 @@ async fn backend_advancing_during_removal_uses_the_exact_surviving_successor() {
         };
         session.sequence.activate_index(removed_rank - 1);
         session.set_playing(true);
-        let removed = session.sequence.at(removed_rank).unwrap().position.clone();
+        let removed = session.sequence.at(removed_rank).unwrap().position;
         session
             .handle_command(Command::Remove(removed), &sample)
             .unwrap();
@@ -1436,7 +1437,7 @@ async fn removing_the_visible_window_continues_with_the_unbuffered_source() {
         .sequence
         .entries()
         .iter()
-        .map(|row| row.position.clone())
+        .map(|row| row.position)
         .collect::<Vec<_>>();
     session.remove_many(&crate::playback::QueueSelection::Positions(ids), &sample);
     finish_queue(&mut session, &inbox, &sample).await;

@@ -167,8 +167,7 @@ impl StorageView {
             if let Some(label) = view.total.upgrade() {
                 let size = summary
                     .total_bytes
-                    .map(gtk::glib::format_size)
-                    .unwrap_or_else(|| view.unavailable.clone());
+                    .map_or_else(|| view.unavailable.clone(), gtk::glib::format_size);
                 label.set_label(&size);
             }
             if let Some(label) = view.error.upgrade() {
@@ -217,22 +216,24 @@ impl StorageView {
 impl CacheRow {
     fn update(&self, usage: Option<CacheUsage>, unavailable: &str) {
         if let Some(count) = self.count.upgrade() {
-            let text = usage
-                .map(|usage| {
+            let text = usage.map_or_else(
+                || unavailable.to_owned(),
+                |usage| {
                     slopsonic_core::text::fill_plural(
                         "{count} entry",
                         "{count} entries",
                         usage.entries,
                         &[("count", &usage.entries.to_string())],
                     )
-                })
-                .unwrap_or_else(|| unavailable.to_owned());
+                },
+            );
             count.set_label(&text);
         }
         if let Some(size) = self.size.upgrade() {
-            let text = usage
-                .map(|usage| gtk::glib::format_size(usage.bytes))
-                .unwrap_or_else(|| unavailable.into());
+            let text = usage.map_or_else(
+                || unavailable.into(),
+                |usage| gtk::glib::format_size(usage.bytes),
+            );
             size.set_label(&text);
         }
         if let Some(button) = self.clear.upgrade() {

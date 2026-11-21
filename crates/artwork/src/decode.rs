@@ -326,51 +326,6 @@ fn encode_png(image: &DynamicImage) -> Result<Vec<u8>, ArtworkError> {
     Ok(bytes.into_inner())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn wide_png() -> Vec<u8> {
-        let image = DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
-            400,
-            200,
-            image::Rgb([20, 40, 60]),
-        ));
-        encode_png(&image).expect("encode fixture")
-    }
-
-    #[test]
-    fn decoding_preserves_aspect_ratio_and_preview_colors() {
-        let decoded = decode_rgba(&wide_png(), 100).expect("decode image");
-        assert_eq!((decoded.width(), decoded.height()), (200, 100));
-        assert_eq!(decoded.row_stride(), 800);
-        let preview = RgbaImage::from_blur_hash(&decoded.blur_hash().unwrap()).unwrap();
-        assert_eq!(
-            (preview.width(), preview.height(), preview.row_stride()),
-            (32, 32, 128)
-        );
-        let encoded = preview.encode_png().unwrap();
-        assert_eq!(decode_rgba(&encoded, 32).unwrap().rgba(), preview.rgba());
-        assert!(RgbaImage::from_blur_hash("invalid").is_err());
-    }
-
-    #[test]
-    fn cover_scaling_fills_the_short_side_and_caps_banners() {
-        assert_eq!(cover_dimensions(400, 200, 100), Some((200, 100)));
-        assert_eq!(cover_dimensions(200, 100, 100), None);
-        assert_eq!(cover_dimensions(6000, 200, 256), Some((1024, 34)));
-        assert_eq!(cover_dimensions(800, 200, 256), None);
-        assert_eq!(cover_dimensions(0, 200, 256), None);
-    }
-
-    #[test]
-    fn square_thumbnail_crops_before_scaling() {
-        let thumbnail = square_thumbnail_png(&wide_png(), 64).expect("make thumbnail");
-        let decoded = decode_rgba(&thumbnail, 64).expect("decode thumbnail");
-        assert_eq!((decoded.width(), decoded.height()), (64, 64));
-    }
-}
-
 pub(crate) fn decode_error(error: impl std::fmt::Display) -> ArtworkError {
     ArtworkError::Decode(error.to_string())
 }
@@ -516,4 +471,49 @@ pub fn image_mime(bytes: &[u8]) -> Option<&'static str> {
         "jxl" => "image/jxl",
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn wide_png() -> Vec<u8> {
+        let image = DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            400,
+            200,
+            image::Rgb([20, 40, 60]),
+        ));
+        encode_png(&image).expect("encode fixture")
+    }
+
+    #[test]
+    fn decoding_preserves_aspect_ratio_and_preview_colors() {
+        let decoded = decode_rgba(&wide_png(), 100).expect("decode image");
+        assert_eq!((decoded.width(), decoded.height()), (200, 100));
+        assert_eq!(decoded.row_stride(), 800);
+        let preview = RgbaImage::from_blur_hash(&decoded.blur_hash().unwrap()).unwrap();
+        assert_eq!(
+            (preview.width(), preview.height(), preview.row_stride()),
+            (32, 32, 128)
+        );
+        let encoded = preview.encode_png().unwrap();
+        assert_eq!(decode_rgba(&encoded, 32).unwrap().rgba(), preview.rgba());
+        assert!(RgbaImage::from_blur_hash("invalid").is_err());
+    }
+
+    #[test]
+    fn cover_scaling_fills_the_short_side_and_caps_banners() {
+        assert_eq!(cover_dimensions(400, 200, 100), Some((200, 100)));
+        assert_eq!(cover_dimensions(200, 100, 100), None);
+        assert_eq!(cover_dimensions(6000, 200, 256), Some((1024, 34)));
+        assert_eq!(cover_dimensions(800, 200, 256), None);
+        assert_eq!(cover_dimensions(0, 200, 256), None);
+    }
+
+    #[test]
+    fn square_thumbnail_crops_before_scaling() {
+        let thumbnail = square_thumbnail_png(&wide_png(), 64).expect("make thumbnail");
+        let decoded = decode_rgba(&thumbnail, 64).expect("decode thumbnail");
+        assert_eq!((decoded.width(), decoded.height()), (64, 64));
+    }
 }

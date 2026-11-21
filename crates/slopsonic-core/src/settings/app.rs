@@ -114,7 +114,7 @@ pub struct RecentSearchResult {
 
 macro_rules! preference_group {
     ($(#[$record_attribute:meta])* $name:ident, { $( $(#[$attribute:meta])* $field:ident: $ty:ty = $default:expr; )* }) => {
-        #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+        #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
         $(#[$record_attribute])*
         pub struct $name { $( $(#[$attribute])* pub $field: $ty, )* }
         impl Default for $name {
@@ -157,7 +157,7 @@ preference_group!(PlayerDisplayPreferences, {
     fullscreen_background_image: bool = true;
 });
 
-preference_group!(#[derive(Eq)] AppearancePreferences, {
+preference_group!(AppearancePreferences, {
     theme_preference: ThemePreference = ThemePreference::System;
     #[serde(default)]
     accent_preference: AccentPreference = AccentPreference::System;
@@ -273,8 +273,10 @@ impl Settings {
         self.library_lists
             .iter()
             .find(|entry| entry.key == key)
-            .map(|entry| entry.settings.clone())
-            .unwrap_or_else(|| LibraryListSettings::for_key(key))
+            .map_or_else(
+                || LibraryListSettings::for_key(key),
+                |entry| entry.settings.clone(),
+            )
     }
 
     pub fn set_download_rules(&mut self, rules: DownloadRules) -> bool {

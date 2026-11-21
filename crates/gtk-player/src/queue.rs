@@ -224,6 +224,12 @@ impl QueueState {
     }
 }
 
+impl Default for QueueState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone)]
 pub struct QueueSelectionSnapshot {
     pub selection: QueueSelection,
@@ -303,7 +309,7 @@ fn install_queue_row_interactions(
         .build();
     let preview = MediaDragPreviewBinding::default();
     preview.connect(&source);
-    let drag_preview = preview.clone();
+    let drag_preview = preview;
     let weak_cover = cover;
     let source_item = item.downgrade();
     let source_shell = Rc::downgrade(shell);
@@ -315,7 +321,7 @@ fn install_queue_row_interactions(
         let selection = shell.selected_queue().dragged_rows_for(&position)?;
         let artwork = weak_cover
             .as_ref()
-            .and_then(|weak| weak.upgrade())
+            .and_then(gtk_widgets::artwork::ArtworkTileWeak::upgrade)
             .and_then(|tile| tile.drag_paintable_source().paintable());
         drag_preview.prepare(row.track.metadata.title.clone(), artwork);
         Some(media_drag_content_provider(MediaDragSource::Queue {
@@ -358,7 +364,7 @@ fn install_queue_row_interactions(
             };
             let queue_position = row.position;
             let selection = shell.selected_queue().selected_rows_for(&queue_position);
-            (shell.open_queue_menu)(target, row.clone(), selection, position);
+            (shell.open_queue_menu)(target, row, selection, position);
         }),
     );
 }
@@ -808,7 +814,7 @@ pub(super) fn configure_queue_columns(
     table: &gtk::ColumnView,
     key: LibraryListKey,
 ) -> Vec<(gtk::ColumnViewColumn, i32)> {
-    let settings = shell.settings.current.borrow().library_list(key).clone();
+    let settings = shell.settings.current.borrow().library_list(key);
     gtk_widgets::display::apply(table, &settings.display);
     while let Some(column) = table
         .columns()

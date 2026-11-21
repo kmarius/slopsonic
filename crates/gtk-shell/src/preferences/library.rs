@@ -165,13 +165,10 @@ fn source_downloads_group(shell: &Rc<Preferences>, dialog: &adw::Dialog) -> adw:
         pause_downloads: gtk::Button,
     });
     let download_settings = shell.settings.current.borrow().downloads.clone();
-    download_folder_row.set_subtitle(
-        &download_settings
-            .directory
-            .as_ref()
-            .map(|directory| directory.to_string_lossy().into_owned())
-            .unwrap_or_else(|| String::from(DEFAULT_DOWNLOAD_DIRECTORY_SUBTITLE)),
-    );
+    download_folder_row.set_subtitle(&download_settings.directory.as_ref().map_or_else(
+        || String::from(DEFAULT_DOWNLOAD_DIRECTORY_SUBTITLE),
+        |directory| directory.to_string_lossy().into_owned(),
+    ));
     reset_folder.set_visible(download_settings.directory.is_some());
     let weak = Rc::downgrade(shell);
     open_folder.connect_clicked(move |_| {
@@ -649,7 +646,7 @@ fn add_download_queue(group: &adw::PreferencesGroup, shell: &Rc<Preferences>, pa
                     .queue
                     .is_some_and(|queue| (position as u64 + 1) < queue.total_jobs),
             );
-            *current.borrow_mut() = Some(job.clone());
+            *current.borrow_mut() = Some(job);
         });
         let update = refresh.clone();
         item.connect_item_notify(move |item| bind_sparse_item(item, update.clone()));
@@ -804,8 +801,7 @@ fn source_summary_subtitle(
         .to_string();
     let folder = summary
         .and_then(|summary| summary.selected_music_folder_name.as_deref())
-        .map(ToOwned::to_owned)
-        .unwrap_or_else(|| "All Music".to_string());
+        .map_or_else(|| "All Music".to_string(), ToOwned::to_owned);
     let account = username
         .filter(|username| !username.trim().is_empty())
         .map(|username| format!("User: {username}"))

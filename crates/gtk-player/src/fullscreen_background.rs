@@ -230,3 +230,9 @@ impl FullscreenBackground {
         }
     }
 }
+
+impl Default for FullscreenBackground {
+    fn default() -> Self {
+        Self::new()
+    }
+}

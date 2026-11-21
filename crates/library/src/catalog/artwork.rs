@@ -43,7 +43,7 @@ pub(crate) async fn write_images(
         .build_query_scalar::<String>()
         .fetch_all(&mut *connection)
         .await?;
-    if kind == "track" {}
+
     Ok(!ids.is_empty())
 }
 

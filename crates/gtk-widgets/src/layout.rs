@@ -42,8 +42,9 @@ mod allocation_owner_imp {
             }
             self.obj()
                 .first_child()
-                .map(|child| child.request_mode())
-                .unwrap_or(gtk::SizeRequestMode::ConstantSize)
+                .map_or(gtk::SizeRequestMode::ConstantSize, |child| {
+                    child.request_mode()
+                })
         }
 
         fn measure(&self, orientation: gtk::Orientation, for_size: i32) -> (i32, i32, i32, i32) {

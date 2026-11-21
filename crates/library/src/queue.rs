@@ -47,7 +47,7 @@ pub struct QueueRow {
     pub provenance: QueueProvenance,
 }
 
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct QueueEntry {
     pub track_key: crate::TrackKey,
     pub provenance: QueueProvenance,
@@ -197,7 +197,7 @@ impl QueueLoad {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QueueEntries {
     pub entries: Vec<QueueEntry>,
     pub anchor_index: Option<usize>,

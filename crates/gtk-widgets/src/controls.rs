@@ -26,6 +26,7 @@ pub fn configure_search_entry(entry: &gtk::SearchEntry) {
 }
 
 /// For entries that narrow the visible list rather than search the library.
+///
 /// Call before connecting `search-changed` handlers: changing the delay makes GTK emit one
 /// spurious empty `search-changed`, which is swallowed here.
 pub fn configure_filter_entry(entry: &gtk::SearchEntry) {

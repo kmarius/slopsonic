@@ -35,7 +35,7 @@ pub struct TrackMetadata {
 }
 
 /// None on TrackMetadata means the old cache never observed raw album tags.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AlbumTags {
     pub sort_text: String,
@@ -43,7 +43,7 @@ pub struct AlbumTags {
     pub release_types: Vec<String>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AlbumMetadata {
     pub title: String,

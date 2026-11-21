@@ -91,7 +91,6 @@ mod tests {
             appearance: slopsonic_core::settings::AppearancePreferences {
                 theme_preference: theme,
                 accent_preference: accent,
-                ..Default::default()
             },
             ..Settings::default()
         };

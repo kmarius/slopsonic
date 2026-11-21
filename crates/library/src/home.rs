@@ -73,7 +73,7 @@ impl HomeEntryKind {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HomeEntryInput {
     pub position: i64,
     pub kind: HomeEntryKind,
@@ -88,7 +88,7 @@ pub struct HomeTrackRow {
     pub title: String,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HomeAlbumRow {
     pub album: AlbumView,
     pub title: String,

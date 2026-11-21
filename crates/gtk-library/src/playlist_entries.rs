@@ -307,7 +307,7 @@ fn install_playlist_entry_drag(
     drag_source.set_propagation_phase(gtk::PropagationPhase::Capture);
     let preview = MediaDragPreviewBinding::default();
     preview.connect(&drag_source);
-    let drag_preview = preview.clone();
+    let drag_preview = preview;
     let drag_shell = Rc::downgrade(shell);
     let drag_current = Rc::clone(&current);
     drag_source.connect_prepare(move |_, _, _| {

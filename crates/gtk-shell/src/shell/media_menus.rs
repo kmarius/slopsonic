@@ -53,10 +53,10 @@ pub(super) fn build(
             Rc::new(move |feedback, undo| {
                 if let Some(shell) = weak.upgrade() {
                     if let Some(undo) = undo {
-                        shell.show_undoable_operation_feedback(feedback, move || undo());
+                        shell.show_undoable_operation_feedback(feedback, undo);
                     } else {
                         shell.show_operation_feedback(feedback);
-                    };
+                    }
                 }
             })
         },

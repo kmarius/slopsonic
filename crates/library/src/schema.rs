@@ -12,7 +12,7 @@ pub(crate) async fn pragma(
             .await?,
     )
 }
-pub(crate) const STORE_SCHEMA: &str = r#"PRAGMA application_id = 1381320270;
+pub(crate) const STORE_SCHEMA: &str = r"PRAGMA application_id = 1381320270;
 
 CREATE TABLE IF NOT EXISTS queue_contexts (
     context_key INTEGER PRIMARY KEY,
@@ -434,7 +434,7 @@ CREATE TRIGGER IF NOT EXISTS server_required_playlists BEFORE INSERT ON playlist
 CREATE TRIGGER IF NOT EXISTS server_required_home_entries BEFORE INSERT ON home_entries WHEN NOT EXISTS(SELECT 1 FROM sources) BEGIN SELECT RAISE(ABORT,'no server is configured'); END;
 CREATE TRIGGER IF NOT EXISTS server_required_tracks BEFORE INSERT ON tracks WHEN NEW.object_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM sources) BEGIN SELECT RAISE(ABORT,'no server is configured'); END;
 CREATE TRIGGER IF NOT EXISTS server_required_track_claims BEFORE UPDATE OF object_id ON tracks WHEN NEW.object_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM sources) BEGIN SELECT RAISE(ABORT,'no server is configured'); END;
-"#;
+";
 
 const BASE_VERSION: i64 = 76;
 

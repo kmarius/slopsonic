@@ -29,13 +29,16 @@ impl PlaybackUpdates {
     pub fn current(&self) -> Option<Arc<PlaybackView>> {
         self.0
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .current
             .clone()
     }
 
     pub fn subscribe(&self) -> PlaybackSubscription {
-        let mut updates = self.0.lock().unwrap_or_else(|p| p.into_inner());
+        let mut updates = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let pending = Arc::new(Mutex::new(Pending {
             publication: updates.current.as_ref().map(|view| PlaybackProjection {
                 view: (**view).clone(),
@@ -52,13 +55,18 @@ impl PlaybackUpdates {
     }
 
     pub fn publish(&self, publication: PlaybackProjection) {
-        let mut updates = self.0.lock().unwrap_or_else(|p| p.into_inner());
+        let mut updates = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         updates.current = Some(Arc::new(publication.view.clone()));
         updates.subscribers.retain(|(pending, changed)| {
             let Some(pending) = pending.upgrade() else {
                 return false;
             };
-            let mut pending = pending.lock().unwrap_or_else(|p| p.into_inner());
+            let mut pending = pending
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             pending.cleared = false;
             if let Some(previous) = pending.publication.as_mut() {
                 previous.view = publication.view.clone();
@@ -72,13 +80,18 @@ impl PlaybackUpdates {
     }
 
     pub fn clear(&self) {
-        let mut updates = self.0.lock().unwrap_or_else(|p| p.into_inner());
+        let mut updates = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         updates.current = None;
         updates.subscribers.retain(|(pending, changed)| {
             let Some(pending) = pending.upgrade() else {
                 return false;
             };
-            let mut pending = pending.lock().unwrap_or_else(|p| p.into_inner());
+            let mut pending = pending
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             // Deliver unread notices before the cleared state; ordinary ticks
             // have no information to retain once playback is gone.
             if pending
@@ -101,7 +114,10 @@ impl PlaybackSubscription {
         loop {
             self.changed.borrow_and_update();
             {
-                let mut pending = self.pending.lock().unwrap_or_else(|p| p.into_inner());
+                let mut pending = self
+                    .pending
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 if let Some(publication) = pending.publication.take() {
                     return Ok(Some(publication));
                 }

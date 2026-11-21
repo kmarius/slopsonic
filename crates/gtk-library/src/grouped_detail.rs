@@ -141,7 +141,7 @@ impl CatalogUi {
             initial_width: content_width,
             compact_spacing: 22,
             wide_spacing: 22,
-            cover: cover.clone(),
+            cover,
             cover_controls,
             context_menu,
             open_cover: {

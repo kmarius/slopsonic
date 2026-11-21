@@ -114,7 +114,7 @@ impl CatalogUi {
                     Ok(page)
                 })
             });
-        let applied = Rc::new(RefCell::new(captured.clone()));
+        let applied = Rc::new(RefCell::new(captured));
         let load_request = Rc::clone(&applied);
         let row_database = self.library.clone();
         let sparse = SparseRouteModel::new(
@@ -145,12 +145,12 @@ impl CatalogUi {
         search.set_placeholder_text(Some("Filter"));
         let mut page = self.library_page_shell(LibraryPageShellOptions {
             key,
-            empty: sparse.len() == 0,
+            empty: sparse.is_empty(),
             empty_body,
             search: search.clone(),
             has_visible_results: {
                 let sparse = Rc::clone(&sparse);
-                Rc::new(move || sparse.len() != 0)
+                Rc::new(move || !sparse.is_empty())
             },
             content: content.scrolling_widget(),
         });
@@ -178,7 +178,7 @@ impl CatalogUi {
                             first_row_position,
                             rows: first_rows,
                         }) => {
-                            applied.replace(request.clone());
+                            applied.replace(request);
                             let row_key = Rc::clone(&row_key);
                             if !sparse.replace_prepared_at(
                                 SparseSource::Query { count },
@@ -193,7 +193,7 @@ impl CatalogUi {
                             let settings = shell.settings.current.borrow().library_list(key);
                             content.apply_settings(&settings);
                             page.apply_library_list_settings(key, &settings);
-                            page.set_empty(sparse.len() == 0);
+                            page.set_empty(sparse.is_empty());
                         }
                         Err(error) => tracing::warn!(%error, "failed to refresh named collection"),
                     }
@@ -453,8 +453,7 @@ impl NamedCollectionRow for GenreView {
     fn artwork(&self) -> Vec<artwork::ArtworkBinding> {
         self.artwork_binding
             .as_ref()
-            .map(std::slice::from_ref)
-            .unwrap_or(&self.representative_artwork)
+            .map_or(self.representative_artwork.as_slice(), std::slice::from_ref)
             .iter()
             .map(|binding| artwork::ArtworkBinding::opaque(binding))
             .collect()
@@ -964,12 +963,9 @@ fn named_collection_column<T: NamedCollectionRow>(
                 Some(factory),
             )
         }
-        _ => {
-            let column = text_column::<T, _>(field, named_column_width(key, field), move |row| {
-                row.field(field)
-            });
-            column
-        }
+        _ => text_column::<T, _>(field, named_column_width(key, field), move |row| {
+            row.field(field)
+        }),
     };
     if field != LibraryField::Tools {
         let shell = Rc::downgrade(shell);

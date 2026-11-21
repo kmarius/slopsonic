@@ -49,10 +49,10 @@ impl TranscodePipeline {
             }
         };
         let mut raw = Vec::new();
-        if encoding.codec != AudioCodec::Flac {
-            raw.push("rate=48000");
-        } else {
+        if encoding.codec == AudioCodec::Flac {
             raw.push("format=S24LE");
+        } else {
+            raw.push("rate=48000");
         }
         if encoding.stereo() {
             raw.push("channels=2");
@@ -180,7 +180,7 @@ pub fn transcode_audio(
                 let http_source = error
                     .src()
                     .and_then(|source| source.downcast_ref::<gst::Element>())
-                    .and_then(|source| source.factory())
+                    .and_then(gstreamer::prelude::ElementExt::factory)
                     .is_some_and(|factory| factory.name() == "souphttpsrc");
                 let error = error.error();
                 let kind = match error.kind::<gst::ResourceError>() {

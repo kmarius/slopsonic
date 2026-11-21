@@ -163,14 +163,14 @@ pub(crate) fn populate_context_picker<Key: Clone + 'static>(
     list.set_model(Some(&selection));
     list.set_factory(Some(&factory));
 
-    let search_filter = filter.clone();
+    let search_filter = filter;
     search.connect_search_changed(move |search| {
         *query.borrow_mut() = search.text().trim().to_lowercase();
         search_filter.changed(gtk::FilterChange::Different);
     });
 
     create_playlist.connect_clicked(move |_| create(search.text().trim().to_owned()));
-    let activate_model = filtered.clone();
+    let activate_model = filtered;
     list.connect_activate(move |_, position| {
         if let Some(choice) = activate_model
             .item(position)
@@ -256,7 +256,7 @@ pub fn playlist_picker_dialog(
 
     let filter_rows = Rc::clone(&rows);
     let filter_create = create.clone();
-    let filter_create_label = create_label.clone();
+    let filter_create_label = create_label;
     let filter_add = add.clone();
     search.connect_search_changed(move |entry| {
         let text = entry.text();
@@ -270,7 +270,7 @@ pub fn playlist_picker_dialog(
         filter_add.set_sensitive(filter_rows.borrow().iter().any(|row| row.check.is_active()));
     });
     let create_tracks = selection.clone();
-    let create_search = search.clone();
+    let create_search = search;
     create.connect_clicked(move |_| {
         let name = create_search.text().trim().to_string();
         if !name.is_empty() {

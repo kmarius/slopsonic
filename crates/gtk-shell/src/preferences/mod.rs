@@ -447,7 +447,7 @@ fn build_preferences_dialog(
     let page_dialog = dialog.downgrade();
     let page_slots_for_switch = Rc::clone(&page_slots);
     let navigation_controls_for_switch = navigation_controls.clone();
-    let credential_drafts_for_switch = credential_drafts.clone();
+    let credential_drafts_for_switch = credential_drafts;
     stack.connect_visible_child_name_notify(move |stack| {
         let Some(page_dialog) = page_dialog.upgrade() else {
             return;
@@ -496,7 +496,7 @@ fn build_preferences_dialog(
     let show_navigation = navigation_controls.clone();
     show.connect_activate(move |_, value| {
         let Some((name, add_server, downloads)) =
-            value.and_then(|value| value.get::<(String, bool, bool)>())
+            value.and_then(gtk::glib::Variant::get::<(String, bool, bool)>)
         else {
             return;
         };
@@ -517,15 +517,13 @@ fn build_preferences_dialog(
                 navigation.push(&shell.add_server_navigation_page(&dialog));
                 show_navigation.set_nested_page_visible(true);
             }
-        } else if downloads {
-            if let Some(slot) = stack.visible_child() {
-                let slot = slot.downgrade();
-                gtk::glib::idle_add_local_once(move || {
-                    if let Some(slot) = slot.upgrade() {
-                        focus_named_widget(&slot, "download-queue");
-                    }
-                });
-            }
+        } else if downloads && let Some(slot) = stack.visible_child() {
+            let slot = slot.downgrade();
+            gtk::glib::idle_add_local_once(move || {
+                if let Some(slot) = slot.upgrade() {
+                    focus_named_widget(&slot, "download-queue");
+                }
+            });
         }
     });
     actions.add_action(&show);
@@ -568,11 +566,11 @@ fn build_preferences_dialog(
 
     let search_items_for_entry = Rc::clone(&search_items);
     let rendered_rows_for_entry = Rc::clone(&rendered_search_rows);
-    let results_group_for_entry = search_results_group.clone();
+    let results_group_for_entry = search_results_group;
     let page_stack_for_entry = stack.downgrade();
     let content_stack_for_entry = content_stack.downgrade();
     let search_button_for_entry = search_button.downgrade();
-    let navigation_for_entry = navigation_controls.clone();
+    let navigation_for_entry = navigation_controls;
     search_entry.connect_search_changed(move |entry| {
         let Some(content_stack) = content_stack_for_entry.upgrade() else {
             return;
@@ -717,20 +715,6 @@ fn preferences_search_matches(searchable_text: &str, query: &str) -> bool {
         .all(|term| searchable_text.contains(&term))
 }
 
-#[cfg(test)]
-mod search_tests {
-    use super::preferences_search_matches;
-
-    #[test]
-    fn preference_search_matches_terms_across_row_context() {
-        let searchable = "show app window general";
-
-        assert!(preferences_search_matches(searchable, "window general"));
-        assert!(preferences_search_matches(searchable, "GENERAL APP"));
-        assert!(!preferences_search_matches(searchable, "window playback"));
-    }
-}
-
 fn mount_preferences_page(
     shell: &Rc<Preferences>,
     dialog: &adw::Dialog,
@@ -794,18 +778,16 @@ fn general_page(shell: &Rc<Preferences>) -> gtk::Widget {
                 &mut settings.application.prefer_distinct_track_covers
             })
             .is_some()
-        {
-            if distinct_track_covers_shell
+            && distinct_track_covers_shell
                 .products
                 .source
                 .selected_library()
                 .is_some()
-            {
-                let source = distinct_track_covers_shell.products.source.clone();
-                gtk::glib::spawn_future_local(async move {
-                    let _ = source.refresh_server(false).await;
-                });
-            }
+        {
+            let source = distinct_track_covers_shell.products.source.clone();
+            gtk::glib::spawn_future_local(async move {
+                let _ = source.refresh_server(false).await;
+            });
         }
     });
 
@@ -886,7 +868,7 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
                     settings.layout.default_profile.left_sidebar = mode;
                     true
                 });
-            default_left_shell.with_shell(|shell| shell.update_layout());
+            default_left_shell.with_shell(super::shell::Shell::update_layout);
         },
     );
     group.add(&default_left_row);
@@ -907,7 +889,7 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
                     settings.layout.sanitize();
                     true
                 });
-            default_right_shell.with_shell(|shell| shell.update_layout());
+            default_right_shell.with_shell(super::shell::Shell::update_layout);
         },
     );
     group.add(&default_right_row);
@@ -938,7 +920,7 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
                 settings.layout.sanitize();
                 true
             });
-        threshold_shell.with_shell(|shell| shell.update_layout());
+        threshold_shell.with_shell(super::shell::Shell::update_layout);
     });
     group.add(&threshold_row);
 
@@ -957,7 +939,7 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
                     settings.layout.narrow_profile.left_sidebar = mode;
                     true
                 });
-            narrow_left_shell.with_shell(|shell| shell.update_layout());
+            narrow_left_shell.with_shell(super::shell::Shell::update_layout);
         },
     );
     narrow_left_row.set_sensitive(settings.layout.narrow_enabled);
@@ -979,15 +961,15 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
                     settings.layout.sanitize();
                     true
                 });
-            narrow_right_shell.with_shell(|shell| shell.update_layout());
+            narrow_right_shell.with_shell(super::shell::Shell::update_layout);
         },
     );
     narrow_right_row.set_sensitive(settings.layout.narrow_enabled);
     group.add(&narrow_right_row);
 
-    let threshold_row_for_toggle = threshold_row.clone();
-    let narrow_left_row_for_toggle = narrow_left_row.clone();
-    let narrow_right_row_for_toggle = narrow_right_row.clone();
+    let threshold_row_for_toggle = threshold_row;
+    let narrow_left_row_for_toggle = narrow_left_row;
+    let narrow_right_row_for_toggle = narrow_right_row;
     let narrow_shell = Rc::clone(shell);
     narrow_row.connect_active_notify(move |row| {
         let enabled = row.is_active();
@@ -1003,7 +985,7 @@ fn populate_layout_group(shell: &Rc<Preferences>, builder: &gtk::Builder) {
                 settings.layout.narrow_enabled = enabled;
                 true
             });
-        narrow_shell.with_shell(|shell| shell.update_layout());
+        narrow_shell.with_shell(super::shell::Shell::update_layout);
     });
 }
 fn configure_sidebar_items_expander(
@@ -1026,7 +1008,7 @@ fn configure_sidebar_items_expander(
             })
             .is_some()
         {
-            pins_shell.with_shell(|shell| shell.rebuild_sidebar_navigation());
+            pins_shell.with_shell(super::shell::Shell::rebuild_sidebar_navigation);
         }
     });
     let rows = Rc::new(RefCell::new(
@@ -1034,7 +1016,7 @@ fn configure_sidebar_items_expander(
     ));
     let shell = Rc::clone(shell);
     let pins = pins.clone();
-    populate_expander_once(&expander, move |expander| {
+    populate_expander_once(expander, move |expander| {
         populate_sidebar_item_rows(&shell, expander, &rows, &pins);
     });
 }
@@ -1080,7 +1062,7 @@ fn sidebar_item_row(
             .update_app_settings("sidebar setting", |settings| {
                 settings.sidebar.set_route_visible(entry.item, is_visible)
             });
-        visible_shell.with_shell(|shell| shell.rebuild_sidebar_navigation());
+        visible_shell.with_shell(super::shell::Shell::rebuild_sidebar_navigation);
         if let Some(expander) = visible_expander.upgrade() {
             populate_sidebar_item_rows(&visible_shell, &expander, &visible_rows, &visible_pins);
         }
@@ -1117,7 +1099,7 @@ fn sidebar_item_row(
             })
             .is_some();
         if changed {
-            drop_shell.with_shell(|shell| shell.rebuild_sidebar_navigation());
+            drop_shell.with_shell(super::shell::Shell::rebuild_sidebar_navigation);
             populate_sidebar_item_rows(&drop_shell, &expander, &rows, &drop_pins);
         }
         changed
@@ -1144,7 +1126,7 @@ fn move_sidebar_item(shell: &Rc<Preferences>, item: SidebarRouteItem, delta: isi
         .update_app_settings("sidebar setting", |settings| {
             settings.sidebar.move_route(item, delta)
         });
-    shell.with_shell(|shell| shell.rebuild_sidebar_navigation());
+    shell.with_shell(super::shell::Shell::rebuild_sidebar_navigation);
 }
 fn sidebar_route_item_subtitle(entry: &SidebarRouteItemSettings, position: usize) -> String {
     let state = visibility_position_subtitle(entry.visible, position);
@@ -1162,27 +1144,25 @@ fn open_folder(shell: &Rc<Preferences>, folder: gtk::gio::File) {
             if let Err(error) = folder
                 .make_directory_future(gtk::glib::Priority::DEFAULT)
                 .await
+                && !error.matches(gtk::gio::IOErrorEnum::Exists)
             {
-                if !error.matches(gtk::gio::IOErrorEnum::Exists) {
-                    return Err(error);
-                }
+                return Err(error);
             }
             gtk::FileLauncher::new(Some(&folder))
                 .launch_future(Some(&shell.window))
                 .await
         }
         .await;
-        if let Err(error) = result {
-            if !error.matches(gtk::DialogError::Dismissed)
-                && !error.matches(gtk::DialogError::Cancelled)
-            {
-                shell
-                    .control_feedback
-                    .show_feedback_toast(slopsonic_core::text::fill(
-                        "Could not open folder: {error}",
-                        &[("error", &error.to_string())],
-                    ));
-            }
+        if let Err(error) = result
+            && !error.matches(gtk::DialogError::Dismissed)
+            && !error.matches(gtk::DialogError::Cancelled)
+        {
+            shell
+                .control_feedback
+                .show_feedback_toast(slopsonic_core::text::fill(
+                    "Could not open folder: {error}",
+                    &[("error", &error.to_string())],
+                ));
         }
     });
 }
@@ -1199,4 +1179,18 @@ fn focus_named_widget(widget: &gtk::Widget, name: &str) -> bool {
         }
     }
     false
+}
+
+#[cfg(test)]
+mod search_tests {
+    use super::preferences_search_matches;
+
+    #[test]
+    fn preference_search_matches_terms_across_row_context() {
+        let searchable = "show app window general";
+
+        assert!(preferences_search_matches(searchable, "window general"));
+        assert!(preferences_search_matches(searchable, "GENERAL APP"));
+        assert!(!preferences_search_matches(searchable, "window playback"));
+    }
 }

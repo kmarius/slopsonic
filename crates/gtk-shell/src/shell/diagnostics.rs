@@ -65,7 +65,7 @@ pub(super) fn present_diagnostics(shell: &Rc<Shell>) {
     let mut start_character = initial.start_character;
     let diagnostics = shell.diagnostics.clone();
     let buffer = log.buffer();
-    let refresh_scroller = scroller.clone();
+    let refresh_scroller = scroller;
     let refresh = glib::timeout_add_local(LOG_REFRESH_INTERVAL, move || {
         let update = diagnostics.updates(cursor);
         if update.end != cursor {
@@ -108,7 +108,7 @@ pub(super) fn present_diagnostics(shell: &Rc<Shell>) {
 
     let save_window = shell.chrome.window.clone();
     let save_buffer = log.buffer();
-    let save_status = status.clone();
+    let save_status = status;
     save.connect_clicked(move |_| {
         let window = save_window.clone();
         let buffer = save_buffer.clone();

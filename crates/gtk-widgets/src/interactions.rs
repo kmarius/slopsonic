@@ -949,10 +949,10 @@ pub fn align_topbar_popup(popover: &impl IsA<gtk::Popover>) {
     };
     let right = bounds.x() + bounds.width() / 2.0 >= root.width() as f32 / 2.0;
     let rtl = popover.direction() == gtk::TextDirection::Rtl;
-    popover.set_halign(if right != rtl {
-        gtk::Align::End
-    } else {
+    popover.set_halign(if right == rtl {
         gtk::Align::Start
+    } else {
+        gtk::Align::End
     });
     // Keep the arrow aimed at the button while aligning the body to the window edge.
     popover.set_pointing_to(None);

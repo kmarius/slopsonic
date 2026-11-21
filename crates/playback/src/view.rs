@@ -35,7 +35,7 @@ pub struct CurrentMedia {
     pub row: Arc<QueueRow>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CurrentStream {
     pub local: bool,
     pub format: Option<String>,
@@ -101,7 +101,7 @@ pub struct PlaybackView {
     pub controls: ControlsView,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PlaybackNotice {
     PositionDiscontinuity(crate::PositionDiscontinuity),
     OperationFailed(String),

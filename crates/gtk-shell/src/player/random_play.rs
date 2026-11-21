@@ -43,9 +43,10 @@ pub(super) fn present_random_play_dialog(shell: &Rc<Shell>) {
         let Some(shell) = shell.upgrade() else {
             return;
         };
-        match task.await.ok().and_then(Result::ok) {
-            Some(genres) => present_random_play_dialog_loaded(&shell, selected, genres),
-            None => warn!("failed to load Random Play genres"),
+        if let Some(genres) = task.await.ok().and_then(Result::ok) {
+            present_random_play_dialog_loaded(&shell, selected, genres)
+        } else {
+            warn!("failed to load Random Play genres")
         }
     });
 }
@@ -306,7 +307,7 @@ pub(crate) fn play_saved_random(shell: &Rc<Shell>, placement: QueuePlacement) {
             Some(object_id) => database
                 .catalog_keys(
                     library::CatalogKind::Genre,
-                    &[(&object_id).to_string()],
+                    std::slice::from_ref(&object_id),
                     &cancellation,
                 )
                 .await

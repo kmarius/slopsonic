@@ -38,7 +38,7 @@ impl SelectedFeed {
         let mut pending = self
             .pending
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         *pending = Some(match pending.take() {
             Some(current) => current.merge(incoming),
             None => incoming,
@@ -65,7 +65,7 @@ impl SelectedFeed {
         if let Some(task) = self
             .remote_task
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take()
         {
             task.abort();
@@ -92,7 +92,7 @@ impl SelectedFeed {
             if self
                 .pending
                 .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .is_some()
             {
                 return true;
@@ -107,7 +107,7 @@ impl SelectedFeed {
         let change = self
             .pending
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take()
             .ok_or(SourceError::InvalidRequest(
                 "Selected feed has no pending change",
@@ -462,7 +462,7 @@ impl Source {
         }
         let freshness = self.freshness().await.ok().flatten();
         let cancelled_fn = || cancelled.load(Ordering::Acquire) || self.is_retired();
-        if self.is_retired() || (&cancelled_fn)() {
+        if self.is_retired() || cancelled_fn() {
             return Err(SourceError::Cancelled);
         }
         self.catalog_operation(database, async |changes| {
@@ -483,7 +483,7 @@ impl Source {
                     return Ok((false, freshness.clone()));
                 }
             }
-            let stamp = Some(changes.start_observation().await?);
+            let stamp = changes.start_observation().await?;
             let report = |value| progress(value);
             let source = &self.subsonic;
             let complete = source
@@ -493,11 +493,7 @@ impl Source {
                 return Err(SourceError::Cancelled);
             }
             changes
-                .complete_source_observation(
-                    stamp.unwrap(),
-                    &[],
-                    freshness.as_ref().filter(|_| complete),
-                )
+                .complete_source_observation(stamp, &[], freshness.as_ref().filter(|_| complete))
                 .await?;
             Ok((true, freshness.clone()))
         })
@@ -647,15 +643,15 @@ impl Source {
                     RemoteItemUpdate::Metadata => upserts.push(id),
                 }
             }
-            let metadata = async {
+
+            async {
                 if !upserts.is_empty() || !removals.is_empty() {
                     self.acquire_items(changes, upserts, removals).await?;
                     self.acquire_item_relations(changes).await?;
                 }
                 Ok(())
             }
-            .await;
-            metadata
+            .await
         })
         .await
     }
@@ -716,10 +712,10 @@ impl Source {
                         missing.push(self.item_request_id(kind, &entry.entity_object_id));
                     }
                 }
-                if !missing.is_empty() {
-                    if let Err(error) = self.acquire_items(changes, missing, Vec::new()).await {
-                        optional_collection_error(error)?;
-                    }
+                if !missing.is_empty()
+                    && let Err(error) = self.acquire_items(changes, missing, Vec::new()).await
+                {
+                    optional_collection_error(error)?;
                 }
                 if self.is_retired() {
                     return Err(SourceError::Cancelled);
@@ -810,7 +806,10 @@ impl Source {
                     tracing::warn!(%error, "Navidrome change feed stopped");
                 }
             });
-            *feed.remote_task.lock().unwrap_or_else(|p| p.into_inner()) = Some(task.abort_handle());
+            *feed
+                .remote_task
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(task.abort_handle());
         }
         feed
     }
@@ -825,8 +824,7 @@ impl Source {
 pub(crate) fn configured_source_name(configured: Option<String>, provider: String) -> String {
     configured
         .filter(|name| !name.trim().is_empty())
-        .map(|name| name.trim().to_string())
-        .unwrap_or(provider)
+        .map_or(provider, |name| name.trim().to_string())
 }
 
 pub(crate) fn comparable_address(value: &str) -> &str {

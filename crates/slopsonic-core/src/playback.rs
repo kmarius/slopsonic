@@ -59,7 +59,9 @@ fn enqueue_queue_save(
     sender: &async_channel::Sender<PlaybackStoreWork>,
     update: QueueUpdate,
 ) {
-    let mut pending = pending.lock().unwrap_or_else(|p| p.into_inner());
+    let mut pending = pending
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some(current) = pending.as_mut() {
         current.coalesce(update);
     } else {
@@ -73,7 +75,10 @@ async fn save_pending_queue(
     pending: &Mutex<Option<QueueUpdate>>,
     failed: &mut Option<QueueUpdate>,
 ) -> library::LibraryResult<()> {
-    let pending = pending.lock().unwrap_or_else(|p| p.into_inner()).take();
+    let pending = pending
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .take();
     let update = match (failed.take(), pending) {
         (Some(mut older), Some(newer)) => {
             older.coalesce(newer);
@@ -110,7 +115,7 @@ impl PlaybackOwner {
         let owner = Arc::new(Self {
             database,
             settings,
-            runtime: runtime.clone(),
+            runtime,
             updates: playback::PlaybackUpdates::default(),
             scrobbler,
             source: Mutex::new(std::sync::Weak::new()),
@@ -149,7 +154,7 @@ impl PlaybackOwner {
         *self
             .source
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Arc::downgrade(source);
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Arc::downgrade(source);
     }
 
     pub(crate) async fn start(self: &Arc<Self>) -> Result<PlaybackProjection, String> {
@@ -188,7 +193,10 @@ impl PlaybackOwner {
             owner,
         )
         .map_err(string_error)?;
-        *self.active.lock().unwrap_or_else(|p| p.into_inner()) = Some(playback.clone());
+        *self
+            .active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(playback);
         Ok(projection)
     }
 
@@ -215,7 +223,11 @@ impl PlaybackOwner {
     }
 
     fn take_active(&self) -> Option<Playback> {
-        let active = self.active.lock().unwrap_or_else(|p| p.into_inner()).take();
+        let active = self
+            .active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
         self.updates.clear();
         active
     }
@@ -412,14 +424,14 @@ impl PlaybackOwner {
     fn active(&self) -> Option<Playback> {
         self.active
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
     }
 
     fn server_owner(&self) -> Option<Arc<ServerOwner>> {
         self.source
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .upgrade()
     }
     fn send(&self, command: Command) {
@@ -506,7 +518,7 @@ impl PlaybackOwner {
         let source = self
             .source
             .lock()
-            .unwrap_or_else(|p| p.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone();
         let selected = source.upgrade().and_then(|owner| owner.selected_library());
         async move {
@@ -757,8 +769,7 @@ const fn next_repeat(value: RepeatMode) -> RepeatMode {
 pub(crate) fn random_u64() -> u64 {
     let mut bytes = [0; 8];
     getrandom::fill(&mut bytes)
-        .map(|()| u64::from_le_bytes(bytes))
-        .unwrap_or_else(|_| unix_seconds() as u64)
+        .map_or_else(|_| unix_seconds() as u64, |()| u64::from_le_bytes(bytes))
 }
 fn random_identity() -> String {
     format!("{:016x}{:016x}", random_u64(), random_u64())

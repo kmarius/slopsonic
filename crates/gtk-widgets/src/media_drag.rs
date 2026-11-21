@@ -24,7 +24,7 @@ impl CollectionTargets {
             Self::Parents(reads) => reads
                 .iter()
                 .flat_map(|(_, ranges)| ranges)
-                .map(|range| range.len())
+                .map(std::iter::ExactSizeIterator::len)
                 .sum(),
         }
     }
@@ -173,10 +173,10 @@ pub fn style_order_drop_target(
         row.add_css_class(if !order {
             "media-drop-row"
         } else if grid {
-            if after != (widget.direction() == gtk::TextDirection::Rtl) {
-                "order-drop-right"
-            } else {
+            if after == (widget.direction() == gtk::TextDirection::Rtl) {
                 "order-drop-left"
+            } else {
+                "order-drop-right"
             }
         } else if after {
             "order-drop-after"
@@ -607,9 +607,10 @@ impl MediaDragSource {
                 let target = prepared.as_ref().expect("prepared collection");
                 let title = selection_title(target.selection().as_ref());
                 DownloadSubject::Prepared {
-                    context_id: target.context().map(str::to_string).unwrap_or_else(|| {
-                        format!("track:{}", uris.first().map_or("", String::as_str))
-                    }),
+                    context_id: target.context().map_or_else(
+                        || format!("track:{}", uris.first().map_or("", String::as_str)),
+                        str::to_string,
+                    ),
                     title: Some(title),
                 }
             }

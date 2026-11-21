@@ -25,7 +25,7 @@ fn is_false(value: &bool) -> bool {
     !*value
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SidebarPinRow {
     pub pin: SidebarPin,
     pub key: i64,

@@ -139,15 +139,15 @@ mod surface_imp {
         fn request_mode(&self) -> gtk::SizeRequestMode {
             self.obj()
                 .first_child()
-                .map(|child| child.request_mode())
-                .unwrap_or(gtk::SizeRequestMode::ConstantSize)
+                .map_or(gtk::SizeRequestMode::ConstantSize, |child| {
+                    child.request_mode()
+                })
         }
 
         fn measure(&self, orientation: gtk::Orientation, for_size: i32) -> (i32, i32, i32, i32) {
             self.obj()
                 .first_child()
-                .map(|child| child.measure(orientation, for_size))
-                .unwrap_or((0, 0, -1, -1))
+                .map_or((0, 0, -1, -1), |child| child.measure(orientation, for_size))
         }
 
         fn size_allocate(&self, width: i32, height: i32, baseline: i32) {

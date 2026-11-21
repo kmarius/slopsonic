@@ -298,7 +298,7 @@ impl Artwork {
         *self
             .source_resolver
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(Arc::new(resolver));
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Arc::new(resolver));
     }
 
     pub fn key(&self, request: &ArtworkRequest) -> ArtworkKey {

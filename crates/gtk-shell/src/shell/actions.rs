@@ -71,7 +71,7 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
         gio::SimpleAction::new("navigate-sidebar", Some(glib::VariantTy::UINT32));
     let navigate_shell = Rc::clone(shell);
     navigate_sidebar.connect_activate(move |_, parameter| {
-        let Some(position) = parameter.and_then(|position| position.get::<u32>()) else {
+        let Some(position) = parameter.and_then(gtk::glib::Variant::get::<u32>) else {
             return;
         };
         if let Some(route) =
@@ -432,10 +432,10 @@ fn replace_pointer_shortcut_labels(container: &gtk::Widget) {
     let mut child = container.first_child();
     while let Some(widget) = child {
         child = widget.next_sibling();
-        if let Ok(label) = widget.clone().downcast::<adw::ShortcutLabel>() {
-            if label.accelerator().contains("Pointer_Button1") {
-                replace_pointer_keycaps(label.upcast_ref());
-            }
+        if let Ok(label) = widget.clone().downcast::<adw::ShortcutLabel>()
+            && label.accelerator().contains("Pointer_Button1")
+        {
+            replace_pointer_keycaps(label.upcast_ref());
         }
         replace_pointer_shortcut_labels(&widget);
     }

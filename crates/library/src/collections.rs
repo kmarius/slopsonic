@@ -34,14 +34,14 @@ pub struct GenreChoice {
     pub name: String,
 }
 
-#[derive(Clone, Debug, FromRow, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, FromRow, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct AlbumArtistLink {
     pub artist_key: ArtistKey,
     pub media_uri: String,
     pub name: String,
 }
 
-#[derive(Clone, Debug, FromRow, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, FromRow, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct AlbumGenreLink {
     pub genre_key: GenreKey,
     pub name: String,
@@ -56,7 +56,7 @@ pub enum AlbumReleaseClass {
     Other,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, FromRow)]
 pub struct CollectionSummary {
     pub album_count: i64,
     pub track_count: i64,
@@ -64,7 +64,7 @@ pub struct CollectionSummary {
     pub downloaded_count: i64,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, FromRow)]
 pub struct AlbumLinks {
     #[sqlx(json)]
     pub album_artists: Vec<AlbumArtistLink>,
@@ -72,7 +72,7 @@ pub struct AlbumLinks {
     pub genres: Vec<AlbumGenreLink>,
 }
 
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, FromRow)]
 pub struct AlbumView {
     pub album_key: AlbumKey,
     pub object_id: String,
@@ -89,7 +89,7 @@ pub struct AlbumView {
     pub release_lookup_identity: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, FromRow)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, FromRow)]
 pub struct ArtistView {
     pub artist_key: ArtistKey,
     pub object_id: String,
@@ -103,7 +103,7 @@ pub struct ArtistView {
     pub artwork_binding: Option<Vec<u8>>,
 }
 
-#[derive(Clone, Debug, PartialEq, FromRow)]
+#[derive(Clone, Debug, PartialEq, Eq, FromRow)]
 pub struct GenreView {
     pub genre_key: GenreKey,
     pub object_id: String,
@@ -116,7 +116,7 @@ pub struct GenreView {
     pub representative_artwork: Vec<Vec<u8>>,
 }
 
-#[derive(Clone, Debug, PartialEq, FromRow)]
+#[derive(Clone, Debug, PartialEq, Eq, FromRow)]
 pub struct MoodView {
     pub mood_key: MoodKey,
     #[sqlx(json)]
@@ -127,14 +127,14 @@ pub struct MoodView {
     pub representative_artwork: Vec<Vec<u8>>,
 }
 
-#[derive(Clone, Debug, FromRow, PartialEq)]
+#[derive(Clone, Debug, FromRow, PartialEq, Eq)]
 pub struct FolderChoice {
     pub folder_key: FolderKey,
     pub object_id: String,
     pub name: String,
 }
 
-#[derive(Clone, Debug, FromRow, PartialEq)]
+#[derive(Clone, Debug, FromRow, PartialEq, Eq)]
 pub struct FolderView {
     pub folder_key: FolderKey,
     pub object_id: String,

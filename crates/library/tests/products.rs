@@ -28,15 +28,15 @@ async fn artist_genre_and_sidebar_pins_keep_existing_membership_and_order() {
                             kind: library::ListKind::Artists {
                                 album_artist: albums,
                             },
-                            sort: sort,
-                            folder: folder,
+                            sort,
+                            folder,
                             filter: (filter).to_string(),
-                            descending: descending,
+                            descending,
                             favorites_only: false,
                             downloaded_only: false,
                             activity: true,
                         }
-                        .page_artists(&db, RouteSeedWindow::top(), &cancel)
+                        .page_artists(db, RouteSeedWindow::top(), &cancel)
                         .await
                         .map(|page| (page.count, page.first_row_position, page.rows))
                         .unwrap();
@@ -49,15 +49,15 @@ async fn artist_genre_and_sidebar_pins_keep_existing_membership_and_order() {
                                     kind: library::ListKind::Artists {
                                         album_artist: albums,
                                     },
-                                    sort: sort,
-                                    folder: folder,
+                                    sort,
+                                    folder,
                                     filter: (filter).to_string(),
-                                    descending: descending,
+                                    descending,
                                     favorites_only: false,
                                     downloaded_only: false,
                                     activity: true,
                                 }
-                                .artists(&db, offset, 1, &cancel)
+                                .artists(db, offset, 1, &cancel)
                                 .await
                                 .unwrap()
                                 .into_iter()
@@ -78,15 +78,15 @@ async fn artist_genre_and_sidebar_pins_keep_existing_membership_and_order() {
         for folder in [None, Some(fixture.folder)] {
             let (count, _, rows) = library::ListRead {
                 kind: library::ListKind::Genres,
-                sort: sort,
-                folder: folder,
-                filter: ("").to_string(),
+                sort,
+                folder,
+                filter: String::new(),
                 descending: false,
                 favorites_only: false,
                 downloaded_only: false,
                 activity: true,
             }
-            .page_genres(&db, RouteSeedWindow::top(), &cancel)
+            .page_genres(db, RouteSeedWindow::top(), &cancel)
             .await
             .map(|page| (page.count, page.first_row_position, page.rows))
             .unwrap();
@@ -97,15 +97,15 @@ async fn artist_genre_and_sidebar_pins_keep_existing_membership_and_order() {
                 actual.extend(
                     library::ListRead {
                         kind: library::ListKind::Genres,
-                        sort: sort,
-                        folder: folder,
-                        filter: ("").to_string(),
+                        sort,
+                        folder,
+                        filter: String::new(),
                         descending: false,
                         favorites_only: false,
                         downloaded_only: false,
                         activity: true,
                     }
-                    .genres(&db, offset, 1, &cancel)
+                    .genres(db, offset, 1, &cancel)
                     .await
                     .unwrap()
                     .into_iter()
@@ -117,7 +117,7 @@ async fn artist_genre_and_sidebar_pins_keep_existing_membership_and_order() {
     }
     let external = library::entity_uri("track", "outside-catalog");
     let (_, outside_id) =
-        super::support::server_playlist(&db, "Outside", std::slice::from_ref(&external)).await;
+        super::support::server_playlist(db, "Outside", std::slice::from_ref(&external)).await;
     let album_id = library::entity_parts(&fixture.album_uris[0]).unwrap().1;
     let artist_id = library::entity_parts(&fixture.artist_uris[0]).unwrap().1;
     let genre = db
@@ -183,11 +183,10 @@ async fn artist_genre_and_sidebar_pins_keep_existing_membership_and_order() {
     );
     assert_eq!(
         rows[3].artwork,
-        genre
-            .artwork_binding
-            .as_ref()
-            .map(std::slice::from_ref)
-            .unwrap_or(&genre.representative_artwork)
+        genre.artwork_binding.as_ref().map_or(
+            genre.representative_artwork.as_slice(),
+            std::slice::from_ref
+        )
     );
 }
 
@@ -239,15 +238,15 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
                 for filter in ["", "album"] {
                     let (count, _, rows) = library::ListRead {
                         kind: library::ListKind::Albums,
-                        sort: sort,
-                        folder: folder,
+                        sort,
+                        folder,
                         filter: (filter).to_string(),
-                        descending: descending,
+                        descending,
                         favorites_only: false,
                         downloaded_only: false,
                         activity: true,
                     }
-                    .page_albums(&database, RouteSeedWindow::top(), &cancel)
+                    .page_albums(database, RouteSeedWindow::top(), &cancel)
                     .await
                     .map(|page| (page.count, page.first_row_position, page.rows))
                     .unwrap();
@@ -271,15 +270,15 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
                                     filters: None,
                                     release_class: None
                                 },
-                                folder: folder,
+                                folder,
                                 filter: (filter).to_string(),
-                                sort: sort,
-                                descending: descending,
+                                sort,
+                                descending,
                                 activity: true,
                                 favorites_only: false,
                                 downloaded_only: false
                             }
-                            .albums(&database, 0, 64, &cancel)
+                            .albums(database, 0, 64, &cancel)
                             .await
                             .unwrap()
                             .into_iter()
@@ -290,18 +289,18 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
                         assert_eq!(
                             library::ListRead {
                                 kind: library::ListKind::Albums,
-                                sort: sort,
-                                folder: folder,
+                                sort,
+                                folder,
                                 filter: (filter).to_string(),
-                                descending: descending,
+                                descending,
                                 favorites_only: false,
                                 activity: true,
                                 downloaded_only: false
                             }
-                            .album_detail_index(&database, &cancel)
+                            .album_detail_index(database, &cancel)
                             .await
                             .unwrap()
-                            .rows(&database, 0, 128, &cancel)
+                            .rows(database, 0, 128, &cancel)
                             .await
                             .unwrap()
                             .into_iter()
@@ -322,15 +321,15 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
                     for offset in 0..=order.len() {
                         let page = library::ListRead {
                             kind: library::ListKind::Albums,
-                            sort: sort,
-                            folder: folder,
+                            sort,
+                            folder,
                             filter: (filter).to_string(),
-                            descending: descending,
+                            descending,
                             favorites_only: false,
                             downloaded_only: false,
                             activity: true,
                         }
-                        .albums(&database, offset, 1, &cancel)
+                        .albums(database, offset, 1, &cancel)
                         .await
                         .unwrap();
                         assert!(page.len() <= 1);
@@ -343,34 +342,34 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
     }
     for album in &fixture.albums {
         for folder in [None, Some(fixture.folder)] {
-            let page = (&library::MemberRead {
+            let page = library::MemberRead {
                 collection: library::Collection::Album(*album),
                 sort: Some(library::CatalogSort::TrackNumber),
-                folder: folder,
+                folder,
                 ..library::MemberRead::new(library::Collection::Album(*album))
-            })
-                .page(&database, RouteSeedWindow::top(), &cancel)
-                .await
-                .unwrap();
+            }
+            .page(database, RouteSeedWindow::top(), &cancel)
+            .await
+            .unwrap();
             let mut paged = Vec::new();
             for offset in 0..=page.count {
                 paged.extend(
-                    (&library::MemberRead {
+                    library::MemberRead {
                         collection: library::Collection::Album(*album),
                         sort: Some(library::CatalogSort::TrackNumber),
-                        folder: folder,
+                        folder,
                         ..library::MemberRead::new(library::Collection::Album(*album))
+                    }
+                    .rows(database, offset, 1, &cancel)
+                    .await
+                    .map(|rows| {
+                        rows.into_iter()
+                            .map(library::MemberRow::into_track)
+                            .collect::<Vec<_>>()
                     })
-                        .rows(&database, offset, 1, &cancel)
-                        .await
-                        .map(|rows| {
-                            rows.into_iter()
-                                .map(library::MemberRow::into_track)
-                                .collect::<Vec<_>>()
-                        })
-                        .unwrap()
-                        .into_iter()
-                        .map(|row| row.media_uri.clone()),
+                    .unwrap()
+                    .into_iter()
+                    .map(|row| row.media_uri),
                 );
             }
             assert_eq!(paged.len(), page.count);
@@ -391,10 +390,10 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
         fixture.track_uris[1].clone(),
         fixture.track_uris[0].clone(),
     ];
-    let playlist = super::support::server_playlist(&database, "Global", &uris)
+    let playlist = super::support::server_playlist(database, "Global", &uris)
         .await
         .0;
-    super::support::server_playlist(&database, "Source", &uris).await;
+    super::support::server_playlist(database, "Source", &uris).await;
     {
         for sort in [
             CatalogSort::Position,
@@ -406,15 +405,15 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
                 for filter in ["", "global"] {
                     let (count, _, rows) = library::ListRead {
                         kind: library::ListKind::Playlists,
-                        sort: sort,
+                        sort,
                         folder: None,
                         filter: (filter).to_string(),
-                        descending: descending,
+                        descending,
                         favorites_only: false,
                         downloaded_only: false,
                         activity: true,
                     }
-                    .page_playlists(&database, RouteSeedWindow::top(), &cancel)
+                    .page_playlists(database, RouteSeedWindow::top(), &cancel)
                     .await
                     .map(|page| (page.count, page.first_row_position, page.rows))
                     .unwrap();
@@ -425,15 +424,15 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
                         paged.extend(
                             library::ListRead {
                                 kind: library::ListKind::Playlists,
-                                sort: sort,
+                                sort,
                                 folder: None,
                                 filter: (filter).to_string(),
-                                descending: descending,
+                                descending,
                                 favorites_only: false,
                                 downloaded_only: false,
                                 activity: true,
                             }
-                            .playlists(&database, offset, 1, &cancel)
+                            .playlists(database, offset, 1, &cancel)
                             .await
                             .unwrap()
                             .into_iter()
@@ -469,11 +468,11 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
                     collection: library::Collection::Playlist(playlist),
                     sort: Some(sort),
                     filter: filter.into(),
-                    descending: descending,
+                    descending,
                     ..library::MemberRead::new(library::Collection::Playlist(playlist))
                 };
-                let order = (&query)
-                    .rows(&database, 0, 256, &cancel)
+                let order = query
+                    .rows(database, 0, 256, &cancel)
                     .await
                     .map(|rows| {
                         rows.into_iter()
@@ -499,23 +498,23 @@ async fn collection_pages_preserve_native_orders_and_duplicate_entries() {
                 let mut paged = Vec::new();
                 for offset in 0..=order.len() {
                     paged.extend(
-                        (&library::MemberRead {
+                        library::MemberRead {
                             collection: library::Collection::Playlist(playlist),
                             sort: Some(sort),
                             filter: (filter).into(),
-                            descending: descending,
+                            descending,
                             ..library::MemberRead::new(library::Collection::Playlist(playlist))
+                        }
+                        .rows(database, offset, 1, &cancel)
+                        .await
+                        .map(|rows| {
+                            rows.into_iter()
+                                .filter_map(library::MemberRow::into_entry)
+                                .collect::<Vec<_>>()
                         })
-                            .rows(&database, offset, 1, &cancel)
-                            .await
-                            .map(|rows| {
-                                rows.into_iter()
-                                    .filter_map(library::MemberRow::into_entry)
-                                    .collect::<Vec<_>>()
-                            })
-                            .unwrap()
-                            .into_iter()
-                            .map(|row| row.playlist_entry_key),
+                        .unwrap()
+                        .into_iter()
+                        .map(|row| row.playlist_entry_key),
                     );
                 }
                 assert_eq!(paged, order);
@@ -584,8 +583,8 @@ async fn track_pages_preserve_sort_filter_and_source_scope() {
                         &library::MemberRead {
                             collection: library::Collection::Library,
                             sort: Some(sort),
-                            folder: folder,
-                            descending: descending,
+                            folder,
+                            descending,
                             ..library::MemberRead::new(library::Collection::Library)
                         }
                         .selection(),
@@ -614,91 +613,91 @@ async fn track_pages_preserve_sort_filter_and_source_scope() {
                 }
                 let mut pages = Vec::new();
                 for offset in (0..order.len()).step_by(2) {
-                    let page = (&library::MemberRead {
+                    let page = library::MemberRead {
                         collection: library::Collection::Library,
                         sort: Some(sort),
-                        folder: folder,
-                        descending: descending,
+                        folder,
+                        descending,
                         ..library::MemberRead::new(library::Collection::Library)
+                    }
+                    .rows(&fixture.database, offset, 2, &cancel)
+                    .await
+                    .map(|rows| {
+                        rows.into_iter()
+                            .map(library::MemberRow::into_track)
+                            .collect::<Vec<_>>()
                     })
-                        .rows(&fixture.database, offset, 2, &cancel)
-                        .await
-                        .map(|rows| {
-                            rows.into_iter()
-                                .map(library::MemberRow::into_track)
-                                .collect::<Vec<_>>()
-                        })
-                        .unwrap();
+                    .unwrap();
                     assert!(page.len() <= 2);
-                    pages.extend(page.into_iter().map(|row| row.media_uri.clone()));
+                    pages.extend(page.into_iter().map(|row| row.media_uri));
                 }
                 assert_eq!(pages, order);
             }
         }
     }
-    let rows = (&library::MemberRead {
+    let rows = library::MemberRead {
         collection: library::Collection::Library,
         sort: Some(library::CatalogSort::Title),
         filter: ("beta").into(),
         ..library::MemberRead::new(library::Collection::Library)
+    }
+    .rows(&fixture.database, 0, 10, &cancel)
+    .await
+    .map(|rows| {
+        rows.into_iter()
+            .map(library::MemberRow::into_track)
+            .collect::<Vec<_>>()
     })
-        .rows(&fixture.database, 0, 10, &cancel)
-        .await
-        .map(|rows| {
-            rows.into_iter()
-                .map(library::MemberRow::into_track)
-                .collect::<Vec<_>>()
-        })
-        .unwrap();
+    .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].metadata.title, "Beta");
     assert!(
-        (&library::MemberRead {
+        library::MemberRead {
             collection: library::Collection::Library,
             sort: Some(library::CatalogSort::Title),
             ..library::MemberRead::new(library::Collection::Library)
-        })
-            .rows(&fixture.database, usize::MAX, 10, &cancel)
-            .await
-            .map(|rows| rows
-                .into_iter()
-                .map(library::MemberRow::into_track)
-                .collect::<Vec<_>>())
-            .unwrap()
-            .is_empty()
+        }
+        .rows(&fixture.database, usize::MAX, 10, &cancel)
+        .await
+        .map(|rows| rows
+            .into_iter()
+            .map(library::MemberRow::into_track)
+            .collect::<Vec<_>>())
+        .unwrap()
+        .is_empty()
     );
     assert!(
-        (&library::MemberRead {
+        library::MemberRead {
             collection: library::Collection::Library,
             sort: Some(library::CatalogSort::Title),
             ..library::MemberRead::new(library::Collection::Library)
-        })
-            .rows(&fixture.database, 0, 0, &cancel)
-            .await
-            .map(|rows| rows
-                .into_iter()
-                .map(library::MemberRow::into_track)
-                .collect::<Vec<_>>())
-            .unwrap()
-            .is_empty()
+        }
+        .rows(&fixture.database, 0, 0, &cancel)
+        .await
+        .map(|rows| rows
+            .into_iter()
+            .map(library::MemberRow::into_track)
+            .collect::<Vec<_>>())
+        .unwrap()
+        .is_empty()
     );
 
     let mut raw = connection(&fixture.path).await;
     sqlx::query("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<300) INSERT INTO tracks(object_id,media_uri,metadata,normalized_search,indexed) SELECT 'extra-'||x,'test:extra-'||x,jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),lower(COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.title'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.artist'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.album'),'')||' '||COALESCE(json_extract(jsonb(json_object('title',COALESCE('Extra '||x,''),'album',COALESCE('',''),'artist',COALESCE('',''),'sort_text',COALESCE('extra-'||x,''),'duration_millis',COALESCE(1000,0))),'$.comment'),'')),1 FROM n")
         .execute(&mut raw).await.unwrap();
-    let rows = (&library::MemberRead {
+    let rows = library::MemberRead {
         collection: library::Collection::Library,
         sort: Some(library::CatalogSort::Title),
         ..library::MemberRead::new(library::Collection::Library)
+    }
+    .rows(&fixture.database, 0, usize::MAX, &cancel)
+    .await
+    .map(|rows| {
+        rows.into_iter()
+            .map(library::MemberRow::into_track)
+            .collect::<Vec<_>>()
     })
-        .rows(&fixture.database, 0, usize::MAX, &cancel)
-        .await
-        .map(|rows| {
-            rows.into_iter()
-                .map(library::MemberRow::into_track)
-                .collect::<Vec<_>>()
-        })
-        .unwrap();
+    .unwrap();
     assert_eq!(rows.len(), 256);
 }
 
@@ -877,7 +876,7 @@ async fn playlist_rows_retain_exact_metadata_links_and_unavailable_entries() {
         library::entity_uri("track", "unavailable"),
         fixture.track_uris[0].clone(),
     ];
-    let playlist = super::support::server_playlist(&database, "Links", &uris)
+    let playlist = super::support::server_playlist(database, "Links", &uris)
         .await
         .0;
     let order = database
@@ -900,11 +899,11 @@ async fn playlist_rows_retain_exact_metadata_links_and_unavailable_entries() {
         })
         .unwrap();
     let entries = database
-        .playlist_entries(&((&order).to_vec()), &cancel)
+        .playlist_entries(&order.clone(), &cancel)
         .await
         .unwrap();
     let by_uri = database
-        .tracks_by_uris(&((&uris).to_vec()), &cancel)
+        .tracks_by_uris(&uris.clone(), &cancel)
         .await
         .unwrap();
     let captured = super::support::resolve_queue(
@@ -978,11 +977,11 @@ async fn uri_artwork_is_identical_across_owner_projections_and_current_scopes() 
     let cancel = ReadCancellation::new();
     let uri = &fixture.track_uris[0];
     let global =
-        super::support::server_playlist(&database, "Global artwork", &[uri.clone(), uri.clone()])
+        super::support::server_playlist(database, "Global artwork", &[uri.clone(), uri.clone()])
             .await
             .0;
     let current =
-        super::support::server_playlist(&database, "Current artwork", std::slice::from_ref(uri))
+        super::support::server_playlist(database, "Current artwork", std::slice::from_ref(uri))
             .await
             .0;
     let mut raw = connection(&fixture.path).await;
@@ -1039,7 +1038,7 @@ async fn uri_artwork_is_identical_across_owner_projections_and_current_scopes() 
         } else {
             let view = {
                 let mut rows = database
-                    .tracks_by_uris(std::slice::from_ref(&uri), &cancel)
+                    .tracks_by_uris(std::slice::from_ref(uri), &cancel)
                     .await
                     .unwrap();
                 rows.pop().unwrap()
@@ -1056,15 +1055,15 @@ async fn uri_artwork_is_identical_across_owner_projections_and_current_scopes() 
             ] {
                 let (count, _, rows) = library::ListRead {
                     kind: library::ListKind::Playlists,
-                    sort: sort,
-                    folder: folder,
-                    filter: ("").to_string(),
+                    sort,
+                    folder,
+                    filter: String::new(),
                     descending: false,
                     favorites_only: false,
                     downloaded_only: false,
                     activity: true,
                 }
-                .page_playlists(&database, RouteSeedWindow::top(), &cancel)
+                .page_playlists(database, RouteSeedWindow::top(), &cancel)
                 .await
                 .map(|page| (page.count, page.first_row_position, page.rows))
                 .unwrap();
@@ -1079,7 +1078,7 @@ async fn uri_artwork_is_identical_across_owner_projections_and_current_scopes() 
                 folder,
                 ..library::MemberRead::new(library::Collection::Playlist(global))
             }
-            .page(&database, RouteSeedWindow::top(), &cancel)
+            .page(database, RouteSeedWindow::top(), &cancel)
             .await
             .unwrap();
             assert_eq!(detail.count, 2);
@@ -1223,7 +1222,7 @@ async fn uri_artwork_is_identical_across_owner_projections_and_current_scopes() 
         .unwrap();
     assert_eq!(
         database
-            .playlist_entries(&((&all_entries).to_vec()), &cancel)
+            .playlist_entries(&all_entries.clone(), &cancel)
             .await
             .unwrap()
             .len(),
@@ -1476,7 +1475,7 @@ async fn genre_routes_reject_an_artwork_only_identity_without_track_membership()
     for sort in [CatalogSort::Title, CatalogSort::TrackCount] {
         let (count, _, rows) = library::ListRead {
             kind: library::ListKind::Genres,
-            sort: sort,
+            sort,
             folder: None,
             filter: String::new(),
             descending: false,
@@ -1520,7 +1519,7 @@ async fn artist_play_order_stays_complete_beside_the_favorite_section() {
         )
         .await
         .unwrap();
-    let complete = (((&library::MemberRead {
+    let complete = ((library::MemberRead {
         collection: library::Collection::Artist {
             key: fixture.artists[0],
             album_artist: false,
@@ -1530,18 +1529,18 @@ async fn artist_play_order_stays_complete_beside_the_favorite_section() {
             key: fixture.artists[0],
             album_artist: false,
         })
-    })
-        .page(&fixture.database, RouteSeedWindow::top(), &cancel)
-        .await
-        .unwrap()
-        .rows)
+    }
+    .page(&fixture.database, RouteSeedWindow::top(), &cancel)
+    .await
+    .unwrap()
+    .rows)
         .into_iter()
         .map(library::MemberRow::into_track)
         .collect::<Vec<_>>())
     .into_iter()
-    .map(|row| row.media_uri.clone())
+    .map(|row| row.media_uri)
     .collect::<Vec<_>>();
-    let favorites = (((&library::MemberRead {
+    let favorites = ((library::MemberRead {
         collection: library::Collection::Artist {
             key: fixture.artists[0],
             album_artist: false,
@@ -1552,16 +1551,16 @@ async fn artist_play_order_stays_complete_beside_the_favorite_section() {
             key: fixture.artists[0],
             album_artist: false,
         })
-    })
-        .page(&fixture.database, RouteSeedWindow::top(), &cancel)
-        .await
-        .unwrap()
-        .rows)
+    }
+    .page(&fixture.database, RouteSeedWindow::top(), &cancel)
+    .await
+    .unwrap()
+    .rows)
         .into_iter()
         .map(library::MemberRow::into_track)
         .collect::<Vec<_>>())
     .into_iter()
-    .map(|row| row.media_uri.clone())
+    .map(|row| row.media_uri)
     .collect::<Vec<_>>();
     assert_eq!(favorites, [fixture.track_uris[0].clone()]);
     assert!(complete.len() > favorites.len());
@@ -1644,7 +1643,7 @@ async fn track_artist_and_album_artist_roles_keep_exact_membership_and_own_artwo
         matches!(&artist_art[0].image,library::ArtworkImage::Native{item_id,..}if item_id=="album-artist-art")
     );
 
-    let track_artist_tracks = (((&library::MemberRead {
+    let track_artist_tracks = ((library::MemberRead {
         collection: library::Collection::Artist {
             key: track_artist.artist_key,
             album_artist: false,
@@ -1654,18 +1653,18 @@ async fn track_artist_and_album_artist_roles_keep_exact_membership_and_own_artwo
             key: track_artist.artist_key,
             album_artist: false,
         })
-    })
-        .page(&fixture.database, RouteSeedWindow::top(), &cancel)
-        .await
-        .unwrap()
-        .rows)
+    }
+    .page(&fixture.database, RouteSeedWindow::top(), &cancel)
+    .await
+    .unwrap()
+    .rows)
         .into_iter()
         .map(library::MemberRow::into_track)
         .collect::<Vec<_>>())
     .into_iter()
-    .map(|row| row.media_uri.clone())
+    .map(|row| row.media_uri)
     .collect::<Vec<_>>();
-    let album_artist_tracks = (((&library::MemberRead {
+    let album_artist_tracks = ((library::MemberRead {
         collection: library::Collection::Artist {
             key: album_artist.artist_key,
             album_artist: true,
@@ -1675,21 +1674,21 @@ async fn track_artist_and_album_artist_roles_keep_exact_membership_and_own_artwo
             key: album_artist.artist_key,
             album_artist: true,
         })
-    })
-        .page(&fixture.database, RouteSeedWindow::top(), &cancel)
-        .await
-        .unwrap()
-        .rows)
+    }
+    .page(&fixture.database, RouteSeedWindow::top(), &cancel)
+    .await
+    .unwrap()
+    .rows)
         .into_iter()
         .map(library::MemberRow::into_track)
         .collect::<Vec<_>>())
     .into_iter()
-    .map(|row| row.media_uri.clone())
+    .map(|row| row.media_uri)
     .collect::<Vec<_>>();
     assert_eq!(track_artist_tracks, album_artist_tracks);
     assert_eq!(track_artist_tracks.len(), 2);
     assert!(
-        (((&library::MemberRead {
+        ((library::MemberRead {
             collection: library::Collection::Artist {
                 key: track_artist.artist_key,
                 album_artist: true
@@ -1699,21 +1698,21 @@ async fn track_artist_and_album_artist_roles_keep_exact_membership_and_own_artwo
                 key: track_artist.artist_key,
                 album_artist: true
             })
-        })
-            .page(&fixture.database, RouteSeedWindow::top(), &cancel)
-            .await
-            .unwrap()
-            .rows)
+        }
+        .page(&fixture.database, RouteSeedWindow::top(), &cancel)
+        .await
+        .unwrap()
+        .rows)
             .into_iter()
             .map(library::MemberRow::into_track)
             .collect::<Vec<_>>())
         .into_iter()
-        .map(|row| row.media_uri.clone())
-        .collect::<Vec<_>>()
-        .is_empty()
+        .map(|row| row.media_uri)
+        .next()
+        .is_none()
     );
     assert!(
-        (((&library::MemberRead {
+        ((library::MemberRead {
             collection: library::Collection::Artist {
                 key: album_artist.artist_key,
                 album_artist: false
@@ -1723,18 +1722,18 @@ async fn track_artist_and_album_artist_roles_keep_exact_membership_and_own_artwo
                 key: album_artist.artist_key,
                 album_artist: false
             })
-        })
-            .page(&fixture.database, RouteSeedWindow::top(), &cancel)
-            .await
-            .unwrap()
-            .rows)
+        }
+        .page(&fixture.database, RouteSeedWindow::top(), &cancel)
+        .await
+        .unwrap()
+        .rows)
             .into_iter()
             .map(library::MemberRow::into_track)
             .collect::<Vec<_>>())
         .into_iter()
-        .map(|row| row.media_uri.clone())
-        .collect::<Vec<_>>()
-        .is_empty()
+        .map(|row| row.media_uri)
+        .next()
+        .is_none()
     );
 
     assert_eq!(
@@ -1746,7 +1745,7 @@ async fn track_artist_and_album_artist_roles_keep_exact_membership_and_own_artwo
                 release_class: None
             },
             folder: None,
-            filter: ("").to_string(),
+            filter: String::new(),
             sort: library::CatalogSort::Title,
             descending: false,
             activity: true,
@@ -1770,7 +1769,7 @@ async fn track_artist_and_album_artist_roles_keep_exact_membership_and_own_artwo
                 release_class: None
             },
             folder: None,
-            filter: ("").to_string(),
+            filter: String::new(),
             sort: library::CatalogSort::Title,
             descending: false,
             activity: true,
@@ -1900,11 +1899,11 @@ async fn artist_orders_filter_roles_but_known_artists_remain_addressable() {
                         kind: library::ListKind::Artists {
                             album_artist: false,
                         },
-                        sort: sort,
-                        folder: folder,
-                        filter: ("").to_string(),
-                        descending: descending,
-                        favorites_only: favorites_only,
+                        sort,
+                        folder,
+                        filter: String::new(),
+                        descending,
+                        favorites_only,
                         downloaded_only: false,
                         activity: true,
                     }
@@ -1922,11 +1921,11 @@ async fn artist_orders_filter_roles_but_known_artists_remain_addressable() {
 
                     let album_artists = library::ListRead {
                         kind: library::ListKind::Artists { album_artist: true },
-                        sort: sort,
-                        folder: folder,
-                        filter: ("").to_string(),
-                        descending: descending,
-                        favorites_only: favorites_only,
+                        sort,
+                        folder,
+                        filter: String::new(),
+                        descending,
+                        favorites_only,
                         downloaded_only: false,
                         activity: true,
                     }
@@ -1994,7 +1993,7 @@ async fn artist_orders_filter_roles_but_known_artists_remain_addressable() {
         assert_eq!(detail.summary.track_count, 0);
     }
     assert_eq!(
-        (((&library::MemberRead {
+        ((library::MemberRead {
             collection: library::Collection::Artist {
                 key: track_only,
                 album_artist: false
@@ -2004,16 +2003,16 @@ async fn artist_orders_filter_roles_but_known_artists_remain_addressable() {
                 key: track_only,
                 album_artist: false
             })
-        })
-            .page(&fixture.database, RouteSeedWindow::top(), &cancel)
-            .await
-            .expect("Track Artist Tracks")
-            .rows)
+        }
+        .page(&fixture.database, RouteSeedWindow::top(), &cancel)
+        .await
+        .expect("Track Artist Tracks")
+        .rows)
             .into_iter()
             .map(library::MemberRow::into_track)
             .collect::<Vec<_>>())
         .into_iter()
-        .map(|row| row.media_uri.clone())
+        .map(|row| row.media_uri)
         .collect::<Vec<_>>(),
         [fixture.track_uris[0].clone()]
     );
@@ -2026,7 +2025,7 @@ async fn artist_orders_filter_roles_but_known_artists_remain_addressable() {
                 release_class: None
             },
             folder: None,
-            filter: ("").to_string(),
+            filter: String::new(),
             sort: library::CatalogSort::Title,
             descending: false,
             activity: true,
@@ -2205,16 +2204,16 @@ async fn home_search_and_radio_results_stay_bounded() {
         object_ids.iter().map(String::as_str).collect::<Vec<_>>()
     );
     assert!(
-        (&library::MemberRead {
+        library::MemberRead {
             collection: library::Collection::Library,
             sort: Some(library::CatalogSort::Title),
             filter: ("artist a").into(),
             ..library::MemberRead::new(library::Collection::Library)
-        })
-            .page(&fixture.database, RouteSeedWindow::top(), &cancel)
-            .await
-            .expect("complete Track filter")
-            .count
+        }
+        .page(&fixture.database, RouteSeedWindow::top(), &cancel)
+        .await
+        .expect("complete Track filter")
+        .count
             >= 2
     );
     let initial_home = fixture
@@ -2283,8 +2282,8 @@ async fn home_search_and_radio_results_stay_bounded() {
             kind: library::ListKind::Albums,
             sort: library::CatalogSort::DateAdded,
             folder: None,
-            filter: ("").to_string(),
-            descending: descending,
+            filter: String::new(),
+            descending,
             favorites_only: false,
             downloaded_only: false,
             activity: true,

@@ -212,8 +212,7 @@ async fn image_response(
         .iter()
         .copied()
         .find(|byte| !byte.is_ascii_whitespace());
-    if bytes.is_empty() || !declared_image || matches!(first, Some(b'{') | Some(b'[') | Some(b'<'))
-    {
+    if bytes.is_empty() || !declared_image || matches!(first, Some(b'{' | b'[' | b'<')) {
         return Err(SourceError::NotFound);
     }
     Ok(ImageBytes {
