@@ -166,9 +166,11 @@ pub(crate) async fn edit(
     let has_password = !credentials.secret.is_empty();
     let authentication_changed = authentication != saved.authentication;
 
-    if (username_changed || authentication_changed) && !has_password {
+    // A saved credential is only ever sent back to the host it was issued for.
+    if (address_changed || username_changed || authentication_changed) && !has_password {
         return Err(SourceError::Other(
-            "Enter the server password or API key to save authentication changes.".to_string(),
+            "Enter the server password or API key to save address or authentication changes."
+                .to_string(),
         ));
     }
 
@@ -410,5 +412,62 @@ impl SubsonicSource {
             source,
             credential: serialized_credential,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SubsonicAuthentication, SubsonicCredential, SubsonicFlavor, SubsonicSourceConfig};
+    use crate::{CredentialInput, SourceEditResult};
+
+    fn saved() -> crate::SourceConfiguration {
+        crate::config::encode_provider_payload(
+            SubsonicFlavor::Subsonic,
+            "Music".to_string(),
+            SubsonicSourceConfig {
+                base_url: "https://music.example.com".to_string(),
+                username: "listener".to_string(),
+                trust_invalid_cert: false,
+                navidrome_library_version: 0,
+                authentication: SubsonicAuthentication::Password,
+            }
+            .into_payload(),
+        )
+    }
+
+    async fn edit_without_secret(
+        server_url: &str,
+        trust_invalid_cert: bool,
+    ) -> crate::SourceResult<SourceEditResult> {
+        super::edit(
+            saved(),
+            Some(SubsonicCredential::from_password("password").serialize()),
+            SubsonicAuthentication::Password,
+            CredentialInput {
+                source_name: None,
+                server_url: server_url.to_string(),
+                username: "listener".to_string(),
+                secret: String::new(),
+                trust_invalid_cert,
+            },
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn address_change_without_secret_does_not_reuse_saved_credential() {
+        assert!(
+            edit_without_secret("https://other.example.com", false)
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn certificate_trust_change_reopens_with_saved_credential() {
+        assert!(matches!(
+            edit_without_secret("https://music.example.com", true).await,
+            Ok(SourceEditResult::Connected(_))
+        ));
     }
 }
