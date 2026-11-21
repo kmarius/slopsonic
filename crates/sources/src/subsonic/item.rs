@@ -106,8 +106,10 @@ fn structured_release_date(date: &Value) -> Option<String> {
     }
 }
 
-fn clean_optional(value: Option<String>) -> Option<String> {
-    value.filter(|value| !value.trim().is_empty())
+pub(super) fn clean_optional(value: Option<String>) -> Option<String> {
+    let value = value?;
+    let value = value.trim();
+    (!value.is_empty()).then(|| value.to_string())
 }
 
 pub(super) fn album_from_json(

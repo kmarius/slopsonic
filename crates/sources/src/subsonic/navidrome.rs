@@ -22,6 +22,7 @@ use crate::remote_json::{boolean, field, id, items, strings};
 use crate::source::{SourceReadProgress, SourceReadStage};
 use crate::{SourceError, SourceResult};
 
+use super::item::clean_optional;
 use super::{ImageRef, SubsonicSource, normalize_release_types};
 
 const NAVIDROME_PAGE_SIZE: usize = 1_000;
@@ -473,10 +474,6 @@ fn required(value: String, name: &str) -> SourceResult<String> {
 fn clean(value: String) -> Option<String> {
     let value = value.trim();
     (!value.is_empty()).then(|| value.to_string())
-}
-
-fn clean_optional(value: Option<String>) -> Option<String> {
-    value.and_then(clean)
 }
 
 fn item_release_date(item: &Value) -> Option<String> {
