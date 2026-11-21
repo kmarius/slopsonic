@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     AccentPreference, ContextMenuSettings, LayoutSettings, LibraryListKey, LibraryListSettings,
     LibraryListSettingsEntry, SidebarRouteItem, SidebarSettings, ThemePreference,
-    default_library_list_settings, sanitized_window_size,
+    default_library_list_settings, default_true, sanitized_window_size,
 };
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -312,10 +312,6 @@ pub fn default_home_blocks() -> Vec<HomeBlockKind> {
 
 fn default_starting_page() -> SidebarRouteItem {
     SidebarRouteItem::Home
-}
-
-fn default_true() -> bool {
-    true
 }
 
 fn default_auto_dj_refill_threshold() -> u8 {

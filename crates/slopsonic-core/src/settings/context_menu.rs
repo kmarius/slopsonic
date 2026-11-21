@@ -2,6 +2,8 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
+use super::default_true;
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum ContextMenuItem {
     Play,
@@ -89,10 +91,6 @@ where
         .into_iter()
         .filter_map(|entry| entry.try_into().ok())
         .collect())
-}
-
-fn default_true() -> bool {
-    true
 }
 
 fn default_context_menu_items() -> Vec<ContextMenuItemSettings> {

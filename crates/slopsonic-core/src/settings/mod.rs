@@ -263,6 +263,10 @@ impl SettingsFile {
     }
 }
 
+fn default_true() -> bool {
+    true
+}
+
 fn merge_preference_edits<T: Serialize + serde::de::DeserializeOwned + PartialEq>(
     next: &mut T,
     previous: &T,

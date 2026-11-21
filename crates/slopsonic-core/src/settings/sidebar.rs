@@ -2,9 +2,7 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-fn default_true() -> bool {
-    true
-}
+use super::default_true;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum SidebarRouteItem {
