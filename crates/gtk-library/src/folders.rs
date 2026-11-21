@@ -150,7 +150,11 @@ fn folder_parts(
         }
         Err(error) => {
             tracing::warn!(%error, "failed to prepare Folder route");
-            wrapper.append(&folder_error_view(shell));
+            wrapper.append(&folder_status_view(
+                shell,
+                "Could not load this folder",
+                false,
+            ));
             FolderParts {
                 resume: Rc::new(|| {}),
                 refresh: Rc::new(|| {}),
@@ -320,7 +324,10 @@ fn folder_page(
     table_stack.set_hexpand(true);
     table_stack.set_vexpand(true);
     table_stack.add_named(&table_view, Some("content"));
-    table_stack.add_named(&folder_empty_view(shell), Some("empty"));
+    table_stack.add_named(
+        &folder_status_view(shell, "Nothing in this folder", true),
+        Some("empty"),
+    );
     table_stack.set_visible_child_name(if initial_empty { "empty" } else { "content" });
 
     let apply = {
@@ -1034,14 +1041,6 @@ fn folder_context_id(path: &[FolderPathItem]) -> String {
         || "folders:root".to_string(),
         |item| format!("folders:{}", item.id),
     )
-}
-
-fn folder_error_view(shell: &Rc<CatalogUi>) -> gtk::Widget {
-    folder_status_view(shell, "Could not load this folder", false)
-}
-
-fn folder_empty_view(shell: &Rc<CatalogUi>) -> gtk::Widget {
-    folder_status_view(shell, "Nothing in this folder", true)
 }
 
 fn folder_status_view(shell: &Rc<CatalogUi>, message: &'static str, empty: bool) -> gtk::Widget {

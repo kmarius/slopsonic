@@ -242,7 +242,7 @@ impl ArtworkState {
         match outcome {
             artwork::ArtworkOutcome::Ready(loaded) => {
                 let key = loaded.key().clone();
-                if let Some(texture) = self.texture_for_decoded(Arc::clone(&loaded)) {
+                if let Some(texture) = self.textures.borrow_mut().texture(Arc::clone(&loaded)) {
                     let current = tile.set_texture_if_current(generation, texture.clone());
                     if current
                         && animate
@@ -283,10 +283,6 @@ impl ArtworkState {
     pub fn clear_artwork_tile(self: &Rc<Self>, tile: &ArtworkTile) {
         tile.cancel_artwork_request();
         tile.clear_image();
-    }
-
-    fn texture_for_decoded(&self, image: Arc<artwork::DecodedImage>) -> Option<gtk::gdk::Texture> {
-        self.textures.borrow_mut().texture(image)
     }
 
     pub fn current_playback_cached_artwork_path(

@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use sqlx::{Connection, Row, SqliteConnection};
+use sqlx::{Connection, Row};
 
 use crate::{Database, LibraryError, LibraryResult, ReadCancellation, TrackReference};
 
@@ -284,7 +284,8 @@ impl Database {
                 match input {
                     QueueLoad::Items(items) => {
                         for (item, provenance) in items {
-                            let track_key = persist_metadata(&mut transaction, &item).await?;
+                            let track_key =
+                                crate::catalog::remember_track(&mut transaction, &item).await?;
                             entries.push(QueueEntry {
                                 track_key,
                                 provenance,
@@ -660,13 +661,6 @@ impl QueuePlacement {
             other => other,
         }
     }
-}
-
-async fn persist_metadata(
-    connection: &mut SqliteConnection,
-    item: &TrackReference,
-) -> LibraryResult<crate::TrackKey> {
-    crate::catalog::remember_track(connection, item).await
 }
 
 /// Fisher-Yates shuffle with SplitMix64, shared by queue capture and playback order.

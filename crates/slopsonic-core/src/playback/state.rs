@@ -308,9 +308,6 @@ impl Player {
         self.play_id(RunId::new(self.next_run_number))
     }
 
-    pub(super) fn take_queue_persistence(&mut self) -> Option<library::QueueUpdate> {
-        self.sequence.take_persistence()
-    }
     pub(super) fn accepts_queue(&self, id: u64) -> bool {
         self.pending_queue
             .as_ref()
@@ -1819,7 +1816,7 @@ impl Player {
             }
             self.owner().publish(projection);
         }
-        let persistence = self.take_queue_persistence();
+        let persistence = self.sequence.take_persistence();
         if let Some(update) = persistence {
             self.owner().save_queue(update);
         }

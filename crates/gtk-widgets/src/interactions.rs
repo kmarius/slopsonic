@@ -335,7 +335,7 @@ impl ContextMenuSurface {
             owner.add_css_class(CONTEXT_MENU_HOVER_HELD_CLASS);
         }
         show_native_menu_icons(&self.popover);
-        keep_parent_grab_for_nested_native_menus(&self.popover);
+        keep_parent_grab_for_nested_native_menus_from(self.popover.upcast_ref());
         let unmap_handler = Rc::new(RefCell::new(Some(popdown_on_anchor_unmap(
             &self.target,
             &self.popover,
@@ -589,10 +589,6 @@ pub fn show_native_menu_icons(popover: &gtk::PopoverMenu) {
 
 pub fn replace_native_menu_checkmarks(popover: &gtk::PopoverMenu) {
     replace_native_menu_checkmarks_from(popover.upcast_ref());
-}
-
-pub fn keep_parent_grab_for_nested_native_menus(popover: &gtk::PopoverMenu) {
-    keep_parent_grab_for_nested_native_menus_from(popover.upcast_ref());
 }
 
 pub fn popdown_native_menu(popover: &gtk::PopoverMenu) {

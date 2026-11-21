@@ -226,7 +226,12 @@ impl Pipeline {
                 ImageSize::Original => None,
             };
             display
-                .or_else(|| cached_leaf_file(&self.shared, candidate))
+                .or_else(|| {
+                    self.shared
+                        .cache
+                        .ready_entry(candidate)
+                        .map(|entry| entry.path)
+                })
                 .or_else(|| {
                     matches!(request.fetch_size, ImageSize::Thumbnail(_))
                         .then(|| self.shared.cache.best_display(candidate))
@@ -503,10 +508,6 @@ fn resolve(shared: &Shared, work: &Work) -> Resolution {
         }
     }
     failure.map_or(Resolution::Missing, Resolution::Failed)
-}
-
-fn cached_leaf_file(shared: &Shared, candidate: &Candidate) -> Option<std::path::PathBuf> {
-    shared.cache.ready_entry(candidate).map(|entry| entry.path)
 }
 
 fn resolve_candidate(shared: &Shared, work: &Work, candidate: &Candidate) -> Resolution {

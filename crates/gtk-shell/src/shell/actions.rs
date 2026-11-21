@@ -219,7 +219,7 @@ pub(crate) fn install_window_actions(shell: &Rc<Shell>) {
     let primary_menu_accels = &["F10"][..];
     add_window_action(shell, "show-primary-menu", primary_menu_accels, {
         let shell = Rc::clone(shell);
-        move || navigation::popup_primary_menu(&shell)
+        move || shell.chrome.topbar.menu.popup()
     });
 
     shell

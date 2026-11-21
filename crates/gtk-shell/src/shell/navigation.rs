@@ -406,10 +406,6 @@ pub(super) fn install_primary_menu(button: &gtk::MenuButton, shell: &Rc<Shell>) 
     button.set_popover(Some(&popover));
 }
 
-pub(super) fn popup_primary_menu(shell: &Rc<Shell>) {
-    shell.chrome.topbar.menu.popup();
-}
-
 fn refresh_primary_menu(popover: &gtk::PopoverMenu, shell: &Rc<Shell>) {
     let menu = popover
         .menu_model()

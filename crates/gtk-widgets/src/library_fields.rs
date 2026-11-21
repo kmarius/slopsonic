@@ -425,7 +425,7 @@ pub fn column_width(field: LibraryField) -> i32 {
         | LibraryField::Genre => 220,
         LibraryField::ReleaseDate | LibraryField::DateAdded => 118,
         LibraryField::LastPlayed => 148,
-        LibraryField::PlayCount => play_count_column_width(),
+        LibraryField::PlayCount => compact_header_column_width("Plays", 56),
         LibraryField::UserRating | LibraryField::SongCount | LibraryField::AlbumCount => 96,
         LibraryField::Year
         | LibraryField::DiscNumber
@@ -433,9 +433,6 @@ pub fn column_width(field: LibraryField) -> i32 {
         | LibraryField::Bpm => 68,
         LibraryField::Duration => 76,
     }
-}
-pub fn play_count_column_width() -> i32 {
-    compact_header_column_width("Plays", 56)
 }
 pub fn compact_header_column_width(header: &str, min_width: i32) -> i32 {
     crate::table_sizing::compact_header_text_width(&String::from(header), min_width)

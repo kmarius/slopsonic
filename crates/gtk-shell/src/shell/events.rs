@@ -520,7 +520,9 @@ fn finish_playback_projection(
                 media_controls_discontinuity = Some(discontinuity);
             }
             playback::PlaybackNotice::OperationFailed(error) => {
-                show_playback_failure(shell, error);
+                shell
+                    .control_feedback
+                    .show_feedback_toast(playback_error_toast(&error));
             }
         }
     }
@@ -543,12 +545,6 @@ fn finish_playback_projection(
     if queue_panel_changed && !queue_window_changed {
         shell.player_ui.schedule_queue_panel_render();
     }
-}
-
-fn show_playback_failure(shell: &Rc<Shell>, error: String) {
-    shell
-        .control_feedback
-        .show_feedback_toast(playback_error_toast(&error));
 }
 
 fn queue_panel_refresh_needed(

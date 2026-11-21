@@ -87,10 +87,6 @@ impl Shell {
         });
     }
 
-    pub(crate) fn update_media_controls(&self) {
-        self.update_media_controls_after(None);
-    }
-
     pub(crate) fn update_media_controls_after(&self, discontinuity: Option<PositionDiscontinuity>) {
         let playback = self.player_ui.selected_playback();
         let art_url = playback.as_ref().and_then(|playback| {

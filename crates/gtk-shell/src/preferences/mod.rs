@@ -621,7 +621,7 @@ fn build_preferences_dialog(
                 let target_slot = target_slot.clone();
                 gtk::glib::idle_add_local_once(move || {
                     if let Some(slot) = target_slot.and_then(|slot| slot.upgrade()) {
-                        focus_preferences_search_item(slot.upcast_ref(), &item);
+                        focus_preferences_search_descendant(slot.upcast_ref(), &item, "");
                     }
                 });
             });
@@ -640,10 +640,6 @@ fn build_preferences_dialog(
                 .push(row.upcast::<gtk::Widget>());
         }
     });
-}
-
-fn focus_preferences_search_item(root: &gtk::Widget, item: &PreferencesSearchItem) {
-    focus_preferences_search_descendant(root, item, "");
 }
 
 fn focus_preferences_search_descendant(

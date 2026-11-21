@@ -467,7 +467,7 @@ impl TrackTablePlayingState {
                 .and_then(|track_id| {
                     inner
                         .model
-                        .selection_position_after_point_change(track_id, inner.position.get())
+                        .position_for_current_uri(track_id, Some(inner.position.get() as usize))
                 })
                 .unwrap_or(gtk::INVALID_LIST_POSITION);
             inner.position.set(position);

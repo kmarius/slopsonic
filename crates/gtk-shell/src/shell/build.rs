@@ -288,7 +288,7 @@ pub async fn build(
                 let weak = weak.clone();
                 Box::new(move || {
                     if let Some(shell) = weak.upgrade() {
-                        shell.update_media_controls();
+                        shell.update_media_controls_after(None);
                     }
                 })
             },

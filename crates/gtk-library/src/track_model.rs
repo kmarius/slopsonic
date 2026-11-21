@@ -303,14 +303,6 @@ impl TrackCollectionModel {
                     .ready_position(|row| row.media_uri() == media_uri)
             })
     }
-
-    pub fn selection_position_after_point_change(
-        &self,
-        media_uri: &str,
-        selected_position: u32,
-    ) -> Option<u32> {
-        self.position_for_current_uri(media_uri, Some(selected_position as usize))
-    }
 }
 
 #[cfg(test)]
