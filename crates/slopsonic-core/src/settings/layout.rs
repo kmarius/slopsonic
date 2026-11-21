@@ -990,7 +990,7 @@ fn ensure_usable_row_field(fields: &mut Vec<LibraryField>, fallback: Vec<Library
         fields.push(field);
     }
 }
-fn row_field_is_usable(field: LibraryField) -> bool {
+pub fn row_field_is_usable(field: LibraryField) -> bool {
     !matches!(
         field,
         LibraryField::RowIndex

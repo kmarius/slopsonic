@@ -8,7 +8,7 @@ use gtk::glib;
 
 use crate::format_duration_units;
 use slopsonic_core::settings::layout::{
-    LibraryField, LibraryLayout, LibraryListKey, LibraryListSettings,
+    LibraryField, LibraryLayout, LibraryListKey, LibraryListSettings, row_field_is_usable,
 };
 use slopsonic_core::text::{album_count_text, track_count_text};
 
@@ -368,16 +368,6 @@ pub fn can_toggle_field(
             .count()
             > 1
 }
-pub fn row_field_is_usable(field: LibraryField) -> bool {
-    !matches!(
-        field,
-        LibraryField::RowIndex
-            | LibraryField::Image
-            | LibraryField::TrackNumber
-            | LibraryField::DiscNumber
-            | LibraryField::Favorite
-    )
-}
 pub fn next_layout(key: LibraryListKey, layout: LibraryLayout) -> LibraryLayout {
     if key.supports_layout(LibraryLayout::Detail) {
         match layout {
@@ -457,6 +447,21 @@ pub use slopsonic_core::settings::presentation::{
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_last_usable_row_column_cannot_be_hidden_beside_tools() {
+        let active = [LibraryField::Title, LibraryField::Tools];
+        assert!(!can_toggle_field(
+            &active,
+            LibraryFieldSet::Row,
+            LibraryField::Title
+        ));
+        assert!(can_toggle_field(
+            &active,
+            LibraryFieldSet::Row,
+            LibraryField::Tools
+        ));
+    }
 
     #[test]
     fn display_unix_date_shows_date_and_time() {
