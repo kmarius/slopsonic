@@ -12,7 +12,7 @@ use crate::paths::Paths;
 use crate::playback::PlaybackOwner;
 use crate::scrobbling::ScrobblingOwner;
 use crate::settings::{SettingsFile, SettingsOwner};
-use crate::source::{ServerOutputs, ServerOwner};
+use crate::source::{ServerOutputs, ServerOwner, string_error};
 
 /// Runs an application host with Slopsonic's worker runtime available on its calling thread.
 /// The host shuts down playback before returning; workers are stopped afterwards.
@@ -251,10 +251,6 @@ pub fn startup_settings(paths: &Paths) -> SettingsFile {
         warn!(%error, "could not use saved settings; startup will continue with defaults");
         SettingsFile::memory()
     })
-}
-
-fn string_error(error: impl std::fmt::Display) -> String {
-    error.to_string()
 }
 
 fn temporary_artwork_dir() -> std::path::PathBuf {

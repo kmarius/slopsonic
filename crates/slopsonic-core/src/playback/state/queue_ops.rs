@@ -98,7 +98,7 @@ impl Player {
                         .zip(rows.into_iter().map(|row| row.track.clone()))
                         .collect()
                 })
-                .map_err(super::super::string_error);
+                .map_err(crate::source::string_error);
             playback.post(move |player, sample| player.complete_queue_metadata(result, sample));
         }));
     }

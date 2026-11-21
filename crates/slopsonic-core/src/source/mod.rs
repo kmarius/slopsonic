@@ -1403,7 +1403,7 @@ pub(crate) fn string_error(error: impl std::fmt::Display) -> String {
     error.to_string()
 }
 
-fn unix_seconds() -> i64 {
+pub(crate) fn unix_seconds() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs().min(i64::MAX as u64) as i64)

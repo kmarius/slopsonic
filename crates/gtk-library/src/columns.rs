@@ -9,6 +9,7 @@ use gtk::glib;
 
 use super::collection_context::{present_collection_menu, present_row_context_menu};
 use crate::CatalogUi;
+use crate::grid_cells::collection_is_downloaded;
 use crate::{LibraryField, LibraryListKey};
 use gtk_media_menus::media_menus::{present_album_context_menu, present_artist_context_menu};
 use gtk_widgets::artwork::ArtworkTile;
@@ -146,10 +147,6 @@ impl CollectionIndexCell {
             imp.playing.get().unwrap().bind(&shell, target);
         }
     }
-}
-
-fn collection_is_downloaded(track_count: i64, downloaded_count: i64) -> bool {
-    track_count > 0 && downloaded_count == track_count
 }
 
 fn set_cover_placeholder(shell: &Rc<CatalogUi>, cover: &ArtworkTile, placeholder: bool) {

@@ -14,8 +14,9 @@ pub fn seek_preview_matches_position(target_millis: u64, position_millis: u64) -
         .contains(&position_millis)
 }
 
+use crate::source::{string_error, unix_seconds};
 use std::sync::{Arc, Mutex};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::Instant;
 
 use actor::{Playback, WeakPlayback};
 use library::QueueUpdate;
@@ -432,15 +433,13 @@ impl PlaybackOwner {
     }
 
     fn clock_sample(&self) -> ClockSample {
-        let now = SystemTime::now();
-        let unix_seconds = unix_seconds(now);
         ClockSample {
             monotonic_millis: self
                 .monotonic_origin
                 .elapsed()
                 .as_millis()
                 .min(u128::from(u64::MAX)) as u64,
-            unix_seconds,
+            unix_seconds: unix_seconds(),
         }
     }
 }
@@ -759,24 +758,16 @@ pub(crate) fn random_u64() -> u64 {
     let mut bytes = [0; 8];
     getrandom::fill(&mut bytes)
         .map(|()| u64::from_le_bytes(bytes))
-        .unwrap_or_else(|_| unix_seconds(SystemTime::now()) as u64)
+        .unwrap_or_else(|_| unix_seconds() as u64)
 }
 fn random_identity() -> String {
     format!("{:016x}{:016x}", random_u64(), random_u64())
-}
-fn unix_seconds(now: SystemTime) -> i64 {
-    now.duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs().min(i64::MAX as u64) as i64)
-        .unwrap_or_default()
 }
 fn empty_clock_sample() -> ClockSample {
     ClockSample {
         monotonic_millis: 0,
         unix_seconds: 0,
     }
-}
-fn string_error(error: impl std::fmt::Display) -> String {
-    error.to_string()
 }
 
 #[cfg(test)]

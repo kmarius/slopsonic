@@ -32,7 +32,7 @@ use gtk_widgets::library_fields::{
 };
 use gtk_widgets::sparse_model::{bind_sparse_item, unbind_sparse_item};
 
-fn collection_is_downloaded(track_count: i64, downloaded_count: i64) -> bool {
+pub(crate) fn collection_is_downloaded(track_count: i64, downloaded_count: i64) -> bool {
     track_count > 0 && downloaded_count == track_count
 }
 
@@ -632,7 +632,7 @@ fn with_grid_cell<Cell: 'static, R>(
         .with_cell(apply)
 }
 
-fn selected_position(selection: &gtk::SelectionModel) -> u32 {
+pub(crate) fn selected_position(selection: &gtk::SelectionModel) -> u32 {
     let positions = selection.selection();
     if positions.is_empty() {
         gtk::INVALID_LIST_POSITION

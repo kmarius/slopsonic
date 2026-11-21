@@ -536,8 +536,8 @@ fn menu_action_item(label: &str, action: &str, icon_name: &str) -> gio::MenuItem
     item
 }
 
-fn append_menu_action(menu: &gio::Menu, label: &str, action: &str, icon_name: &str) {
-    menu.append_item(&menu_action_item(&String::from(label), action, icon_name));
+pub fn append_menu_action(menu: &gio::Menu, label: &str, action: &str, icon_name: &str) {
+    menu.append_item(&menu_action_item(label, action, icon_name));
 }
 
 pub fn radio_context_submenu(group: &str) -> gio::Menu {

@@ -1,4 +1,5 @@
 use gtk_widgets::format_duration_units;
+use gtk_widgets::interactions::append_menu_action;
 use gtk_widgets::media_drag::{
     MediaDragPreviewBinding, MediaDragSource, media_drag_content_provider, media_drag_source,
 };
@@ -487,12 +488,6 @@ fn replace_primary_menu_model(menu: &gio::Menu, shell: &Rc<Shell>) {
         "slopsonic-help-about-symbolic",
     );
     menu.append_section(None, &information);
-}
-
-fn append_menu_action(menu: &gio::Menu, label: &str, action: &str, icon_name: &str) {
-    let item = gio::MenuItem::new(Some(label), Some(action));
-    item.set_icon(&gio::ThemedIcon::new(icon_name));
-    menu.append_item(&item);
 }
 
 fn primary_menu_sidebar_toggle_label(shell: &Shell) -> String {

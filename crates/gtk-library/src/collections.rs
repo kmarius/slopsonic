@@ -11,6 +11,7 @@ use adw::prelude::*;
 use gtk::{gio, glib};
 
 use crate::CatalogUi;
+use crate::grid_cells::selected_position;
 use crate::{LibraryField, LibraryLayout, LibraryListKey};
 use gtk_widgets::layout::{AllocationOwner, width_allocation_owner};
 use gtk_widgets::mounted_route::{MountedRouteItemNavigation, item_navigation_entry_position};
@@ -1114,14 +1115,6 @@ fn install_track_column_drag_source<T: TrackPresentation>(
     });
 }
 
-fn selected_position(selection: &gtk::SelectionModel) -> u32 {
-    let positions = selection.selection();
-    if positions.is_empty() {
-        gtk::INVALID_LIST_POSITION
-    } else {
-        positions.minimum()
-    }
-}
 fn collection_grid_field_class(field: LibraryField) -> &'static str {
     match field {
         LibraryField::Artist | LibraryField::AlbumArtist => "artist-label",

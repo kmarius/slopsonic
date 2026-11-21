@@ -445,7 +445,7 @@ impl Player {
                     &library::ReadCancellation::new(),
                 )
                 .await
-                .map_err(super::string_error)
+                .map_err(crate::source::string_error)
         });
     }
 
