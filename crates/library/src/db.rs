@@ -363,7 +363,6 @@ fn reader_options(path: &Path) -> SqliteConnectOptions {
     base_options(path)
         .pragma("temp_store", "FILE")
         .pragma("mmap_size", "0")
-        .with_regexp()
         .read_only(true)
         .create_if_missing(false)
         .statement_cache_capacity(READER_STATEMENTS)

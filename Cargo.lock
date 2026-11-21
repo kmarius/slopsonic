@@ -1485,7 +1485,6 @@ dependencies = [
  "libadwaita",
  "library",
  "playback",
- "regex",
  "slopsonic-core",
  "tokio",
 ]
@@ -3578,7 +3577,6 @@ dependencies = [
  "libsqlite3-sys",
  "log",
  "percent-encoding",
- "regex",
  "serde",
  "sqlx-core",
  "thiserror",

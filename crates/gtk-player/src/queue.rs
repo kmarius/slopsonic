@@ -266,14 +266,10 @@ pub fn queue_rows_for_indexes(
 }
 
 fn filter_queue_window(rows: &[Arc<QueueRow>], filter: &str) -> Vec<Arc<QueueRow>> {
-    let filter: String = filter.trim().chars().take(256).collect();
+    let filter: String = filter.trim().to_lowercase().chars().take(256).collect();
     if filter.is_empty() {
         return rows.to_vec();
     }
-    let pattern = regex::RegexBuilder::new(&regex::escape(&filter))
-        .case_insensitive(true)
-        .build()
-        .expect("Literal queue search");
     rows.iter()
         .filter(|row| {
             [
@@ -282,7 +278,7 @@ fn filter_queue_window(rows: &[Arc<QueueRow>], filter: &str) -> Vec<Arc<QueueRow
                 &row.track.metadata.album,
             ]
             .iter()
-            .any(|text| pattern.is_match(text))
+            .any(|text| text.to_lowercase().contains(&filter))
         })
         .cloned()
         .collect()
