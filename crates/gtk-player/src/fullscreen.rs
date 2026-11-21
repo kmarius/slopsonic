@@ -638,6 +638,8 @@ impl crate::PlayerUi {
             return;
         }
         self.views.fullscreen_player.visible.set(true);
+        // Fullscreen shares the sidebar's filtered queue model but has no search entry to clear it.
+        self.right_panel.queue_search.set_text("");
         self.animate_fullscreen_player(true);
         self.apply_fullscreen_display_settings();
         let presentation = NowPlayingPresentation::new(Some(&player));
