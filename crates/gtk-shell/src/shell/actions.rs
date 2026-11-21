@@ -406,10 +406,6 @@ fn show_shortcuts_dialog(shell: &Shell) {
         ("shortcut_back", "Back <Alt>Left"),
         ("shortcut_forward", "Forward <Alt>Right"),
         ("shortcut_sidebar_position", "<Control>1...9 <Control>0"),
-        (
-            "shortcut_source_position",
-            "<Control><Alt>1...9 <Control><Alt>0",
-        ),
     ];
     for (id, accelerator) in platform_accelerators {
         let item: adw::ShortcutsItem = gtk_widgets::ui_resource::object(&builder, resource, id);
