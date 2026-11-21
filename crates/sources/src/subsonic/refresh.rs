@@ -271,6 +271,7 @@ impl SubsonicSource {
                         } else {
                             &body["searchResult3"]["artist"]
                         });
+                        // Servers may cap the page size, so only an empty page ends the list.
                         if page.is_empty() {
                             break;
                         }
@@ -292,9 +293,6 @@ impl SubsonicSource {
                         check_cancelled(cancelled)?;
                         catalog.apply_catalog(&batch, true).await?;
                         progress(stage(read_stage, offset));
-                        if page.len() < ALBUM_REQUEST_SIZE {
-                            break;
-                        }
                     }
                     Ok(())
                 }
@@ -1005,10 +1003,20 @@ mod tests {
             Mock::given(method("GET"))
                 .and(path("/rest/getAlbumList2.view"))
                 .and(query_param("type", "alphabeticalByName"))
+                .and(query_param("offset", "0"))
                 .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                     "subsonic-response": { "status": "ok", "albumList2": { "album": [
                         { "id": "album", "name": "Album", "artist": "Artist" }
                     ] } }
+                })))
+                .mount(&server)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/rest/getAlbumList2.view"))
+                .and(query_param("type", "alphabeticalByName"))
+                .and(query_param("offset", "1"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "subsonic-response": { "status": "ok", "albumList2": { "album": [] } }
                 })))
                 .mount(&server)
                 .await;
@@ -1262,6 +1270,92 @@ mod tests {
                     .any(|value| value.stage == crate::SourceReadStage::Tracks)
             );
         }
+    }
+
+    #[tokio::test]
+    async fn capped_album_pages_are_read_until_an_empty_page() {
+        const TOTAL: usize = 250;
+        const CAP: usize = 100;
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/rest/getAlbumList2.view"))
+            .and(query_param("type", "alphabeticalByName"))
+            .respond_with(|request: &wiremock::Request| {
+                let offset: usize = request
+                    .url
+                    .query_pairs()
+                    .find(|(key, _)| key == "offset")
+                    .and_then(|(_, value)| value.parse().ok())
+                    .unwrap();
+                let albums = (offset..TOTAL.min(offset + CAP))
+                    .map(|index| serde_json::json!({ "id": format!("album-{index}"), "name": "Album" }))
+                    .collect::<Vec<_>>();
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "subsonic-response": { "status": "ok", "albumList2": { "album": albums } }
+                }))
+            })
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/rest/search3.view"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "subsonic-response": { "status": "ok", "searchResult3": {} }
+            })))
+            .mount(&server)
+            .await;
+        let source = SubsonicSource::open(
+            SubsonicFlavor::Subsonic,
+            SubsonicSourceConfig {
+                base_url: server.uri(),
+                username: "listener".to_string(),
+                trust_invalid_cert: false,
+                navidrome_library_version: 0,
+                authentication: SubsonicAuthentication::Password,
+            },
+            "salt:token".to_string(),
+        )
+        .unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let database = library::Database::open(directory.path().join("library.sqlite"))
+            .await
+            .unwrap();
+        database.reconcile_server("Server").await.unwrap();
+        let mut catalog = database.catalog(None).await.unwrap();
+        catalog.start_observation().await.unwrap();
+        let progress = std::sync::Mutex::new(Vec::new());
+        source
+            .acquire_catalog(
+                &mut catalog,
+                &|value| progress.lock().unwrap().push(value),
+                &|| false,
+            )
+            .await
+            .unwrap();
+        let offsets = server
+            .received_requests()
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|request| request.url.path() == "/rest/getAlbumList2.view")
+            .filter_map(|request| {
+                request
+                    .url
+                    .query_pairs()
+                    .find(|(key, _)| key == "offset")
+                    .map(|(_, value)| value.into_owned())
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(offsets, ["0", "100", "200", "250"]);
+        assert_eq!(
+            progress
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|value| value.stage == crate::SourceReadStage::Albums)
+                .map(|value| value.completed)
+                .max(),
+            Some(TOTAL)
+        );
     }
 
     #[tokio::test]

@@ -124,7 +124,7 @@ impl SubsonicSource {
             {
                 return Ok(raw);
             }
-            if page.len() < NAVIDROME_PAGE_SIZE {
+            if page.is_empty() {
                 return Err(SourceError::NotFound);
             }
             offset += page.len();
@@ -268,9 +268,6 @@ impl SubsonicSource {
                     completed: offset,
                     total: None,
                 });
-                if page_len < NAVIDROME_PAGE_SIZE {
-                    break;
-                }
             }
         }
         if let Some(stamp) = stamp {
@@ -1148,6 +1145,12 @@ mod tests {
         let response_cleared = cleared.clone();
         Mock::given(method("GET"))
             .and(path("/api/song"))
+            .and(query_param("_start", "1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/song"))
             .respond_with(move |_: &wiremock::Request| {
                 let cleared = response_cleared.load(Ordering::Relaxed);
                 ResponseTemplate::new(200).set_body_json(serde_json::json!([{
@@ -1157,6 +1160,12 @@ mod tests {
                     "mbzReleaseTrackId":if cleared { None } else { Some("release-track") }
                 }]))
             })
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/album"))
+            .and(query_param("_start", "1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
             .mount(&server)
             .await;
         Mock::given(method("GET"))
@@ -1453,6 +1462,17 @@ mod tests {
             .expect(1)
             .mount(&server)
             .await;
+        for (endpoint, offset) in [
+            ("artist", 1),
+            ("album", NAVIDROME_PAGE_SIZE + 1),
+            ("song", NAVIDROME_PAGE_SIZE + 1),
+        ] {
+            page_match(endpoint, offset, "token-b")
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
 
         let source = navidrome_source(&server.uri());
         let source_owner = crate::Source::new(source);
