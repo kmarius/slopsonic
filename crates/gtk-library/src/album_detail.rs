@@ -87,7 +87,6 @@ impl AlbumCollectionModels {
                 let database = database.clone();
                 let rows = SparseRouteModel::new(
                     SparseSource::Query { count: page.count },
-                    32,
                     runtime.clone(),
                     Rc::new(move |_, range, cancel| {
                         let index = reader.layout().index.clone();
@@ -127,7 +126,6 @@ impl AlbumCollectionModels {
         let reader = database.clone();
         let rows = SparseRouteModel::new(
             SparseSource::Query { count },
-            32,
             runtime.clone(),
             Rc::new(move |_, range, cancel| {
                 let read = read_request.borrow().clone();

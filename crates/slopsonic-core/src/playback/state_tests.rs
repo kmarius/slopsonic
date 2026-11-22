@@ -165,7 +165,6 @@ async fn make_playable(
                 encoding: "original".into(),
                 path: url::Url::from_file_path(&path).unwrap().to_string(),
                 storage_root: directory.to_string_lossy().into_owned(),
-                relative_path: name,
                 ..Default::default()
             })
             .await

@@ -22,7 +22,7 @@ pub use scrobbling::{
     ScrobblingConnectionEvent, ScrobblingHandle, ScrobblingPreferences,
 };
 pub use source::ServerHandle;
-pub use storage::{CacheKind, CacheSummary, CacheUsage, StorageSummary};
+pub use storage::{CacheUsage, StorageSummary};
 
 #[derive(Clone)]
 pub struct ProductHandles {

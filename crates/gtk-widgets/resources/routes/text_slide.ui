@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <object class="SlopsonicTextFade" id="fade">
     <property name="hexpand">true</property>
     <child>

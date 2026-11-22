@@ -68,8 +68,9 @@ struct DatabaseInner {
     path: PathBuf,
     writer: Arc<Mutex<Option<SqliteConnection>>>,
     readers: SqlitePool,
-    export_readers: SqlitePool,
-    export_read: tokio::sync::Mutex<()>,
+    retention_readers: SqlitePool,
+    /// Queues retention scans; the one-connection pool would time out a second caller instead.
+    retention_read: tokio::sync::Mutex<()>,
     /// Playback's own reader, so a track change never waits behind general reads.
     playable_readers: SqlitePool,
     distinct_track_covers: AtomicBool,
@@ -189,7 +190,7 @@ impl Database {
 
     pub async fn close(self) -> LibraryResult<()> {
         tokio::join!(
-            self.inner.export_readers.close(),
+            self.inner.retention_readers.close(),
             self.inner.playable_readers.close(),
             self.inner.readers.close()
         );
@@ -214,15 +215,15 @@ impl Database {
             return Err(error);
         }
         let readers = open_readers(path, MIN_READERS, MAX_READERS, ROW_BUFFER).await?;
-        let export_readers = open_readers(path, 0, 1, 1).await?;
+        let retention_readers = open_readers(path, 0, 1, 1).await?;
         let playable_readers = open_readers(path, 0, 1, ROW_BUFFER).await?;
         Ok(Self {
             inner: Arc::new(DatabaseInner {
                 path: path.to_owned(),
                 writer: Arc::new(Mutex::new(Some(writer))),
                 readers,
-                export_readers,
-                export_read: tokio::sync::Mutex::new(()),
+                retention_readers,
+                retention_read: tokio::sync::Mutex::new(()),
                 playable_readers,
                 distinct_track_covers: AtomicBool::new(false),
                 catalog_observer: std::sync::Mutex::new(None),
@@ -312,11 +313,11 @@ impl Database {
         Ok(self.inner.playable_readers.acquire().await?)
     }
 
-    pub(crate) async fn acquire_export(
+    pub(crate) async fn acquire_retention(
         &self,
     ) -> LibraryResult<(tokio::sync::MutexGuard<'_, ()>, PoolConnection<Sqlite>)> {
-        let permit = self.inner.export_read.lock().await;
-        Ok((permit, self.inner.export_readers.acquire().await?))
+        let permit = self.inner.retention_read.lock().await;
+        Ok((permit, self.inner.retention_readers.acquire().await?))
     }
 
     #[cfg(test)]
@@ -436,21 +437,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn close_waits_for_exports_and_closes_both_reader_pools() {
+    async fn close_waits_for_retention_and_closes_both_reader_pools() {
         use futures_util::FutureExt;
 
         let (_directory, database) = database().await;
-        let export = database.acquire_export().await.unwrap();
+        let retention = database.acquire_retention().await.unwrap();
         let mut closing = Box::pin(database.clone().close());
         assert!(closing.as_mut().now_or_never().is_none());
         assert!(database.inner.readers.is_closed());
-        assert!(database.inner.export_readers.is_closed());
-        drop(export);
+        assert!(database.inner.retention_readers.is_closed());
+        drop(retention);
         timeout(Duration::from_secs(1), closing)
             .await
             .unwrap()
             .unwrap();
-        assert!(database.acquire_export().await.is_err());
+        assert!(database.acquire_retention().await.is_err());
     }
 
     #[tokio::test]

@@ -53,10 +53,7 @@ pub fn audio_source_label(format: Option<&str>, path: Option<&str>) -> Option<St
     })
 }
 
-pub fn now_playing_labels(
-    media: Option<&playback::CurrentMedia>,
-    output_name: Option<&str>,
-) -> Vec<String> {
+pub fn now_playing_labels(media: Option<&playback::CurrentMedia>) -> Vec<String> {
     let Some(media) = media else {
         return Vec::new();
     };
@@ -66,15 +63,14 @@ pub fn now_playing_labels(
         Some(&media.row.track.media_uri),
     );
     let same_format = media.stream.as_ref().is_none_or(|stream| {
-        !stream.transcoded
-            && stream.format.as_ref().is_none_or(|format| {
-                original
-                    .as_deref()
-                    .and_then(crate::playback::audio_mime)
-                    .is_some_and(|original| {
-                        original == *format || original.split(';').next() == Some(format.as_str())
-                    })
-            })
+        stream.format.as_ref().is_none_or(|format| {
+            original
+                .as_deref()
+                .and_then(crate::playback::audio_mime)
+                .is_some_and(|original| {
+                    original == *format || original.split(';').next() == Some(format.as_str())
+                })
+        })
     });
     let format = if same_format {
         original
@@ -110,7 +106,7 @@ pub fn now_playing_labels(
                 .map(|rate| format!("{} kHz", f64::from(rate) / 1000.0)),
         );
     }
-    let mut place = Vec::from_iter(output_name.map(str::to_owned));
+    let mut place = Vec::new();
     if let Some(stream) = &media.stream {
         place.push(String::from(if stream.local {
             "Local"

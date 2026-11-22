@@ -149,7 +149,6 @@ const NORMAL_FILTER: &str = concat!(
     "playback_gstreamer=info,",
     "slopsonic=info,",
     "scrobbling=info,",
-    "secrets=info,",
     "sources=info,",
     "gtk_=info,",
     "lofty=error"
@@ -163,7 +162,6 @@ const DEBUG_FILTER: &str = concat!(
     "playback_gstreamer=debug,",
     "slopsonic=debug,",
     "scrobbling=debug,",
-    "secrets=debug,",
     "sources=debug,",
     "gtk_=debug,",
     "lofty=error"
@@ -630,7 +628,7 @@ fn summarize_path(value: &str) -> String {
         .trim_start_matches("Some(\"")
         .trim_end_matches("\")");
     let Some(name) = value
-        .rsplit(['/', '\\'])
+        .rsplit('/')
         .find(|component| !component.is_empty())
     else {
         return "<local>".to_string();
@@ -777,14 +775,11 @@ fn redact_local_paths(value: &str) -> String {
         "/var/home/".to_string(),
         "/home/".to_string(),
         "/run/user/".to_string(),
-        r"C:\Users\".to_string(),
     ];
-    for variable in ["HOME", "USERPROFILE"] {
-        if let Some(home) = std::env::var_os(variable).and_then(|home| home.into_string().ok())
-            && (home.starts_with('/') || home.as_bytes().get(1) == Some(&b':'))
-        {
-            prefixes.push(home);
-        }
+    if let Some(home) = std::env::var_os("HOME").and_then(|home| home.into_string().ok())
+        && home.starts_with('/')
+    {
+        prefixes.push(home);
     }
 
     let mut ranges = Vec::new();
@@ -1059,7 +1054,7 @@ mod tests {
             tracing::debug!(target: "sources", endpoint = "/rest/getSongs", "source request");
             tracing::debug!(
                 target: "sources",
-                url = "https://private.test/Users/abc/Views?api_key=secret",
+                url = "https://private.test/rest/getArtists?api_key=secret",
                 "source URL"
             );
         });
@@ -1073,7 +1068,7 @@ mod tests {
         assert!(snapshot.contains("source request"));
         assert!(snapshot.contains("navigate route=Home"));
         assert!(snapshot.contains("route rows ready"));
-        assert!(snapshot.contains("url=https://<server>/Users/abc/Views?keys=api_key"));
+        assert!(snapshot.contains("url=https://<server>/rest/getArtists?keys=api_key"));
         assert!(!snapshot.contains("transport frame"));
         assert!(!snapshot.contains("private.test"));
         assert!(!snapshot.contains("secret"));
@@ -1111,8 +1106,8 @@ mod tests {
             "<local>/King Crimson"
         );
         assert_eq!(
-            sanitize_field("endpoint", "/Users/abc/Views"),
-            "/Users/abc/Views"
+            sanitize_field("endpoint", "/rest/getArtists"),
+            "/rest/getArtists"
         );
     }
 
@@ -1120,13 +1115,13 @@ mod tests {
     fn embedded_paths_and_credentials_are_redacted_without_losing_media_facts() {
         let text = sanitize_free_text(
             "failed \"/var/home/screwy/Music/King Crimson/Red.flac\" token = \"private value\" \
-             format=flac bitrate_kbps=320 track_id=local:track:7",
+             format=flac bitrate_kbps=320 track_id=subsonic:track:7",
         );
 
         assert!(text.contains("<local>/Red.flac"));
         assert!(text.contains("token = \"<redacted>\""));
         assert!(text.contains("format=flac bitrate_kbps=320"));
-        assert!(text.contains("track_id=local:track:7"));
+        assert!(text.contains("track_id=subsonic:track:7"));
         assert!(!text.contains("screwy"));
         assert!(!text.contains("private"));
     }

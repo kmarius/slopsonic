@@ -1,5 +1,5 @@
 use super::audio::{SharedQueuedLoudness, passthrough_allowed};
-use super::pipeline::{AboutToFinishAction, PlayerPipeline, SourceClock};
+use super::pipeline::{AboutToFinishAction, PlayerPipeline};
 use super::*;
 use std::collections::HashMap;
 use std::sync::mpsc::{SyncSender, sync_channel};
@@ -273,9 +273,9 @@ enum Transition {
 /// The latest seek target. Only one seek runs at a time; a newer target waits for it.
 #[derive(Clone, Copy, Debug, Default)]
 pub(super) struct SeekState {
-    /// Physical position of the seek the pipeline is performing.
+    /// Position of the seek the pipeline is performing.
     in_flight: Option<u64>,
-    /// Physical position requested while a seek runs or before the session prerolled.
+    /// Position requested while a seek runs or before the session prerolled.
     queued: Option<u64>,
 }
 
@@ -573,7 +573,7 @@ impl GstEngine {
         &mut self,
         item: PreparedRun,
         next: Option<PreparedNext>,
-        start_position_millis: u64,
+        start_millis: u64,
     ) -> Result<(), BackendFailure> {
         self.desired_playing = true;
         let incoming_next = next.clone();
@@ -587,8 +587,6 @@ impl GstEngine {
         self.stop_pipeline(Slot::Secondary);
         let output_gain = settings.output_gain();
         let muted = settings.muted;
-        let start_millis =
-            SourceClock::from_stream(&item.stream).physical_seek(start_position_millis);
         {
             let mut shared = lock_recover(&self.shared);
             shared.settings = settings.clone();
@@ -695,19 +693,13 @@ impl GstEngine {
         } else {
             gst::State::Paused
         };
-        let current_after_gapless_cancel = current_after_gapless_cancel.or_else(|| {
-            (self.active_pipeline().native_seekable() == Some(false))
-                .then(|| self.current_item().ok())
-                .flatten()
-                .filter(|item| item.stream.time_seekable())
-        });
         // Restarting at 0 avoids an audible skip after AAC priming on some files.
         if let Some(current) = current_after_gapless_cancel
             .or_else(|| (millis == 0).then(|| self.current_item().ok()).flatten())
         {
             let bitstream = self.active_pipeline().bitstream_format();
             self.start_item_session_at_millis(current, millis, target_state, bitstream)?;
-            self.push_logical_position(millis);
+            self.emit_position(millis);
             return Ok(());
         }
         if !self.desired_playing
@@ -716,17 +708,16 @@ impl GstEngine {
             self.retire_playback();
             return Err(error);
         }
-        let target = self.active_pipeline().physical_seek_target(millis);
         // Repeating the running target, as repeated seek requests do, needs no new seek.
-        if self.seek.in_flight == Some(target) {
+        if self.seek.in_flight == Some(millis) {
             self.seek.queued = None;
             return Ok(());
         }
         if self.seek.in_flight.is_some() || !self.session_prerolled {
-            self.seek.queued = Some(target);
+            self.seek.queued = Some(millis);
             return Ok(());
         }
-        self.send_seek(target).inspect_err(|error| {
+        self.send_seek(millis).inspect_err(|error| {
             warn!(%error, target_millis = millis, "GStreamer seek request failed");
             if let Some(position) = self.active_pipeline().position() {
                 self.push_position(clock_millis(position));
@@ -740,20 +731,7 @@ impl GstEngine {
         } else {
             gst::State::Paused
         };
-        // A source that cannot seek natively reopens at the requested source time.
-        if self.active_pipeline().native_seekable() == Some(false)
-            && let Some(current) = self
-                .current_item()
-                .ok()
-                .filter(|item| item.stream.time_seekable())
-        {
-            let logical = self.active_pipeline().logical_position(target);
-            let bitstream = self.active_pipeline().bitstream_format();
-            self.start_item_session_at_millis(current, logical, state, bitstream)?;
-            self.push_logical_position(logical);
-            return Ok(());
-        }
-        self.active_pipeline().seek_physical_millis(target)?;
+        self.active_pipeline().seek_millis(target)?;
         self.seek.in_flight = self.active_pipeline().seek_in_progress().then_some(target);
         if let Err(error) = self.active_pipeline().set_state(state) {
             self.retire_playback();
@@ -809,22 +787,12 @@ impl GstEngine {
 
     fn start_item_session_at_millis(
         &mut self,
-        mut item: PreparedRun,
-        position_millis: u64,
+        item: PreparedRun,
+        start_millis: u64,
         target_state: gst::State,
         bitstream: Option<gst::Caps>,
     ) -> Result<(), BackendFailure> {
         let (settings, volume, muted, slot) = self.session_context();
-        if item.stream.time_seekable()
-            && (item.stream.time_offset_millis().is_some()
-                || self.active_pipeline().native_seekable() == Some(false))
-        {
-            *item.stream.stream = item
-                .stream
-                .reopened_at(position_millis)
-                .map_err(|error| error.to_string())?;
-        }
-        let start_millis = SourceClock::from_stream(&item.stream).physical_seek(position_millis);
         let run = item.run;
         let active = bitstream.is_some();
         let needs_preroll_seek = start_millis > 0;
@@ -848,13 +816,12 @@ impl GstEngine {
         Ok(())
     }
 
-    /// The logical position a restarted session continues from.
+    /// The position a restarted session continues from.
     fn restart_position_millis(&self) -> u64 {
         self.seek
             .queued
             .or(self.seek.in_flight)
             .or_else(|| self.active_pipeline().position().map(clock_millis))
-            .map(|position| self.active_pipeline().logical_position(position))
             .unwrap_or_default()
     }
 
@@ -899,7 +866,7 @@ impl GstEngine {
             gst::State::Paused
         };
         self.start_item_session_at_millis(current, position, state, None)?;
-        self.push_logical_position(position);
+        self.emit_position(position);
         if !self.desired_playing {
             self.push_state(BackendState::Paused);
         }
@@ -979,10 +946,8 @@ impl GstEngine {
             return None;
         };
         let pipeline = self.active_pipeline();
-        let remaining = pipeline.logical_remaining(
-            clock_millis(pipeline.position()?),
-            clock_millis(pipeline.duration()?),
-        );
+        let remaining =
+            clock_millis(pipeline.duration()?).saturating_sub(clock_millis(pipeline.position()?));
         let start = duration_millis;
         // Past the start point, readiness messages drive the start instead.
         let wait = remaining.checked_sub(start).filter(|wait| *wait > 0)?;
@@ -998,16 +963,8 @@ impl GstEngine {
         });
         let pipeline = slot.map(|slot| self.pipeline_for_slot(slot));
         let run = slot.and_then(|slot| self.run_for_slot(slot));
-        let position_millis = pipeline.and_then(|pipeline| {
-            pipeline
-                .position()
-                .map(|position| pipeline.logical_position(clock_millis(position)))
-        });
-        let duration_millis = pipeline.and_then(|pipeline| {
-            pipeline
-                .duration()
-                .map(|duration| pipeline.logical_duration(clock_millis(duration)))
-        });
+        let position_millis = pipeline.and_then(|pipeline| pipeline.position().map(clock_millis));
+        let duration_millis = pipeline.and_then(|pipeline| pipeline.duration().map(clock_millis));
         let role = match slot {
             Some(slot) if slot == self.active_slot() => "current",
             Some(_) if run.is_some() => "outgoing",

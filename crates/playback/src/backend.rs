@@ -5,7 +5,6 @@ use audio_processing::ResolvedStream;
 use library::NativeGain;
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
-use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -13,8 +12,6 @@ use thiserror::Error;
 pub struct StreamRequest {
     pub media_uri: String,
     pub quality: StreamQuality,
-    #[serde(default)]
-    pub session_identifier: Option<String>,
 }
 
 impl StreamRequest {
@@ -26,7 +23,6 @@ impl StreamRequest {
         Self {
             media_uri: media_uri.into(),
             quality,
-            session_identifier: None,
         }
     }
 }
@@ -70,7 +66,6 @@ pub struct PreparedStream {
     pub stream: Box<ResolvedStream>,
     pub loudness: Option<TrackLoudness>,
     pub row: Option<std::sync::Arc<crate::QueueRow>>,
-    pub artwork_path: Option<Arc<PathBuf>>,
 }
 
 impl PreparedStream {
@@ -79,7 +74,6 @@ impl PreparedStream {
             stream: Box::new(stream),
             loudness,
             row: None,
-            artwork_path: None,
         }
     }
 

@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<interface domain="slopsonic">
+<interface>
   <requires lib="gtk" version="4.20" />
   <requires lib="libadwaita" version="1.9" />
   <object class="AdwBreakpointBin" id="responsive">
@@ -13,7 +13,7 @@
               <object class="GtkButton" id="category_back">
                 <property name="visible">false</property>
                 <property name="icon-name">slopsonic-go-previous-symbolic</property>
-                <property name="tooltip-text" translatable="yes">Back</property>
+                <property name="tooltip-text">Back</property>
                 <style>
                   <class name="flat" />
                 </style>
@@ -23,7 +23,7 @@
               <object class="GtkButton" id="back">
                 <property name="visible">false</property>
                 <property name="icon-name">slopsonic-go-previous-symbolic</property>
-                <property name="tooltip-text" translatable="yes">Back</property>
+                <property name="tooltip-text">Back</property>
                 <style>
                   <class name="flat" />
                 </style>
@@ -32,7 +32,7 @@
             <child type="end">
               <object class="GtkToggleButton" id="search_button">
                 <property name="icon-name">slopsonic-search-symbolic</property>
-                <property name="tooltip-text" translatable="yes">Search</property>
+                <property name="tooltip-text">Search</property>
                 <style>
                   <class name="flat" />
                 </style>
@@ -48,7 +48,7 @@
                     <property name="name">title</property>
                     <property name="child">
                       <object class="GtkLabel" id="page_title">
-                        <property name="label" translatable="yes">General</property>
+                        <property name="label">General</property>
                         <property name="ellipsize">end</property>
                         <style>
                           <class name="heading" />
@@ -63,7 +63,7 @@
                     <property name="child">
                       <object class="GtkSearchEntry" id="search_entry">
                         <property name="hexpand">true</property>
-                        <property name="placeholder-text" translatable="yes">Search preferences</property>
+                        <property name="placeholder-text">Search preferences</property>
                         <property name="width-chars">1</property>
                         <property name="max-width-chars">28</property>
                       </object>
@@ -85,7 +85,7 @@
             <property name="sidebar-width-fraction">0.22</property>
             <property name="sidebar">
               <object class="AdwNavigationPage">
-                <property name="title" translatable="yes">Preferences</property>
+                <property name="title">Preferences</property>
                 <property name="child">
                   <object class="GtkScrolledWindow">
                     <property name="hscrollbar-policy">never</property>
@@ -94,7 +94,7 @@
                         <property name="selection-mode">single</property>
                         <property name="activate-on-single-click">true</property>
                         <accessibility>
-                          <property name="label" translatable="yes">Preferences</property>
+                          <property name="label">Preferences</property>
                         </accessibility>
                         <style>
                           <class name="navigation-sidebar" />
@@ -119,7 +119,7 @@
                                 </child>
                                 <child>
                                   <object class="GtkLabel">
-                                    <property name="label" translatable="yes">General</property>
+                                    <property name="label">General</property>
                                     <property name="xalign">0</property>
                                     <property name="hexpand">true</property>
                                     <property name="ellipsize">end</property>
@@ -151,7 +151,7 @@
                                 </child>
                                 <child>
                                   <object class="GtkLabel">
-                                    <property name="label" translatable="yes">Customization</property>
+                                    <property name="label">Customization</property>
                                     <property name="xalign">0</property>
                                     <property name="hexpand">true</property>
                                     <property name="ellipsize">end</property>
@@ -183,7 +183,7 @@
                                 </child>
                                 <child>
                                   <object class="GtkLabel">
-                                    <property name="label" translatable="yes">Theme</property>
+                                    <property name="label">Theme</property>
                                     <property name="xalign">0</property>
                                     <property name="hexpand">true</property>
                                     <property name="ellipsize">end</property>
@@ -215,7 +215,7 @@
                                 </child>
                                 <child>
                                   <object class="GtkLabel">
-                                    <property name="label" translatable="yes">Integrations</property>
+                                    <property name="label">Integrations</property>
                                     <property name="xalign">0</property>
                                     <property name="hexpand">true</property>
                                     <property name="ellipsize">end</property>
@@ -247,7 +247,7 @@
                                 </child>
                                 <child>
                                   <object class="GtkLabel">
-                                    <property name="label" translatable="yes">Playback</property>
+                                    <property name="label">Playback</property>
                                     <property name="xalign">0</property>
                                     <property name="hexpand">true</property>
                                     <property name="ellipsize">end</property>
@@ -279,7 +279,7 @@
                                 </child>
                                 <child>
                                   <object class="GtkLabel">
-                                    <property name="label" translatable="yes">Library</property>
+                                    <property name="label">Library</property>
                                     <property name="xalign">0</property>
                                     <property name="hexpand">true</property>
                                     <property name="ellipsize">end</property>
@@ -311,7 +311,7 @@
                                 </child>
                                 <child>
                                   <object class="GtkLabel">
-                                    <property name="label" translatable="yes">Downloads</property>
+                                    <property name="label">Downloads</property>
                                     <property name="xalign">0</property>
                                     <property name="hexpand">true</property>
                                     <property name="ellipsize">end</property>
@@ -343,7 +343,7 @@
                                 </child>
                                 <child>
                                   <object class="GtkLabel">
-                                    <property name="label" translatable="yes">Storage</property>
+                                    <property name="label">Storage</property>
                                     <property name="xalign">0</property>
                                     <property name="hexpand">true</property>
                                     <property name="ellipsize">end</property>
@@ -367,7 +367,7 @@
             </property>
             <property name="content">
               <object class="AdwNavigationPage" id="content_page">
-                <property name="title" translatable="yes">General</property>
+                <property name="title">General</property>
                 <property name="child">
                   <object class="GtkStack" id="content_stack">
                     <property name="hexpand">true</property>

@@ -57,7 +57,6 @@ pub struct SearchResults {
 impl Database {
     pub async fn search_rows_by_objects(
         &self,
-        _folder: Option<FolderKey>,
         album_artists: bool,
         track_objects: &[String],
         album_objects: &[String],

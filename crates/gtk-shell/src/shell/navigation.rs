@@ -1587,17 +1587,11 @@ fn rail_button(shell: &Rc<Shell>, item: SidebarRouteItem) -> gtk::Button {
     button
 }
 
-pub(super) fn compact_sidebar_label_text(label: &str) -> String {
-    let translated = String::from(label);
-    let compact = {
-        let words = translated.split_whitespace().collect::<Vec<_>>();
-        if words.len() == 2 {
-            Some(format!("{}\n{}", words[0], words[1]))
-        } else {
-            None
-        }
-    };
-    compact.unwrap_or(translated)
+fn compact_sidebar_label_text(label: &str) -> String {
+    match label.split_whitespace().collect::<Vec<_>>()[..] {
+        [first, second] => format!("{first}\n{second}"),
+        _ => label.to_string(),
+    }
 }
 
 fn configure_rail_label(label: &gtk::Label) {

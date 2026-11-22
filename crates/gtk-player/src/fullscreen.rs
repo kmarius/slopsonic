@@ -969,19 +969,11 @@ mod playback_refresh_tests {
         current.stream = Some(playback::CurrentStream {
             local: false,
             format: Some("audio/mpeg".into()),
-            transcoded: true,
             bitstream: false,
         });
         assert_eq!(
             NowPlayingPresentation::new(Some(&streaming)).meta,
             ["2026", "MP3", "Streaming"]
-        );
-        assert_eq!(
-            slopsonic_core::settings::presentation::now_playing_labels(
-                streaming.transport.current.as_ref(),
-                Some("Living room")
-            ),
-            ["2026", "MP3", "Living room · Streaming"]
         );
         assert_eq!(
             fullscreen_playback_refresh(Some(&current_change), &streaming),
@@ -991,7 +983,6 @@ mod playback_refresh_tests {
         current.stream = Some(playback::CurrentStream {
             local: true,
             format: Some("audio/ogg; codecs=opus".into()),
-            transcoded: false,
             bitstream: false,
         });
         assert_eq!(
@@ -1022,7 +1013,6 @@ mod playback_refresh_tests {
             stream: Some(playback::CurrentStream {
                 local: true,
                 format: Some("audio/flac".into()),
-                transcoded: false,
                 bitstream: false,
             }),
             id: CurrentMediaId {

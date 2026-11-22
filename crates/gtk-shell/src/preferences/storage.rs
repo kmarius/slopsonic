@@ -2,12 +2,11 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use slopsonic_core::runtime::source::{ServerOperation, ServerProgressStage, source_download_text};
-use slopsonic_core::runtime::{CacheKind, CacheUsage, ProductHandles, StorageSummary};
+use slopsonic_core::runtime::{CacheUsage, ProductHandles, StorageSummary};
 
 use crate::preferences::Preferences;
 
 struct CacheRow {
-    kind: CacheKind,
     count: gtk::glib::WeakRef<gtk::Label>,
     size: gtk::glib::WeakRef<gtk::Label>,
     clear: gtk::glib::WeakRef<gtk::Button>,
@@ -19,7 +18,7 @@ struct StorageView {
     spinner: gtk::glib::WeakRef<gtk::Spinner>,
     error: gtk::glib::WeakRef<gtk::Label>,
     unavailable: gtk::glib::GString,
-    rows: Vec<CacheRow>,
+    artwork: CacheRow,
     products: ProductHandles,
 }
 
@@ -56,33 +55,21 @@ pub(super) fn page(
         );
     });
 
-    let controls = [(
-        CacheKind::Artwork,
-        Some(artwork_count),
-        artwork_size,
-        clear_artwork,
-    )];
     let view = Rc::new(StorageView {
         page: storage_page.downgrade(),
         total: total_size.downgrade(),
         spinner: spinner.downgrade(),
         error: error.downgrade(),
         unavailable: unavailable_text.label(),
-        rows: controls
-            .iter()
-            .map(|(kind, count, size, clear)| CacheRow {
-                kind: *kind,
-                count: count.as_ref().map(ObjectExt::downgrade).unwrap_or_default(),
-                size: size.downgrade(),
-                clear: clear.downgrade(),
-            })
-            .collect(),
+        artwork: CacheRow {
+            count: artwork_count.downgrade(),
+            size: artwork_size.downgrade(),
+            clear: clear_artwork.downgrade(),
+        },
         products: shell.products.clone(),
     });
-    for (kind, _, _, button) in controls {
-        let view = view.clone();
-        button.connect_clicked(move |_| view.confirm_clear(kind));
-    }
+    let clicked = view.clone();
+    clear_artwork.connect_clicked(move |_| clicked.confirm_clear());
     let mut operation = shell.products.source.operation();
     let downloads = Rc::downgrade(&view);
     gtk::glib::spawn_future_local(async move {
@@ -98,12 +85,12 @@ pub(super) fn page(
             }
         }
     });
-    storage_page.connect_map(move |_| view.load(None));
+    storage_page.connect_map(move |_| view.load(false));
     navigation.upcast()
 }
 
 impl StorageView {
-    fn confirm_clear(self: &Rc<Self>, kind: CacheKind) {
+    fn confirm_clear(self: &Rc<Self>) {
         let view = self.clone();
         gtk::glib::spawn_future_local(async move {
             let Some(page) = view.page.upgrade() else {
@@ -114,12 +101,12 @@ impl StorageView {
             let dialog: adw::AlertDialog =
                 gtk_widgets::ui_resource::object(&builder, resource, "cache_entry_confirmation");
             if dialog.choose_future(Some(&page)).await == "clear" {
-                view.load(Some(kind));
+                view.load(true);
             }
         });
     }
 
-    fn load(self: &Rc<Self>, clear: Option<CacheKind>) {
+    fn load(self: &Rc<Self>, clear: bool) {
         if self
             .spinner
             .upgrade()
@@ -135,12 +122,12 @@ impl StorageView {
             .runtime
             .spawn(async move { products.storage_summary(clear).await });
         let cancel = task.abort_handle();
-        let teardown = if clear.is_none() {
+        let teardown = if clear {
+            None
+        } else {
             self.page
                 .upgrade()
                 .map(|page| page.connect_destroy(move |_| cancel.abort()))
-        } else {
-            None
         };
         gtk::glib::spawn_future_local(async move {
             let result = task.await;
@@ -151,23 +138,16 @@ impl StorageView {
                 page.disconnect(teardown);
             }
             let summary = result.unwrap_or_else(|error| StorageSummary {
-                caches: Vec::new(),
-                total_bytes: None,
+                artwork: None,
                 errors: vec![error.to_string()],
             });
             view.set_busy(false);
-            for row in &view.rows {
-                let usage = summary
-                    .caches
-                    .iter()
-                    .find(|cache| cache.kind == row.kind)
-                    .and_then(|cache| cache.usage);
-                row.update(usage, &view.unavailable);
-            }
+            view.artwork.update(summary.artwork, &view.unavailable);
             if let Some(label) = view.total.upgrade() {
-                let size = summary
-                    .total_bytes
-                    .map_or_else(|| view.unavailable.clone(), gtk::glib::format_size);
+                let size = summary.artwork.map_or_else(
+                    || view.unavailable.clone(),
+                    |usage| gtk::glib::format_size(usage.bytes),
+                );
                 label.set_label(&size);
             }
             if let Some(label) = view.error.upgrade() {
@@ -181,20 +161,14 @@ impl StorageView {
     fn show_download(self: &Rc<Self>, operation: &ServerOperation, downloading: bool) -> bool {
         let ServerOperation::Downloading { progress, .. } = operation else {
             if downloading && self.page.upgrade().is_some_and(|page| page.is_mapped()) {
-                self.load(None);
+                self.load(false);
             }
             return false;
         };
-        let kind = match progress.stage {
-            ServerProgressStage::Artwork => CacheKind::Artwork,
-            _ => return true,
-        };
-        if let Some(count) = self
-            .rows
-            .iter()
-            .find(|row| row.kind == kind)
-            .and_then(|row| row.count.upgrade())
-        {
+        if progress.stage != ServerProgressStage::Artwork {
+            return true;
+        }
+        if let Some(count) = self.artwork.count.upgrade() {
             count.set_label(&source_download_text(progress));
         }
         true
@@ -205,10 +179,8 @@ impl StorageView {
             spinner.set_spinning(busy);
             spinner.set_visible(busy);
         }
-        for row in &self.rows {
-            if let Some(button) = row.clear.upgrade() {
-                button.set_sensitive(!busy);
-            }
+        if let Some(button) = self.artwork.clear.upgrade() {
+            button.set_sensitive(!busy);
         }
     }
 }
@@ -218,14 +190,7 @@ impl CacheRow {
         if let Some(count) = self.count.upgrade() {
             let text = usage.map_or_else(
                 || unavailable.to_owned(),
-                |usage| {
-                    slopsonic_core::text::fill_plural(
-                        "{count} entry",
-                        "{count} entries",
-                        usage.entries,
-                        &[("count", &usage.entries.to_string())],
-                    )
-                },
+                |usage| slopsonic_core::text::count_text(usage.entries, "entry", "entries"),
             );
             count.set_label(&text);
         }

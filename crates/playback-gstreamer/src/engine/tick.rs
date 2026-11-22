@@ -82,7 +82,7 @@ impl GstEngine {
             }
             let duration = self.active_pipeline().duration();
             if let Some(duration) = duration {
-                self.push_physical_duration(clock_millis(duration));
+                self.push_duration(clock_millis(duration));
             }
             debug!(
                 run = self.timing_run_id().map(RunId::get),
@@ -100,12 +100,11 @@ impl GstEngine {
         if self.seek_busy() || !self.session_prerolled {
             return;
         }
-        let logical_millis = self.active_pipeline().logical_position(millis);
         if let Some(run) = self.timing_run_id() {
             if self.ended_run == Some(run) {
                 return;
             }
-            self.push_logical_position(logical_millis);
+            self.emit_position(millis);
         }
     }
 
@@ -133,7 +132,7 @@ impl GstEngine {
         }
     }
 
-    pub(super) fn push_logical_position(&self, millis: u64) {
+    pub(super) fn emit_position(&self, millis: u64) {
         if let Some(run) = self.timing_run_id() {
             push_event(&self.events, BackendEvent::Position { run, millis });
         }
@@ -155,10 +154,6 @@ impl GstEngine {
         push_event(&self.events, BackendEvent::Seekable { run, seekable });
     }
 
-    pub(super) fn push_physical_duration(&self, millis: u64) {
-        self.push_duration(self.active_pipeline().logical_duration(millis));
-    }
-
     pub(super) fn emit_ended_once(&mut self, run: RunId) {
         if self.ended_run == Some(run) {
             return;
@@ -167,13 +162,10 @@ impl GstEngine {
         if self.run_is_current(run) {
             if !self.active_pipeline().has_pending_gapless() {
                 if let Some(position) = self.active_pipeline().position() {
-                    self.push_logical_position(
-                        self.active_pipeline()
-                            .logical_position(clock_millis(position)),
-                    );
+                    self.emit_position(clock_millis(position));
                 }
                 if let Some(duration) = self.active_pipeline().duration() {
-                    self.push_physical_duration(clock_millis(duration));
+                    self.push_duration(clock_millis(duration));
                 }
             }
             self.retire_playback();
@@ -228,15 +220,11 @@ impl GstEngine {
         };
         let position_ms = clock_millis(position);
         let duration_ms = clock_millis(duration);
-        let logical_position = self.active_pipeline().logical_position(position_ms);
-        let logical_duration = self.active_pipeline().logical_duration(duration_ms);
-        let remaining = self
-            .active_pipeline()
-            .logical_remaining(position_ms, duration_ms);
-        if logical_duration == 0
-            || logical_position >= logical_duration
+        let remaining = duration_ms.saturating_sub(position_ms);
+        if duration_ms == 0
+            || position_ms >= duration_ms
             || remaining > crossfade_start_remaining
-            || logical_duration <= crossfade_start_remaining.saturating_add(1_000)
+            || duration_ms <= crossfade_start_remaining.saturating_add(1_000)
         {
             return;
         }

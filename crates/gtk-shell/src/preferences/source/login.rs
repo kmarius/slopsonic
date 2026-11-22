@@ -94,8 +94,8 @@ struct CredentialHost {
     username: adw::EntryRow,
     password: adw::PasswordEntryRow,
     cert_verify: adw::SwitchRow,
-    authentication: Option<Rc<Cell<SubsonicAuthentication>>>,
-    authentication_toggles: Option<[adw::SwitchRow; 2]>,
+    authentication: Rc<Cell<SubsonicAuthentication>>,
+    authentication_toggles: [adw::SwitchRow; 2],
     save: gtk::Button,
 }
 
@@ -115,9 +115,7 @@ impl CredentialHost {
             &self.url,
             &self.username,
             &self.password,
-            self.authentication.as_ref().is_some_and(|authentication| {
-                authentication.get() == SubsonicAuthentication::ApiKey
-            }),
+            self.authentication.get() == SubsonicAuthentication::ApiKey,
         )
     }
 }
@@ -178,7 +176,7 @@ impl Preferences {
         let context = self.setup_view_context(Some(preferences_dialog.clone()), flow, false);
         mount_setup_flow(self, &context);
         *self.source.add_server.borrow_mut() = Some(SourceSetupViewHandle::new(context.clone()));
-        adw::NavigationPage::new(&context.content, "Add Source")
+        adw::NavigationPage::new(&context.content, "Add Server")
     }
 
     pub fn update_add_server_dialog(self: &Rc<Self>) {
@@ -313,14 +311,8 @@ fn subsonic_settings_group(
     saved: &EditableServer,
     kind: SubsonicFlavor,
 ) -> Result<gtk::Widget, String> {
-    let authentication = Some(
-        saved
-            .credentials
-            .open_subsonic_authentication
-            .unwrap_or(SubsonicAuthentication::Password),
-    );
+    let authentication = Rc::new(Cell::new(saved.credentials.authentication));
     let snapshot = credential_draft(Some(saved.credentials.clone()));
-    let authentication = authentication.map(|value| Rc::new(Cell::new(value)));
     let host = credential_host_view(&snapshot, authentication);
     host.fields_group.set_title("Server Settings");
     host.fields_group
@@ -343,11 +335,7 @@ fn subsonic_settings_group(
         let Some(shell) = weak_shell.upgrade() else {
             return;
         };
-        let authentication = authentication
-            .as_ref()
-            .map_or(SubsonicAuthentication::Password, |authentication| {
-                authentication.get()
-            });
+        let authentication = authentication.get();
         let credentials = CredentialInput {
             source_name: Some(name.text().trim().to_string()),
             server_url: url.text().trim().to_string(),
@@ -441,7 +429,7 @@ fn complete_source_save(
 impl SetupFlow {
     fn view(&self, shell: &Rc<Preferences>, context: &SetupViewContext) -> gtk::Widget {
         let (scroller, content, actions, status) = setup_scaffold(shell);
-        let host = credential_host(&self.draft, Some(Rc::clone(&self.authentication)));
+        let host = credential_host(&self.draft, Rc::clone(&self.authentication));
         content.append(&host.widget);
         let authentication = Rc::clone(&self.authentication);
         append_credential_connect(
@@ -595,7 +583,7 @@ fn credential_draft(preset: Option<CredentialPreset>) -> CredentialHostDraft {
 
 fn credential_host(
     draft: &Rc<RefCell<CredentialHostDraft>>,
-    authentication: Option<Rc<Cell<SubsonicAuthentication>>>,
+    authentication: Rc<Cell<SubsonicAuthentication>>,
 ) -> CredentialHost {
     let snapshot = draft.borrow().clone();
     let host = credential_host_view(&snapshot, authentication);
@@ -612,7 +600,7 @@ fn credential_host(
 
 fn credential_host_view(
     snapshot: &CredentialHostDraft,
-    authentication: Option<Rc<Cell<SubsonicAuthentication>>>,
+    authentication: Rc<Cell<SubsonicAuthentication>>,
 ) -> CredentialHost {
     let resource = crate::ui_resource::CREDENTIAL_HOST_RESOURCE;
     let builder = gtk_widgets::ui_resource::builder(resource);
@@ -647,18 +635,16 @@ fn credential_host_view(
     cert_verify.set_active(snapshot.cert_verify);
     rows.add(&username);
     rows.add(&password);
-    let authentication_toggles = authentication.as_ref().map(|authentication| {
-        bind_open_subsonic_authentication(
-            &api_key,
-            &legacy_password,
-            Rc::clone(authentication),
-            &username,
-            &password,
-        );
-        rows.add(&api_key);
-        rows.add(&legacy_password);
-        [api_key, legacy_password]
-    });
+    bind_authentication(
+        &api_key,
+        &legacy_password,
+        Rc::clone(&authentication),
+        &username,
+        &password,
+    );
+    rows.add(&api_key);
+    rows.add(&legacy_password);
+    let authentication_toggles = [api_key, legacy_password];
     rows.add(&cert_verify);
 
     CredentialHost {
@@ -675,7 +661,7 @@ fn credential_host_view(
     }
 }
 
-pub(super) fn update_open_subsonic_authentication_fields(
+fn update_authentication_fields(
     authentication: SubsonicAuthentication,
     username: &adw::EntryRow,
     secret: &adw::PasswordEntryRow,
@@ -689,14 +675,14 @@ pub(super) fn update_open_subsonic_authentication_fields(
     });
 }
 
-fn bind_open_subsonic_authentication(
+fn bind_authentication(
     api_key: &adw::SwitchRow,
     legacy_password: &adw::SwitchRow,
     authentication: Rc<Cell<SubsonicAuthentication>>,
     username: &adw::EntryRow,
     secret: &adw::PasswordEntryRow,
 ) {
-    update_open_subsonic_authentication_fields(authentication.get(), username, secret);
+    update_authentication_fields(authentication.get(), username, secret);
     api_key.set_active(authentication.get() == SubsonicAuthentication::ApiKey);
     legacy_password.set_active(authentication.get() == SubsonicAuthentication::LegacyPassword);
     legacy_password.set_visible(!api_key.is_active());
@@ -730,7 +716,7 @@ fn bind_open_subsonic_authentication(
             };
             authentication.set(next);
             if let (Some(username), Some(secret)) = (username.upgrade(), secret.upgrade()) {
-                update_open_subsonic_authentication_fields(next, &username, &secret);
+                update_authentication_fields(next, &username, &secret);
             }
         });
     }
@@ -787,9 +773,7 @@ fn append_credential_connect(
                 &url,
                 &username,
                 &password,
-                authentication.as_ref().is_some_and(|authentication| {
-                    authentication.get() == SubsonicAuthentication::ApiKey
-                }),
+                authentication.get() == SubsonicAuthentication::ApiKey,
             )
         })
     };
@@ -814,11 +798,9 @@ fn append_credential_connect(
         let update_ready = Rc::clone(&update_ready);
         host.password.connect_text_notify(move |_| update_ready());
     }
-    if let Some(toggles) = host.authentication_toggles.as_ref() {
-        for toggle in toggles {
-            let update_ready = Rc::clone(&update_ready);
-            toggle.connect_active_notify(move |_| update_ready());
-        }
+    for toggle in &host.authentication_toggles {
+        let update_ready = Rc::clone(&update_ready);
+        toggle.connect_active_notify(move |_| update_ready());
     }
     *context.actions.borrow_mut() = Some(SetupActions {
         status: status.clone(),
@@ -831,12 +813,7 @@ fn append_credential_connect(
     let host_for_click = host;
     login.connect_clicked(move |login| {
         if !host_for_click.ready() {
-            let message = if host_for_click
-                .authentication
-                .as_ref()
-                .is_some_and(|authentication| {
-                    authentication.get() == SubsonicAuthentication::ApiKey
-                }) {
+            let message = if host_for_click.authentication.get() == SubsonicAuthentication::ApiKey {
                 "Enter a server address and API key".to_string()
             } else {
                 "Enter a server address, username, and password".to_string()

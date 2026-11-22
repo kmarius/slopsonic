@@ -688,10 +688,8 @@ impl SearchPopup {
         }
         let empty = !query.is_empty() && status == "results" && count == 0;
         if empty {
-            self.empty_results.set_text(&slopsonic_core::text::fill(
-                "No results for \"{query}\"",
-                &[("query", &query)],
-            ));
+            self.empty_results
+                .set_text(&format!("No results for \"{query}\""));
         }
         self.empty_results.set_visible(empty);
         self.scroller

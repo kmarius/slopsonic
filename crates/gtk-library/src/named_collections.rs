@@ -119,7 +119,6 @@ impl CatalogUi {
         let row_database = self.library.clone();
         let sparse = SparseRouteModel::new(
             SparseSource::Query { count },
-            32,
             self.runtime.clone(),
             Rc::new(move |_, range, cancellation| {
                 let request = load_request.borrow().clone();

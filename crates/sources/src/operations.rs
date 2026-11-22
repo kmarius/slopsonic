@@ -13,12 +13,6 @@ pub enum SourceMetadataError {
     Write(String),
 }
 
-impl From<crate::SourceError> for SourceMetadataError {
-    fn from(error: crate::SourceError) -> Self {
-        Self::Write(error.to_string())
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ImageBytes {
     pub bytes: Vec<u8>,

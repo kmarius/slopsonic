@@ -1,42 +1,42 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <requires lib="gtk" version="4.20" />
   <requires lib="libadwaita" version="1.9" />
   <object class="AdwPreferencesPage" id="page">
-    <property name="title" translatable="yes">General</property>
+    <property name="title">General</property>
     <property name="icon-name">slopsonic-preferences-system-symbolic</property>
     <child>
       <object class="AdwPreferencesGroup" id="window_group">
-        <property name="title" translatable="yes">App settings</property>
+        <property name="title">App settings</property>
         <child>
           <object class="AdwComboRow" id="starting_page_row">
-            <property name="title" translatable="yes">Starting page</property>
+            <property name="title">Starting page</property>
           </object>
         </child>
         <child>
           <object class="AdwSwitchRow" id="type_to_search_row">
-            <property name="title" translatable="yes">Type to search</property>
+            <property name="title">Type to search</property>
           </object>
         </child>
       </object>
     </child>
     <child>
       <object class="AdwPreferencesGroup">
-        <property name="title" translatable="yes">Metadata</property>
+        <property name="title">Metadata</property>
         <child>
           <object class="AdwSwitchRow" id="prefer_distinct_track_covers_row">
-            <property name="title" translatable="yes">Prefer distinct track covers</property>
-            <property name="subtitle" translatable="yes">Use each track's own cover when available</property>
+            <property name="title">Prefer distinct track covers</property>
+            <property name="subtitle">Use each track's own cover when available</property>
           </object>
         </child>
       </object>
     </child>
     <child>
       <object class="AdwPreferencesGroup">
-        <property name="title" translatable="yes">Notifications</property>
+        <property name="title">Notifications</property>
         <child>
           <object class="AdwSwitchRow" id="control_notifications_row">
-            <property name="title" translatable="yes">Control notifications</property>
+            <property name="title">Control notifications</property>
           </object>
         </child>
       </object>

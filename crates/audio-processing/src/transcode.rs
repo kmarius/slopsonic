@@ -13,7 +13,6 @@ const POLL: gst::ClockTime = gst::ClockTime::from_mseconds(100);
 struct TranscodePipeline {
     element: gst::Element,
     bus: gst::Bus,
-    _stream: ResolvedStream,
 }
 
 impl TranscodePipeline {
@@ -112,11 +111,7 @@ impl TranscodePipeline {
             .set_uri(uri.as_str())
             .map_err(|error| error.to_string())?;
         let bus = element.bus().ok_or("Audio encoder has no bus")?;
-        let pipeline = Self {
-            element,
-            bus,
-            _stream: stream.clone(),
-        };
+        let pipeline = Self { element, bus };
         pipeline
             .element
             .set_state(gst::State::Playing)

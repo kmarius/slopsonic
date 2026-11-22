@@ -195,7 +195,7 @@ impl Actor {
             .download_file_shared(file)
             .await
             .map_err(|error| error.to_string())?;
-        if !file.managed || used {
+        if used {
             return Ok(0);
         }
         let paths = completed_download_paths(&self.root, file)?;

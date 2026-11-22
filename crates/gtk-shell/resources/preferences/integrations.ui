@@ -1,39 +1,39 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<interface domain="slopsonic">
+<interface>
   <requires lib="gtk" version="4.20" />
   <requires lib="libadwaita" version="1.9" />
   <object class="AdwPreferencesPage" id="integrations_page">
-    <property name="title" translatable="yes">Integrations</property>
+    <property name="title">Integrations</property>
     <property name="icon-name">slopsonic-network-workgroup-symbolic</property>
     <child>
       <object class="AdwPreferencesGroup" id="lastfm_group">
-        <property name="title" translatable="yes">Last.fm</property>
+        <property name="title">Last.fm</property>
         <child>
           <object class="AdwSwitchRow" id="lastfm_enabled">
-            <property name="title" translatable="yes">Last.fm scrobbling</property>
+            <property name="title">Last.fm scrobbling</property>
           </object>
         </child>
         <child>
           <object class="AdwActionRow" id="lastfm_api_help">
-            <property name="title" translatable="yes">API keys</property>
+            <property name="title">API keys</property>
             <property name="use-markup">true</property>
           </object>
         </child>
         <child>
           <object class="AdwPasswordEntryRow" id="lastfm_api_key">
-            <property name="title" translatable="yes">API key</property>
+            <property name="title">API key</property>
             <property name="show-apply-button">true</property>
           </object>
         </child>
         <child>
           <object class="AdwPasswordEntryRow" id="lastfm_api_secret">
-            <property name="title" translatable="yes">Shared secret</property>
+            <property name="title">Shared secret</property>
             <property name="show-apply-button">true</property>
           </object>
         </child>
         <child>
           <object class="AdwActionRow" id="lastfm_connection">
-            <property name="title" translatable="yes">Connection</property>
+            <property name="title">Connection</property>
             <child type="suffix">
               <object class="GtkButton" id="lastfm_connect">
                 <property name="valign">center</property>
@@ -43,22 +43,22 @@
         </child>
         <child>
           <object class="AdwSwitchRow" id="lastfm_now_playing">
-            <property name="title" translatable="yes">Now playing updates</property>
+            <property name="title">Now playing updates</property>
           </object>
         </child>
       </object>
     </child>
     <child>
       <object class="AdwPreferencesGroup" id="librefm_group">
-        <property name="title" translatable="yes">Libre.fm</property>
+        <property name="title">Libre.fm</property>
         <child>
           <object class="AdwSwitchRow" id="librefm_enabled">
-            <property name="title" translatable="yes">Libre.fm scrobbling</property>
+            <property name="title">Libre.fm scrobbling</property>
           </object>
         </child>
         <child>
           <object class="AdwActionRow" id="librefm_connection">
-            <property name="title" translatable="yes">Connection</property>
+            <property name="title">Connection</property>
             <child type="suffix">
               <object class="GtkButton" id="librefm_connect">
                 <property name="valign">center</property>
@@ -68,60 +68,60 @@
         </child>
         <child>
           <object class="AdwSwitchRow" id="librefm_now_playing">
-            <property name="title" translatable="yes">Now playing updates</property>
+            <property name="title">Now playing updates</property>
           </object>
         </child>
       </object>
     </child>
     <child>
       <object class="AdwPreferencesGroup" id="listenbrainz_group">
-        <property name="title" translatable="yes">ListenBrainz</property>
+        <property name="title">ListenBrainz</property>
         <child>
           <object class="AdwSwitchRow" id="listenbrainz_enabled">
-            <property name="title" translatable="yes">ListenBrainz scrobbling</property>
+            <property name="title">ListenBrainz scrobbling</property>
           </object>
         </child>
         <child>
           <object class="AdwActionRow" id="listenbrainz_token_help">
-            <property name="title" translatable="yes">Get token</property>
+            <property name="title">Get token</property>
             <property name="use-markup">true</property>
           </object>
         </child>
         <child>
           <object class="AdwPasswordEntryRow" id="listenbrainz_token">
-            <property name="title" translatable="yes">User token</property>
+            <property name="title">User token</property>
             <property name="show-apply-button">true</property>
           </object>
         </child>
         <child>
           <object class="AdwSwitchRow" id="listenbrainz_now_playing">
-            <property name="title" translatable="yes">Now playing updates</property>
+            <property name="title">Now playing updates</property>
           </object>
         </child>
       </object>
     </child>
     <child>
       <object class="AdwPreferencesGroup">
-        <property name="title" translatable="yes">External site links</property>
+        <property name="title">External site links</property>
         <child>
           <object class="AdwSwitchRow" id="external_links_row">
-            <property name="title" translatable="yes">Show external site links</property>
-            <property name="subtitle" translatable="yes">Show external service icons on album and artist pages</property>
+            <property name="title">Show external site links</property>
+            <property name="subtitle">Show external service icons on album and artist pages</property>
           </object>
         </child>
         <child>
           <object class="AdwSwitchRow" id="lastfm_links_row">
-            <property name="title" translatable="yes">Last.fm</property>
+            <property name="title">Last.fm</property>
           </object>
         </child>
         <child>
           <object class="AdwSwitchRow" id="musicbrainz_links_row">
-            <property name="title" translatable="yes">MusicBrainz</property>
+            <property name="title">MusicBrainz</property>
           </object>
         </child>
         <child>
           <object class="AdwSwitchRow" id="server_links_row">
-            <property name="title" translatable="yes">Server</property>
+            <property name="title">Server</property>
           </object>
         </child>
       </object>

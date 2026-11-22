@@ -28,11 +28,9 @@ pub(super) async fn write_headers<T: serde::Serialize + Default + Sync>(
     } else {
         "metadata"
     };
-    let normalized = if kind == "album" {
-        "normalized_title"
-    } else {
-        "normalized_name"
-    };
+    // Albums are searched through title_search, so only the named kinds keep a normalized name.
+    let normalized = "normalized_name";
+    let named = kind != "album";
     let mut changed = (Vec::new(), false);
     for page in rows.chunks(128) {
         let patches = if native {
@@ -80,7 +78,16 @@ pub(super) async fn write_headers<T: serde::Serialize + Default + Sync>(
         } else {
             format!("excluded.{normalized}")
         };
-        query.push(format!(") INSERT INTO {table}(object_id,media_uri,{column},{normalized},indexed,native_metadata) SELECT object_id,media_uri,"));
+        let (insert_name, select_name, set_name) = if named {
+            (
+                format!(",{normalized}"),
+                ",normalized",
+                format!("{normalized}={caption},"),
+            )
+        } else {
+            (String::new(), "", String::new())
+        };
+        query.push(format!(") INSERT INTO {table}(object_id,media_uri,{column}{insert_name},indexed,native_metadata) SELECT object_id,media_uri,"));
         if native {
             query.push("jsonb(metadata)");
         } else {
@@ -89,9 +96,9 @@ pub(super) async fn write_headers<T: serde::Serialize + Default + Sync>(
                 .push_bind(sqlx::types::Json(T::default()))
                 .push(",metadata)");
         }
-        query.push(",normalized,").push_bind(admit)
+        query.push(select_name).push(",").push_bind(admit)
             .push(",").push_bind(native)
-            .push(format!(" FROM input WHERE true ON CONFLICT(object_id) DO UPDATE SET {column}={metadata},{normalized}={caption},indexed=max({table}.indexed,excluded.indexed),native_metadata=max({table}.native_metadata,excluded.native_metadata) WHERE "))
+            .push(format!(" FROM input WHERE true ON CONFLICT(object_id) DO UPDATE SET {column}={metadata},{set_name}indexed=max({table}.indexed,excluded.indexed),native_metadata=max({table}.native_metadata,excluded.native_metadata) WHERE "))
             .push(if native { "1" } else { "native_metadata=0" })
             .push(format!(" AND {table}.observed_stamp<=")).push_bind(observed.unwrap_or(i64::MAX))
             .push(format!(" AND ({table}.{column},{table}.indexed,{table}.native_metadata) IS NOT({metadata},max({table}.indexed,excluded.indexed),max({table}.native_metadata,excluded.native_metadata)) RETURNING object_id"));
@@ -697,7 +704,7 @@ pub(crate) async fn apply_on(
     write!(
         "album",
         batch.albums,
-        |row: &AlbumObservation| row.metadata.title.to_lowercase(),
+        |_: &AlbumObservation| String::new(),
         |row: &AlbumObservation| Ok::<_, LibraryError>(row.artwork_binding.clone())
     );
     write!(

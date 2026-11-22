@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <requires lib="gtk" version="4.20" />
   <object class="GtkBox" id="root">
     <property name="orientation">vertical</property>
@@ -34,9 +34,9 @@
                 <child>
                   <object class="GtkButton" id="queue_playlist_button">
                     <property name="icon-name">slopsonic-playlists-symbolic</property>
-                    <property name="tooltip-text" translatable="yes">Create a playlist from queue</property>
+                    <property name="tooltip-text">Create a playlist from queue</property>
                     <accessibility>
-                      <property name="label" translatable="yes">Create a playlist from queue</property>
+                      <property name="label">Create a playlist from queue</property>
                     </accessibility>
                     <style><class name="icon-button"/><class name="flat"/><class name="circular"/></style>
                   </object>
@@ -44,9 +44,9 @@
                 <child>
                   <object class="GtkButton" id="queue_clear_button">
                     <property name="icon-name">slopsonic-user-trash-symbolic</property>
-                    <property name="tooltip-text" translatable="yes">Clear queue</property>
+                    <property name="tooltip-text">Clear queue</property>
                     <accessibility>
-                      <property name="label" translatable="yes">Clear queue</property>
+                      <property name="label">Clear queue</property>
                     </accessibility>
                     <property name="valign">center</property>
                     <style>
@@ -65,7 +65,7 @@
                 </child>
                 <child>
                   <object class="GtkSearchEntry" id="queue_search">
-                    <accessibility><property name="label" translatable="yes">Filter queue</property></accessibility>
+                    <accessibility><property name="label">Filter queue</property></accessibility>
                     <property name="hexpand">true</property>
                     <property name="width-chars">1</property><property name="max-width-chars">1</property>
                     <property name="height-request">32</property>
@@ -82,7 +82,7 @@
                 <child>
                   <object class="GtkButton" id="queue_customize_button">
                     <property name="icon-name">slopsonic-sliders-2-symbolic</property>
-                    <property name="tooltip-text" translatable="yes">Customize display</property>
+                    <property name="tooltip-text">Customize display</property>
                     <style><class name="icon-button"/><class name="flat"/><class name="circular"/></style>
                   </object>
                 </child>

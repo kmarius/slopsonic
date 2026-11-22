@@ -134,7 +134,6 @@ pub fn verify_icons() -> Result<(), String> {
     for relative_path in [
         "scalable/apps/io.github.kmarius.slopsonic.svg",
         "scalable/actions/slopsonic-drive-harddisk-symbolic.svg",
-        "scalable/actions/slopsonic-edit-clear-symbolic.svg",
         "scalable/actions/slopsonic-go-last-symbolic.svg",
         "scalable/actions/slopsonic-audio-only-symbolic.svg",
         "scalable/actions/slopsonic-library-music-symbolic.svg",
@@ -144,10 +143,6 @@ pub fn verify_icons() -> Result<(), String> {
         "scalable/actions/slopsonic-media-skip-forward-symbolic.svg",
         "scalable/actions/slopsonic-moods-symbolic.svg",
         "scalable/actions/slopsonic-music-queue-symbolic.svg",
-        "scalable/actions/slopsonic-sound-symbolic.svg",
-        "scalable/actions/slopsonic-text-center-symbolic.svg",
-        "scalable/actions/slopsonic-view-list-ordered-symbolic.svg",
-        "scalable/actions/slopsonic-text-justify-center-symbolic.svg",
         "scalable/actions/slopsonic-open-menu-symbolic.svg",
         "scalable/actions/slopsonic-player-more-symbolic.svg",
         "scalable/actions/slopsonic-preferences-desktop-appearance-symbolic.svg",

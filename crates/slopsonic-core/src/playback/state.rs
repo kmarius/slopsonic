@@ -288,26 +288,6 @@ impl Player {
         &self.sequence
     }
 
-    pub(super) fn handoff_snapshot(&self) -> (library::QueueRestore, Option<SourceReportFact>) {
-        let restored = self.sequence.selected().map(|entry| {
-            let run = RunId::new(self.next_run_number);
-            let mut current = RunContext::resolving(run, self.play_id(run), entry);
-            current.status = TransportStatus::Paused;
-            current.desired_playing = false;
-            current
-        });
-        (
-            self.sequence.snapshot(),
-            self.current_run
-                .as_ref()
-                .or(restored.as_ref())
-                .map(|run| self.source_report(run, SourceReportPhase::Progress, false)),
-        )
-    }
-    pub(super) fn next_session_identifier(&self) -> String {
-        self.play_id(RunId::new(self.next_run_number))
-    }
-
     pub(super) fn accepts_queue(&self, id: u64) -> bool {
         self.pending_queue
             .as_ref()
@@ -1469,20 +1449,12 @@ impl Player {
             transition,
             resolution: NextResolution::Resolving,
         });
-        let mut request = request;
-        request.session_identifier = Some(self.play_id(next_run));
         self.resolve_stream(next_run, next, request);
     }
 
     fn resolve_current(&mut self, run: RunId, entry: &std::sync::Arc<QueueRow>) {
-        let mut request =
+        let request =
             StreamRequest::new(entry.track.media_uri.clone(), self.settings.stream_quality);
-        request.session_identifier = Some(
-            self.current_run
-                .as_ref()
-                .filter(|current| current.id == run)
-                .map_or_else(|| self.play_id(run), |current| current.play_id.clone()),
-        );
         self.resolve_stream(run, entry.clone(), request);
     }
 
@@ -1499,7 +1471,7 @@ impl Player {
         current.last_monotonic_millis = Some(sample.monotonic_millis);
         let current = self.current_run.as_ref().unwrap();
         self.owner()
-            .report_source(self.source_report(current, SourceReportPhase::Started, false));
+            .report_source(self.source_report(current, SourceReportPhase::Started));
         self.qualify_current();
     }
 
@@ -1518,11 +1490,8 @@ impl Player {
             self.owner().record_scrobble(Box::new(listen));
         }
         if let Some(current) = self.current_run.as_ref() {
-            self.owner().report_source(self.source_report(
-                current,
-                SourceReportPhase::QualifiedPlay,
-                false,
-            ));
+            self.owner()
+                .report_source(self.source_report(current, SourceReportPhase::QualifiedPlay));
         }
     }
 
@@ -1542,11 +1511,8 @@ impl Player {
         };
         self.current_media_changed = true;
         if current.started_at_unix_seconds.is_some() {
-            self.owner().report_source(self.source_report(
-                &current,
-                SourceReportPhase::Ended,
-                reason == RunEndReason::Failed,
-            ));
+            self.owner()
+                .report_source(self.source_report(&current, SourceReportPhase::Ended));
         }
         if reason == RunEndReason::Completed {
             self.sequence.set_progress_millis(0);
@@ -1556,32 +1522,13 @@ impl Player {
         self.buffering_percent = None;
     }
 
-    fn source_report(
-        &self,
-        current: &RunContext,
-        phase: SourceReportPhase,
-        failed: bool,
-    ) -> SourceReportFact {
+    fn source_report(&self, current: &RunContext, phase: SourceReportPhase) -> SourceReportFact {
         SourceReportFact {
-            transcoded: current
-                .resolved_stream
-                .as_ref()
-                .is_some_and(|stream| stream.transcoded()),
-            run: current.id,
-            session_identifier: current.play_id.clone(),
-            queue_id: None,
-            queue_item_id: None,
             media_uri: current.row.track.media_uri.clone(),
             phase,
             started_at_unix_seconds: current.started_at_unix_seconds.unwrap_or_default(),
             position_millis: self.sequence.progress_millis(),
-            duration_millis: (current.duration_millis > 0).then_some(current.duration_millis),
             paused: !current.desired_playing,
-            muted: self.settings.muted,
-            volume: self.settings.volume,
-            shuffle: self.sequence.shuffle_enabled(),
-            repeat_mode: self.sequence.repeat_mode(),
-            failed,
         }
     }
 
@@ -1663,7 +1610,6 @@ impl Player {
                             .map(|stream| playback::CurrentStream {
                                 local: stream.local_input,
                                 format: stream.content_type.clone(),
-                                transcoded: stream.transcoded(),
                                 bitstream: run.bitstream,
                             })
                     }),
@@ -1806,11 +1752,9 @@ impl Player {
                                 != view.transport.position_millis / 10_000
                     }))
             {
-                let mut report = self.source_report(current, SourceReportPhase::Progress, false);
+                let mut report = self.source_report(current, SourceReportPhase::Progress);
                 report.position_millis = position_millis;
                 report.paused = transport.state != TransportStatus::Playing;
-                report.volume = self.output_volume;
-                report.muted = self.output_muted;
                 self.owner().report_source(report);
                 self.sequence.persist_state();
             }

@@ -86,7 +86,6 @@ pub struct AlbumView {
     #[sqlx(flatten)]
     pub links: AlbumLinks,
     pub artwork_binding: Option<Vec<u8>>,
-    pub release_lookup_identity: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, FromRow)]
@@ -725,7 +724,7 @@ pub(crate) async fn load_album_requested(
     requested: crate::query::RequestedKeys,
     activity: bool,
 ) -> LibraryResult<Vec<AlbumView>> {
-    let columns = format!("album.album_key,album.object_id,album.media_uri,json(album.metadata) metadata,album.release_lookup_identity,{} artwork_binding,
+    let columns = format!("album.album_key,album.object_id,album.media_uri,json(album.metadata) metadata,{} artwork_binding,
         (SELECT json_group_array(json_object('artist_key',artist.artist_key,'media_uri',artist.media_uri,'name',artist.name) ORDER BY credit.position) FROM album_artists credit JOIN artists artist USING(artist_key) WHERE credit.album_key=album.album_key) album_artists,
         (SELECT json_group_array(json_object('genre_key',genre.genre_key,'name',genre.name) ORDER BY credit.position) FROM album_genres credit JOIN genres genre USING(genre_key) WHERE credit.album_key=album.album_key) genres",crate::artwork::entity_artwork_sql("album","album"));
     load_collection(connection, "album", requested, false, activity, &columns).await

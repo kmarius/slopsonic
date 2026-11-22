@@ -139,13 +139,13 @@ pub fn confirm_forget_source(
     after_forget: Rc<dyn Fn()>,
 ) {
     let dialog = adw::AlertDialog::builder()
-        .heading("Forget Source".to_string())
+        .heading("Forget Server".to_string())
         .body(format!(
             "This removes {server_name} with its cached library, queue, downloads, pins, and favorites or ratings not yet sent to the server"
         ))
         .build();
     let cancel = "Cancel".to_string();
-    let forget = "Forget Source".to_string();
+    let forget = "Forget Server".to_string();
     dialog.add_responses(&[("cancel", cancel.as_str()), ("forget", forget.as_str())]);
     dialog.set_default_response(Some("cancel"));
     dialog.set_close_response("cancel");

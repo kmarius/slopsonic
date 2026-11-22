@@ -1,70 +1,26 @@
 use super::ProductHandles;
 pub use library::CacheUsage;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum CacheKind {
-    Artwork,
-}
-
-#[derive(Clone, Debug)]
-pub struct CacheSummary {
-    pub kind: CacheKind,
-    pub usage: Option<CacheUsage>,
-}
-
 #[derive(Clone, Debug)]
 pub struct StorageSummary {
-    pub caches: Vec<CacheSummary>,
-    pub total_bytes: Option<u64>,
+    /// The artwork cache, the only cache the app keeps.
+    pub artwork: Option<CacheUsage>,
     pub errors: Vec<String>,
 }
 
 impl ProductHandles {
-    pub async fn storage_summary(&self, clear: Option<CacheKind>) -> StorageSummary {
-        let mut summary = StorageSummary {
-            caches: Vec::new(),
-            total_bytes: Some(0),
-            errors: Vec::new(),
+    pub async fn storage_summary(&self, clear_artwork: bool) -> StorageSummary {
+        let mut errors = Vec::new();
+        if clear_artwork && let Err(error) = self.downloads.clear_artwork_cache().await {
+            errors.push(error.to_string());
+        }
+        let artwork = match self.artwork.cache_usage().await {
+            Ok(usage) => Some(usage),
+            Err(error) => {
+                errors.push(error.to_string());
+                None
+            }
         };
-        if let Some(kind) = clear
-            && let Err(error) = self.clear_cached_data(kind).await
-        {
-            summary.errors.push(error);
-        }
-        for kind in [CacheKind::Artwork] {
-            let usage = match self.cache_usage(kind).await {
-                Ok(usage) => {
-                    summary.total_bytes = summary.total_bytes.map(|total| total + usage.bytes);
-                    Some(usage)
-                }
-                Err(error) => {
-                    summary.total_bytes = None;
-                    summary.errors.push(error);
-                    None
-                }
-            };
-            summary.caches.push(CacheSummary { kind, usage });
-        }
-        summary
-    }
-
-    async fn cache_usage(&self, kind: CacheKind) -> Result<CacheUsage, String> {
-        match kind {
-            CacheKind::Artwork => self
-                .artwork
-                .cache_usage()
-                .await
-                .map_err(|error| error.to_string()),
-        }
-    }
-
-    pub async fn clear_cached_data(&self, kind: CacheKind) -> Result<(), String> {
-        match kind {
-            CacheKind::Artwork => self
-                .downloads
-                .clear_artwork_cache()
-                .await
-                .map_err(|error| error.to_string()),
-        }
+        StorageSummary { artwork, errors }
     }
 }

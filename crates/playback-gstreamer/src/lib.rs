@@ -1,3 +1,4 @@
+#[cfg(test)]
 use audio_processing::ResolvedStream;
 use audio_processing::{configure_sources, ensure_gstreamer_initialized};
 use gst::glib;

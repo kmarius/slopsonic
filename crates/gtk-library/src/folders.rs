@@ -230,7 +230,6 @@ fn folder_page(
         SparseSource::Query {
             count: folder_count,
         },
-        48,
         shell.runtime.clone(),
         folder_load,
     );
@@ -277,7 +276,6 @@ fn folder_page(
     let initial_empty = folder_count + track_count == 0;
     let track_sparse = gtk_widgets::sparse_model::SparseRouteModel::new(
         SparseSource::Query { count: track_count },
-        48,
         shell.runtime.clone(),
         track_load,
     );

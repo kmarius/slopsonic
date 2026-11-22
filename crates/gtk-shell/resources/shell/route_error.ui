@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <requires lib="gtk" version="4.20"/>
   <object class="GtkBox" id="root">
     <property name="orientation">vertical</property>
@@ -11,7 +11,7 @@
     <style><class name="empty-state"/></style>
     <child>
       <object class="GtkLabel" id="message">
-        <property name="label" translatable="yes">Could not load page</property>
+        <property name="label">Could not load page</property>
         <property name="wrap">true</property>
         <property name="justify">center</property>
         <style><class name="muted"/></style>
@@ -19,7 +19,7 @@
     </child>
     <child>
       <object class="GtkButton" id="refresh">
-        <property name="label" translatable="yes">Refresh</property>
+        <property name="label">Refresh</property>
         <property name="halign">center</property>
         <style><class name="pill"/></style>
       </object>

@@ -49,7 +49,7 @@ impl CatalogSort {
         matches!(self, Self::PlayCount | Self::LastPlayed)
     }
 
-    pub(crate) fn section_text(self, _playlist: bool) -> Option<String> {
+    pub(crate) fn section_text(self) -> Option<String> {
         Some(match self {
             Self::Title => "track.sort_text",
             Self::Artist => "track.display_artist",

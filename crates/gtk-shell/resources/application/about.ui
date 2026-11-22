@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <requires lib="gtk" version="4.20"/>
   <requires lib="libadwaita" version="1.9"/>
 
@@ -13,6 +13,6 @@ Claude</property>
     <property name="copyright">© 2026 screwy, kmarius</property>
     <property name="license-type">custom</property>
     <property name="license">This application comes with absolutely no warranty and is licensed under GNU General Public Licence, version 3 or later.</property>
-    <property name="comments" translatable="yes">Thank you for trying out Slopsonic! If you have problems or suggestions, please open an issue in Github.</property>
+    <property name="comments">Thank you for trying out Slopsonic! If you have problems or suggestions, please open an issue in Github.</property>
   </object>
 </interface>

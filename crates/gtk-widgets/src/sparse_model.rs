@@ -883,7 +883,6 @@ where
 {
     pub fn new(
         order: impl Into<SparseSource<K>>,
-        _overscan: usize,
         runtime: tokio::runtime::Handle,
         load: SparseLoad<K, R>,
     ) -> Rc<Self> {
@@ -1374,7 +1373,6 @@ mod tests {
                 let loaded = Arc::clone(&requests);
                 let route = SparseRouteModel::new(
                     (0..1_000_u64).collect::<Vec<_>>(),
-                    64,
                     runtime.handle().clone(),
                     Rc::new(move |keys: Vec<u64>, _, _| {
                         loaded.lock().unwrap().push(keys.clone());
@@ -1444,7 +1442,6 @@ mod tests {
             });
             let route = SparseRouteModel::new(
                 (0..1_000_000).collect::<Vec<_>>(),
-                64,
                 runtime.handle().clone(),
                 load,
             );

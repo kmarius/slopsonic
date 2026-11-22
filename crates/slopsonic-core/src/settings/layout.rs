@@ -233,27 +233,10 @@ impl<'de> Deserialize<'de> for LayoutSettings {
     }
 }
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(from = "StoredThemePreference")]
 pub enum ThemePreference {
     System,
     Light,
     Dark,
-}
-#[derive(Deserialize)]
-enum StoredThemePreference {
-    System,
-    Light,
-    Dark,
-    Named(serde::de::IgnoredAny),
-}
-impl From<StoredThemePreference> for ThemePreference {
-    fn from(stored: StoredThemePreference) -> Self {
-        match stored {
-            StoredThemePreference::Light => Self::Light,
-            StoredThemePreference::Dark => Self::Dark,
-            StoredThemePreference::System | StoredThemePreference::Named(_) => Self::System,
-        }
-    }
 }
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub enum AccentPreference {
@@ -1005,15 +988,6 @@ pub fn row_field_is_usable(field: LibraryField) -> bool {
 #[cfg(test)]
 mod disc_tests {
     use super::*;
-    #[test]
-    fn named_theme_preference_restores_as_system() {
-        #[derive(Deserialize)]
-        struct Stored {
-            theme: ThemePreference,
-        }
-        let stored: Stored = toml::from_str("theme = { Named = \"builtin:nord\" }").unwrap();
-        assert_eq!(stored.theme, ThemePreference::System);
-    }
     #[test]
     fn track_lists_use_rows_when_grid_was_saved() {
         for key in [

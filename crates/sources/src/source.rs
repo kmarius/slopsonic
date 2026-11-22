@@ -19,19 +19,15 @@ pub(crate) const LIVE_CHANGE_LIMIT: usize = 128;
 
 pub struct SelectedFeed {
     source: Arc<Source>,
-    pending: Mutex<Option<SelectedFeedChange>>,
+    pending: Mutex<Option<RemoteItemChange>>,
     wake: Sender<()>,
     cancelled: Arc<AtomicBool>,
     remote_task: Mutex<Option<tokio::task::AbortHandle>>,
     receiver: Receiver<()>,
 }
 
-enum SelectedFeedChange {
-    Remote(RemoteItemChange),
-}
-
 impl SelectedFeed {
-    fn submit(&self, incoming: SelectedFeedChange) -> bool {
+    fn submit(&self, incoming: RemoteItemChange) -> bool {
         if self.cancelled.load(Ordering::Acquire) {
             return false;
         }
@@ -46,16 +42,6 @@ impl SelectedFeed {
         drop(pending);
         let _ = self.wake.try_send(());
         true
-    }
-}
-
-impl SelectedFeedChange {
-    fn merge(self, incoming: Self) -> Self {
-        match (self, incoming) {
-            (Self::Remote(current), Self::Remote(incoming)) => {
-                Self::Remote(current.merge(incoming))
-            }
-        }
     }
 }
 
@@ -113,8 +99,8 @@ impl SelectedFeed {
                 "Selected feed has no pending change",
             ))?;
         match change {
-            SelectedFeedChange::Remote(RemoteItemChange::BoundaryLost) => Ok(false),
-            SelectedFeedChange::Remote(RemoteItemChange::Items(items)) => self
+            RemoteItemChange::BoundaryLost => Ok(false),
+            RemoteItemChange::Items(items) => self
                 .source
                 .apply_changes(database, items)
                 .await
@@ -173,14 +159,6 @@ pub fn native_artwork_binding(image: &NativeImageRef) -> Result<Vec<u8>, serde_j
 pub enum ImageSize {
     Original,
     Thumbnail(u32),
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SourceImageRequest {
-    Native {
-        image_ref: NativeImageRef,
-        size: ImageSize,
-    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -521,13 +499,12 @@ impl Source {
         source.resolve_download(&object_id, quality)
     }
 
-    pub async fn image(&self, request: SourceImageRequest) -> SourceResult<ImageBytes> {
-        let source = &self.subsonic;
-        match request {
-            SourceImageRequest::Native { image_ref, size } => {
-                source.image_bytes(&image_ref, size).await
-            }
-        }
+    pub async fn image(
+        &self,
+        image_ref: &NativeImageRef,
+        size: ImageSize,
+    ) -> SourceResult<ImageBytes> {
+        self.subsonic.image_bytes(image_ref, size).await
     }
 
     pub async fn live_search(
@@ -561,7 +538,6 @@ impl Source {
             changes.apply_catalog(&(batch), true).await?;
             Ok(database
                 .search_rows_by_objects(
-                    None,
                     false,
                     &tracks,
                     &albums,
@@ -598,7 +574,6 @@ impl Source {
 
     pub async fn browse_folder(
         &self,
-        _database: &Database,
         folder_object_id: Option<&str>,
         music_folder_object_id: Option<&str>,
     ) -> SourceResult<LiveFolderPage> {
@@ -781,7 +756,6 @@ impl Source {
     pub fn start_selected_feed(
         self: &Arc<Self>,
         runtime: &tokio::runtime::Handle,
-        _initial_scan_pending: bool,
     ) -> Arc<SelectedFeed> {
         let (wake, receiver) = async_channel::bounded(1);
         let feed = Arc::new(SelectedFeed {
@@ -798,9 +772,7 @@ impl Source {
             let task = runtime.spawn(async move {
                 let source = &producer.source.subsonic;
                 if let Err(error) = source
-                    .listen_navidrome_changes(|change| {
-                        producer.submit(SelectedFeedChange::Remote(change))
-                    })
+                    .listen_navidrome_changes(|change| producer.submit(change))
                     .await
                 {
                     tracing::warn!(%error, "Navidrome change feed stopped");
@@ -846,15 +818,14 @@ mod refresh_laws {
 
     #[test]
     fn selected_feed_accumulates_exact_ids_with_one_bound() {
-        let merged = SelectedFeedChange::Remote(RemoteItemChange::items(
-            vec!["two".to_string(), "one".to_string()],
-            Vec::new(),
-        ))
-        .merge(SelectedFeedChange::Remote(RemoteItemChange::items(
-            vec!["one".to_string(), "three".to_string()],
-            vec!["gone".to_string()],
-        )));
-        let SelectedFeedChange::Remote(RemoteItemChange::Items(items)) = merged else {
+        let merged =
+            RemoteItemChange::items(vec!["two".to_string(), "one".to_string()], Vec::new()).merge(
+                RemoteItemChange::items(
+                    vec!["one".to_string(), "three".to_string()],
+                    vec!["gone".to_string()],
+                ),
+            );
+        let RemoteItemChange::Items(items) = merged else {
             panic!("exact evidence widened unexpectedly");
         };
         assert_eq!(
@@ -870,37 +841,34 @@ mod refresh_laws {
 
     #[test]
     fn selected_feed_overflow_coalesces_to_one_boundary_operation() {
-        let merged = SelectedFeedChange::Remote(RemoteItemChange::items(
+        let merged = RemoteItemChange::items(
             (0..LIVE_CHANGE_LIMIT)
                 .map(|index| format!("item-{index}"))
                 .collect(),
             Vec::new(),
-        ))
-        .merge(SelectedFeedChange::Remote(RemoteItemChange::items(
+        )
+        .merge(RemoteItemChange::items(
             vec!["overflow".to_string()],
             Vec::new(),
-        )));
-        assert!(matches!(
-            merged,
-            SelectedFeedChange::Remote(RemoteItemChange::BoundaryLost)
         ));
+        assert!(matches!(merged, RemoteItemChange::BoundaryLost));
     }
 
     #[test]
     fn repeated_boundary_evidence_admits_one_recovery() {
         let (wake, receiver) = async_channel::bounded(1);
-        let mut pending = Some(SelectedFeedChange::Remote(RemoteItemChange::BoundaryLost));
+        let mut pending = Some(RemoteItemChange::BoundaryLost);
         pending = Some(
             pending
                 .take()
                 .expect("first boundary")
-                .merge(SelectedFeedChange::Remote(RemoteItemChange::BoundaryLost)),
+                .merge(RemoteItemChange::BoundaryLost),
         );
         assert!(wake.try_send(()).is_ok());
         let _ = wake.try_send(());
         assert!(matches!(
             pending.as_ref(),
-            Some(SelectedFeedChange::Remote(RemoteItemChange::BoundaryLost))
+            Some(RemoteItemChange::BoundaryLost)
         ));
         assert!(receiver.try_recv().is_ok());
         assert!(receiver.try_recv().is_err());

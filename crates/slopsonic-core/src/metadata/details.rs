@@ -64,7 +64,7 @@ pub async fn media_details(
         let cancel = ReadCancellation::new();
         let unavailable =
             || LibraryError::InvalidRequest("Item is no longer available".to_string());
-        let mut origin = section("Source");
+        let mut origin = section("Server");
         let mut ids = section("MusicBrainz");
         let (mut details, server, object_id, state) = match &item {
             MediaDetailsItem::Track(uri) => {
@@ -176,11 +176,6 @@ pub async fn media_details(
                             "Streaming"
                         })),
                     );
-                    add(
-                        &mut playing,
-                        "Transcoded",
-                        Some(String::from(if stream.transcoded { "Yes" } else { "No" })),
-                    );
                     details.sections.push(playing);
                 }
                 let mut loudness = section("ReplayGain tags");
@@ -204,7 +199,7 @@ pub async fn media_details(
                 details.sections.push(loudness);
                 add(
                     &mut origin,
-                    "Source",
+                    "Server",
                     Some(track.access.source_name.clone()),
                 );
                 copy(&mut origin, "File path", track.access.source_path.clone());
@@ -351,7 +346,7 @@ pub async fn media_details(
             if origin.fields.is_empty() {
                 add(
                     &mut origin,
-                    "Source",
+                    "Server",
                     Some(configured.configuration.name.clone()),
                 );
             }

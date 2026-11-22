@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <object class="AdwActionRow" id="mode">
-    <property name="title" translatable="yes">Transition mode</property>
+    <property name="title">Transition mode</property>
     <child type="suffix">
       <object class="GtkBox">
         <property name="valign">center</property>
         <style><class name="linked"/><class name="preference-selection-buttons"/></style>
         <child><object class="GtkToggleButton" id="gapless">
           <style><class name="preference-selection-button"/></style>
-          <property name="label" translatable="yes">Gapless</property>
+          <property name="label">Gapless</property>
           <property name="active">true</property>
         </object></child>
         <child><object class="GtkToggleButton" id="crossfade">
           <style><class name="preference-selection-button"/></style>
-          <property name="label" translatable="yes">Crossfade</property>
+          <property name="label">Crossfade</property>
           <property name="group">gapless</property>
         </object></child>
       </object>
@@ -31,7 +31,7 @@
           <object class="GtkListBox" id="rows">
             <property name="selection-mode">none</property>
             <child><object class="AdwSwitchRow" id="skip_same_album">
-              <property name="title" translatable="yes">Skip same-album crossfade</property>
+              <property name="title">Skip same-album crossfade</property>
             </object></child>
           </object>
         </property>

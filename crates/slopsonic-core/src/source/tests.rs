@@ -215,7 +215,7 @@ async fn acquisition_progress_belongs_to_its_source() {
         music_folders: Arc::from([]),
     };
     let client = owner.client().unwrap();
-    assert!(owner.start_observer(client.clone(), false));
+    assert!(owner.start_observer(client.clone()));
     let observer = owner
         .shared
         .client
@@ -231,7 +231,7 @@ async fn acquisition_progress_belongs_to_its_source() {
     *owner.shared.selected.lock().unwrap() = Some(selected_library.clone());
     owner.release_selected().await;
     assert!(!observer.cancellation().load(Ordering::Acquire));
-    assert!(!owner.start_observer(client, false));
+    assert!(!owner.start_observer(client));
     for (metadata, activity, artwork, selected, visible) in [
         (false, false, false, true, false),
         (false, false, true, true, false),
@@ -734,9 +734,7 @@ async fn server_reset_drops_its_local_state_and_keeps_the_configuration() {
             media_uri: track.clone(),
             encoding: "original".into(),
             path: url::Url::from_file_path(&downloaded).unwrap().to_string(),
-            managed: true,
             storage_root: downloads.to_string_lossy().into_owned(),
-            relative_path: "music/track.flac".into(),
             ..Default::default()
         })
         .await

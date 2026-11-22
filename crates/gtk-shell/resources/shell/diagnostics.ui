@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <requires lib="gtk" version="4.20"/>
   <requires lib="libadwaita" version="1.9"/>
 
   <object class="AdwDialog" id="diagnostics_dialog">
-    <property name="title" translatable="yes">Troubleshooting</property>
+    <property name="title">Troubleshooting</property>
     <property name="child">
       <object class="AdwToolbarView">
         <child type="top">
           <object class="AdwHeaderBar">
             <property name="title-widget">
               <object class="AdwWindowTitle" id="dialog_title">
-                <property name="title" translatable="yes">Troubleshooting</property>
+                <property name="title">Troubleshooting</property>
               </object>
             </property>
           </object>
@@ -28,15 +28,15 @@
               <object class="AdwPreferencesGroup">
                 <child>
                   <object class="AdwSwitchRow" id="debug">
-                    <property name="title" translatable="yes">Debug logging</property>
-                    <property name="subtitle" translatable="yes">Include detailed Slopsonic diagnostics in this session</property>
+                    <property name="title">Debug logging</property>
+                    <property name="subtitle">Include detailed Slopsonic diagnostics in this session</property>
                   </object>
                 </child>
               </object>
             </child>
             <child>
               <object class="GtkLabel" id="sharing_note">
-                <property name="label" translatable="yes">Logs have secrets and absolute folder paths redacted, but you may still want to review the logs before sharing them</property>
+                <property name="label">Logs have secrets and absolute folder paths redacted, but you may still want to review the logs before sharing them</property>
                 <property name="wrap">true</property>
                 <property name="xalign">0</property>
                 <property name="margin-start">12</property>
@@ -86,12 +86,12 @@
                     <property name="homogeneous">true</property>
                     <child>
                       <object class="GtkButton" id="copy">
-                        <property name="label" translatable="yes">Copy</property>
+                        <property name="label">Copy</property>
                       </object>
                     </child>
                     <child>
                       <object class="GtkButton" id="save">
-                        <property name="label" translatable="yes">Save</property>
+                        <property name="label">Save</property>
                         <style>
                           <class name="suggested-action"/>
                         </style>

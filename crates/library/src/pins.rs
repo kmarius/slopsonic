@@ -118,7 +118,6 @@ impl Database {
                     Some(crate::artwork::playlist_artwork(
                         row.artwork_binding,
                         owner,
-                        None,
                     )?)
                 } else {
                     row.artwork_binding

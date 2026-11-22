@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <requires lib="gtk" version="4.20"/>
   <requires lib="libadwaita" version="1.9"/>
 
   <object class="AdwDialog" id="new_dialog">
-    <property name="title" translatable="yes">New Playlist</property>
+    <property name="title">New Playlist</property>
     <property name="content-width">320</property>
     <property name="default-widget">new_create</property>
     <property name="focus-widget">new_entry</property>
@@ -19,7 +19,7 @@
             <property name="margin-bottom">18</property>
             <child>
               <object class="GtkEntry" id="new_entry">
-                <property name="placeholder-text" translatable="yes">Playlist name</property>
+                <property name="placeholder-text">Playlist name</property>
                 <property name="activates-default">true</property>
               </object>
             </child>
@@ -30,14 +30,14 @@
                     <property name="valign">center</property>
                     <accessibility><relation name="labelled-by">new_public_label</relation></accessibility>
                   </object></child>
-                <child><object class="GtkLabel" id="new_public_label"><property name="label" translatable="yes">Public</property></object></child>
+                <child><object class="GtkLabel" id="new_public_label"><property name="label">Public</property></object></child>
               </object></child>
             <child><object class="GtkBox">
                 <property name="halign">end</property>
                 <property name="spacing">8</property>
                 <property name="margin-top">6</property>
-                <child><object class="GtkButton" id="new_cancel"><property name="label" translatable="yes">Cancel</property></object></child>
-                <child><object class="GtkButton" id="new_create"><property name="label" translatable="yes">Create</property><style><class name="suggested-action"/></style></object></child>
+                <child><object class="GtkButton" id="new_cancel"><property name="label">Cancel</property></object></child>
+                <child><object class="GtkButton" id="new_create"><property name="label">Create</property><style><class name="suggested-action"/></style></object></child>
               </object></child>
           </object>
         </property>
@@ -45,7 +45,7 @@
   </object>
 
   <object class="AdwDialog" id="edit_dialog">
-    <property name="title" translatable="yes">Edit Playlist</property>
+    <property name="title">Edit Playlist</property>
     <property name="content-width">680</property>
     <property name="default-widget">save_edit</property>
     <property name="focus-widget">name_entry</property>
@@ -54,8 +54,8 @@
         <child type="top"><object class="AdwHeaderBar">
             <property name="show-start-title-buttons">false</property>
             <property name="show-end-title-buttons">false</property>
-            <child type="start"><object class="GtkButton" id="cancel_edit"><property name="label" translatable="yes">Cancel</property></object></child>
-            <child type="end"><object class="GtkButton" id="save_edit"><property name="label" translatable="yes">Apply</property><style><class name="suggested-action"/></style></object></child>
+            <child type="start"><object class="GtkButton" id="cancel_edit"><property name="label">Cancel</property></object></child>
+            <child type="end"><object class="GtkButton" id="save_edit"><property name="label">Apply</property><style><class name="suggested-action"/></style></object></child>
           </object></child>
         <property name="content">
           <object class="GtkScrolledWindow">
@@ -81,12 +81,12 @@
                         <property name="spacing">12</property>
                         <property name="hexpand">true</property>
                         <property name="valign">start</property>
-                        <child><object class="GtkEntry" id="name_entry"><property name="activates-default">true</property><property name="placeholder-text" translatable="yes">Playlist name</property><property name="hexpand">true</property></object></child>
+                        <child><object class="GtkEntry" id="name_entry"><property name="activates-default">true</property><property name="placeholder-text">Playlist name</property><property name="hexpand">true</property></object></child>
                         <child><object class="GtkBox" id="playlist_public_options">
                             <property name="visible">false</property>
                             <property name="spacing">8</property>
                             <child><object class="GtkSwitch" id="playlist_public"><property name="valign">center</property><accessibility><relation name="labelled-by">playlist_public_label</relation></accessibility></object></child>
-                            <child><object class="GtkLabel" id="playlist_public_label"><property name="label" translatable="yes">Public</property></object></child>
+                            <child><object class="GtkLabel" id="playlist_public_label"><property name="label">Public</property></object></child>
                           </object></child>
                       </object>
                     </child>

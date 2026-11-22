@@ -61,18 +61,18 @@ mod tests {
         let binding = ArtworkBinding::opaque(&encoded);
         assert!(!binding.candidates.is_empty());
         assert!(binding.stable_identity().contains("album"));
-        for encoded in [
-            encoded,
-            br#"{"kind":"playlist","smart":false,"source_id":null,"object_id":"playlist","revision":"one"}"#.to_vec(),
-        ] {
-            let normalized = library::normalize_artwork_binding(&encoded).unwrap();
-            let before = ArtworkBinding::opaque(&normalized);
-            let mut candidates = before.candidates.clone();
-            for candidate in &mut candidates { candidate.blur_hash = Some("LEHV6nWB2yk8pyo0adR*.7kCMdnj".into()); }
-            let after = ArtworkBinding::opaque(&serde_json::to_vec(&candidates).unwrap());
-            assert_eq!(after.stable_identity(), before.stable_identity());
-            assert_eq!(after.asset_identity(), before.asset_identity());
-            assert!(after.candidates.iter().all(|candidate| candidate.blur_hash().is_some()));
+        let mut candidates = binding.candidates.clone();
+        for candidate in &mut candidates {
+            candidate.blur_hash = Some("LEHV6nWB2yk8pyo0adR*.7kCMdnj".into());
         }
+        let after = ArtworkBinding::opaque(&serde_json::to_vec(&candidates).unwrap());
+        assert_eq!(after.stable_identity(), binding.stable_identity());
+        assert_eq!(after.asset_identity(), binding.asset_identity());
+        assert!(
+            after
+                .candidates
+                .iter()
+                .all(|candidate| candidate.blur_hash().is_some())
+        );
     }
 }

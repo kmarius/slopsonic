@@ -176,7 +176,7 @@ impl GstEngine {
                 if !self.seek_busy()
                     && let Some(duration) = self.active_pipeline().duration()
                 {
-                    self.push_physical_duration(clock_millis(duration));
+                    self.push_duration(clock_millis(duration));
                 }
             }
             MessageView::Eos(_) => self.handle_end(slot),
@@ -471,9 +471,7 @@ impl GstEngine {
         };
         let position_ms = clock_millis(position);
         let duration_ms = clock_millis(duration);
-        let remaining_ms = self
-            .active_pipeline()
-            .logical_remaining(position_ms, duration_ms);
+        let remaining_ms = duration_ms.saturating_sub(position_ms);
         duration_ms > 0 && position_ms > 0 && remaining_ms < GAPLESS_BUFFERING_IGNORE_REMAINING_MS
     }
 

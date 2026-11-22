@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <requires lib="gtk" version="4.20"/>
   <requires lib="libadwaita" version="1.9"/>
 
   <object class="GtkLabel" id="no_matches">
-    <property name="label" translatable="yes">No matching tracks found</property>
+    <property name="label">No matching tracks found</property>
   </object>
 
   <object class="AdwDialog" id="random_play_dialog">
@@ -15,7 +15,7 @@
           <object class="AdwHeaderBar">
             <property name="title-widget">
               <object class="AdwWindowTitle" id="dialog_title">
-                <property name="title" translatable="yes">Play random</property>
+                <property name="title">Play random</property>
               </object>
             </property>
           </object>
@@ -35,7 +35,7 @@
                 <property name="valign">center</property>
                 <child>
                   <object class="GtkLabel" id="limit_label">
-                    <property name="label" translatable="yes">Number of songs</property>
+                    <property name="label">Number of songs</property>
                     <property name="xalign">0</property>
                     <property name="hexpand">true</property>
                   </object>
@@ -55,7 +55,7 @@
                 <property name="valign">center</property>
                 <child>
                   <object class="GtkLabel" id="min_year_label">
-                    <property name="label" translatable="yes">Minimum year</property>
+                    <property name="label">Minimum year</property>
                     <property name="xalign">0</property>
                     <property name="hexpand">true</property>
                   </object>
@@ -78,7 +78,7 @@
                 <property name="valign">center</property>
                 <child>
                   <object class="GtkLabel" id="max_year_label">
-                    <property name="label" translatable="yes">Maximum year</property>
+                    <property name="label">Maximum year</property>
                     <property name="xalign">0</property>
                     <property name="hexpand">true</property>
                   </object>
@@ -101,7 +101,7 @@
                 <property name="valign">center</property>
                 <child>
                   <object class="GtkLabel" id="genre_label">
-                    <property name="label" translatable="yes">Genre</property>
+                    <property name="label">Genre</property>
                     <property name="xalign">0</property>
                     <property name="hexpand">true</property>
                   </object>
@@ -120,7 +120,7 @@
                 <property name="valign">center</property>
                 <child>
                   <object class="GtkLabel" id="played_filter_label">
-                    <property name="label" translatable="yes">Play filter</property>
+                    <property name="label">Play filter</property>
                     <property name="xalign">0</property>
                     <property name="hexpand">true</property>
                   </object>
@@ -151,7 +151,7 @@
                         </child>
                         <child>
                           <object class="GtkLabel" id="play_next_label">
-                            <property name="label" translatable="yes">Play Next</property>
+                            <property name="label">Play Next</property>
                           </object>
                         </child>
                       </object>
@@ -175,7 +175,7 @@
                         </child>
                         <child>
                           <object class="GtkLabel" id="play_now_label">
-                            <property name="label" translatable="yes">Play</property>
+                            <property name="label">Play</property>
                           </object>
                         </child>
                       </object>
@@ -198,7 +198,7 @@
                         </child>
                         <child>
                           <object class="GtkLabel" id="play_later_label">
-                            <property name="label" translatable="yes">Play Later</property>
+                            <property name="label">Play Later</property>
                           </object>
                         </child>
                       </object>

@@ -480,9 +480,6 @@ row:focus {
   outline: none;
 }
 
-.window-controls .icon-button:focus,
-.window-controls .icon-button:active,
-.window-controls .icon-button:checked,
 .queue-toolbar .icon-button:focus,
 .queue-toolbar .icon-button:active,
 .queue-toolbar .icon-button:checked {
@@ -935,7 +932,7 @@ gridview.album-grid {
   color: color-mix(in srgb, var(--window-fg-color) 58%, transparent);
 }
 
-.rail-button:not(.selected):not(.primary-menu-button):hover image.nav-icon {
+.rail-button:not(.selected):hover image.nav-icon {
   color: var(--window-fg-color);
 }
 
@@ -1678,25 +1675,6 @@ button.download-queue-pause image {
 
 .home-section-control-button {
   margin-left: -5px;
-}
-
-.window-controls menubutton.icon-button > button {
-  min-width: 34px;
-  min-height: 34px;
-  padding: 0;
-  border-radius: 999px;
-  color: color-mix(in srgb, var(--window-fg-color) 92%, transparent);
-  background: transparent;
-  box-shadow: none;
-}
-
-.window-controls menubutton.icon-button > button:hover,
-.window-controls menubutton.icon-button > button:focus,
-.window-controls menubutton.icon-button > button:active,
-.window-controls menubutton.icon-button > button:checked {
-  outline: none;
-  background: transparent;
-  box-shadow: none;
 }
 
 .icon-button.player-title-menu-button {

@@ -102,21 +102,7 @@ impl SettingsFile {
 
     pub(crate) fn open(path: PathBuf) -> Result<Self, String> {
         let mut value = read_startup_settings(&path)?;
-        let mut changed = false;
         value.migrate_defaults();
-        for recent in &mut value.ui.recent_search_results {
-            if let Some(binding) = &mut recent.artwork_binding {
-                let normalized = library::normalize_artwork_binding(binding)
-                    .map_err(|error| error.to_string())?;
-                if *binding != normalized {
-                    *binding = normalized;
-                    changed = true;
-                }
-            }
-        }
-        if changed && let Err(error) = write_settings(&path, &value) {
-            warn!(%error, "could not save startup settings");
-        }
         Ok(Self {
             sidebar: tokio::sync::watch::channel(value.ui.sidebar.clone()).0,
             appearance: tokio::sync::watch::channel(value.ui.appearance.clone()).0,
@@ -344,7 +330,7 @@ impl SettingsOwner {
         self.file.persistence_error.subscribe()
     }
 
-    /// Finish pending preference saves before shutdown or export.
+    /// Finish pending preference saves before shutdown.
     pub fn flush(&self) -> Result<(), String> {
         self.file.flush()
     }

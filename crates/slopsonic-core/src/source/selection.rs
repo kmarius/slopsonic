@@ -77,9 +77,10 @@ impl ServerOwner {
                 }
             };
             // A reset retires the client first; never attach the old server's observer after it.
-            let Some(activated) = owner.shared.install_if_current(&cancelled, || {
-                owner.start_observer(source.clone(), refresh && !cached_start)
-            }) else {
+            let Some(activated) = owner
+                .shared
+                .install_if_current(&cancelled, || owner.start_observer(source.clone()))
+            else {
                 return;
             };
             owner.shared.present_refresh();
@@ -148,7 +149,7 @@ impl ServerOwner {
                 .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(selected.clone());
             source.map(|source| {
                 let source = self.cache_connected(&configured, source);
-                self.start_observer(source.clone(), true);
+                self.start_observer(source.clone());
                 source
             })
         }) else {
@@ -236,7 +237,7 @@ impl ServerOwner {
         }
     }
 
-    pub(super) fn start_observer(&self, source: Arc<Source>, initial_scan_pending: bool) -> bool {
+    pub(super) fn start_observer(&self, source: Arc<Source>) -> bool {
         let mut client = self
             .shared
             .client
@@ -248,7 +249,7 @@ impl ServerOwner {
         if cached.observer.is_some() {
             return false;
         }
-        let observer = source.start_selected_feed(&self.shared.runtime, initial_scan_pending);
+        let observer = source.start_selected_feed(&self.shared.runtime);
         let shared = Arc::downgrade(&self.shared);
         let task = self.shared.runtime.spawn(Self::consume_selected_feed(
             shared,

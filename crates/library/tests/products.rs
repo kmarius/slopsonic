@@ -2192,7 +2192,7 @@ async fn home_search_and_radio_results_stay_bounded() {
         .collect::<Vec<_>>();
     let resolved = fixture
         .database
-        .search_rows_by_objects(None, false, &object_ids, &[], &[], &cancel)
+        .search_rows_by_objects(false, &object_ids, &[], &[], &cancel)
         .await
         .expect("live Search identity rows");
     assert_eq!(

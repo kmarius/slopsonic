@@ -12,17 +12,11 @@ impl Shell {
         let source = self.products.source.clone();
         let shell = Rc::downgrade(self);
         gtk::glib::spawn_future_local(async move {
-            let result = slopsonic_core::playlists::create_playlist(
-                &source,
-                name,
-                selection.into(),
-                Some(public),
-                None,
-            )
-            .await;
+            let result =
+                slopsonic_core::playlists::create_playlist(&source, name, selection.into(), public)
+                    .await;
             let error = match result {
-                Ok(Some(created)) => created.settings_error,
-                Ok(None) => None,
+                Ok(settings_error) => settings_error,
                 Err(error) => Some(error.to_string()),
             };
             if let Some(shell) = shell.upgrade()

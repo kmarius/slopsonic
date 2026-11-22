@@ -270,7 +270,6 @@ impl Actor {
                 .await
                 .map_err(|error| DownloadFailure::NeedsAttention(error.to_string()))?
                 .unwrap_or_default(),
-            managed: true,
             ..Default::default()
         };
         let previous = self
@@ -303,10 +302,7 @@ impl Actor {
             .transpose()
             .map_err(|error| DownloadFailure::NeedsAttention(error.to_string()))?
             .unwrap_or_default();
-        if let Some(previous) = previous
-            .as_ref()
-            .filter(|old| old.managed && old.path != file.path)
-        {
+        if let Some(previous) = previous.as_ref().filter(|old| old.path != file.path) {
             let used = self
                 .database
                 .download_file_shared(previous)
@@ -355,7 +351,6 @@ impl Actor {
         while let Some(path) = retired.first() {
             let old = library::DownloadFile {
                 path: path.clone(),
-                managed: true,
                 ..file.clone()
             };
             self.remove_representation_bytes(&old).await?;

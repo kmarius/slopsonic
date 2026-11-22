@@ -175,17 +175,8 @@ impl Playback {
         self.request(move |player, sample| Ok(player.handle_command(command, sample)?))
     }
 
-    pub(crate) fn handoff_snapshot(
-        &self,
-    ) -> PlaybackResult<(
-        library::QueueRestore,
-        Option<playback::SourceReportFact>,
-        String,
-    )> {
-        self.request(|player, _| {
-            let (queue, report) = player.handoff_snapshot();
-            Ok((queue, report, player.next_session_identifier()))
-        })
+    pub(crate) fn queue_snapshot(&self) -> PlaybackResult<library::QueueRestore> {
+        self.request(|player, _| Ok(player.sequence().snapshot()))
     }
     #[cfg(test)]
     pub(crate) fn projection(&self) -> PlaybackResult<PlaybackProjection> {

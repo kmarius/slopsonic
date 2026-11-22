@@ -1,5 +1,3 @@
-use crate::{RepeatMode, RunId};
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SourceReportPhase {
     Started,
@@ -8,24 +6,13 @@ pub enum SourceReportPhase {
     Ended,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceReportFact {
-    pub transcoded: bool,
-    pub run: RunId,
-    pub session_identifier: String,
-    pub queue_id: Option<u64>,
-    pub queue_item_id: Option<u64>,
     pub media_uri: String,
     pub phase: SourceReportPhase,
     pub started_at_unix_seconds: i64,
     pub position_millis: u64,
-    pub duration_millis: Option<u64>,
     pub paused: bool,
-    pub muted: bool,
-    pub volume: f64,
-    pub shuffle: bool,
-    pub repeat_mode: RepeatMode,
-    pub failed: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -33,7 +20,6 @@ pub enum RunEndReason {
     Completed,
     ManualSkip,
     Stopped,
-    Replaced,
     Failed,
 }
 

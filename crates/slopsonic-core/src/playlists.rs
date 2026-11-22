@@ -25,20 +25,12 @@ where
     receiver
 }
 
-#[derive(Clone, Debug)]
-pub struct PlaylistCreation {
-    pub playlist_key: Option<PlaylistKey>,
-    pub object_id: String,
-    pub settings_error: Option<String>,
-}
-
 pub async fn create_playlist(
     owner: &ServerOwner,
     name: String,
     songs: Arc<library::MemberSelection>,
-    public: Option<bool>,
-    current: Option<bool>,
-) -> sources::SourceResult<Option<PlaylistCreation>> {
+    public: bool,
+) -> sources::SourceResult<Option<String>> {
     run(owner, move |owner| async move {
         let database = &owner.shared.database;
         let source = owner.client()?;
@@ -46,8 +38,8 @@ pub async fn create_playlist(
             .cached_server(&ReadCancellation::new())
             .await
             .map_err(string_error)?
-            .ok_or("Source access is unavailable")?;
-        let (playlist, object_id) = {
+            .ok_or("Server access is unavailable")?;
+        let playlist_id = {
             let tracks = database
                 .source_playlist_track_ids(None, &songs, false)
                 .await
@@ -55,7 +47,7 @@ pub async fn create_playlist(
             let first = &tracks[..tracks.len().min(256)];
             let object = {
                 let provider = &source.subsonic;
-                provider.create_playlist(&name, first, public).await
+                provider.create_playlist(&name, first, Some(public)).await
             }
             .map_err(string_error)?;
             append_native_tracks(&source, &object, &tracks[first.len()..])
@@ -64,19 +56,8 @@ pub async fn create_playlist(
             refresh_playlist(&source, database, Some(object.clone()), None)
                 .await
                 .map_err(string_error)?;
-            let playlist = match database
-                .playlist_key_by_object(&object, &ReadCancellation::new())
-                .await
-            {
-                Ok(playlist) => playlist,
-                Err(error) => {
-                    owner.shared.warn_nonfatal(&error.to_string());
-                    None
-                }
-            };
-            (playlist, object)
+            object
         };
-        let playlist_id = object_id.clone();
         let settings = owner.shared.settings.clone();
         let settings_error = tokio::task::spawn_blocking(move || {
             settings.update(|stored| {
@@ -84,9 +65,6 @@ pub async fn create_playlist(
                     .ui
                     .sidebar
                     .set_pinned(crate::settings::SidebarPin::Playlist { playlist_id }, true);
-                if let Some(current) = current {
-                    stored.ui.application.new_playlist_current = current;
-                }
                 Ok(())
             })
         })
@@ -94,11 +72,7 @@ pub async fn create_playlist(
         .map_err(string_error)
         .and_then(|result| result)
         .err();
-        Ok(Some(PlaylistCreation {
-            playlist_key: playlist,
-            object_id,
-            settings_error,
-        }))
+        Ok(settings_error)
     })
     .recv()
     .await

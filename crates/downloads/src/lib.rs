@@ -497,10 +497,8 @@ impl Downloads {
 #[derive(Clone, Default)]
 pub struct DownloadStatus {
     pub revision: u64,
-    pub queue_revision: u64,
     pub paused: bool,
     pub queue: Option<DownloadQueueSummary>,
-    pub notice: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -526,13 +524,13 @@ impl DownloadEvents {
         self.status.send_if_modified(|state| {
             match event {
                 DownloadEvent::Changed { .. } => state.revision += 1,
-                DownloadEvent::Notice(message) => state.notice = Some(message.clone()),
                 DownloadEvent::Queue { summary, paused } => {
                     state.paused = *paused;
-                    state.queue_revision += 1;
                     state.queue = Some(summary.clone());
                 }
-                DownloadEvent::Feedback(_) | DownloadEvent::SubjectChanged { .. } => return false,
+                DownloadEvent::Notice(_)
+                | DownloadEvent::Feedback(_)
+                | DownloadEvent::SubjectChanged { .. } => return false,
             }
             true
         });

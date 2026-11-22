@@ -58,11 +58,7 @@ pub async fn resolve_folder(
             .cached_client()
             .ok_or(sources::SourceError::NotFound)?;
         source
-            .browse_folder(
-                database,
-                folder_object_id,
-                selected.music_folder_object_id.as_deref(),
-            )
+            .browse_folder(folder_object_id, selected.music_folder_object_id.as_deref())
             .await
     };
     let live = tokio::select! {

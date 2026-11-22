@@ -131,10 +131,8 @@ CREATE TABLE IF NOT EXISTS download_files (
     encoding TEXT NOT NULL,
     revision TEXT NOT NULL,
     path TEXT NOT NULL,
-    managed INTEGER NOT NULL,
     owners TEXT NOT NULL DEFAULT '[]',
     storage_root TEXT NOT NULL DEFAULT '',
-    relative_path TEXT NOT NULL DEFAULT '',
     completed_size INTEGER,
     retired_documents TEXT NOT NULL DEFAULT '[]',
     PRIMARY KEY (media_uri, encoding)
@@ -173,11 +171,9 @@ CREATE TABLE IF NOT EXISTS albums (
     track_count INTEGER NOT NULL DEFAULT 0, duration_millis INTEGER NOT NULL DEFAULT 0,
     downloaded_count INTEGER NOT NULL DEFAULT 0, play_count INTEGER NOT NULL DEFAULT 0, last_played INTEGER,
     native_metadata INTEGER NOT NULL DEFAULT 0,
-    normalized_title TEXT,
     native_artwork BLOB,
     artwork_binding BLOB, artwork_track_key INTEGER, artwork_artist_key INTEGER,
     first_seen_at INTEGER,
-    release_lookup_identity TEXT, release_identity TEXT,
     title TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.title')) VIRTUAL,
     display_artist TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.artist')) VIRTUAL,
     sort_text TEXT GENERATED ALWAYS AS (json_extract(metadata,'$.sort_text')) VIRTUAL,
@@ -233,7 +229,6 @@ CREATE INDEX IF NOT EXISTS tracks_downloaded_order_idx ON tracks(indexed,sort_te
 CREATE INDEX IF NOT EXISTS tracks_duration_idx ON tracks(track_key,duration_millis);
 CREATE INDEX IF NOT EXISTS tracks_duration_order_idx ON tracks(indexed,duration_millis,sort_text,track_key);
 CREATE INDEX IF NOT EXISTS tracks_duration_desc_order_idx ON tracks(indexed,duration_millis DESC,sort_text,track_key);
-CREATE INDEX IF NOT EXISTS tracks_source_path_idx ON tracks(source_path,album_key);
 CREATE INDEX IF NOT EXISTS tracks_album_order_idx ON tracks(album_key,disc_number,track_number,sort_text,track_key);
 CREATE INDEX IF NOT EXISTS tracks_artist_order_idx ON tracks(indexed,display_artist,(album_year_sort IS NULL),album_year_sort,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
 CREATE INDEX IF NOT EXISTS tracks_artist_desc_order_idx ON tracks(indexed,display_artist DESC,(album_year_sort IS NULL),album_year_sort,album_title_sort,(album_key IS NULL),album_key,disc_number,track_number,sort_text,track_key);
@@ -438,7 +433,18 @@ CREATE TRIGGER IF NOT EXISTS server_required_track_claims BEFORE UPDATE OF objec
 
 const BASE_VERSION: i64 = 76;
 
-const MIGRATIONS: &[&str] = &[];
+const MIGRATIONS: &[&str] = &[
+    // 77: drop the album title column and track path index nothing reads.
+    "DROP INDEX IF EXISTS tracks_source_path_idx;
+     ALTER TABLE albums DROP COLUMN normalized_title;",
+    // 78: drop the release lookup identities and the managed flag; unmanaged rows point at user files.
+    "DELETE FROM download_files WHERE managed=0;
+     ALTER TABLE albums DROP COLUMN release_lookup_identity;
+     ALTER TABLE albums DROP COLUMN release_identity;
+     ALTER TABLE download_files DROP COLUMN managed;",
+    // 79: drop the never-read relative download path.
+    "ALTER TABLE download_files DROP COLUMN relative_path;",
+];
 
 pub(crate) const SCHEMA_VERSION: i64 = BASE_VERSION + MIGRATIONS.len() as i64;
 

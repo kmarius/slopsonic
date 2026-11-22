@@ -6,7 +6,7 @@ use crate::{SourceError, SourceResult, subsonic::SubsonicFlavor};
 /// Credential-free source configuration persisted by Slopsonic Settings.
 ///
 /// The provider payload is opaque outside Sources. Cache health never affects
-/// this value or its separately stored credential reference.
+/// this value or the separately stored credential.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SourceConfiguration {
     pub kind: SubsonicFlavor,
@@ -29,13 +29,13 @@ pub struct SourceSetup {
     pub credentials: CredentialInput,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CredentialPreset {
     pub source_name: String,
     pub server_url: String,
     pub username: String,
     pub trust_invalid_cert: bool,
-    pub open_subsonic_authentication: Option<crate::SubsonicAuthentication>,
+    pub authentication: crate::SubsonicAuthentication,
 }
 
 impl SourceConfiguration {
@@ -59,7 +59,7 @@ impl SourceConfiguration {
             server_url: config.base_url,
             username: config.username,
             trust_invalid_cert: config.trust_invalid_cert,
-            open_subsonic_authentication: Some(config.authentication),
+            authentication: config.authentication,
         })
     }
 }
@@ -168,7 +168,7 @@ mod tests {
             server_url: "https://music.example".into(),
             username: "listener".into(),
             trust_invalid_cert: false,
-            open_subsonic_authentication: None,
+            authentication: crate::SubsonicAuthentication::Password,
         };
         let input = |url: &str, username: &str| CredentialInput {
             source_name: Some("Renamed".into()),

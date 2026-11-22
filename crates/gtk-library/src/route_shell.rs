@@ -7,8 +7,6 @@ use std::{
 };
 
 use adw::prelude::*;
-#[cfg(test)]
-use gtk::glib;
 use gtk::subclass::prelude::*;
 
 use crate::CatalogUi;
@@ -690,22 +688,6 @@ fn library_sort_title(key: LibraryListKey, field: LibraryField) -> &'static str 
     }
 }
 
-#[cfg(test)]
-fn weak_target_callback<T, A>(
-    target: &T,
-    callback: impl Fn(&T, A) + 'static,
-) -> impl Fn(A) + 'static
-where
-    T: glib::object::ObjectType,
-{
-    let weak_target = target.downgrade();
-    move |argument| {
-        if let Some(target) = weak_target.upgrade() {
-            callback(&target, argument);
-        }
-    }
-}
-
 pub fn toolbar_sort_width_for_labels<'a>(labels: impl IntoIterator<Item = &'a str>) -> i32 {
     labels
         .into_iter()
@@ -787,11 +769,7 @@ fn configure_library_toolbar_icon_button(button: &gtk::Button, tooltip: &str) {
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::Cell, rc::Rc};
-
-    use adw::prelude::*;
-
-    use super::{next_row_grid_layout, toolbar_layout, weak_target_callback};
+    use super::{next_row_grid_layout, toolbar_layout};
     use crate::LibraryLayout;
 
     #[test]
@@ -799,36 +777,6 @@ mod tests {
         assert_eq!(super::responsive_toolbar_sort_width(414, 200), 103);
         assert_eq!(super::responsive_toolbar_sort_width(448, 200), 112);
         assert_eq!(super::responsive_toolbar_sort_width(800, 160), 160);
-    }
-
-    #[test]
-    fn signal_callback_does_not_retain_its_source_or_target() {
-        let source = gtk::gio::SimpleAction::new("source", None);
-        let weak_source = source.downgrade();
-        let target = gtk::gio::SimpleAction::new("target", None);
-        let weak_target = target.downgrade();
-        let calls = Rc::new(Cell::new(0));
-        let callback_calls = Rc::clone(&calls);
-        let callback = weak_target_callback(&target, move |_, ()| {
-            callback_calls.set(callback_calls.get() + 1);
-        });
-        source.connect_activate(move |_, _| callback(()));
-
-        source.activate(None);
-        assert_eq!(calls.get(), 1);
-        drop(target);
-        source.activate(None);
-
-        assert!(
-            weak_target.upgrade().is_none(),
-            "the callback must not retain its target"
-        );
-        assert_eq!(calls.get(), 1);
-        drop(source);
-        assert!(
-            weak_source.upgrade().is_none(),
-            "the callback must not retain its signal source"
-        );
     }
 
     #[test]

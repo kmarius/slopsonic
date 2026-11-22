@@ -635,7 +635,6 @@ impl ArtistReleaseProjections {
             SparseSource::Query {
                 count: counts.get().iter().sum(),
             },
-            32,
             shell.runtime.clone(),
             load,
         );

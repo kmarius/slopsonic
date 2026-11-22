@@ -166,7 +166,7 @@ fn apply_catalog_publication(shell: &Rc<Shell>, publication: CatalogPublication)
     }
     let current = shell.navigation.routes.borrow().current().clone();
     let affects_current = shell.selected_library().is_some();
-    let source_scoped = current.requires_selected_source() && current.uses_selected_source();
+    let source_scoped = current.requires_selected_source();
     match publication.change {
         CatalogChange::Broad => {
             refresh_context_playlist_picker(shell);
@@ -594,7 +594,7 @@ fn playback_error_toast(error: &str) -> String {
         | "File not found"
         | "Resource not found"
         | "Resource not found."
-        | "the configured source no longer exists"
+        | "the configured server no longer exists"
         | "Could not play this track" => "Could not play this track".to_string(),
         "Track unavailable" => "Track unavailable".to_string(),
         "Format not supported" => "Format not supported".to_string(),
@@ -621,7 +621,7 @@ mod tests {
     #[test]
     fn playback_toasts_omit_backend_diagnostics() {
         assert_eq!(
-            super::playback_error_toast("the configured source no longer exists"),
+            super::playback_error_toast("the configured server no longer exists"),
             "Could not play this track".to_string()
         );
         assert_eq!(

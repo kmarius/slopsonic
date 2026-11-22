@@ -12,7 +12,6 @@ const ARTWORK_PAGE_LIMIT: usize = 128;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PlaylistArtworkManifest {
-    pub folder_id: Option<String>,
     pub chosen: Vec<String>,
     pub pending: bool,
 }
@@ -118,50 +117,6 @@ pub(crate) fn preview_sql(binding: &str) -> String {
     )
 }
 
-pub fn normalize_artwork_binding(bytes: &[u8]) -> LibraryResult<Vec<u8>> {
-    if let Ok(candidates) = serde_json::from_slice::<Vec<ArtworkCandidate>>(bytes) {
-        return Ok(serde_json::to_vec(
-            &candidates
-                .into_iter()
-                .map(|candidate| ArtworkCandidate::new(candidate.image, candidate.blur_hash))
-                .collect::<Vec<_>>(),
-        )?);
-    }
-    let value: serde_json::Value = match serde_json::from_slice(bytes) {
-        Ok(value) => value,
-        Err(_) => return Ok(b"[]".to_vec()),
-    };
-    let text = |field: &str| value[field].as_str().map(str::to_owned);
-    let mut candidates = Vec::new();
-    if value["kind"] == "artist" {
-        if let Ok(bytes) = serde_json::from_value::<Vec<u8>>(value["source"].clone()) {
-            candidates.extend(serde_json::from_slice::<Vec<ArtworkCandidate>>(
-                &normalize_artwork_binding(&bytes)?,
-            )?);
-        }
-    } else if value["kind"] == "playlist" {
-        candidates.push(ArtworkCandidate::new(
-            ArtworkImage::Playlist {
-                object_id: text("object_id").unwrap_or_default(),
-                revision: text("revision").unwrap_or_default(),
-                automatic: None,
-                resolved: None,
-            },
-            text("blur_hash"),
-        ));
-    } else if let Some(image) = value.get("image") {
-        candidates.push(ArtworkCandidate::new(
-            ArtworkImage::Native {
-                item_id: image["item_id"].as_str().unwrap_or_default().into(),
-                tag: image["tag"].as_str().map(str::to_owned),
-            },
-            image["blur_hash"].as_str().map(str::to_owned),
-        ));
-    }
-
-    Ok(serde_json::to_vec(&candidates)?)
-}
-
 pub fn automatic_playlist_artwork(binding: &[u8]) -> LibraryResult<Option<Vec<u8>>> {
     let candidates: Vec<ArtworkCandidate> = serde_json::from_slice(binding)?;
     candidates
@@ -255,7 +210,6 @@ pub(crate) async fn refresh_mosaics(
 pub(crate) fn playlist_artwork(
     binding: Option<Vec<u8>>,
     object_id: String,
-    folder_id: Option<String>,
 ) -> LibraryResult<Vec<u8>> {
     let mut candidates: Vec<ArtworkCandidate> = binding
         .as_deref()
@@ -271,7 +225,6 @@ pub(crate) fn playlist_artwork(
                 object_id,
                 revision: "auto".into(),
                 automatic: Some(PlaylistArtworkManifest {
-                    folder_id,
                     chosen: Vec::new(),
                     pending: true,
                 }),
@@ -490,7 +443,7 @@ impl Database {
         &self,
         active_media_uris: &[String],
     ) -> LibraryResult<ArtworkCacheRetention<'_>> {
-        let (permit, mut connection) = self.acquire_export().await?;
+        let (permit, mut connection) = self.acquire_retention().await?;
         // The main database stays read-only. Temporary rows live only on this connection.
         connection.close_on_drop();
         sqlx::raw_sql("PRAGMA query_only=OFF; CREATE TEMP TABLE retained_artwork_families(family TEXT PRIMARY KEY) WITHOUT ROWID;")

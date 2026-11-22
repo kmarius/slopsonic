@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <requires lib="gtk" version="4.20"/>
 
   <template class="SlopsonicLibraryToolbarView" parent="GtkBox">
@@ -26,7 +26,7 @@
                 <style><class name="library-toolbar-icon-button"/></style>
                 <property name="visible">false</property>
                 <property name="icon-name">slopsonic-list-add-symbolic</property>
-                <property name="tooltip-text" translatable="yes">New Playlist</property>
+                <property name="tooltip-text">New Playlist</property>
               </object>
             </child>
             <child>

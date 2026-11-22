@@ -84,7 +84,7 @@ async fn stream_and_backend_failures_publish_notices_and_keep_diagnostics() {
         let message = if backend_failure {
             "Resource not found."
         } else {
-            "the configured source no longer exists"
+            "the configured server no longer exists"
         };
         let mut updates = owner.updates.subscribe();
         playback

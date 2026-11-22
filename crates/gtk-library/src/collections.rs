@@ -1074,9 +1074,7 @@ pub fn track_table(
             label.set_visible(disc.is_some());
             if let Some(disc) = disc {
                 label.set_label(&if disc > 0 {
-                    "Disc {number}"
-                        .to_string()
-                        .replace("{number}", &disc.to_string())
+                    format!("Disc {disc}")
                 } else {
                     "Unknown disc".to_string()
                 });

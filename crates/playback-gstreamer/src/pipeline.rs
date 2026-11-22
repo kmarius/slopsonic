@@ -10,39 +10,6 @@ use glib::translate::IntoGlib;
 use std::cell::Cell;
 use std::sync::atomic::AtomicU64;
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(super) struct SourceClock {
-    time_offset_millis: u64,
-}
-
-impl SourceClock {
-    pub(super) fn from_stream(stream: &ResolvedStream) -> Self {
-        Self {
-            time_offset_millis: stream.time_offset_millis().unwrap_or_default(),
-        }
-    }
-
-    pub(super) fn physical_seek(self, logical_millis: u64) -> u64 {
-        logical_millis.saturating_sub(self.time_offset_millis)
-    }
-
-    pub(super) fn logical_position(self, physical_millis: u64) -> u64 {
-        physical_millis.saturating_add(self.time_offset_millis)
-    }
-
-    pub(super) fn logical_duration(self, physical_duration_millis: u64) -> u64 {
-        physical_duration_millis.saturating_add(self.time_offset_millis)
-    }
-
-    pub(super) fn remaining(
-        self,
-        physical_position_millis: u64,
-        physical_duration_millis: u64,
-    ) -> u64 {
-        self.logical_duration(physical_duration_millis)
-            .saturating_sub(self.logical_position(physical_position_millis))
-    }
-}
 pub(super) struct PlayerPipeline {
     name: String,
     slot: Slot,
@@ -132,13 +99,6 @@ impl PlayerPipeline {
         self.native
             .as_ref()
             .ok_or_else(|| format!("GStreamer player {} is not active", self.name).into())
-    }
-
-    fn clock(&self) -> SourceClock {
-        self.current_stream
-            .as_ref()
-            .map(|stream| SourceClock::from_stream(stream))
-            .unwrap_or_default()
     }
 
     pub(super) fn play_item(
@@ -278,19 +238,6 @@ impl PlayerPipeline {
     pub(super) fn owns_audio_output(&self, name: &str) -> bool {
         let prefix = format!("{}-audio-output", self.name);
         name == prefix || name.starts_with(&format!("{prefix}-"))
-    }
-
-    pub(super) fn physical_seek_target(&self, millis: u64) -> u64 {
-        self.clock().physical_seek(millis)
-    }
-    pub(super) fn logical_position(&self, millis: u64) -> u64 {
-        self.clock().logical_position(millis)
-    }
-    pub(super) fn logical_duration(&self, millis: u64) -> u64 {
-        self.clock().logical_duration(millis)
-    }
-    pub(super) fn logical_remaining(&self, position: u64, duration: u64) -> u64 {
-        self.clock().remaining(position, duration)
     }
 
     pub(super) fn activate_stream(&mut self, stream: &PreparedStream) {
@@ -715,8 +662,7 @@ impl PlayerPipeline {
                 return gst::PadProbeReturn::Ok;
             };
             let started = match event.view() {
-                // The parsed format, also on decoded streams. Slopsonic's own CUE
-                // boundaries carry no stream, so they never change the mode.
+                // The parsed format, also on decoded streams.
                 gst::EventView::StreamStart(start) => {
                     Some(start.stream().and_then(|stream| stream.caps()))
                 }
@@ -1002,7 +948,7 @@ impl PlayerPipeline {
         })
     }
 
-    pub(super) fn seek_physical_millis(&self, millis: u64) -> Result<(), BackendFailure> {
+    pub(super) fn seek_millis(&self, millis: u64) -> Result<(), BackendFailure> {
         let mut flags = gst::SeekFlags::FLUSH;
         // FLAC frames carry their position, so a pull-mode flacparse lands on the exact sample.
         if !self.flac_parser_reads_anywhere() {
@@ -1122,16 +1068,6 @@ impl PlayerPipeline {
     }
 
     pub(super) fn seekable(&self) -> Option<bool> {
-        self.native_seekable().map(|native| {
-            native
-                || self
-                    .current_stream
-                    .as_ref()
-                    .is_some_and(|stream| stream.time_seekable())
-        })
-    }
-
-    pub(super) fn native_seekable(&self) -> Option<bool> {
         let (pipeline, _) = self.native.as_ref()?;
         let mut query = gst::query::Seeking::new(gst::Format::Time);
         Some(pipeline.query(&mut query) && query.result().0)
@@ -1233,7 +1169,7 @@ mod tests {
         );
         assert_eq!(player.seekable(), Some(true));
         assert!(player.duration().is_some());
-        player.seek_physical_millis(1_000).unwrap();
+        player.seek_millis(1_000).unwrap();
         let deadline = Instant::now() + Duration::from_secs(5);
         while player.seek_in_progress() && Instant::now() < deadline {
             player.complete_seek().unwrap();
@@ -1307,13 +1243,9 @@ mod tests {
         let mut retired: Vec<(String, glib::WeakRef<gst::Object>)> = Vec::new();
         for index in 1..=100 {
             let format_index = (index as usize - 1) % formats.len();
-            let resource = Arc::new(());
-            let resource_ref = Arc::downgrade(&resource);
             let item = PreparedRun {
                 run: RunId::new(index),
-                stream: ResolvedStream::new(uris[format_index].as_str())
-                    .with_resource(resource)
-                    .into(),
+                stream: ResolvedStream::new(uris[format_index].as_str()).into(),
             };
             player
                 .play_item(
@@ -1329,7 +1261,6 @@ mod tests {
                 )
                 .unwrap();
             drop(item);
-            assert!(resource_ref.upgrade().is_some());
             let (pipeline, bus) = player.native.as_ref().unwrap();
             pipeline.state(gst::ClockTime::from_seconds(5)).0.unwrap();
             if let Some((_, previous)) = retired.first() {
@@ -1371,7 +1302,6 @@ mod tests {
             player.stop();
             assert!(!player.has_session());
             assert_eq!(bin.current_state(), gst::State::Null);
-            assert!(resource_ref.upgrade().is_none());
         }
         drop(player);
         let remaining: Vec<_> = retired

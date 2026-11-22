@@ -1155,10 +1155,7 @@ fn open_folder(shell: &Rc<Preferences>, folder: gtk::gio::File) {
         {
             shell
                 .control_feedback
-                .show_feedback_toast(slopsonic_core::text::fill(
-                    "Could not open folder: {error}",
-                    &[("error", &error.to_string())],
-                ));
+                .show_feedback_toast(format!("Could not open folder: {error}"));
         }
     });
 }

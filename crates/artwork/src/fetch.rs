@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use sources::{ImageSize, SourceError, SourceImageRequest};
+use sources::{ImageSize, SourceError};
 use tokio::runtime::Handle;
 
 use crate::SourceResolver;
@@ -62,10 +62,9 @@ impl FetchContext {
             library::ArtworkImage::Native { item_id, tag, .. } => {
                 let source = self.source()?;
                 runtime
-                    .block_on(source.image(SourceImageRequest::Native {
-                        image_ref: sources::NativeImageRef::new(item_id, tag.clone()),
-                        size,
-                    }))
+                    .block_on(
+                        source.image(&sources::NativeImageRef::new(item_id, tag.clone()), size),
+                    )
                     .map(|image| {
                         if image.bytes.is_empty() {
                             FetchOutcome::Missing

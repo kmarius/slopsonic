@@ -336,7 +336,6 @@ mod tests {
             album_key: AlbumKey::from_raw(1),
             object_id: "album".to_string(),
             media_uri: library::entity_uri("album", "album"),
-            release_lookup_identity: None,
             artwork_binding: None,
             metadata: library::AlbumMetadata {
                 title: "Album".to_string(),

@@ -7,13 +7,13 @@ use std::sync::Arc;
 
 use sources::CredentialPreset;
 
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ServerSummary {
     pub kind: sources::SubsonicFlavor,
     pub name: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ServerCacheSummary {
     pub selected_music_folder_name: Option<String>,
     pub album_count: usize,
@@ -27,14 +27,13 @@ pub struct ServerStatus {
     pub cache: ServerCacheSummary,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EditableServer {
     pub source: ServerSummary,
     pub credentials: CredentialPreset,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ServerProgressStage {
     Connecting,
     Albums,
@@ -47,15 +46,14 @@ pub enum ServerProgressStage {
     Finalizing,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ServerProgress {
     pub stage: ServerProgressStage,
     pub completed: usize,
     pub total: Option<usize>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
-#[serde(tag = "state", rename_all = "snake_case")]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ServerOperation {
     Idle,
     Adding { progress: ServerProgress },
@@ -85,29 +83,20 @@ pub fn server_progress_text(progress: &ServerProgress) -> String {
         ServerProgressStage::Home => "Fetching Home".to_string(),
         ServerProgressStage::Artwork => "Fetching artwork".to_string(),
     };
-    let completed = progress.completed.to_string();
+    let completed = progress.completed;
     match progress.total {
-        Some(total) if total > 0 => crate::text::fill(
-            "{stage}: {completed} / {total}",
-            &[
-                ("stage", &stage),
-                ("completed", &completed),
-                ("total", &total.to_string()),
-            ],
-        ),
-        _ => crate::text::fill(
-            "{stage}: {completed}",
-            &[("stage", &stage), ("completed", &completed)],
-        ),
+        Some(total) if total > 0 => format!("{stage}: {completed} / {total}"),
+        _ => format!("{stage}: {completed}"),
     }
 }
 
 pub fn source_download_text(progress: &ServerProgress) -> String {
-    let message = match progress.stage {
-        ServerProgressStage::Artwork => "Downloading artwork... {count} checked",
-        _ => return server_progress_text(progress),
-    };
-    crate::text::fill(message, &[("count", &progress.completed.to_string())])
+    match progress.stage {
+        ServerProgressStage::Artwork => {
+            format!("Downloading artwork... {} checked", progress.completed)
+        }
+        _ => server_progress_text(progress),
+    }
 }
 
 pub fn server_operation_text(operation: &ServerOperation) -> Option<String> {

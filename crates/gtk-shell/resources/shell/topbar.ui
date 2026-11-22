@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <requires lib="gtk" version="4.20"/>
   <object class="GtkBox" id="window_content">
     <property name="orientation">vertical</property>
@@ -10,22 +10,22 @@
       <property name="spacing">2</property>
       <child><object class="GtkButton" id="sidebar">
         <property name="icon-name">slopsonic-sidebar-show-symbolic</property>
-        <property name="tooltip-text" translatable="yes">Show sidebar</property>
-        <accessibility><property name="label" translatable="yes">Show sidebar</property></accessibility>
+        <property name="tooltip-text">Show sidebar</property>
+        <accessibility><property name="label">Show sidebar</property></accessibility>
         <style><class name="flat"/><class name="topbar-button"/></style>
       </object></child>
       <child><object class="GtkButton" id="back">
         <property name="icon-name">slopsonic-go-previous-symbolic</property>
         <property name="action-name">win.go-back</property>
-        <property name="tooltip-text" translatable="yes">Back</property>
-        <accessibility><property name="label" translatable="yes">Back</property></accessibility>
+        <property name="tooltip-text">Back</property>
+        <accessibility><property name="label">Back</property></accessibility>
         <style><class name="flat"/><class name="topbar-button"/></style>
       </object></child>
       <child><object class="GtkButton" id="forward">
         <property name="icon-name">slopsonic-go-next-symbolic</property>
         <property name="action-name">win.go-forward</property>
-        <property name="tooltip-text" translatable="yes">Forward</property>
-        <accessibility><property name="label" translatable="yes">Forward</property></accessibility>
+        <property name="tooltip-text">Forward</property>
+        <accessibility><property name="label">Forward</property></accessibility>
         <style><class name="flat"/><class name="topbar-button"/></style>
       </object></child>
     </object></child>
@@ -37,8 +37,8 @@
       <property name="width-request">1</property>
       <property name="width-chars">1</property>
       <property name="max-width-chars">28</property>
-      <property name="placeholder-text" translatable="yes">Search</property>
-      <accessibility><property name="label" translatable="yes">Search</property></accessibility>
+      <property name="placeholder-text">Search</property>
+      <accessibility><property name="label">Search</property></accessibility>
       </object></property>
       <child type="overlay"><object class="AdwShortcutLabel" id="search_shortcut">
         <property name="halign">end</property>
@@ -62,8 +62,8 @@
       <property name="spacing">2</property>
       <child><object class="GtkMenuButton" id="menu">
         <property name="icon-name">slopsonic-open-menu-symbolic</property>
-        <property name="tooltip-text" translatable="yes">Menu</property>
-        <accessibility><property name="label" translatable="yes">Menu</property></accessibility>
+        <property name="tooltip-text">Menu</property>
+        <accessibility><property name="label">Menu</property></accessibility>
         <style><class name="flat"/><class name="topbar-button"/></style>
       </object></child>
     </object></child>

@@ -1,6 +1,4 @@
 {
-  "name": "Light",
-  "mode": "light",
   "colors": {
     "window-bg-color": "#fafafb",
     "window-fg-color": "rgb(0 0 6 / 80%)",

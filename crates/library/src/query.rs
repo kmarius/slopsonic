@@ -558,7 +558,7 @@ pub(crate) fn member_query(read: &MemberRead) -> LibraryResult<OrderedQuery> {
             };
             let mut query = OrderedQuery {
                 key: "track.track_key".into(),
-                text: sort.section_text(false),
+                text: sort.section_text(),
                 from,
                 predicate: format!("track.indexed=1 AND ({predicate})"),
                 order: sort.order_terms(read.descending, false),

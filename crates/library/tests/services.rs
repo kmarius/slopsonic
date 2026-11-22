@@ -80,7 +80,6 @@ async fn downloads_turn_stale_when_the_server_audio_changes() {
                 .unwrap()
                 .unwrap(),
             path: "file:///generic/track.flac".into(),
-            managed: true,
             ..Default::default()
         })
         .await
@@ -208,7 +207,7 @@ async fn source_artwork_pages_distinct_bindings() {
         assert!(actual.len() <= expected.len());
     }
     assert_eq!(actual, expected);
-    sqlx::query("INSERT INTO download_files(media_uri,encoding,revision,path,managed) SELECT media_uri,'original','',media_uri,1 FROM tracks WHERE object_id LIKE 'artwork-%' AND CAST(substr(object_id,9) AS INTEGER)%2=0")
+    sqlx::query("INSERT INTO download_files(media_uri,encoding,revision,path) SELECT media_uri,'original','',media_uri FROM tracks WHERE object_id LIKE 'artwork-%' AND CAST(substr(object_id,9) AS INTEGER)%2=0")
         .execute(&mut raw).await.unwrap();
     let mut retention = fixture
         .database

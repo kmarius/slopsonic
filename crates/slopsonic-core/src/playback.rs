@@ -204,7 +204,7 @@ impl PlaybackOwner {
         let Some(active) = self.active() else {
             return Ok(());
         };
-        let queue = active.handoff_snapshot().map_err(string_error)?.0;
+        let queue = active.queue_snapshot().map_err(string_error)?;
         let positions = self
             .database
             .queue_positions_for_source(&queue)
@@ -461,10 +461,7 @@ impl PlaybackOwner {
         let Some(active) = self.active() else {
             return Ok(library::QueueRestore::default());
         };
-        active
-            .handoff_snapshot()
-            .map(|(queue, _, _)| queue)
-            .map_err(string_error)
+        active.queue_snapshot().map_err(string_error)
     }
 
     pub fn play_selection(&self, request: PlayRequest) {
@@ -884,7 +881,6 @@ mod tests {
                 })),
                 path: uri.clone(),
                 storage_root: folder.path().to_string_lossy().into_owned(),
-                relative_path: "track.ogg".into(),
                 ..Default::default()
             })
             .await

@@ -3,8 +3,6 @@ use serde::{Deserialize, Serialize};
 pub const LIBREFM_API_KEY: &str = "slopsonic";
 pub const LIBREFM_API_SECRET: &str = "slopsonic";
 
-const SECRET_NAMESPACE: &str = "scrobbling";
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum SecretField {
     LastFmApiSecret,
@@ -13,34 +11,16 @@ enum SecretField {
     ListenBrainzToken,
 }
 
+/// A credential stored in the config file under `kind`, apart from the other scrobbling settings.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SecretDescriptor {
     field: SecretField,
-    namespace: &'static str,
     kind: &'static str,
-    label: &'static str,
 }
 
 impl SecretDescriptor {
-    const fn new(field: SecretField, kind: &'static str, label: &'static str) -> Self {
-        Self {
-            field,
-            namespace: SECRET_NAMESPACE,
-            kind,
-            label,
-        }
-    }
-
-    pub const fn namespace(self) -> &'static str {
-        self.namespace
-    }
-
     pub const fn kind(self) -> &'static str {
         self.kind
-    }
-
-    pub const fn label(self) -> &'static str {
-        self.label
     }
 
     pub fn value(self, settings: &Settings) -> &str {
@@ -62,32 +42,23 @@ impl SecretDescriptor {
     }
 }
 
-pub const LASTFM_API_SECRET: SecretDescriptor = SecretDescriptor::new(
-    SecretField::LastFmApiSecret,
-    "lastfm-api-secret",
-    "Slopsonic Last.fm API secret",
-);
-pub const LASTFM_SESSION: SecretDescriptor = SecretDescriptor::new(
-    SecretField::LastFmSession,
-    "lastfm-session",
-    "Slopsonic Last.fm session",
-);
-pub const LIBREFM_SESSION: SecretDescriptor = SecretDescriptor::new(
-    SecretField::LibreFmSession,
-    "librefm-session",
-    "Slopsonic Libre.fm session",
-);
-pub const LISTENBRAINZ_TOKEN: SecretDescriptor = SecretDescriptor::new(
-    SecretField::ListenBrainzToken,
-    "listenbrainz-token",
-    "Slopsonic ListenBrainz token",
-);
-
 const SECRET_DESCRIPTORS: [SecretDescriptor; 4] = [
-    LASTFM_API_SECRET,
-    LASTFM_SESSION,
-    LIBREFM_SESSION,
-    LISTENBRAINZ_TOKEN,
+    SecretDescriptor {
+        field: SecretField::LastFmApiSecret,
+        kind: "lastfm-api-secret",
+    },
+    SecretDescriptor {
+        field: SecretField::LastFmSession,
+        kind: "lastfm-session",
+    },
+    SecretDescriptor {
+        field: SecretField::LibreFmSession,
+        kind: "librefm-session",
+    },
+    SecretDescriptor {
+        field: SecretField::ListenBrainzToken,
+        kind: "listenbrainz-token",
+    },
 ];
 
 pub const fn secret_descriptors() -> &'static [SecretDescriptor] {
@@ -245,36 +216,17 @@ mod tests {
 
     #[test]
     fn secret_descriptors_preserve_storage_contract() {
-        let storage_contract = secret_descriptors()
+        let kinds = secret_descriptors()
             .iter()
-            .map(|descriptor| {
-                (
-                    descriptor.namespace(),
-                    descriptor.kind(),
-                    descriptor.label(),
-                )
-            })
+            .map(|descriptor| descriptor.kind())
             .collect::<Vec<_>>();
-
         assert_eq!(
-            storage_contract,
-            vec![
-                (
-                    "scrobbling",
-                    "lastfm-api-secret",
-                    "Slopsonic Last.fm API secret",
-                ),
-                ("scrobbling", "lastfm-session", "Slopsonic Last.fm session",),
-                (
-                    "scrobbling",
-                    "librefm-session",
-                    "Slopsonic Libre.fm session",
-                ),
-                (
-                    "scrobbling",
-                    "listenbrainz-token",
-                    "Slopsonic ListenBrainz token",
-                ),
+            kinds,
+            [
+                "lastfm-api-secret",
+                "lastfm-session",
+                "librefm-session",
+                "listenbrainz-token"
             ]
         );
     }

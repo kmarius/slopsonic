@@ -10,8 +10,6 @@ use slopsonic_core::settings::LibraryListSettings;
 use gtk_widgets::library_fields::TrackPresentation;
 use gtk_widgets::sparse_model::{SparseObjectModel, SparseRouteModel, SparseSource};
 
-const TRACK_OVERSCAN: usize = 64;
-
 #[derive(Clone, PartialEq)]
 enum TrackRead {
     Members(library::MemberRead),
@@ -68,7 +66,6 @@ impl TrackCollectionModel {
             SparseSource::Query {
                 count: page.page.count,
             },
-            TRACK_OVERSCAN,
             runtime,
             Rc::new(move |_, range, cancellation| {
                 let database = database.clone();
@@ -106,7 +103,6 @@ impl TrackCollectionModel {
         let keys: Arc<[TrackKey]> = rows.iter().map(|row| row.track_key).collect();
         let sparse = SparseRouteModel::new(
             SparseSource::Keys(keys.clone()),
-            TRACK_OVERSCAN,
             runtime,
             Rc::new(move |keys, _, cancel| {
                 let database = database.clone();

@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <requires lib="gtk" version="4.20" />
   <requires lib="libadwaita" version="1.9" />
   <object class="GtkLabel" id="unavailable_text">
-    <property name="label" translatable="yes">Unavailable</property>
+    <property name="label">Unavailable</property>
   </object>
   <object class="GtkStringList" id="download_options">
     <items>
-      <item translatable="yes">Download Lazily</item>
-      <item translatable="yes">Download Automatically</item>
+      <item>Download Lazily</item>
+      <item>Download Automatically</item>
     </items>
   </object>
   <object class="AdwNavigationView" id="navigation">
     <child>
       <object class="AdwNavigationPage" id="storage_root">
-        <property name="title" translatable="yes">Storage</property>
+        <property name="title">Storage</property>
         <property name="child">
           <object class="AdwPreferencesPage" id="storage_page">
-            <property name="title" translatable="yes">Storage</property>
+            <property name="title">Storage</property>
             <child>
               <object class="AdwPreferencesGroup">
                 <child>
@@ -43,7 +43,7 @@
                         <property name="hexpand">true</property>
                         <child>
                           <object class="GtkLabel">
-                            <property name="label" translatable="yes">Cached data</property>
+                            <property name="label">Cached data</property>
                             <property name="xalign">0</property>
                             <style>
                               <class name="heading" />
@@ -54,7 +54,7 @@
                           <object class="GtkLabel" id="total_size">
                             <property name="label">...</property>
                             <property name="xalign">0</property>
-                            <property name="tooltip-text" translatable="yes">Database sizes show stored data, excluding database overhead.</property>
+                            <property name="tooltip-text">Database sizes show stored data, excluding database overhead.</property>
                             <style>
                               <class name="title-1" />
                               <class name="numeric" />
@@ -74,10 +74,10 @@
             </child>
             <child>
               <object class="AdwPreferencesGroup">
-                <property name="title" translatable="yes">Cache</property>
+                <property name="title">Cache</property>
                 <child>
                   <object class="AdwComboRow" id="artwork_download">
-                    <property name="title" translatable="yes">Artwork</property>
+                    <property name="title">Artwork</property>
                     <property name="model">download_options</property>
                   </object>
                 </child>
@@ -87,7 +87,7 @@
               <object class="AdwPreferencesGroup">
                 <child>
                   <object class="AdwPreferencesRow" id="artwork_row">
-                    <property name="title" translatable="yes">Artwork</property>
+                    <property name="title">Artwork</property>
                     <property name="activatable">false</property>
                     <property name="focusable">true</property>
                     <property name="child">
@@ -105,7 +105,7 @@
                             <property name="valign">center</property>
                             <child>
                               <object class="GtkLabel">
-                                <property name="label" translatable="yes">Artwork</property>
+                                <property name="label">Artwork</property>
                                 <property name="xalign">0</property>
                               </object>
                             </child>
@@ -133,7 +133,7 @@
                         </child>
                         <child>
                           <object class="GtkButton" id="clear_artwork">
-                            <property name="tooltip-text" translatable="yes">Clear artwork cache</property>
+                            <property name="tooltip-text">Clear artwork cache</property>
                             <property name="valign">center</property>
                             <property name="sensitive">false</property>
                             <property name="icon-name">slopsonic-user-trash-symbolic</property>
@@ -141,7 +141,7 @@
                               <class name="flat" />
                             </style>
                             <accessibility>
-                              <property name="label" translatable="yes">Clear artwork cache</property>
+                              <property name="label">Clear artwork cache</property>
                             </accessibility>
                           </object>
                         </child>
@@ -168,12 +168,12 @@
     </child>
   </object>
   <object class="AdwAlertDialog" id="cache_entry_confirmation">
-    <property name="heading" translatable="yes">Clear this cache?</property>
+    <property name="heading">Clear this cache?</property>
     <property name="default-response">cancel</property>
     <property name="close-response">cancel</property>
     <responses>
-      <response id="cancel" translatable="yes">Cancel</response>
-      <response id="clear" appearance="destructive" translatable="yes">Clear</response>
+      <response id="cancel">Cancel</response>
+      <response id="clear" appearance="destructive">Clear</response>
     </responses>
   </object>
 </interface>

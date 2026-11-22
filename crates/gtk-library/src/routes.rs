@@ -264,7 +264,7 @@ impl CatalogUi {
                 };
                 self.folders_route(path, Some(Ok(page)))
             }
-            OpenedCollection::Home(page) => self.home_route(selected.expect("home source"), *page),
+            OpenedCollection::Home(page) => self.home_route(*page),
             OpenedCollection::Search(_) => self.search_route(),
         }
     }

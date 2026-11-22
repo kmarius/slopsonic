@@ -136,8 +136,6 @@ preference_group!(ApplicationPreferences, {
     reduce_motion: bool = false;
     #[serde(default = "default_true")]
     show_downloaded_badges: bool = true;
-    #[serde(default = "default_true")]
-    new_playlist_current: bool = true;
     #[serde(default = "default_auto_dj_refill_threshold")]
     auto_dj_refill_threshold: u8 = DEFAULT_AUTO_DJ_REFILL_THRESHOLD;
     #[serde(default)]

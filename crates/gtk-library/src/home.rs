@@ -453,11 +453,7 @@ fn clamped_page_start(start: usize, page_size: usize, count: usize) -> usize {
 }
 
 impl CatalogUi {
-    pub fn home_route(
-        self: &Rc<Self>,
-        _selected: slopsonic_core::runtime::SelectedLibrary,
-        home: HomePage,
-    ) -> MountedRoute {
+    pub fn home_route(self: &Rc<Self>, home: HomePage) -> MountedRoute {
         let scroller = gtk::ScrolledWindow::new();
         configure_fill_width_clip(&scroller, gtk::PolicyType::Automatic);
         scroller.set_vexpand(true);

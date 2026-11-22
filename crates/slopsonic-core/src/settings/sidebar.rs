@@ -60,8 +60,6 @@ pub struct SidebarSettings {
     pub pins: Vec<SidebarPin>,
     #[serde(default)]
     pub playlist_pins_imported: bool,
-    #[serde(default = "default_true")]
-    pub server_visible: bool,
 }
 impl Default for SidebarSettings {
     fn default() -> Self {
@@ -70,7 +68,6 @@ impl Default for SidebarSettings {
             pins_visible: true,
             pins: Vec::new(),
             playlist_pins_imported: false,
-            server_visible: true,
         }
     }
 }

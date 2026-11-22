@@ -608,7 +608,6 @@ impl ServerOwner {
         self.open_client()
             .await?
             .browse_folder(
-                &self.shared.database,
                 folder_object_id.as_deref(),
                 music_folder_object_id.as_deref(),
             )
@@ -691,7 +690,7 @@ impl ServerOwner {
                     {
                         owner
                             .shared
-                            .install_if_current(&cancelled, || owner.start_observer(source, false));
+                            .install_if_current(&cancelled, || owner.start_observer(source));
                     }
                     owner
                         .publish_operation(ServerOperation::Failed {
@@ -744,7 +743,7 @@ impl ServerOwner {
                     {
                         owner
                             .shared
-                            .install_if_current(&cancelled, || owner.start_observer(source, false));
+                            .install_if_current(&cancelled, || owner.start_observer(source));
                     }
                     owner.shared.publish_operation(ServerOperation::Failed {
                         message: error.clone(),
@@ -1316,7 +1315,7 @@ fn configured_source(
     settings
         .configured
         .clone()
-        .ok_or_else(|| "the configured source no longer exists".to_string())
+        .ok_or_else(|| "the configured server no longer exists".to_string())
 }
 
 fn server_status(
@@ -1402,7 +1401,7 @@ fn initial_progress() -> ServerProgress {
 }
 
 pub(crate) fn source_access_unavailable() -> String {
-    "Live source access is unavailable. Check the saved credentials and refresh.".to_string()
+    "Live server access is unavailable. Check the saved credentials and refresh.".to_string()
 }
 
 pub(crate) fn string_error(error: impl std::fmt::Display) -> String {
@@ -1419,9 +1418,6 @@ pub(crate) fn unix_seconds() -> i64 {
 pub struct ServerSubscription {
     source: ServerOwner,
     changes: tokio::sync::Mutex<tokio::sync::watch::Receiver<()>>,
-}
-pub struct ServerOperationSubscription {
-    changes: tokio::sync::Mutex<tokio::sync::watch::Receiver<ServerOperation>>,
 }
 
 impl ServerOwner {
@@ -1471,16 +1467,6 @@ impl ServerSubscription {
         Ok(self.source.server_status())
     }
 }
-impl ServerOperationSubscription {
-    pub async fn next(&self) -> sources::SourceResult<ServerOperation> {
-        let mut changes = self.changes.lock().await;
-        changes
-            .changed()
-            .await
-            .map_err(|error| SourceError::Other(error.to_string()))?;
-        Ok(changes.borrow_and_update().clone())
-    }
-}
 impl ServerOwner {
     pub fn editable(&self) -> sources::SourceResult<Option<EditableServer>> {
         self.shared
@@ -1491,19 +1477,5 @@ impl ServerOwner {
             .as_ref()
             .map(|source| editable_source(&source.configuration).map_err(SourceError::Other))
             .transpose()
-    }
-}
-
-pub struct ServerCatalogSubscription {
-    changes: tokio::sync::Mutex<tokio::sync::watch::Receiver<CatalogRevision>>,
-}
-impl ServerCatalogSubscription {
-    pub async fn next(&self) -> sources::SourceResult<CatalogRevision> {
-        let mut changes = self.changes.lock().await;
-        changes
-            .changed()
-            .await
-            .map_err(|error| SourceError::Other(error.to_string()))?;
-        Ok(changes.borrow_and_update().clone())
     }
 }

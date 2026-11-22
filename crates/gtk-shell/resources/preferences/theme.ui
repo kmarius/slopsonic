@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <requires lib="gtk" version="4.20"/>
   <requires lib="libadwaita" version="1.9"/>
   <object class="AdwPreferencesPage" id="theme_page">
-    <property name="title" translatable="yes">Theme</property>
+    <property name="title">Theme</property>
     <child>
       <object class="AdwPreferencesGroup">
         <child><object class="AdwComboRow" id="scheme_row">
-          <property name="title" translatable="yes">Color scheme</property>
+          <property name="title">Color scheme</property>
           <property name="model"><object class="GtkStringList"><items>
-            <item translatable="yes">System</item><item translatable="yes">Light</item><item translatable="yes">Dark</item>
+            <item>System</item><item>Light</item><item>Dark</item>
           </items></object></property>
         </object></child>
         <child><object class="AdwComboRow" id="accent_row">
-          <property name="title" translatable="yes">Accent color</property>
+          <property name="title">Accent color</property>
           <property name="model"><object class="GtkStringList"><items>
-            <item translatable="yes">System</item><item translatable="yes">Blue</item><item translatable="yes">Teal</item>
-            <item translatable="yes">Green</item><item translatable="yes">Yellow</item><item translatable="yes">Orange</item>
-            <item translatable="yes">Red</item><item translatable="yes">Pink</item><item translatable="yes">Purple</item><item translatable="yes">Slate</item>
+            <item>System</item><item>Blue</item><item>Teal</item>
+            <item>Green</item><item>Yellow</item><item>Orange</item>
+            <item>Red</item><item>Pink</item><item>Purple</item><item>Slate</item>
           </items></object></property>
         </object></child>
       </object>

@@ -1,32 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <requires lib="gtk" version="4.20" />
   <requires lib="libadwaita" version="1.9" />
   <object class="AdwPreferencesPage" id="library_page">
-    <property name="title" translatable="yes">Library</property>
+    <property name="title">Library</property>
     <property name="icon-name">slopsonic-library-music-symbolic</property>
     <child>
       <object class="AdwPreferencesGroup" id="servers_group">
-        <property name="title" translatable="yes">Sources</property>
+        <property name="title">Server</property>
       </object>
     </child>
   </object>
   <object class="AdwPreferencesPage" id="downloads_page">
-    <property name="title" translatable="yes">Downloads</property>
+    <property name="title">Downloads</property>
   </object>
   <object class="AdwActionRow" id="empty_remote_row">
-    <property name="title" translatable="yes">No sources configured</property>
+    <property name="title">No server configured</property>
   </object>
   <object class="AdwPreferencesGroup" id="downloads_group">
-    <property name="title" translatable="yes">Downloads</property>
-    <property name="description" translatable="yes">Keep music available offline. Folder changes only affect new downloads</property>
+    <property name="title">Downloads</property>
+    <property name="description">Keep music available offline. Folder changes only affect new downloads</property>
   </object>
   <object class="AdwActionRow" id="download_folder_row">
-    <property name="title" translatable="yes">Download Folder</property>
+    <property name="title">Download Folder</property>
     <child type="suffix">
       <object class="GtkButton" id="reset_folder">
         <property name="icon-name">slopsonic-view-refresh-symbolic</property>
-        <property name="tooltip-text" translatable="yes">Use default folder</property>
+        <property name="tooltip-text">Use default folder</property>
         <property name="valign">center</property>
         <style>
           <class name="flat" />
@@ -36,7 +36,7 @@
     <child type="suffix">
       <object class="GtkButton" id="open_folder">
         <property name="icon-name">slopsonic-document-open-symbolic</property>
-        <property name="tooltip-text" translatable="yes">Open Folder</property>
+        <property name="tooltip-text">Open Folder</property>
         <property name="valign">center</property>
         <style>
           <class name="flat" />
@@ -45,13 +45,13 @@
     </child>
     <child type="suffix">
       <object class="GtkButton" id="choose_folder">
-        <property name="label" translatable="yes">Choose</property>
+        <property name="label">Choose</property>
         <property name="valign">center</property>
       </object>
     </child>
   </object>
   <object class="AdwSwitchRow" id="downloaded_badge">
-    <property name="title" translatable="yes">Show downloaded badge</property>
+    <property name="title">Show downloaded badge</property>
   </object>
   <object class="AdwPreferencesRow" id="download_actions_row">
     <property name="activatable">false</property>
@@ -69,7 +69,7 @@
         <property name="margin-end">8</property>
         <child>
           <object class="GtkButton" id="remove_all">
-            <property name="tooltip-text" translatable="yes">Remove all downloads</property>
+            <property name="tooltip-text">Remove all downloads</property>
             <property name="halign">fill</property>
             <property name="hexpand">true</property>
             <style>
@@ -89,7 +89,7 @@
                 </child>
                 <child>
                   <object class="GtkLabel" id="remove_all_label">
-                    <property name="label" translatable="yes">Remove all downloads</property>
+                    <property name="label">Remove all downloads</property>
                     <property name="ellipsize">end</property>
                     <property name="width-chars">0</property>
                     <property name="max-width-chars">18</property>
@@ -118,7 +118,7 @@
         <property name="margin-end">12</property>
         <child>
           <object class="GtkLabel" id="download_queue_label">
-            <property name="label" translatable="yes">Download Queue</property>
+            <property name="label">Download Queue</property>
             <property name="halign">start</property>
             <style>
               <class name="heading" />
@@ -141,6 +141,6 @@
     </property>
   </object>
   <object class="GtkButton" id="add_source">
-    <property name="label" translatable="yes">Add Source</property>
+    <property name="label">Add Server</property>
   </object>
 </interface>

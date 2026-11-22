@@ -39,7 +39,6 @@ pub struct CurrentMedia {
 pub struct CurrentStream {
     pub local: bool,
     pub format: Option<String>,
-    pub transcoded: bool,
     pub bitstream: bool,
 }
 

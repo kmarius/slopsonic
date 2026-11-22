@@ -642,7 +642,7 @@ pub(super) async fn record_location(
         .inspect()
         .await?
         .ok_or("The downloaded file is unavailable")?;
-    (file.storage_root, file.relative_path) = local_access_projection(paths)?;
+    file.storage_root = local_access_projection(paths)?;
     file.completed_size = Some(
         metadata
             .size
@@ -761,12 +761,12 @@ pub(super) fn new_download_paths(
     paths
 }
 
-pub(super) fn local_access_projection(paths: &DownloadPaths) -> Result<(String, String), String> {
+pub(super) fn local_access_projection(paths: &DownloadPaths) -> Result<String, String> {
     let (root, relative) = paths.audio.projection(&paths.directory)?;
     if !normal_relative_path(Path::new(&relative)) {
         return Err("The downloaded track has an invalid relative storage path".into());
     }
-    Ok((root, relative))
+    Ok(root)
 }
 
 fn part_path(path: &Path) -> PathBuf {

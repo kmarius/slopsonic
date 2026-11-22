@@ -7,10 +7,8 @@ pub struct DownloadFile {
     pub encoding: String,
     pub revision: String,
     pub path: String,
-    pub managed: bool,
     pub owners: String,
     pub storage_root: String,
-    pub relative_path: String,
     pub completed_size: Option<i64>,
     pub retired_documents: String,
 }
@@ -132,9 +130,9 @@ async fn save_download_on(
     connection: &mut sqlx::SqliteConnection,
     file: &DownloadFile,
 ) -> LibraryResult<()> {
-    sqlx::query("INSERT INTO download_files(media_uri,encoding,revision,path,managed,owners,storage_root,relative_path,completed_size,retired_documents) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10) ON CONFLICT(media_uri,encoding) DO UPDATE SET revision=excluded.revision,path=excluded.path,managed=excluded.managed,owners=excluded.owners,storage_root=excluded.storage_root,relative_path=excluded.relative_path,completed_size=excluded.completed_size,retired_documents=excluded.retired_documents")
-        .bind(&file.media_uri).bind(&file.encoding).bind(&file.revision).bind(&file.path).bind(file.managed)
-        .bind(if file.owners.is_empty() { "[]" } else { &file.owners }).bind(&file.storage_root).bind(&file.relative_path).bind(file.completed_size)
+    sqlx::query("INSERT INTO download_files(media_uri,encoding,revision,path,owners,storage_root,completed_size,retired_documents) VALUES(?1,?2,?3,?4,?5,?6,?7,?8) ON CONFLICT(media_uri,encoding) DO UPDATE SET revision=excluded.revision,path=excluded.path,owners=excluded.owners,storage_root=excluded.storage_root,completed_size=excluded.completed_size,retired_documents=excluded.retired_documents")
+        .bind(&file.media_uri).bind(&file.encoding).bind(&file.revision).bind(&file.path)
+        .bind(if file.owners.is_empty() { "[]" } else { &file.owners }).bind(&file.storage_root).bind(file.completed_size)
         .bind(if file.retired_documents.is_empty() { "[]" } else { &file.retired_documents }).execute(connection).await?;
     Ok(())
 }
@@ -178,9 +176,7 @@ mod tests {
             encoding: "mp3".into(),
             revision: "1".into(),
             path: url::Url::from_file_path(&copy).unwrap().to_string(),
-            managed: true,
             storage_root: root.path().to_string_lossy().into_owned(),
-            relative_path: "download.mp3".into(),
             ..Default::default()
         };
         database.commit_download(&receipt).await.unwrap();
@@ -208,7 +204,6 @@ mod tests {
             path: url::Url::from_file_path(&alternative).unwrap().to_string(),
             completed_size: Some(11),
             storage_root: root.path().to_string_lossy().into_owned(),
-            relative_path: "download.ogg".into(),
             ..receipt.clone()
         };
         database.commit_download(&alternate).await.unwrap();

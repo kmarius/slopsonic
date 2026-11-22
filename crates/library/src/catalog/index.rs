@@ -26,9 +26,6 @@ pub(crate) async fn albums(
         return Ok(Vec::new());
     }
     let input = serde_json::to_string(keys)?;
-    // Observed file tags own the album even when its header is derived.
-    sqlx::query("UPDATE albums SET native_metadata=1,input_metadata=NULL WHERE native_metadata=0 AND album_key IN(SELECT value FROM json_each(?1)) AND EXISTS(SELECT 1 FROM tracks WHERE tracks.album_key=albums.album_key AND indexed=1 AND json_type(metadata,'$.album_tags')='object')")
-        .bind(&input).execute(&mut *connection).await?;
     for (relation, target, edge, array) in [
         (
             "album_artists",
@@ -68,29 +65,11 @@ pub(crate) async fn albums(
             first(local)
         )
     };
-    let raw_id = |native: &str, local: &str| {
-        format!(
-            "CASE WHEN album.input_metadata IS NOT NULL THEN json_extract(album.input_metadata,'$.{native}') ELSE (SELECT json_extract(member.metadata,'$.{local}') FROM tracks member INDEXED BY tracks_album_metadata_order_idx WHERE member.album_key=album.album_key AND member.indexed=1 AND json_extract(member.metadata,'$.{local}') IS NOT NULL ORDER BY member.source_path,member.disc_number,member.track_number,member.object_id LIMIT 1) END"
-        )
-    };
-    let group = raw_id(
-        "musicbrainz_release_group_id",
-        "musicbrainz_release_group_id",
-    );
-    let release = raw_id("musicbrainz_release_id", "musicbrainz_album_id");
-    let identity = format!(
-        "CASE WHEN ({group}) IS NOT NULL THEN 'release-group:'||({group}) WHEN ({release}) IS NOT NULL THEN 'release:'||({release}) END"
-    );
-    sqlx::query(sqlx::AssertSqlSafe(format!("UPDATE albums AS album SET release_identity={identity},release_lookup_identity=CASE WHEN release_lookup_identity IS ({identity}) THEN release_lookup_identity END WHERE album_key IN(SELECT value FROM json_each(?1)) AND (release_identity IS NOT ({identity}) OR release_lookup_identity IS NOT NULL AND release_lookup_identity IS NOT ({identity}))")))
-        .bind(&input).execute(&mut *connection).await?;
     let expected="SELECT album_key,release_type,row_number() OVER(PARTITION BY album_key ORDER BY path,disc,number,object_id,ordinal)-1 position FROM (
         SELECT *,row_number() OVER(PARTITION BY album_key,release_type ORDER BY path,disc,number,object_id,ordinal) first_credit FROM (
             SELECT album.album_key,item.value release_type,NULL path,0 disc,0 number,'' object_id,CAST(item.key AS INTEGER) ordinal,1 native
             FROM albums album JOIN json_each(json_extract(album.input_metadata,'$.release_types')) item
             WHERE album.album_key IN(SELECT value FROM json_each(?1)) AND album.input_metadata IS NOT NULL
-            UNION ALL SELECT track.album_key,item.value,track.source_path,track.disc_number,track.track_number,track.object_id,CAST(item.key AS INTEGER),0
-            FROM tracks track INDEXED BY tracks_album_order_idx JOIN albums album USING(album_key) JOIN json_each(track.metadata,'$.album_tags.release_types') item
-            WHERE track.album_key IN(SELECT value FROM json_each(?1)) AND track.indexed=1 AND album.input_metadata IS NULL
         )) WHERE native=1 OR first_credit=1";
     replace(
         connection,
@@ -102,7 +81,7 @@ pub(crate) async fn albums(
     .await?;
     let artist = "(SELECT group_concat(artist.name,', ' ORDER BY credit.position) FROM album_artists credit JOIN artists artist USING(artist_key) WHERE credit.album_key=album.album_key ORDER BY credit.position)";
     let added = "coalesce(unixepoch(json_extract(album.input_metadata,'$.date_added')),album.first_seen_at,(SELECT coalesce(unixepoch(member.date_added),member.first_seen_at) FROM tracks member INDEXED BY tracks_album_metadata_order_idx WHERE member.album_key=album.album_key AND member.indexed=1 ORDER BY member.source_path,member.disc_number,member.track_number,member.object_id LIMIT 1))";
-    let title = "coalesce(json_extract(album.input_metadata,'$.sort_text'),(SELECT coalesce(json_extract(member.metadata,'$.album_tags.sort_text'),member.display_album,'') FROM tracks member INDEXED BY tracks_album_metadata_order_idx WHERE member.album_key=album.album_key AND member.indexed=1 ORDER BY member.source_path,member.disc_number,member.track_number,member.object_id LIMIT 1),'')";
+    let title = "coalesce(json_extract(album.input_metadata,'$.sort_text'),(SELECT coalesce(member.display_album,'') FROM tracks member INDEXED BY tracks_album_metadata_order_idx WHERE member.album_key=album.album_key AND member.indexed=1 ORDER BY member.source_path,member.disc_number,member.track_number,member.object_id LIMIT 1),'')";
     let mut changed:Vec<i64>=sqlx::query_scalar(sqlx::AssertSqlSafe(format!("WITH ordering AS MATERIALIZED(
         SELECT album.album_key,{title} title_sort,(SELECT artist.sort_text FROM album_artists credit JOIN artists artist USING(artist_key) WHERE credit.album_key=album.album_key ORDER BY credit.position LIMIT 1) album_artist_sort,{} year_sort,{} release_sort,{added} added_sort FROM albums album WHERE album_key IN(SELECT value FROM json_each(?1)))
         UPDATE albums SET title_sort=ordering.title_sort,album_artist_sort=ordering.album_artist_sort,year_sort=ordering.year_sort,release_sort=ordering.release_sort,added_sort=ordering.added_sort FROM ordering WHERE albums.album_key=ordering.album_key AND (albums.title_sort,albums.album_artist_sort,albums.year_sort,albums.release_sort,albums.added_sort) IS NOT (ordering.title_sort,ordering.album_artist_sort,ordering.year_sort,ordering.release_sort,ordering.added_sort) RETURNING album_key",field("year","year"),field("release_date","release_date"))))
@@ -111,15 +90,13 @@ pub(crate) async fn albums(
     let genres = "(SELECT json_group_array(json_object('object_id',genre.object_id,'name',genre.name,'sort_text',genre.sort_text) ORDER BY credit.position) FROM album_genres credit JOIN genres genre USING(genre_key) WHERE credit.album_key=album.album_key)";
     let releases = "(SELECT json_group_array(release_type ORDER BY position) FROM album_release_types WHERE album_key=album.album_key)";
     let metadata = format!(
-        "jsonb_patch(coalesce(album.input_metadata,jsonb_object('title',coalesce({},''),'artist',coalesce({artist},''),'sort_text',coalesce({},''),'year',{},'release_date',{},'date_added',{},'musicbrainz_release_id',{},'musicbrainz_release_group_id',{},'is_compilation',json(CASE {} WHEN 1 THEN 'true' WHEN 0 THEN 'false' ELSE 'null' END),'album_artists',json({artists}),'genres',json({genres}))),jsonb_object('date_added',date(album.added_sort,'unixepoch'),'release_types',json({releases})))",
+        "jsonb_patch(coalesce(album.input_metadata,jsonb_object('title',coalesce({},''),'artist',coalesce({artist},''),'sort_text','','year',{},'release_date',{},'date_added',{},'musicbrainz_release_id',{},'musicbrainz_release_group_id',{},'is_compilation',json('null'),'album_artists',json({artists}),'genres',json({genres}))),jsonb_object('date_added',date(album.added_sort,'unixepoch'),'release_types',json({releases})))",
         first("album"),
-        first("album_tags.sort_text"),
         first("year"),
         first("release_date"),
         first("date_added"),
         first("musicbrainz_album_id"),
-        first("musicbrainz_release_group_id"),
-        first("album_tags.is_compilation")
+        first("musicbrainz_release_group_id")
     );
     let metadata_changed:Vec<i64>=sqlx::query_scalar(sqlx::AssertSqlSafe(format!("UPDATE albums AS album SET metadata={metadata} WHERE album_key IN(SELECT value FROM json_each(?1)) AND metadata IS NOT ({metadata}) RETURNING album_key")))
         .bind(&input).fetch_all(&mut *connection).await?;

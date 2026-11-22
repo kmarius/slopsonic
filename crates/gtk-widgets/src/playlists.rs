@@ -7,7 +7,7 @@ pub fn delete_playlist_dialog(name: &str, delete: impl Fn() + 'static) -> adw::A
     let resource = crate::ui_resource::PLAYLIST_DELETE_DIALOG_RESOURCE;
     let builder = crate::ui_resource::builder(resource);
     crate::objects!(builder, resource, { dialog: adw::AlertDialog });
-    dialog.set_body(&dialog.body().replace("{name}", name));
+    dialog.set_body(&format!("Delete \"{name}\"?"));
     dialog.connect_response(Some("delete"), move |_, _| delete());
     dialog
 }
@@ -16,11 +16,9 @@ pub fn delete_playlists_dialog(count: usize, delete: impl Fn() + 'static) -> adw
     let resource = crate::ui_resource::PLAYLIST_DELETE_DIALOG_RESOURCE;
     let builder = crate::ui_resource::builder(resource);
     crate::objects!(builder, resource, { selection_dialog: adw::AlertDialog });
-    selection_dialog.set_body(&slopsonic_core::text::fill_plural(
-        "Delete {count} playlist?",
-        "Delete {count} playlists?",
-        count as u64,
-        &[("count", &count.to_string())],
+    selection_dialog.set_body(&format!(
+        "Delete {}?",
+        slopsonic_core::text::count_text(count as u64, "playlist", "playlists")
     ));
     selection_dialog.connect_response(Some("delete"), move |_, _| delete());
     selection_dialog

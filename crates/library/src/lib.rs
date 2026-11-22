@@ -41,7 +41,6 @@ pub use activity::{ListenDeliveryTarget, ListenWrite, PendingListenDelivery};
 pub use artwork::{
     ArtworkCacheRetention, ArtworkCandidate, ArtworkImage, PlaylistArtworkManifest,
     RepresentativeArtworkScope, authored_playlist_artwork, automatic_playlist_artwork,
-    normalize_artwork_binding,
 };
 
 pub use catalog::{
@@ -66,8 +65,7 @@ pub use keys::{
     PlaylistKey, TrackKey, entity_parts, entity_uri, file_media_path,
 };
 pub use playlists::{
-    PlaylistAccess, PlaylistEditEntry, PlaylistEntryView, PlaylistEntryWrite, PlaylistGenreLink,
-    PlaylistRow,
+    PlaylistAccess, PlaylistEditEntry, PlaylistEntryView, PlaylistGenreLink, PlaylistRow,
 };
 pub use queue::{
     QUEUE_CONTEXT_LIMIT, QueueContextTitle, QueueEntries, QueueEntry, QueueLoad, QueueOrderUpdate,

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <requires lib="gtk" version="4.20"/>
 
   <template class="SlopsonicDetailShowcaseView" parent="GtkBox">
@@ -78,7 +78,7 @@
                         <child>
                           <object class="GtkMenuButton" id="genre_overflow">
                             <property name="icon-name">slopsonic-go-next-symbolic</property>
-                            <property name="tooltip-text" translatable="yes">Genres</property>
+                            <property name="tooltip-text">Genres</property>
                             <style><class name="flat"/><class name="circular"/></style>
                             <property name="popover">
                               <object class="GtkPopover">

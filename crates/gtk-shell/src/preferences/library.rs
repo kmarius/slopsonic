@@ -489,7 +489,6 @@ fn add_download_queue(group: &adw::PreferencesGroup, shell: &Rc<Preferences>, pa
     let owner = shell.products.downloads.clone();
     let jobs = SparseRouteModel::<String, downloads::DownloadQueueItem>::new(
         SparseSource::Query { count: 0 },
-        64,
         shell.products.runtime.clone(),
         Rc::new(move |_, range, _| {
             let owner = owner.clone();
@@ -757,7 +756,7 @@ fn confirm_remove_all_downloads(shell: &Rc<Preferences>, preferences_dialog: &ad
     let dialog = adw::AlertDialog::builder()
         .heading("Remove All Downloads".to_string())
         .body(
-            "Downloads from this source will be removed, and automatic rules will be turned off"
+            "Downloads from this server will be removed, and automatic rules will be turned off"
                 .to_string(),
         )
         .build();

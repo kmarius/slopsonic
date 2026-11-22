@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <object class="GtkPopover" id="popover">
     <style><class name="search-popover"/></style>
     <property name="position">bottom</property>
@@ -7,7 +7,7 @@
     <property name="autohide">false</property>
     <property name="child"><object class="GtkBox">
       <property name="orientation">vertical</property><property name="spacing">6</property>
-      <child><object class="GtkLabel" id="error"><property name="label" translatable="yes">Search unavailable</property><property name="margin-top">8</property><property name="margin-bottom">8</property><property name="visible">false</property><style><class name="dim-label"/></style></object></child>
+      <child><object class="GtkLabel" id="error"><property name="label">Search unavailable</property><property name="margin-top">8</property><property name="margin-bottom">8</property><property name="visible">false</property><style><class name="dim-label"/></style></object></child>
       <child><object class="GtkLabel" id="empty_results"><property name="ellipsize">end</property><property name="max-width-chars">40</property><property name="margin-top">8</property><property name="margin-bottom">8</property><property name="visible">false</property><style><class name="dim-label"/></style></object></child>
       <child><object class="GtkScrolledWindow" id="scroller">
         <property name="hscrollbar-policy">external</property>
@@ -29,13 +29,13 @@
   <object class="GtkListBoxRow" id="history_heading">
     <property name="selectable">false</property><property name="activatable">false</property><property name="focusable">false</property>
     <property name="child"><object class="GtkBox">
-      <child><object class="GtkLabel"><property name="label" translatable="yes">Recent searches</property><property name="xalign">0</property><property name="hexpand">true</property><style><class name="heading"/></style></object></child>
+      <child><object class="GtkLabel"><property name="label">Recent searches</property><property name="xalign">0</property><property name="hexpand">true</property><style><class name="heading"/></style></object></child>
     </object></property>
   </object>
   <object class="GtkListBoxRow" id="history_footer">
     <property name="selectable">false</property><property name="activatable">false</property><property name="focusable">false</property>
     <property name="child"><object class="GtkButton" id="clear_history">
-      <property name="label" translatable="yes">Clear</property>
+      <property name="label">Clear</property>
       <property name="halign">start</property><property name="focus-on-click">false</property>
       <style><class name="search-clear"/></style>
     </object></property>
@@ -44,9 +44,9 @@
     <property name="focusable">false</property><property name="selectable">false</property><property name="activatable">false</property>
     <property name="child"><object class="GtkBox">
       <property name="spacing">12</property>
-      <child><object class="GtkLabel"><property name="label" translatable="yes">Tracks</property><property name="xalign">0</property><property name="hexpand">true</property><style><class name="heading"/></style></object></child>
+      <child><object class="GtkLabel"><property name="label">Tracks</property><property name="xalign">0</property><property name="hexpand">true</property><style><class name="heading"/></style></object></child>
       <child><object class="GtkButton" id="tracks_more">
-        <property name="label" translatable="yes">View all</property>
+        <property name="label">View all</property>
         <property name="focus-on-click">false</property>
         <style><class name="flat"/><class name="search-category-link"/></style>
       </object></child>
@@ -56,9 +56,9 @@
     <property name="focusable">false</property><property name="selectable">false</property><property name="activatable">false</property>
     <property name="child"><object class="GtkBox">
       <property name="spacing">12</property>
-      <child><object class="GtkLabel"><property name="label" translatable="yes">Albums</property><property name="xalign">0</property><property name="hexpand">true</property><style><class name="heading"/></style></object></child>
+      <child><object class="GtkLabel"><property name="label">Albums</property><property name="xalign">0</property><property name="hexpand">true</property><style><class name="heading"/></style></object></child>
       <child><object class="GtkButton" id="albums_more">
-        <property name="label" translatable="yes">View all</property>
+        <property name="label">View all</property>
         <property name="focus-on-click">false</property>
         <style><class name="flat"/><class name="search-category-link"/></style>
       </object></child>
@@ -68,9 +68,9 @@
     <property name="focusable">false</property><property name="selectable">false</property><property name="activatable">false</property>
     <property name="child"><object class="GtkBox">
       <property name="spacing">12</property>
-      <child><object class="GtkLabel"><property name="label" translatable="yes">Artists</property><property name="xalign">0</property><property name="hexpand">true</property><style><class name="heading"/></style></object></child>
+      <child><object class="GtkLabel"><property name="label">Artists</property><property name="xalign">0</property><property name="hexpand">true</property><style><class name="heading"/></style></object></child>
       <child><object class="GtkButton" id="artists_more">
-        <property name="label" translatable="yes">View all</property>
+        <property name="label">View all</property>
         <property name="focus-on-click">false</property>
         <style><class name="flat"/><class name="search-category-link"/></style>
       </object></child>
@@ -80,9 +80,9 @@
     <property name="focusable">false</property><property name="selectable">false</property><property name="activatable">false</property>
     <property name="child"><object class="GtkBox">
       <property name="spacing">12</property>
-      <child><object class="GtkLabel"><property name="label" translatable="yes">Playlists</property><property name="xalign">0</property><property name="hexpand">true</property><style><class name="heading"/></style></object></child>
+      <child><object class="GtkLabel"><property name="label">Playlists</property><property name="xalign">0</property><property name="hexpand">true</property><style><class name="heading"/></style></object></child>
       <child><object class="GtkButton" id="playlists_more">
-        <property name="label" translatable="yes">View all</property>
+        <property name="label">View all</property>
         <property name="focus-on-click">false</property>
         <style><class name="flat"/><class name="search-category-link"/></style>
       </object></child>

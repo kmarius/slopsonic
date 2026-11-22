@@ -8,8 +8,6 @@ use slopsonic_core::settings::LibraryListSettings;
 
 use gtk_widgets::sparse_model::{SparseObjectModel, SparseRouteModel, SparseSource};
 
-const PLAYLIST_ENTRY_OVERSCAN: usize = 64;
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlaylistEntryProjectionRequest {
     pub query: library::MemberRead,
@@ -68,12 +66,7 @@ impl PlaylistEntryModel {
                 }) as std::pin::Pin<Box<dyn std::future::Future<Output = _> + Send>>
             },
         );
-        let sparse = SparseRouteModel::new(
-            SparseSource::Query { count },
-            PLAYLIST_ENTRY_OVERSCAN,
-            runtime,
-            load,
-        );
+        let sparse = SparseRouteModel::new(SparseSource::Query { count }, runtime, load);
         sparse.seed_matching_at(first_row_position, first_rows, |row| row.playlist_entry_key);
         Self {
             inner: Rc::new(PlaylistEntryModelState {

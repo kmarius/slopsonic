@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<interface domain="slopsonic">
+<interface>
   <object class="GtkScrolledWindow" id="scroll">
     <property name="hscrollbar-policy">never</property>
     <property name="min-content-height">160</property>
@@ -13,7 +13,7 @@
   </object>
   <object class="AdwActionRow" id="empty">
     <property name="name">download-queue</property>
-    <property name="title" translatable="yes">Nothing queued</property>
+    <property name="title">Nothing queued</property>
     <property name="focusable">true</property>
   </object>
 </interface>

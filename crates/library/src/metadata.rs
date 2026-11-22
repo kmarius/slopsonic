@@ -29,18 +29,8 @@ pub struct TrackMetadata {
     pub album_artists: Vec<ArtistCredit>,
     pub genres: Vec<TagReference>,
     pub moods: Vec<TagReference>,
-    pub album_tags: Option<AlbumTags>,
     pub source_loudness: Option<NativeGain>,
     pub album_loudness: Option<NativeGain>,
-}
-
-/// None on TrackMetadata means the old cache never observed raw album tags.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct AlbumTags {
-    pub sort_text: String,
-    pub is_compilation: Option<bool>,
-    pub release_types: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

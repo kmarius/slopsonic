@@ -563,7 +563,7 @@ pub fn go_to_context_submenu(group: &str, artist_names: &[String], has_album: bo
     for (index, artist_name) in artist_names.iter().enumerate() {
         append_menu_action(
             &menu,
-            &slopsonic_core::text::fill("Go to {artist}", &[("artist", artist_name)]),
+            &format!("Go to {artist_name}"),
             &if artist_names.len() == 1 {
                 format!("{group}.go-artist")
             } else {

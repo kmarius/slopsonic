@@ -14,7 +14,7 @@ pub(super) type SharedQueuedLoudness = Arc<Mutex<Option<TrackLoudness>>>;
 pub(super) struct AudioGraph {
     root: gst::Element,
     input: gst::Element,
-    effect_bins: [gst::Element; 1],
+    normalization_bin: gst::Element,
     output: gst::Element,
     sink: gst::Element,
     pub(super) gain: BaseTransform,
@@ -26,28 +26,17 @@ pub(super) struct AudioGraph {
     state: Arc<Mutex<AudioGraphState>>,
 }
 
-#[derive(Clone, Default)]
-struct AudioEffects {
-    volume: Option<gst::Element>,
-}
-
-impl AudioEffects {
-    fn stages(&self) -> [Option<&gst::Element>; 1] {
-        [self.volume.as_ref()]
-    }
-}
-
 struct AudioGraphState {
     settings: BackendAudioSettings,
-    effects: AudioEffects,
+    normalization: Option<gst::Element>,
     current_loudness: Option<TrackLoudness>,
     tags: gst::TagList,
-    pending: Option<(BackendAudioSettings, AudioEffects)>,
+    pending: Option<(BackendAudioSettings, Option<gst::Element>)>,
 }
 
 impl AudioGraphState {
     fn apply_loudness(&self) {
-        let Some(volume) = self.effects.volume.as_ref() else {
+        let Some(volume) = self.normalization.as_ref() else {
             return;
         };
         let gain = self
@@ -92,7 +81,7 @@ impl AudioGraph {
                     } else if let Some(buffer) = info.buffer_mut()
                         && new_segment.swap(false, Ordering::Relaxed)
                     {
-                        // The splitter otherwise delays a contiguous CUE segment until
+                        // The splitter otherwise delays a contiguous segment until
                         // its end, leaving downstream sinks clipping to the previous stop.
                         buffer.make_mut().set_flags(gst::BufferFlags::DISCONT);
                     }
@@ -170,9 +159,9 @@ impl AudioGraph {
                 gst::PadProbeReturn::Ok
             },
         );
-        let effects = prepare_effects(settings, &AudioEffects::default())?;
-        let effect_bins = [make_element("insertbin", "slopsonic-normalization-bin")?];
-        apply_effects(&effect_bins, &AudioEffects::default(), &effects);
+        let normalization = prepare_normalization(settings, None)?;
+        let normalization_bin = make_element("insertbin", "slopsonic-normalization-bin")?;
+        apply_normalization(&normalization_bin, None, normalization.as_ref());
         let floating = make_element("capsfilter", "slopsonic-normalization-floating")?;
         floating.set_property(
             "caps",
@@ -187,10 +176,15 @@ impl AudioGraph {
                 )
                 .build(),
         );
-        let elements = vec![convert_in.clone(), floating, split, effect_bins[0].clone()];
+        let elements = vec![
+            convert_in.clone(),
+            floating,
+            split,
+            normalization_bin.clone(),
+        ];
         let state = Arc::new(Mutex::new(AudioGraphState {
             settings: settings.clone(),
-            effects,
+            normalization,
             current_loudness,
             tags: gst::TagList::new(),
             pending: None,
@@ -217,7 +211,7 @@ impl AudioGraph {
             .map_err(|error| error.to_string())?;
         bin.add_pad(&ghost_sink)
             .map_err(|error| error.to_string())?;
-        let src_pad = effect_bins[0]
+        let src_pad = normalization_bin
             .static_pad("src")
             .ok_or_else(|| "audio chain is missing an output pad".to_string())?;
         let ghost_src = gst::GhostPad::with_target(&src_pad).map_err(|error| error.to_string())?;
@@ -229,7 +223,7 @@ impl AudioGraph {
         Ok(Self {
             root: bin.upcast(),
             input: convert_in,
-            effect_bins,
+            normalization_bin,
             output,
             sink: sink.upcast(),
             gain,
@@ -376,28 +370,34 @@ impl AudioGraph {
             .state
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let mut available = state.effects.clone();
-        if let Some((_, pending)) = state.pending.as_ref() {
-            available.volume = available.volume.or_else(|| pending.volume.clone());
-        }
-        let effects = prepare_effects(settings, &available)?;
+        let available = state.normalization.clone().or_else(|| {
+            state
+                .pending
+                .as_ref()
+                .and_then(|(_, pending)| pending.clone())
+        });
+        let normalization = prepare_normalization(settings, available)?;
         if state.pending.is_none()
-            && (state.effects.stages() == effects.stages()
+            && (state.normalization == normalization
                 || self.root.current_state() < gst::State::Paused)
         {
-            apply_effects(&self.effect_bins, &state.effects, &effects);
+            apply_normalization(
+                &self.normalization_bin,
+                state.normalization.as_ref(),
+                normalization.as_ref(),
+            );
             state.settings = settings.clone();
-            state.effects = effects;
+            state.normalization = normalization;
             state.apply_loudness();
             return Ok(true);
         }
         let scheduled = state.pending.is_some();
-        state.pending = Some((settings.clone(), effects));
+        state.pending = Some((settings.clone(), normalization));
         drop(state);
         if !scheduled {
             let state = Arc::clone(&self.state);
             let root = self.root.downgrade();
-            let bins = self.effect_bins.clone();
+            let bin = self.normalization_bin.clone();
             // Wait for the current push and its queries to finish. An IDLE probe
             // can run while a paused downstream queue still blocks a query.
             self.input
@@ -410,12 +410,12 @@ impl AudioGraph {
                     let mut state = state
                         .lock()
                         .unwrap_or_else(std::sync::PoisonError::into_inner);
-                    let Some((settings, effects)) = state.pending.take() else {
+                    let Some((settings, normalization)) = state.pending.take() else {
                         return gst::PadProbeReturn::Remove;
                     };
-                    apply_effects(&bins, &state.effects, &effects);
+                    apply_normalization(&bin, state.normalization.as_ref(), normalization.as_ref());
                     state.settings = settings;
-                    state.effects = effects;
+                    state.normalization = normalization;
                     state.apply_loudness();
                     pad.mark_reconfigure();
                     gst::PadProbeReturn::Remove
@@ -425,33 +425,31 @@ impl AudioGraph {
     }
 }
 
-fn prepare_effects(
+fn prepare_normalization(
     settings: &BackendAudioSettings,
-    available: &AudioEffects,
-) -> Result<AudioEffects, String> {
-    let volume = if settings.loudness_normalization == LoudnessNormalization::Off {
-        None
-    } else {
-        Some(match available.volume.as_ref() {
-            Some(element) => element.clone(),
-            None => make_element("volume", "slopsonic-loudness-normalization")?,
-        })
-    };
-    Ok(AudioEffects { volume })
+    available: Option<gst::Element>,
+) -> Result<Option<gst::Element>, String> {
+    if settings.loudness_normalization == LoudnessNormalization::Off {
+        return Ok(None);
+    }
+    available
+        .map_or_else(
+            || make_element("volume", "slopsonic-loudness-normalization"),
+            Ok,
+        )
+        .map(Some)
 }
 
-fn apply_effects(bins: &[gst::Element; 1], before: &AudioEffects, after: &AudioEffects) {
+fn apply_normalization(bin: &gst::Element, old: Option<&gst::Element>, new: Option<&gst::Element>) {
+    if old == new {
+        return;
+    }
     let no_callback = std::ptr::null_mut::<std::ffi::c_void>();
-    for ((bin, old), new) in bins.iter().zip(before.stages()).zip(after.stages()) {
-        if old == new {
-            continue;
-        }
-        if let Some(element) = old {
-            bin.emit_by_name::<()>("remove", &[element, &no_callback, &no_callback]);
-        }
-        if let Some(element) = new {
-            bin.emit_by_name::<()>("append", &[element, &no_callback, &no_callback]);
-        }
+    if let Some(element) = old {
+        bin.emit_by_name::<()>("remove", &[element, &no_callback, &no_callback]);
+    }
+    if let Some(element) = new {
+        bin.emit_by_name::<()>("append", &[element, &no_callback, &no_callback]);
     }
 }
 

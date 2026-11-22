@@ -21,7 +21,6 @@ use playback::{
 use slopsonic_core::runtime::{
     ScrobblingConnection, ScrobblingConnectionEvent, ScrobblingPreferences,
 };
-use slopsonic_core::text::fill;
 
 pub(super) type ScrobblingCredentialDrafts = Rc<RefCell<ScrobblingPreferences>>;
 
@@ -241,7 +240,7 @@ pub fn scrobbling_page(
                 &shell,
                 request,
                 "Failed to open Last.fm authorization: ",
-                fill("Couldn't connect to {service}", &[("service", "Last.fm")]),
+                "Couldn't connect to Last.fm",
             )
             .await
             {
@@ -297,7 +296,7 @@ pub fn scrobbling_page(
                 &shell,
                 ScrobblingConnection::LibreFm,
                 "Failed to open Libre.fm authorization: ",
-                fill("Couldn't connect to {service}", &[("service", "Libre.fm")]),
+                "Couldn't connect to Libre.fm",
             )
             .await
             {
@@ -452,7 +451,7 @@ pub fn audioscrobbler_connected_subtitle(username: &str) -> String {
     if username.is_empty() {
         "Connected".to_string()
     } else {
-        fill("Connected as {username}", &[("username", username)])
+        format!("Connected as {username}")
     }
 }
 pub fn inline_link_markup(before: &str, url: &str, label: &str, after: &str) -> String {
@@ -467,7 +466,7 @@ async fn connect_scrobbling(
     shell: &Rc<Preferences>,
     request: ScrobblingConnection,
     open_error: &'static str,
-    connection_error: String,
+    connection_error: &'static str,
 ) -> Result<String, String> {
     let events = shell.products.scrobbling.connect(request);
     while let Ok(event) = events.next().await {
@@ -488,11 +487,11 @@ async fn connect_scrobbling(
             ScrobblingConnectionEvent::Connected { username } => {
                 return Ok(username);
             }
-            ScrobblingConnectionEvent::TimedOut => return Err(connection_error.clone()),
+            ScrobblingConnectionEvent::TimedOut => return Err(connection_error.to_owned()),
             ScrobblingConnectionEvent::Failed(error) => return Err(error),
         }
     }
-    Err(connection_error)
+    Err(connection_error.to_owned())
 }
 pub fn playback_page(shell: &Rc<Preferences>) -> adw::PreferencesPage {
     let resource = crate::ui_resource::PLAYBACK_PREFERENCES_RESOURCE;
