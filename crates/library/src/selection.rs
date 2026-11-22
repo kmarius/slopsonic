@@ -190,15 +190,25 @@ impl Database {
         read: &ListRead,
         ranges: &[Range<usize>],
         cancellation: &ReadCancellation,
-    ) -> LibraryResult<Vec<Collection>> {
+    ) -> LibraryResult<Vec<(Collection, Option<String>)>> {
         let mut connection = self.acquire_general(cancellation).await?;
         let query = crate::query::list_query(read);
-        let rows: Vec<(i64,)> =
-            crate::query::selected_rows_on(&mut connection, &query, &query.key, Some(ranges), None)
-                .await?;
+        // Playlists have no media URI column.
+        let media_uri = match (&read.kind, query.key.split_once('.')) {
+            (ListKind::Playlists, _) | (_, None) => "NULL".to_owned(),
+            (_, Some((table, _))) => format!("{table}.media_uri"),
+        };
+        let rows: Vec<(i64, Option<String>)> = crate::query::selected_rows_on(
+            &mut connection,
+            &query,
+            &format!("{},{media_uri}", query.key),
+            Some(ranges),
+            None,
+        )
+        .await?;
         Ok(rows
             .into_iter()
-            .map(|(key,)| parent_collection(read, key))
+            .map(|(key, media_uri)| (parent_collection(read, key), media_uri))
             .collect())
     }
 

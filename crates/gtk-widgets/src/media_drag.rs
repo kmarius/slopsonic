@@ -43,7 +43,12 @@ impl CollectionTargets {
             Self::Parents(reads) => {
                 let mut collections = Vec::new();
                 for (read, ranges) in reads {
-                    collections.extend(selected_parent_collections(database, read, ranges).await?);
+                    collections.extend(
+                        selected_parent_collections(database, read, ranges)
+                            .await?
+                            .into_iter()
+                            .map(|(collection, _)| collection),
+                    );
                 }
                 Ok(collections)
             }
@@ -56,7 +61,9 @@ impl CollectionTargets {
                 let mut targets = Vec::new();
                 for (read, ranges) in reads {
                     let collections = selected_parent_collections(database, read, ranges).await?;
-                    targets.extend(collections.into_iter().map(collection_play_request));
+                    targets.extend(collections.into_iter().map(|(collection, media_uri)| {
+                        collection_target(collection, media_uri.as_deref())
+                    }));
                 }
                 Ok(targets)
             }
@@ -68,7 +75,7 @@ async fn selected_parent_collections(
     database: &library::Database,
     read: &library::ListRead,
     ranges: &[Range<usize>],
-) -> Result<Vec<library::Collection>, String> {
+) -> Result<Vec<(library::Collection, Option<String>)>, String> {
     let cancel = library::ReadCancellation::new();
     database
         .selected_collections(read, ranges, &cancel)
@@ -674,16 +681,52 @@ async fn prepare_live_collection(
         _ => None,
     }
     .ok_or_else(|| "Collection is no longer available".to_string())?;
-    let kind = match &scope {
+    Ok(collection_target(scope, Some(media_uri)))
+}
+
+/// Album and artist contexts use the media URI, matching `album_play_request`/`artist_play_request`.
+fn collection_target(collection: library::Collection, media_uri: Option<&str>) -> PlayRequest {
+    let kind = match &collection {
         library::Collection::Album(_) => "album",
-        _ => "artist",
+        library::Collection::Artist {
+            album_artist: true, ..
+        } => "album-artist",
+        library::Collection::Artist { .. } => "artist",
+        _ => return collection_play_request(collection),
     };
-    Ok(collection_play_request(scope).with_context(format!("{kind}:{media_uri}").into()))
+    let request = collection_play_request(collection);
+    match media_uri {
+        Some(media_uri) => request.with_context(format!("{kind}:{media_uri}").into()),
+        None => request,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn collection_targets_use_media_uri_contexts_for_albums_and_artists() {
+        let album = library::Collection::Album(library::AlbumKey::from_raw(3));
+        let artist = |album_artist| library::Collection::Artist {
+            key: library::ArtistKey::from_raw(4),
+            album_artist,
+        };
+        for (collection, expected) in [
+            (album, "album:uri"),
+            (artist(false), "artist:uri"),
+            (artist(true), "album-artist:uri"),
+        ] {
+            assert_eq!(
+                collection_target(collection, Some("uri")).context(),
+                Some(expected)
+            );
+        }
+        let genre = library::Collection::Genre(library::GenreKey::from_raw(5));
+        assert_eq!(
+            collection_target(genre.clone(), Some("uri")).context(),
+            collection_play_request(genre).context()
+        );
+    }
     #[test]
     fn playlist_drag_value_roundtrips_the_media_uris() {
         let expected = std::sync::Arc::<[String]>::from([
